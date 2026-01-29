@@ -43,8 +43,8 @@ export default function SalesOrderPage() {
   const [selectedCompany, setSelectedCompany] = useState('');
   const [formData, setFormData] = useState({
     customer: '',
-    transaction_date: new Date().toISOString().split('T')[0],
-    delivery_date: new Date().toISOString().split('T')[0],
+    transaction_date: '',
+    delivery_date: '',
     sales_person: '',
     items: [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0, warehouse: '', stock_uom: '', available_stock: 0 }],
   });
@@ -203,6 +203,20 @@ export default function SalesOrderPage() {
   const handleRemoveItem = (index: number) => {
     const newItems = formData.items.filter((_, i) => i !== index);
     setFormData({ ...formData, items: newItems });
+  };
+
+  const resetForm = () => {
+    const today = new Date().toISOString().split('T')[0];
+    setFormData({
+      customer: '',
+      transaction_date: today,
+      delivery_date: today,
+      sales_person: '',
+      items: [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0, warehouse: '', stock_uom: '', available_stock: 0 }],
+    });
+    setError('');
+    setEditingOrder(null);
+    setCurrentOrderStatus('');
   };
 
   const handleItemChange = (index: number, field: string, value: string | number) => {
@@ -370,6 +384,25 @@ export default function SalesOrderPage() {
         body: JSON.stringify(orderPayload),
       });
 
+      if (response.ok) {
+        const result = await response.json();
+        console.log('Order created successfully:', result);
+        
+        // Reset form and close on success
+        resetForm();
+        setShowForm(false);
+        
+        // Refresh orders list
+        fetchOrders();
+        
+        // Show success message (optional)
+        alert('Sales Order created successfully!');
+      } else {
+        const errorData = await response.json();
+        setError(errorData.error || 'Failed to create sales order');
+      }
+    } catch (error) {
+      console.error('Error creating order:', error);
       setError('An error occurred. Please try again.');
     } finally {
       setFormLoading(false);
@@ -389,7 +422,10 @@ export default function SalesOrderPage() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-gray-900">Sales Orders</h1>
         <button
-          onClick={() => setShowForm(true)}
+          onClick={() => {
+            resetForm();
+            setShowForm(true);
+          }}
           className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
         >
           New Sales Order
@@ -460,7 +496,7 @@ export default function SalesOrderPage() {
               <div className="grid grid-cols-2 gap-4 mb-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
-                    Customer
+                    Customer <span className="text-red-500">*</span>
                   </label>
                   <div className="flex mt-1">
                     <input
@@ -499,7 +535,7 @@ export default function SalesOrderPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
-                    Delivery Date
+                    Delivery Date <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="date"
@@ -513,7 +549,7 @@ export default function SalesOrderPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
-                    Sales Person
+                    Sales Person <span className="text-red-500">*</span>
                   </label>
                   <div className="flex mt-1">
                     <input
@@ -555,7 +591,7 @@ export default function SalesOrderPage() {
                     <div className="grid grid-cols-12 gap-2">
                       <div className="col-span-2">
                         <label className="block text-xs font-medium text-gray-700">
-                          Item Code
+                          Item Code <span className="text-red-500">*</span>
                         </label>
                         <div className="flex mt-1">
                           <input
@@ -580,7 +616,7 @@ export default function SalesOrderPage() {
                       </div>
                       <div className="col-span-3">
                         <label className="block text-xs font-medium text-gray-700">
-                          Item Name
+                          Item Name <span className="text-red-500">*</span>
                         </label>
                         <div className="flex mt-1">
                           <input
@@ -635,7 +671,7 @@ export default function SalesOrderPage() {
                       </div>
                       <div className="col-span-1">
                         <label className="block text-xs font-medium text-gray-700">
-                          Qty
+                          Qty <span className="text-red-500">*</span>
                         </label>
                         <input
                           type="number"
@@ -696,10 +732,33 @@ export default function SalesOrderPage() {
                 ))}
               </div>
 
+              {/* Totals Section */}
+              <div className="border-t border-gray-200 pt-4">
+                <div className="flex justify-end">
+                  <div className="grid grid-cols-2 gap-8 text-sm">
+                    <div className="text-right">
+                      <div className="text-gray-600">Total Quantity:</div>
+                      <div className="font-semibold text-gray-900">
+                        {formData.items.reduce((sum, item) => sum + item.qty, 0).toLocaleString('id-ID')}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-gray-600">Total Amount:</div>
+                      <div className="font-semibold text-lg text-gray-900">
+                        Rp {formData.items.reduce((sum, item) => sum + item.amount, 0).toLocaleString('id-ID')}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <div className="flex justify-end space-x-3">
                 <button
                   type="button"
-                  onClick={() => setShowForm(false)}
+                  onClick={() => {
+                    resetForm();
+                    setShowForm(false);
+                  }}
                   className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400"
                 >
                   Cancel
