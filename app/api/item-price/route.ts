@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const itemCode = searchParams.get('item_code');
-  const priceList = searchParams.get('price_list') || 'Standar Pembelian';
+  const priceList = searchParams.get('price_list') || 'Standard Jual';
   // Get company from query parameter or use default
   const company = searchParams.get('company') || 'Entitas 2020 (Demo)';
 
