@@ -22,9 +22,6 @@ interface OrderItem {
   qty: number;
   rate: number;
   amount: number;
-  warehouse: string;
-  stock_uom: string;
-  available_stock: number;
 }
 
 export default function SalesOrderPage() {
@@ -44,7 +41,7 @@ export default function SalesOrderPage() {
     transaction_date: new Date().toISOString().split('T')[0],
     delivery_date: new Date().toISOString().split('T')[0],
     sales_person: '',
-    items: [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0, warehouse: '', stock_uom: '', available_stock: 0 }],
+    items: [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0 }],
   });
   const [formLoading, setFormLoading] = useState(false);
   const [error, setError] = useState('');
@@ -154,7 +151,7 @@ export default function SalesOrderPage() {
       transaction_date: order.transaction_date,
       delivery_date: order.delivery_date,
       sales_person: order.sales_person || '',
-      items: [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0, warehouse: '', stock_uom: '', available_stock: 0 }],
+      items: [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0 }],
     });
     setShowForm(true);
   };
@@ -193,7 +190,7 @@ export default function SalesOrderPage() {
       ...formData,
       items: [
         ...formData.items,
-        { item_code: '', item_name: '', qty: 1, rate: 0, amount: 0, warehouse: '', stock_uom: '', available_stock: 0 },
+        { item_code: '', item_name: '', qty: 1, rate: 0, amount: 0 },
       ],
     });
   };
@@ -218,110 +215,15 @@ export default function SalesOrderPage() {
     setFormData({ ...formData, customer: customer.name });
   };
 
-  const handleItemSelect = async (item: { item_code: string; item_name: string; stock_uom?: string }) => {
-    console.log('Item selected:', item);
+  const handleItemSelect = (item: { item_code: string; item_name: string }) => {
     if (currentItemIndex !== null) {
       const newItems = [...formData.items];
-      
-      // Fetch item price tanpa company filter (company tidak diizinkan di ERPNext)
-      let rate = 0;
-      try {
-        const priceResponse = await fetch(`/api/item-price?item_code=${item.item_code}`);
-        const priceResult = await priceResponse.json();
-        
-        if (priceResult.success) {
-          rate = priceResult.data.price_list_rate;
-          console.log('Item price fetched:', priceResult.data);
-        } else {
-          console.log('No price found, using default rate 0');
-        }
-      } catch (error) {
-        console.error('Failed to fetch item price:', error);
-      }
-      
-      // Get current item to preserve existing fields
-      const currentItem = formData.items[currentItemIndex];
-      console.log('Current item before update:', currentItem);
-      
       newItems[currentItemIndex] = {
-        ...currentItem, // Preserve all existing fields from current form state
+        ...newItems[currentItemIndex],
         item_code: item.item_code,
         item_name: item.item_name,
-        stock_uom: item.stock_uom || '',
-        rate: rate,
       };
-      // Update amount
-      newItems[currentItemIndex].amount = newItems[currentItemIndex].qty * newItems[currentItemIndex].rate;
-      
-      console.log('Updated item before stock check:', newItems[currentItemIndex]);
-      
       setFormData({ ...formData, items: newItems });
-      
-      // Check stock for selected item - pass the updated item
-      checkItemStock(item.item_code, currentItemIndex, newItems[currentItemIndex]);
-    }
-  };
-
-  const checkItemStock = async (itemCode: string, itemIndex: number, currentItem: any) => {
-    console.log('Checking stock for item:', itemCode, 'at index:', itemIndex);
-    console.log('Current item passed to stock check:', currentItem);
-    
-    try {
-      const response = await fetch(`/api/stock-check?item_code=${itemCode}`);
-      const data = await response.json();
-      
-      console.log('Stock check response:', data);
-      
-      if (!data.error && data.length > 0) {
-        // Find warehouse with highest available stock
-        const bestWarehouse = data.reduce((prev: any, current: any) => 
-          (prev.available >= current.available) ? prev : current
-        );
-        
-        console.log('Best warehouse:', bestWarehouse);
-        
-        // Update item with warehouse info
-        const updatedItem = {
-          ...currentItem, // Use the passed item instead of formData
-          warehouse: bestWarehouse.warehouse,
-          available_stock: bestWarehouse.available,
-        };
-        
-        console.log('Updated item with warehouse:', updatedItem);
-        
-        // Update form data with the updated item
-        setFormData(prev => ({
-          ...prev,
-          items: prev.items.map((item, index) => 
-            index === itemIndex ? updatedItem : item
-          )
-        }));
-        
-        console.log('Form data updated with warehouse');
-      } else {
-        console.log('No available stock data found, using first warehouse from stock data');
-        
-        // Set default warehouse
-        const defaultWarehouse = data.length > 0 ? data[0].warehouse : 'Stores - E1D';
-        const actualStock = data.length > 0 ? data[0].available : 0;
-        
-        const updatedItem = {
-          ...currentItem, // Use the passed item instead of formData
-          warehouse: defaultWarehouse,
-          available_stock: actualStock,
-        };
-        
-        setFormData(prev => ({
-          ...prev,
-          items: prev.items.map((item, index) => 
-            index === itemIndex ? updatedItem : item
-          )
-        }));
-        
-        console.log('Set default warehouse from stock database data');
-      }
-    } catch (error) {
-      console.error('Stock check failed:', error);
     }
   };
 
@@ -352,7 +254,6 @@ export default function SalesOrderPage() {
           qty: item.qty,
           rate: item.rate,
           amount: item.amount,
-          warehouse: item.warehouse,
         })),
       };
 
@@ -364,6 +265,22 @@ export default function SalesOrderPage() {
         body: JSON.stringify(orderPayload),
       });
 
+      const data = await response.json();
+
+      if (data.success) {
+        setShowForm(false);
+        setFormData({
+          customer: '',
+          transaction_date: new Date().toISOString().split('T')[0],
+          delivery_date: new Date().toISOString().split('T')[0],
+          sales_person: '',
+          items: [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0 }],
+        });
+        fetchOrders();
+      } else {
+        setError(data.message);
+      }
+    } catch (err) {
       setError('An error occurred. Please try again.');
     } finally {
       setFormLoading(false);
@@ -546,7 +463,7 @@ export default function SalesOrderPage() {
 
                 {formData.items.map((item, index) => (
                   <div key={index} className="border border-gray-200 rounded-md p-4 mb-2">
-                    <div className="grid grid-cols-7 gap-2">
+                    <div className="grid grid-cols-5 gap-2">
                       <div>
                         <label className="block text-xs font-medium text-gray-700">
                           Item Code
@@ -599,25 +516,6 @@ export default function SalesOrderPage() {
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-700">
-                          Warehouse
-                        </label>
-                        <input
-                          type="text"
-                          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                          value={item.warehouse}
-                          onChange={(e) =>
-                            handleItemChange(index, 'warehouse', e.target.value)
-                          }
-                          placeholder="Auto-select"
-                        />
-                        {item.available_stock > 0 && (
-                          <div className="text-xs text-green-600 mt-1">
-                            {item.available_stock} available
-                          </div>
-                        )}
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-700">
                           Quantity
                         </label>
                         <input
@@ -629,18 +527,6 @@ export default function SalesOrderPage() {
                           onChange={(e) =>
                             handleItemChange(index, 'qty', parseFloat(e.target.value) || 0)
                           }
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-700">
-                          UoM
-                        </label>
-                        <input
-                          type="text"
-                          readOnly
-                          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm bg-gray-50"
-                          value={item.stock_uom}
-                          placeholder="Auto"
                         />
                       </div>
                       <div>

@@ -96,7 +96,8 @@ export default function Navbar() {
         { name: 'Sales Orders', href: '/sales-order' },
         { name: 'Delivery Notes', href: '/delivery-note' },
         { name: 'Sales Invoices', href: '/invoice' },
-        { name: 'Payments', href: '/payment' }
+        { name: 'Payments', href: '/payment' },
+        { name: 'Commission Dashboard', href: '/commission' }
       ]
     },
     {

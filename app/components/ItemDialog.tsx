@@ -7,24 +7,53 @@ interface Item {
   item_name: string;
   description?: string;
   stock_uom?: string;
+  formatted_price?: string;
+  actual_qty?: number;
+  reserved_qty?: number;
+  projected_qty?: number;
+}
+
+interface StockInfo {
+  warehouse: string;
+  available: number;
+  actual: number;
+  reserved: number;
 }
 
 interface ItemDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onSelect: (item: Item) => void;
+  showStock?: boolean;
 }
 
-export default function ItemDialog({ isOpen, onClose, onSelect }: ItemDialogProps) {
+export default function ItemDialog({ isOpen, onClose, onSelect, showStock = false }: ItemDialogProps) {
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [stockInfo, setStockInfo] = useState<{ [key: string]: StockInfo[] }>({});
+  const [selectedWarehouse, setSelectedWarehouse] = useState('');
 
   useEffect(() => {
     if (isOpen) {
       fetchItems();
     }
   }, [isOpen, searchTerm]);
+
+  const checkStock = async (itemCode: string) => {
+    if (!showStock) return;
+    
+    try {
+      const res = await fetch(`/api/stock-check?item_code=${itemCode}`);
+      const data = await res.json();
+      
+      if (!data.error) {
+        setStockInfo(prev => ({ ...prev, [itemCode]: data }));
+      }
+    } catch (error) {
+      console.error('Stock check failed:', error);
+    }
+  };
 
   const fetchItems = async () => {
     setLoading(true);
@@ -39,6 +68,12 @@ export default function ItemDialog({ isOpen, onClose, onSelect }: ItemDialogProp
       
       if (data.success) {
         setItems(data.data || []);
+        // Check stock for each item if stock info is enabled
+        if (showStock) {
+          data.data?.forEach((item: Item) => {
+            checkStock(item.item_code);
+          });
+        }
       }
     } catch (error) {
       console.error('Error fetching items:', error);
@@ -91,26 +126,59 @@ export default function ItemDialog({ isOpen, onClose, onSelect }: ItemDialogProp
             </div>
           ) : (
             <div className="space-y-2">
-              {items.map((item) => (
-                <div
-                  key={item.item_code}
-                  onClick={() => handleSelect(item)}
-                  className="border border-gray-200 rounded-md p-3 hover:bg-gray-50 cursor-pointer transition-colors"
-                >
-                  <div className="flex justify-between">
-                    <div className="flex-1">
-                      <div className="font-medium text-gray-900">{item.item_name}</div>
-                      <div className="text-sm text-gray-600">Code: {item.item_code}</div>
-                      {item.description && (
-                        <div className="text-sm text-gray-500 mt-1">{item.description}</div>
-                      )}
+              {items.map((item) => {
+                const itemStock = stockInfo[item.item_code] || [];
+                const totalAvailable = itemStock.reduce((sum, stock) => sum + stock.available, 0);
+                
+                return (
+                  <div
+                    key={item.item_code}
+                    onClick={() => handleSelect(item)}
+                    className="border border-gray-200 rounded-md p-3 hover:bg-gray-50 cursor-pointer transition-colors"
+                  >
+                    <div className="flex justify-between">
+                      <div className="flex-1">
+                        <div className="font-medium text-gray-900">{item.item_name}</div>
+                        <div className="text-sm text-gray-600">Code: {item.item_code}</div>
+                        {item.description && (
+                          <div className="text-sm text-gray-500 mt-1">{item.description}</div>
+                        )}
+                        {item.formatted_price && (
+                          <div className="text-sm font-medium text-green-600 mt-1">{item.formatted_price}</div>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        {item.stock_uom && (
+                          <div className="text-sm text-gray-500">UOM: {item.stock_uom}</div>
+                        )}
+                        {showStock && itemStock.length > 0 && (
+                          <div className="text-sm mt-1">
+                            <span className={`font-medium ${totalAvailable > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              {totalAvailable} available
+                            </span>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    {item.stock_uom && (
-                      <div className="text-sm text-gray-500">UOM: {item.stock_uom}</div>
+                    
+                    {showStock && itemStock.length > 0 && (
+                      <div className="mt-2 pt-2 border-t border-gray-100">
+                        <div className="text-xs text-gray-500 mb-1">Stock by Warehouse:</div>
+                        <div className="grid grid-cols-2 gap-2">
+                          {itemStock.map((stock, idx) => (
+                            <div key={idx} className="text-xs flex justify-between">
+                              <span className="text-gray-600">{stock.warehouse}:</span>
+                              <span className={stock.available > 0 ? 'text-green-600' : 'text-red-600'}>
+                                {stock.available}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
