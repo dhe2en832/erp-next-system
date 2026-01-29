@@ -25,6 +25,8 @@ interface OrderItem {
   warehouse: string;
   stock_uom: string;
   available_stock: number;
+  actual_stock?: number;
+  reserved_stock?: number;
 }
 
 export default function SalesOrderPage() {
@@ -285,6 +287,8 @@ export default function SalesOrderPage() {
           ...currentItem, // Use the passed item instead of formData
           warehouse: bestWarehouse.warehouse,
           available_stock: bestWarehouse.available,
+          actual_stock: bestWarehouse.actual,
+          reserved_stock: bestWarehouse.reserved,
         };
         
         console.log('Updated item with warehouse:', updatedItem);
@@ -309,6 +313,8 @@ export default function SalesOrderPage() {
           ...currentItem, // Use the passed item instead of formData
           warehouse: defaultWarehouse,
           available_stock: actualStock,
+          actual_stock: data.length > 0 ? data[0].actual : 0,
+          reserved_stock: data.length > 0 ? data[0].reserved : 0,
         };
         
         setFormData(prev => ({
@@ -546,8 +552,8 @@ export default function SalesOrderPage() {
 
                 {formData.items.map((item, index) => (
                   <div key={index} className="border border-gray-200 rounded-md p-4 mb-2">
-                    <div className="grid grid-cols-7 gap-2">
-                      <div>
+                    <div className="grid grid-cols-12 gap-2">
+                      <div className="col-span-2">
                         <label className="block text-xs font-medium text-gray-700">
                           Item Code
                         </label>
@@ -572,7 +578,7 @@ export default function SalesOrderPage() {
                           </button>
                         </div>
                       </div>
-                      <div>
+                      <div className="col-span-3">
                         <label className="block text-xs font-medium text-gray-700">
                           Item Name
                         </label>
@@ -597,28 +603,39 @@ export default function SalesOrderPage() {
                           </button>
                         </div>
                       </div>
-                      <div>
+                      <div className="col-span-2">
                         <label className="block text-xs font-medium text-gray-700">
                           Warehouse
                         </label>
                         <input
                           type="text"
-                          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                          readOnly
+                          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm bg-gray-50"
                           value={item.warehouse}
-                          onChange={(e) =>
-                            handleItemChange(index, 'warehouse', e.target.value)
-                          }
                           placeholder="Auto-select"
                         />
-                        {item.available_stock > 0 && (
-                          <div className="text-xs text-green-600 mt-1">
-                            {item.available_stock} available
+                        {item.warehouse && (
+                          <div className="mt-1 p-1 bg-blue-50 border border-blue-200 rounded text-xs">
+                            <div className="flex items-center justify-between">
+                              <span className="text-blue-700">
+                                Avail: <span className="font-semibold">{item.available_stock || 0}</span>
+                              </span>
+                              <span className="text-gray-600">
+                                A:{item.actual_stock || 0} R:{item.reserved_stock || 0}
+                              </span>
+                            </div>
+                            {item.available_stock <= 0 && (
+                              <div className="text-xs text-orange-600">⚠️ Out of stock</div>
+                            )}
+                            {item.available_stock > 0 && item.available_stock < 10 && (
+                              <div className="text-xs text-yellow-600">⚠️ Low stock ({item.available_stock})</div>
+                            )}
                           </div>
                         )}
                       </div>
-                      <div>
+                      <div className="col-span-1">
                         <label className="block text-xs font-medium text-gray-700">
-                          Quantity
+                          Qty
                         </label>
                         <input
                           type="number"
@@ -631,7 +648,7 @@ export default function SalesOrderPage() {
                           }
                         />
                       </div>
-                      <div>
+                      <div className="col-span-1">
                         <label className="block text-xs font-medium text-gray-700">
                           UoM
                         </label>
@@ -643,30 +660,26 @@ export default function SalesOrderPage() {
                           placeholder="Auto"
                         />
                       </div>
-                      <div>
+                      <div className="col-span-1">
                         <label className="block text-xs font-medium text-gray-700">
                           Rate
                         </label>
                         <input
-                          type="number"
-                          required
-                          min="0"
-                          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                          value={item.rate}
-                          onChange={(e) =>
-                            handleItemChange(index, 'rate', parseFloat(e.target.value) || 0)
-                          }
+                          type="text"
+                          readOnly
+                          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm bg-gray-50 text-right"
+                          value={item.rate ? item.rate.toLocaleString('id-ID') : '0'}
                         />
                       </div>
-                      <div>
+                      <div className="col-span-2">
                         <label className="block text-xs font-medium text-gray-700">
                           Amount
                         </label>
                         <input
-                          type="number"
+                          type="text"
                           readOnly
-                          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm bg-gray-50"
-                          value={item.amount}
+                          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm bg-gray-50 text-right"
+                          value={item.amount ? item.amount.toLocaleString('id-ID') : '0'}
                         />
                       </div>
                     </div>
