@@ -34,9 +34,21 @@ export async function GET(
     const cookies = request.cookies;
     const sid = cookies.get('sid')?.value;
 
-    if (!sid) {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    // Prioritize API Key authentication to avoid CSRF issues
+    const apiKey = process.env.ERP_API_KEY;
+    const apiSecret = process.env.ERP_API_SECRET;
+    
+    if (apiKey && apiSecret) {
+      headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
+    } else if (sid) {
+      headers['Cookie'] = `sid=${sid}`;
+    } else {
       return NextResponse.json(
-        { success: false, message: 'Unauthorized' },
+        { success: false, message: 'No authentication available' },
         { status: 401 }
       );
     }
@@ -44,16 +56,10 @@ export async function GET(
     console.log('API Route - Fetching order:', name);
     
     // Use ERPNext's form.load.getdoc method instead of resource endpoint
-    const response = await fetch(
-      `${ERPNEXT_API_URL}/api/method/frappe.desk.form.load.getdoc?doctype=Sales%20Order&name=${encodeURIComponent(name.trim())}`,
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Cookie': `sid=${sid}`,
-        },
-      }
-    );
+    const response = await fetch(`${ERPNEXT_API_URL}/api/method/frappe.desk.form.load.getdoc?doctype=Sales%20Order&name=${encodeURIComponent(name.trim())}`, {
+      method: 'GET',
+      headers,
+    });
 
     console.log('API Route - ERPNext Response status:', response.status);
 

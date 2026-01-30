@@ -13,7 +13,12 @@ interface SalesOrder {
   grand_total: number;
   status: string;
   delivery_date: string;
-  sales_person?: string;
+  creation?: string; // Tambahkan creation field
+}
+
+interface SalesTeamMember {
+  sales_person: string;
+  allocated_percentage: number;
 }
 
 interface OrderItem {
@@ -25,8 +30,8 @@ interface OrderItem {
   warehouse: string;
   stock_uom: string;
   available_stock: number;
-  actual_stock?: number;
-  reserved_stock?: number;
+  actual_stock: number;
+  reserved_stock: number;
 }
 
 export default function SalesOrderPage() {
@@ -46,7 +51,7 @@ export default function SalesOrderPage() {
     transaction_date: '',
     delivery_date: '',
     sales_person: '',
-    items: [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0, warehouse: '', stock_uom: '', available_stock: 0 }],
+    items: [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0, warehouse: '', stock_uom: '', available_stock: 0, actual_stock: 0, reserved_stock: 0 }],
   });
   const [formLoading, setFormLoading] = useState(false);
   const [error, setError] = useState('');
@@ -54,6 +59,7 @@ export default function SalesOrderPage() {
   const [showItemDialog, setShowItemDialog] = useState(false);
   const [showSalesPersonDialog, setShowSalesPersonDialog] = useState(false);
   const [currentItemIndex, setCurrentItemIndex] = useState<number | null>(null);
+  const [salesTeam, setSalesTeam] = useState<SalesTeamMember[]>([]);
   const router = useRouter();
 
   useEffect(() => {
@@ -81,6 +87,37 @@ export default function SalesOrderPage() {
   useEffect(() => {
     fetchOrders();
   }, [dateFilter, nameFilter]); // Remove selectedCompany from dependencies
+
+  // Set default dates saat component mount
+  useEffect(() => {
+    // Gunakan timezone lokal untuk mendapatkan tanggal yang benar
+    const today = new Date();
+    const offset = today.getTimezoneOffset();
+    const localDate = new Date(today.getTime() - (offset * 60 * 1000));
+    const todayString = localDate.toISOString().split('T')[0];
+    
+    console.log('Setting default dates to:', todayString);
+    console.log('Current system date:', today.toISOString());
+    console.log('Timezone offset:', offset, 'minutes');
+    
+    setFormData(prev => ({
+      ...prev,
+      transaction_date: todayString,
+      delivery_date: todayString,
+    }));
+  }, []); // Run only once on mount
+
+  // Update default dates saat buka form baru
+  useEffect(() => {
+    const today = new Date().toISOString().split('T')[0];
+    if (!editingOrder) { // Hanya update jika tidak sedang edit
+      setFormData(prev => ({
+        ...prev,
+        transaction_date: prev.transaction_date || today,
+        delivery_date: prev.delivery_date || today,
+      }));
+    }
+  }, [showForm, editingOrder]); // Trigger saat form dibuka/tutup
 
   const fetchOrders = async () => {
     // Clear previous error when starting to fetch
@@ -123,42 +160,63 @@ export default function SalesOrderPage() {
       // Build filters array for ERPNext - use companyToUse instead of selectedCompany
       const filters = [["company", "=", companyToUse]];
       
-      if (dateFilter.from_date) filters.push(["transaction_date", ">=", dateFilter.from_date]);
-      if (dateFilter.to_date) filters.push(["transaction_date", "<=", dateFilter.to_date]);
+      // Default filter untuk hari ini jika tidak ada filter tanggal yang diset
+      const today = new Date().toISOString().split('T')[0];
+      if (dateFilter.from_date) {
+        filters.push(["transaction_date", ">=", dateFilter.from_date]);
+      } else {
+        // Default: filter dari 30 hari ke belakang untuk lebih user-friendly
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        filters.push(["transaction_date", ">=", thirtyDaysAgo.toISOString().split('T')[0]]);
+      }
+      
+      if (dateFilter.to_date) {
+        filters.push(["transaction_date", "<=", dateFilter.to_date]);
+      } else {
+        // Default: filter sampai 7 hari ke depan
+        const sevenDaysAhead = new Date();
+        sevenDaysAhead.setDate(sevenDaysAhead.getDate() + 7);
+        filters.push(["transaction_date", "<=", sevenDaysAhead.toISOString().split('T')[0]]);
+      }
+      
       if (nameFilter) filters.push(["name", "like", "%" + nameFilter + "%"]);
       
       params.append('filters', JSON.stringify(filters));
       
+      // params.append('order_by', 'creation desc'); // Comment out dulu jika ada error
+      
       const response = await fetch("/api/sales-order?" + params.toString());
-      const data = await response.json();
+      const result = await response.json();
+      console.log('API Response Status:', response.status);
+      console.log('API Response Data:', result);
+      console.log('API Response Headers:', Object.fromEntries(response.headers.entries()));
 
-      if (data.success) {
-        if (data.data && data.data.length === 0) {
+      if (result.success) {
+        const ordersData = result.data || [];
+        
+        // Sorting di client side: data baru di atas berdasarkan creation date
+        ordersData.sort((a: SalesOrder, b: SalesOrder) => {
+          // Gunakan creation date jika ada, fallback ke transaction_date
+          const dateA = new Date(a.creation || a.transaction_date || '1970-01-01');
+          const dateB = new Date(b.creation || b.transaction_date || '1970-01-01');
+          return dateB.getTime() - dateA.getTime(); // Descending (baru ke lama)
+        });
+        
+        if (ordersData.length === 0) {
           setError(`No sales orders found for company: ${companyToUse}`);
         } else {
           setError(''); // Clear error if data is found
         }
-        setOrders(data.data || []);
+        setOrders(ordersData);
       } else {
-        setError(data.message || 'Failed to fetch sales orders');
+        setError(result.message || 'Failed to fetch sales orders');
       }
-    } catch (err) {
+    } catch {
       setError('Failed to fetch sales orders');
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleEditOrder = (order: SalesOrder) => {
-    setEditingOrder(order);
-    setFormData({
-      customer: order.customer,
-      transaction_date: order.transaction_date,
-      delivery_date: order.delivery_date,
-      sales_person: order.sales_person || '',
-      items: [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0, warehouse: '', stock_uom: '', available_stock: 0 }],
-    });
-    setShowForm(true);
   };
 
   const fetchOrderDetails = async (orderName: string, orderStatus?: string) => {
@@ -173,14 +231,81 @@ export default function SalesOrderPage() {
       
       if (data.success) {
         const order = data.data;
+        console.log('Order details loaded:', order);
+        console.log('Sales person field:', order.sales_person);
+        console.log('Salesperson field (no underscore):', order.salesperson);
+        console.log('Owner field:', order.owner);
+        console.log('Sales team array:', order.sales_team);
+        console.log('All order fields:', Object.keys(order));
+        
         setEditingOrder(order);
         setCurrentOrderStatus(orderStatus || order.status || '');
+        
+        // Coba beberapa kemungkinan field untuk sales person
+        // Prioritaskan sales_team array, lalu fallback ke field langsung
+        let salesPersonValue = '';
+        let loadedSalesTeam: SalesTeamMember[] = [];
+        
+        if (order.sales_team && Array.isArray(order.sales_team) && order.sales_team.length > 0) {
+          // Ambil sales person pertama dari sales_team array
+          salesPersonValue = order.sales_team[0].sales_person || '';
+          loadedSalesTeam = order.sales_team.map((member: any) => ({
+            sales_person: member.sales_person || '',
+            allocated_percentage: member.allocated_percentage || 0
+          }));
+          console.log('Sales person from sales_team:', salesPersonValue);
+          console.log('Sales team loaded:', loadedSalesTeam);
+        } else {
+          // Fallback ke field langsung
+          salesPersonValue = order.sales_person || order.salesperson || order.owner || '';
+          if (salesPersonValue) {
+            loadedSalesTeam = [{
+              sales_person: salesPersonValue,
+              allocated_percentage: 100
+            }];
+          }
+          console.log('Sales person from direct field:', salesPersonValue);
+        }
+        
+        console.log('Final sales person value:', salesPersonValue);
+        
+        // Update sales team state
+        setSalesTeam(loadedSalesTeam);
+        
+        // Map items dari ERPNext ke format form
+        const mappedItems = (order.items || []).map((item: any) => ({
+          item_code: item.item_code || '',
+          item_name: item.item_name || '',
+          qty: item.qty || 0,
+          rate: item.rate || 0,
+          amount: item.amount || 0,
+          warehouse: item.warehouse || '',
+          stock_uom: item.stock_uom || item.uom || '',
+          available_stock: 0, // Will be fetched separately if needed
+          actual_stock: 0,
+          reserved_stock: 0,
+        }));
+        
+        // Jika tidak ada items, buat item kosong default
+        if (mappedItems.length === 0) {
+          mappedItems.push({ 
+            item_code: '', item_name: '', qty: 1, rate: 0, amount: 0, 
+            warehouse: '', stock_uom: '', available_stock: 0, actual_stock: 0, reserved_stock: 0 
+          });
+        }
+        
         setFormData({
-          customer: order.customer,
-          transaction_date: order.transaction_date,
-          delivery_date: order.delivery_date,
-          sales_person: order.sales_person || '',
-          items: order.items || [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0 }],
+          customer: order.customer || '',
+          transaction_date: order.transaction_date || '',
+          delivery_date: order.delivery_date || '',
+          sales_person: salesPersonValue,
+          items: mappedItems,
+        });
+        console.log('Form data set:', {
+          customer: order.customer || '',
+          transaction_date: order.transaction_date || '',
+          delivery_date: order.delivery_date || '',
+          sales_person: salesPersonValue,
         });
         setShowForm(true);
       }
@@ -195,9 +320,77 @@ export default function SalesOrderPage() {
       ...formData,
       items: [
         ...formData.items,
-        { item_code: '', item_name: '', qty: 1, rate: 0, amount: 0, warehouse: '', stock_uom: '', available_stock: 0 },
+        { item_code: '', item_name: '', qty: 1, rate: 0, amount: 0, warehouse: '', stock_uom: '', available_stock: 0, actual_stock: 0, reserved_stock: 0 },
       ],
     });
+  };
+
+  const handleCustomerSelect = (customer: { name: string; customer_name: string }) => {
+    setFormData(prev => ({ ...prev, customer: customer.name }));
+    setShowCustomerDialog(false);
+    setError('');
+    
+    // Fetch customer detail untuk mendapatkan default sales person
+    fetchCustomerDetail(customer.name);
+  };
+
+  // Fetch customer detail untuk auto-fill sales person
+  const fetchCustomerDetail = async (customerName: string) => {
+    try {
+      console.log('Fetching customer detail for:', customerName);
+      
+      // Gunakan API customer yang sudah ada
+      const response = await fetch(`/api/customer/${encodeURIComponent(customerName)}`);
+      
+      if (!response.ok) {
+        console.log('Failed to fetch customer detail, using fallback mapping');
+        getFallbackSalesPerson(customerName);
+        return;
+      }
+      
+      const result = await response.json();
+      console.log('Customer detail response:', result);
+      
+      if (result.success && result.data) {
+        const customerData = result.data;
+        
+        // Cari sales person dari sales_team array
+        if (customerData.sales_team && customerData.sales_team.length > 0) {
+          const primarySalesPerson = customerData.sales_team.find((member: any) => 
+            member.allocated_percentage === 100 || member.idx === 1
+          );
+          
+          const salesPersonName = primarySalesPerson?.sales_person || customerData.sales_team[0].sales_person;
+          
+          if (salesPersonName) {
+            console.log('Auto-filling sales person from customer data:', salesPersonName);
+            
+            // Set sales person di form
+            setFormData(prev => ({ 
+              ...prev, 
+              sales_person: salesPersonName 
+            }));
+            
+            // Set sales team state
+            setSalesTeam([{
+              sales_person: salesPersonName,
+              allocated_percentage: 100
+            }]);
+            
+            console.log('Sales person auto-filled successfully from customer data');
+            return;
+          }
+        }
+      }
+      
+      // Fallback ke mapping jika tidak ada sales_team
+      console.log('No sales team found in customer data, using fallback mapping');
+      getFallbackSalesPerson(customerName);
+      
+    } catch (error) {
+      console.error('Error fetching customer detail:', error);
+      getFallbackSalesPerson(customerName);
+    }
   };
 
   const handleRemoveItem = (index: number) => {
@@ -205,33 +398,81 @@ export default function SalesOrderPage() {
     setFormData({ ...formData, items: newItems });
   };
 
+  // Fallback sales person mapping
+  const getFallbackSalesPerson = (customerName: string) => {
+    // Mapping customer ke default sales person (bisa diperluas)
+    const customerSalesPersonMapping: Record<string, string> = {
+      'West View Software Ltd.': 'Deden',
+      'Grant Plastics Ltd.': 'Kantor',
+      'Palmer Productions Ltd.': 'Tim Penjualan',
+    };
+    
+    // Cari sales person berdasarkan mapping
+    let defaultSalesPerson = customerSalesPersonMapping[customerName];
+    
+    // Jika tidak ada di mapping, gunakan default
+    if (!defaultSalesPerson) {
+      defaultSalesPerson = 'Deden'; // Default sales person
+      console.log('Using default sales person:', defaultSalesPerson);
+    } else {
+      console.log('Found mapped sales person:', defaultSalesPerson);
+    }
+    
+    // Auto-fill sales person
+    if (defaultSalesPerson) {
+      // Set sales person di form
+      setFormData(prev => ({ 
+        ...prev, 
+        sales_person: defaultSalesPerson 
+      }));
+      
+      // Set sales team state
+      setSalesTeam([{
+        sales_person: defaultSalesPerson,
+        allocated_percentage: 100
+      }]);
+      
+      console.log('Sales person auto-filled successfully:', defaultSalesPerson);
+    }
+  };
+
   const resetForm = () => {
-    const today = new Date().toISOString().split('T')[0];
+    // Gunakan timezone lokal untuk mendapatkan tanggal yang benar
+    const today = new Date();
+    const offset = today.getTimezoneOffset();
+    const localDate = new Date(today.getTime() - (offset * 60 * 1000));
+    const todayString = localDate.toISOString().split('T')[0];
+    
+    console.log('Reset form with today:', todayString);
+    console.log('Current system date:', today.toISOString());
+    console.log('Timezone offset:', offset, 'minutes');
+    
     setFormData({
       customer: '',
-      transaction_date: today,
-      delivery_date: today,
+      transaction_date: todayString,
+      delivery_date: todayString,
       sales_person: '',
-      items: [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0, warehouse: '', stock_uom: '', available_stock: 0 }],
+      items: [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0, warehouse: '', stock_uom: '', available_stock: 0, actual_stock: 0, reserved_stock: 0 }],
     });
+    setSalesTeam([]); // Reset sales team
     setError('');
     setEditingOrder(null);
     setCurrentOrderStatus('');
   };
 
-  const handleItemChange = (index: number, field: string, value: string | number) => {
+  const handleItemChange = (index: number, field: keyof OrderItem, value: string | number) => {
+    console.log('handleItemChange called:', { index, field, value, currentValue: formData.items[index]?.[field] });
+    
     const newItems = [...formData.items];
     newItems[index] = { ...newItems[index], [field]: value };
 
     if (field === 'qty' || field === 'rate') {
       newItems[index].amount = newItems[index].qty * newItems[index].rate;
+      console.log('Updated amount:', newItems[index].amount);
     }
-
+    
+    console.log('Setting form data with new items:', newItems);
     setFormData({ ...formData, items: newItems });
-  };
-
-  const handleCustomerSelect = (customer: { name: string; customer_name: string }) => {
-    setFormData({ ...formData, customer: customer.name });
   };
 
   const handleItemSelect = async (item: { item_code: string; item_name: string; stock_uom?: string }) => {
@@ -346,7 +587,15 @@ export default function SalesOrderPage() {
   };
 
   const handleSalesPersonSelect = (salesPerson: { name: string; full_name: string }) => {
-    setFormData({ ...formData, sales_person: salesPerson.full_name });
+    // Update form data dengan sales person name
+    setFormData({ ...formData, sales_person: salesPerson.name });
+    
+    // Update sales team dengan allocated percentage 100% (untuk single sales person)
+    const newSalesTeam: SalesTeamMember[] = [{
+      sales_person: salesPerson.name,
+      allocated_percentage: 100
+    }];
+    setSalesTeam(newSalesTeam);
   };
 
   const openItemDialog = (index: number) => {
@@ -359,14 +608,67 @@ export default function SalesOrderPage() {
     setFormLoading(true);
     setError('');
 
+    // Validasi dasar
+    if (!selectedCompany) {
+      setError('Company is required');
+      setFormLoading(false);
+      return;
+    }
+
+    if (!formData.customer) {
+      setError('Customer is required');
+      setFormLoading(false);
+      return;
+    }
+
+    if (!formData.transaction_date) {
+      setError('Transaction date is required');
+      setFormLoading(false);
+      return;
+    }
+
+    if (!formData.delivery_date) {
+      setError('Delivery date is required');
+      setFormLoading(false);
+      return;
+    }
+
+    // Validasi items
+    const validItems = formData.items.filter(item => item.item_code && item.qty > 0);
+    if (validItems.length === 0) {
+      setError('At least one valid item is required');
+      setFormLoading(false);
+      return;
+    }
+
+    // Validasi warehouse untuk setiap item
+    const itemsWithoutWarehouse = validItems.filter(item => !item.warehouse);
+    if (itemsWithoutWarehouse.length > 0) {
+      setError('All items must have a warehouse assigned');
+      setFormLoading(false);
+      return;
+    }
+
     try {
+      // Format payload sesuai ERPNext Sales Order API - MINIMAL VERSION FOR TESTING
       const orderPayload = {
+        doctype: "Sales Order",
         company: selectedCompany,
         customer: formData.customer,
         transaction_date: formData.transaction_date,
         delivery_date: formData.delivery_date,
-        sales_person: formData.sales_person,
-        items: formData.items.map(item => ({
+        order_type: "Sales",
+        currency: "IDR",
+        status: "Draft",
+        
+        // Sales person di dalam sales_team array
+        sales_team: salesTeam.length > 0 ? salesTeam : (formData.sales_person ? [{
+          sales_person: formData.sales_person,
+          allocated_percentage: 100
+        }] : []),
+        
+        items: validItems.map(item => ({
+          doctype: "Sales Order Item",
           item_code: item.item_code,
           item_name: item.item_name,
           qty: item.qty,
@@ -374,20 +676,51 @@ export default function SalesOrderPage() {
           amount: item.amount,
           warehouse: item.warehouse,
         })),
+        
+        total: validItems.reduce((sum, item) => sum + item.amount, 0),
+        grand_total: validItems.reduce((sum, item) => sum + item.amount, 0),
       };
 
+      console.log('Sales Order Payload:', JSON.stringify(orderPayload, null, 2));
+      console.log('Sales team payload:', orderPayload.sales_team);
+      
+      // Validasi dasar sebelum kirim
+      if (!orderPayload.customer) {
+        setError('Customer is required');
+        setFormLoading(false);
+        return;
+      }
+      
+      if (validItems.length === 0) {
+        setError('At least one item is required');
+        setFormLoading(false);
+        return;
+      }
+      
+      if (orderPayload.sales_team && orderPayload.sales_team.length > 0) {
+        console.log('Sales person validation:', {
+          sales_person: orderPayload.sales_team[0].sales_person,
+          type: typeof orderPayload.sales_team[0].sales_person,
+          length: orderPayload.sales_team[0].sales_person.length
+        });
+      } else {
+        console.log('No sales team in payload');
+      }
+
       const response = await fetch('/api/sales-order', {
-        method: 'POST',
+        method: editingOrder ? 'PUT' : 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(orderPayload),
+        body: JSON.stringify(editingOrder ? { ...orderPayload, name: editingOrder.name } : orderPayload),
       });
 
-      if (response.ok) {
-        const result = await response.json();
-        console.log('Order created successfully:', result);
-        
+      const result = await response.json();
+      console.log('Sales Order API Response:', result);
+      console.log('API Response Status:', response.status);
+      console.log('API Response Headers:', Object.fromEntries(response.headers.entries()));
+
+      if (result.success) {
         // Reset form and close on success
         resetForm();
         setShowForm(false);
@@ -395,17 +728,105 @@ export default function SalesOrderPage() {
         // Refresh orders list
         fetchOrders();
         
-        // Show success message (optional)
-        alert('Sales Order created successfully!');
+        // Show success message dengan nomor order
+        const orderName = result.data?.name || 'Unknown';
+        const action = editingOrder ? 'updated' : 'created';
+        alert(`Sales Order ${orderName} ${action} successfully!`);
       } else {
-        const errorData = await response.json();
-        setError(errorData.error || 'Failed to create sales order');
+        // Handle error dengan detail yang lebih baik
+        const errorMessage = result.message || result.error || 'Failed to save sales order';
+        setError(errorMessage);
+        console.error('Sales Order operation failed:', result);
       }
     } catch (error) {
-      console.error('Error creating order:', error);
-      setError('An error occurred. Please try again.');
+      console.error('Error saving order:', error);
+      setError('An unexpected error occurred');
     } finally {
       setFormLoading(false);
+    }
+  };
+
+  // Submit Sales Order untuk mengubah status dari Draft ke Submitted
+  const handleSubmitSalesOrder = async (orderName: string) => {
+    try {
+      console.log('Submitting Sales Order:', orderName);
+      
+      const response = await fetch(`/api/sales-order/${orderName}/submit`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const result = await response.json();
+      console.log('Submit Sales Order Response:', result);
+
+      if (result.success) {
+        alert(`✅ Sales Order ${orderName} submitted successfully!\n\n📋 Status: Draft → Submitted\n\n🔔 Next Steps:\n• Create Delivery Note (untuk pengiriman & stok)\n• Create Sales Invoice (untuk jurnal akuntansi)`);
+        fetchOrders(); // Refresh list
+      } else {
+        alert(`❌ Failed to submit Sales Order: ${result.message}`);
+      }
+    } catch (error) {
+      console.error('Error submitting sales order:', error);
+      alert('❌ An error occurred while submitting Sales Order');
+    }
+  };
+
+  // Create Delivery Note dari Sales Order (akan mengurangi stok)
+  const handleCreateDeliveryNote = async (orderName: string) => {
+    try {
+      console.log('Creating Delivery Note from Sales Order:', orderName);
+      
+      // Gunakan ERPNext API untuk membuat Delivery Note dari Sales Order
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/delivery-note/from-sales-order/${orderName}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const result = await response.json();
+      console.log('Create Delivery Note Response:', result);
+
+      if (result.success) {
+        const deliveryNoteName = result.data?.name || 'Unknown';
+        alert(`✅ Delivery Note ${deliveryNoteName} created successfully!\n\n📦 Status: Draft\n\n📉 Stock Impact:\n• Stock akan berkurang saat Delivery Note disubmit\n• Barang akan keluar dari gudang\n\n🔔 Next Step:\n• Submit Delivery Note untuk mengurangi stok\n• Create Sales Invoice untuk jurnal akuntansi`);
+        fetchOrders(); // Refresh list
+      } else {
+        alert(`❌ Failed to create Delivery Note: ${result.message}`);
+      }
+    } catch (error) {
+      console.error('Error creating delivery note:', error);
+      alert('❌ An error occurred while creating Delivery Note');
+    }
+  };
+
+  // Create Sales Invoice dari Sales Order (akan membuat jurnal akuntansi)
+  const handleCreateSalesInvoice = async (orderName: string) => {
+    try {
+      console.log('Creating Sales Invoice from Sales Order:', orderName);
+      
+      const response = await fetch(`/api/sales-invoice/from-sales-order/${orderName}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const result = await response.json();
+      console.log('Create Sales Invoice Response:', result);
+
+      if (result.success) {
+        const invoiceName = result.data?.name || 'Unknown';
+        alert(`✅ Sales Invoice ${invoiceName} created successfully!\n\n📊 Status: Draft\n\n💰 Jurnal Akuntansi:\n• Debit: Accounts Receivable (Piutang Usaha)\n• Credit: Sales Revenue (Pendapatan Penjualan)\n• Credit: Tax Payable (PPN Keluaran) - jika ada\n\n🔔 Next Step:\n• Submit Sales Invoice untuk mengaktifkan jurnal\n• Create Payment Entry untuk pelunasan`);
+        fetchOrders(); // Refresh list
+      } else {
+        alert(`❌ Failed to create Sales Invoice: ${result.message}`);
+      }
+    } catch (error) {
+      console.error('Error creating sales invoice:', error);
+      alert('❌ An error occurred while creating Sales Invoice');
     }
   };
 
@@ -502,16 +923,25 @@ export default function SalesOrderPage() {
                     <input
                       type="text"
                       required
-                      className="block w-full border border-gray-300 rounded-l-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      className={`mt-1 block w-full border border-gray-300 rounded-l-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm ${
+                        currentOrderStatus !== 'Draft' && currentOrderStatus !== '' ? 'bg-gray-100 cursor-not-allowed' : ''
+                      }`}
                       value={formData.customer}
                       onChange={(e) =>
                         setFormData({ ...formData, customer: e.target.value })
                       }
+                      disabled={currentOrderStatus !== 'Draft' && currentOrderStatus !== ''}
+                      readOnly
                     />
                     <button
                       type="button"
                       onClick={() => setShowCustomerDialog(true)}
-                      className="px-3 py-2 border border-l-0 border-gray-300 rounded-r-md bg-gray-50 text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                      disabled={currentOrderStatus !== 'Draft' && currentOrderStatus !== ''}
+                      className={`px-3 py-2 border border-l-0 border-gray-300 rounded-r-md ${
+                        currentOrderStatus !== 'Draft' && currentOrderStatus !== ''
+                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                          : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
+                      } focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500`}
                     >
                       <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -526,11 +956,14 @@ export default function SalesOrderPage() {
                   <input
                     type="date"
                     required
-                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    className={`mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm ${
+                      currentOrderStatus !== 'Draft' && currentOrderStatus !== '' ? 'bg-gray-100 cursor-not-allowed' : ''
+                    }`}
                     value={formData.transaction_date}
                     onChange={(e) =>
                       setFormData({ ...formData, transaction_date: e.target.value })
                     }
+                    disabled={currentOrderStatus !== 'Draft' && currentOrderStatus !== ''}
                   />
                 </div>
                 <div>
@@ -540,11 +973,14 @@ export default function SalesOrderPage() {
                   <input
                     type="date"
                     required
-                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    className={`mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm ${
+                      currentOrderStatus !== 'Draft' && currentOrderStatus !== '' ? 'bg-gray-100 cursor-not-allowed' : ''
+                    }`}
                     value={formData.delivery_date}
                     onChange={(e) =>
                       setFormData({ ...formData, delivery_date: e.target.value })
                     }
+                    disabled={currentOrderStatus !== 'Draft' && currentOrderStatus !== ''}
                   />
                 </div>
                 <div>
@@ -554,17 +990,19 @@ export default function SalesOrderPage() {
                   <div className="flex mt-1">
                     <input
                       type="text"
-                      className="block w-full border border-gray-300 rounded-l-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      className={`block w-full border border-gray-300 rounded-l-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-gray-100 cursor-not-allowed`}
                       value={formData.sales_person}
                       onChange={(e) =>
                         setFormData({ ...formData, sales_person: e.target.value })
                       }
-                      placeholder="Enter sales person name..."
+                      disabled={true}
+                      readOnly
                     />
                     <button
                       type="button"
                       onClick={() => setShowSalesPersonDialog(true)}
-                      className="px-3 py-2 border border-l-0 border-gray-300 rounded-r-md bg-gray-50 text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                      disabled={true}
+                      className={`px-3 py-2 border border-l-0 border-gray-300 rounded-r-md bg-gray-100 text-gray-400 cursor-not-allowed`}
                     >
                       <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -580,7 +1018,12 @@ export default function SalesOrderPage() {
                   <button
                     type="button"
                     onClick={handleAddItem}
-                    className="bg-green-600 text-white px-3 py-1 rounded-md text-sm hover:bg-green-700"
+                    disabled={currentOrderStatus !== 'Draft' && currentOrderStatus !== ''}
+                    className={`${
+                      currentOrderStatus !== 'Draft' && currentOrderStatus !== ''
+                        ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                        : 'bg-green-600 text-white hover:bg-green-700'
+                    } px-3 py-1 rounded-md text-sm`}
                   >
                     Add Item
                   </button>
@@ -606,7 +1049,12 @@ export default function SalesOrderPage() {
                           <button
                             type="button"
                             onClick={() => openItemDialog(index)}
-                            className="px-2 py-1 border border-l-0 border-gray-300 rounded-r-md bg-gray-50 text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                            disabled={currentOrderStatus !== 'Draft' && currentOrderStatus !== ''}
+                            className={`px-2 py-1 border border-l-0 border-gray-300 rounded-r-md ${
+                              currentOrderStatus !== 'Draft' && currentOrderStatus !== ''
+                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
+                            } focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500`}
                           >
                             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -631,7 +1079,12 @@ export default function SalesOrderPage() {
                           <button
                             type="button"
                             onClick={() => openItemDialog(index)}
-                            className="px-2 py-1 border border-l-0 border-gray-300 rounded-r-md bg-gray-50 text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                            disabled={currentOrderStatus !== 'Draft' && currentOrderStatus !== ''}
+                            className={`px-2 py-1 border border-l-0 border-gray-300 rounded-r-md ${
+                              currentOrderStatus !== 'Draft' && currentOrderStatus !== ''
+                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
+                            } focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500`}
                           >
                             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -677,11 +1130,20 @@ export default function SalesOrderPage() {
                           type="number"
                           required
                           min="1"
-                          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                          className={`mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 ${
+                            currentOrderStatus !== 'Draft' && currentOrderStatus !== '' ? 'bg-gray-100 cursor-not-allowed' : ''
+                          }`}
+                          style={{
+                            MozAppearance: 'textfield',
+                            WebkitAppearance: 'none',
+                            appearance: 'none'
+                          }}
                           value={item.qty}
                           onChange={(e) =>
                             handleItemChange(index, 'qty', parseFloat(e.target.value) || 0)
                           }
+                          disabled={currentOrderStatus !== 'Draft' && currentOrderStatus !== ''}
+                          onWheel={(e) => e.currentTarget.blur()}
                         />
                       </div>
                       <div className="col-span-1">
@@ -701,10 +1163,23 @@ export default function SalesOrderPage() {
                           Rate
                         </label>
                         <input
-                          type="text"
-                          readOnly
-                          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm bg-gray-50 text-right"
-                          value={item.rate ? item.rate.toLocaleString('id-ID') : '0'}
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          className={`mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 text-right ${
+                            currentOrderStatus !== 'Draft' && currentOrderStatus !== '' ? 'bg-gray-100 cursor-not-allowed' : ''
+                          }`}
+                          style={{
+                            MozAppearance: 'textfield',
+                            WebkitAppearance: 'none',
+                            appearance: 'none'
+                          }}
+                          value={item.rate || 0}
+                          onChange={(e) =>
+                            handleItemChange(index, 'rate', parseFloat(e.target.value) || 0)
+                          }
+                          disabled={currentOrderStatus !== 'Draft' && currentOrderStatus !== ''}
+                          onWheel={(e) => e.currentTarget.blur()}
                         />
                       </div>
                       <div className="col-span-2">
@@ -723,7 +1198,12 @@ export default function SalesOrderPage() {
                       <button
                         type="button"
                         onClick={() => handleRemoveItem(index)}
-                        className="mt-2 text-red-600 text-sm hover:text-red-800"
+                        disabled={currentOrderStatus !== 'Draft' && currentOrderStatus !== ''}
+                        className={`mt-2 text-sm ${
+                          currentOrderStatus !== 'Draft' && currentOrderStatus !== ''
+                            ? 'text-gray-400 cursor-not-allowed'
+                            : 'text-red-600 hover:text-red-800'
+                        }`}
                       >
                         Remove
                       </button>
@@ -765,17 +1245,17 @@ export default function SalesOrderPage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={formLoading || currentOrderStatus === 'Completed'}
+                  disabled={formLoading || currentOrderStatus !== 'Draft' && currentOrderStatus !== ''}
                   className={`${
-                    currentOrderStatus === 'Completed'
+                    currentOrderStatus !== 'Draft' && currentOrderStatus !== ''
                       ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
                       : 'bg-indigo-600 text-white hover:bg-indigo-700'
                   } px-4 py-2 rounded-md disabled:opacity-50`}
                 >
                   {formLoading 
                     ? 'Creating...' 
-                    : currentOrderStatus === 'Completed' 
-                      ? 'Order Completed - Cannot Edit' 
+                    : currentOrderStatus !== 'Draft' && currentOrderStatus !== ''
+                      ? `${currentOrderStatus} - Cannot Edit` 
                       : editingOrder 
                         ? 'Update Order' 
                         : 'Create Order'
@@ -785,11 +1265,12 @@ export default function SalesOrderPage() {
             </form>
           </div>
         </div>
-      // </div>
- )}
+      )}
       <div className="bg-white shadow overflow-hidden sm:rounded-md">
         <ul className="divide-y divide-gray-200">
-          {orders.map((order) => (
+          {orders.map((order, index) => {
+            console.log(`Rendering order ${index}:`, order);
+            return (
             <li 
               key={order.name}
               onClick={() => {
@@ -806,9 +1287,6 @@ export default function SalesOrderPage() {
                       {order.name}
                     </p>
                     <p className="mt-1 text-sm text-gray-900">Customer: {order.customer}</p>
-                    {order.sales_person && (
-                      <p className="mt-1 text-sm text-gray-600">Sales Person: {order.sales_person}</p>
-                    )}
                   </div>
                   <div className="ml-4 flex-shrink-0">
                     <span
@@ -835,13 +1313,51 @@ export default function SalesOrderPage() {
                       Delivery Date: {order.delivery_date}
                     </p>
                   </div>
-                  <div className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">
-                    <span className="font-medium">Total: ${order.grand_total.toFixed(2)}</span>
+                  <div className="mt-2 flex items-center justify-between sm:mt-0">
+                    <span className="font-medium text-sm text-gray-500">Total: Rp {order.grand_total.toLocaleString('id-ID')}</span>
+                    
+                    {/* Submit button for Draft orders */}
+                    {order.status === 'Draft' && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation(); // Prevent opening order details
+                          handleSubmitSalesOrder(order.name);
+                        }}
+                        className="ml-4 px-3 py-1 bg-green-600 text-white text-xs font-medium rounded hover:bg-green-700 transition-colors"
+                      >
+                        Submit
+                      </button>
+                    )}
+                    
+                    {/* Create Invoice button for Submitted orders */}
+                    {order.status === 'Submitted' && (
+                      <>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation(); // Prevent opening order details
+                            handleCreateDeliveryNote(order.name);
+                          }}
+                          className="ml-4 px-3 py-1 bg-orange-600 text-white text-xs font-medium rounded hover:bg-orange-700 transition-colors"
+                        >
+                          Create Delivery
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation(); // Prevent opening order details
+                            handleCreateSalesInvoice(order.name);
+                          }}
+                          className="ml-2 px-3 py-1 bg-blue-600 text-white text-xs font-medium rounded hover:bg-blue-700 transition-colors"
+                        >
+                          Create Invoice
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
             </li>
-          ))}
+            );
+          })}
         </ul>
         {orders.length === 0 && (
           <div className="text-center py-12">
