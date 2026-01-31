@@ -1,7 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import LoadingSpinner from '../components/LoadingSpinner';
+import Pagination from '../components/Pagination';
 
 interface Item {
   item_code: string;
@@ -28,6 +30,14 @@ export default function ItemsPage() {
   const [formLoading, setFormLoading] = useState(false);
   const [error, setError] = useState('');
   const [editingItem, setEditingItem] = useState<Item | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [pageSize] = useState(20); // 20 records per page
+  
   const router = useRouter();
 
   useEffect(() => {
@@ -52,49 +62,22 @@ export default function ItemsPage() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchItems();
-  }, []); // Remove selectedCompany from dependencies
-
-  const fetchItems = async () => {
+  const fetchItems = useCallback(async () => {
     // Clear previous error when starting to fetch
     setError('');
     
-    // Check for company selection with better logic
-    let companyToUse = selectedCompany;
-    
-    // If no company in state, try to get it fresh
-    if (!companyToUse) {
-      const storedCompany = localStorage.getItem('selected_company');
-      if (storedCompany) {
-        companyToUse = storedCompany;
-      } else {
-        const cookies = document.cookie.split(';');
-        const companyCookie = cookies.find(cookie => cookie.trim().startsWith('selected_company='));
-        if (companyCookie) {
-          const cookieValue = companyCookie.split('=')[1];
-          if (cookieValue) {
-            companyToUse = cookieValue;
-          }
-        }
-      }
-    }
-    
-    if (!companyToUse) {
-      setError('No company selected. Please select a company first.');
-      setLoading(false);
-      return;
-    }
-    
-    // Update state if we found company from storage
-    if (!selectedCompany && companyToUse) {
-      setSelectedCompany(companyToUse);
-    }
-    
     try {
-      // Test simple request dulu untuk debugging
-      console.log('Testing Items simple request...');
-      const response = await fetch("/api/items-simple");
+      const params = new URLSearchParams({
+        // Add pagination parameters
+        limit_page_length: pageSize.toString(),
+        start: ((currentPage - 1) * pageSize).toString()
+      });
+      
+      if (searchTerm) {
+        params.append('search', searchTerm);
+      }
+      
+      const response = await fetch(`/api/items-simple?${params}`);
       const data = await response.json();
       
       console.log('Items Simple Test Response:', data);
@@ -103,9 +86,21 @@ export default function ItemsPage() {
         console.log('Items data received:', data.data);
         if (data.data && data.data.length > 0) {
           console.log('First item structure:', data.data[0]);
-          console.log('Available fields:', Object.keys(data.data[0]));
+          console.log('company parameter removed from fetch');
         }
         setItems(data.data || []);
+        
+        // Update pagination info from API response
+        if (data.total_records !== undefined) {
+          setTotalRecords(data.total_records);
+          const calculatedTotalPages = Math.ceil(data.total_records / pageSize);
+          setTotalPages(calculatedTotalPages);
+        } else {
+          // Fallback: calculate from received data
+          setTotalRecords(data.data?.length || 0);
+          setTotalPages(1);
+        }
+        
         setError('');
       } else {
         setError('Simple test failed: ' + data.message);
@@ -115,7 +110,16 @@ export default function ItemsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, pageSize, searchTerm]);
+
+  useEffect(() => {
+    fetchItems();
+  }, [fetchItems]);
+
+  // Reset to page 1 when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
 
   const handleEditItem = (item: Item) => {
     setEditingItem(item);
@@ -174,11 +178,7 @@ export default function ItemsPage() {
   };
 
   if (loading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <div className="text-lg">Loading...</div>
-      </div>
-    );
+    return <LoadingSpinner message="Loading Items..." />;
   }
 
   return (
@@ -357,6 +357,15 @@ export default function ItemsPage() {
             <p className="text-gray-500">No items found</p>
           </div>
         )}
+        
+        {/* Pagination Controls */}
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalRecords={totalRecords}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+        />
       </div>
     </div>
   );

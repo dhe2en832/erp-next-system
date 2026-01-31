@@ -1,6 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import LoadingSpinner from '../app/components/LoadingSpinner';
+import Pagination from '../app/components/Pagination';
 
 interface CommissionData {
   summary: {
@@ -18,28 +20,53 @@ export default function CommissionDashboard() {
   const [data, setData] = useState<CommissionData | null>(null);
   const [loading, setLoading] = useState(true);
   const [salesPerson, setSalesPerson] = useState('Deden');
+  
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [pageSize] = useState(20); // 20 records per page
 
-  useEffect(() => {
-    fetchCommissionData();
-  }, [salesPerson]);
-
-  const fetchCommissionData = async () => {
+  const fetchCommissionData = useCallback(async () => {
     try {
-      const response = await fetch(`/api/commission?sales_person=${salesPerson}`);
+      const params = new URLSearchParams({
+        sales_person: salesPerson,
+        // Add pagination parameters
+        limit_page_length: pageSize.toString(),
+        start: ((currentPage - 1) * pageSize).toString()
+      });
+      
+      const response = await fetch(`/api/commission?${params}`);
       const result = await response.json();
       
       if (!result.error) {
         setData(result);
+        
+        // Update pagination info from API response
+        if (result.total_records !== undefined) {
+          setTotalRecords(result.total_records);
+          const calculatedTotalPages = Math.ceil(result.total_records / pageSize);
+          setTotalPages(calculatedTotalPages);
+        } else {
+          // Fallback: calculate from received data
+          const totalItems = (result.sales_orders?.length || 0) + (result.paid_invoices?.length || 0);
+          setTotalRecords(totalItems);
+          setTotalPages(1);
+        }
       }
     } catch (error) {
       console.error('Failed to fetch commission data:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [salesPerson, currentPage, pageSize]);
+
+  useEffect(() => {
+    fetchCommissionData();
+  }, [fetchCommissionData]);
 
   if (loading) {
-    return <div className="p-6">Loading commission data...</div>;
+    return <LoadingSpinner message="Loading Commission Dashboard..." />;
   }
 
   if (!data) {
@@ -155,6 +182,15 @@ export default function CommissionDashboard() {
             </table>
           </div>
         </div>
+        
+        {/* Pagination Controls */}
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalRecords={totalRecords}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+        />
       </div>
     </div>
   );

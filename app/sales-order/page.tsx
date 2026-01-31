@@ -1,10 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import CustomerDialog from '../components/CustomerDialog';
 import ItemDialog from '../components/ItemDialog';
 import SalesPersonDialog from '../components/SalesPersonDialog';
+import LoadingSpinner from '../components/LoadingSpinner';
+import Pagination from '../components/Pagination';
 
 interface SalesOrder {
   name: string;
@@ -61,6 +63,12 @@ export default function SalesOrderPage() {
   const [currentItemIndex, setCurrentItemIndex] = useState<number | null>(null);
   const [salesTeam, setSalesTeam] = useState<SalesTeamMember[]>([]);
   const router = useRouter();
+  
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [pageSize] = useState(20); // 20 records per page
 
   useEffect(() => {
     // Try to get company from localStorage first, then from cookie
@@ -86,7 +94,12 @@ export default function SalesOrderPage() {
 
   useEffect(() => {
     fetchOrders();
-  }, [dateFilter, nameFilter]); // Remove selectedCompany from dependencies
+  }, [dateFilter, nameFilter, currentPage]); // Add currentPage dependency
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [dateFilter, nameFilter]);
 
   // Set default dates saat component mount
   useEffect(() => {
@@ -184,6 +197,10 @@ export default function SalesOrderPage() {
       
       params.append('filters', JSON.stringify(filters));
       
+      // Add pagination parameters
+      params.append('limit_page_length', pageSize.toString());
+      params.append('start', ((currentPage - 1) * pageSize).toString());
+      
       // params.append('order_by', 'creation desc'); // Comment out dulu jika ada error
       
       const response = await fetch("/api/sales-order?" + params.toString());
@@ -194,6 +211,17 @@ export default function SalesOrderPage() {
 
       if (result.success) {
         const ordersData = result.data || [];
+        
+        // Update pagination info from API response
+        if (result.total_records !== undefined) {
+          setTotalRecords(result.total_records);
+          const calculatedTotalPages = Math.ceil(result.total_records / pageSize);
+          setTotalPages(calculatedTotalPages);
+        } else {
+          // Fallback: calculate from received data
+          setTotalRecords(ordersData.length);
+          setTotalPages(1);
+        }
         
         // Sorting di client side: data baru di atas berdasarkan creation date
         ordersData.sort((a: SalesOrder, b: SalesOrder) => {
@@ -831,11 +859,7 @@ export default function SalesOrderPage() {
   };
 
   if (loading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <div className="text-lg">Loading...</div>
-      </div>
-    );
+    return <LoadingSpinner message="Loading Sales Orders..." />;
   }
 
   return (
@@ -1364,6 +1388,15 @@ export default function SalesOrderPage() {
             <p className="text-gray-500">No sales orders found</p>
           </div>
         )}
+        
+        {/* Pagination Controls */}
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalRecords={totalRecords}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+        />
       </div>
       
       {/* Customer Selection Dialog */}

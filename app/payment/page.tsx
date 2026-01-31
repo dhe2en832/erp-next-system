@@ -1,7 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import LoadingSpinner from '../components/LoadingSpinner';
+import Pagination from '../components/Pagination';
 
 interface Payment {
   name: string;
@@ -35,6 +37,13 @@ export default function PaymentPage() {
   const [error, setError] = useState('');
   const [editingPayment, setEditingPayment] = useState<string | null>(null);
   const [editingPaymentStatus, setEditingPaymentStatus] = useState<string>('');
+  
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [pageSize] = useState(20); // 20 records per page
+  
   const router = useRouter();
 
   useEffect(() => {
@@ -59,11 +68,7 @@ export default function PaymentPage() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchPayments();
-  }, [dateFilter]);
-
-  const fetchPayments = async () => {
+  const fetchPayments = useCallback(async () => {
     // Clear previous error when starting to fetch
     setError('');
     
@@ -99,7 +104,12 @@ export default function PaymentPage() {
     }
     
     try {
-      const params = new URLSearchParams();
+      const params = new URLSearchParams({
+        company: companyToUse,
+        // Add pagination parameters
+        limit_page_length: pageSize.toString(),
+        start: ((currentPage - 1) * pageSize).toString()
+      });
       
       // Build filters array for ERPNext - use companyToUse instead of selectedCompany
       const filters = [["company", "=", companyToUse]];
@@ -109,16 +119,23 @@ export default function PaymentPage() {
       
       params.append('filters', JSON.stringify(filters));
       
-      const response = await fetch("/api/payment?" + params.toString());
+      const response = await fetch(`/api/payment?${params}`);
       const data = await response.json();
 
       if (data.success) {
-        if (data.data && data.data.length === 0) {
-          setError(`No payments found for company: ${companyToUse}`);
+        // Update pagination info from API response
+        if (data.total_records !== undefined) {
+          setTotalRecords(data.total_records);
+          const calculatedTotalPages = Math.ceil(data.total_records / pageSize);
+          setTotalPages(calculatedTotalPages);
         } else {
-          setError(''); // Clear error if data is found
+          // Fallback: calculate from received data
+          setTotalRecords(data.data?.length || 0);
+          setTotalPages(1);
         }
+        
         setPayments(data.data || []);
+        setError('');
       } else {
         setError(data.message || 'Failed to fetch payments');
       }
@@ -127,11 +144,16 @@ export default function PaymentPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedCompany, currentPage, pageSize, dateFilter.from_date, dateFilter.to_date]);
 
   useEffect(() => {
     fetchPayments();
-  }, [dateFilter, selectedCompany]);
+  }, [fetchPayments]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [dateFilter]);
 
   const handleEditPayment = async (paymentName: string, paymentStatus?: string) => {
     if (!paymentName || paymentName === 'undefined') {
@@ -220,11 +242,7 @@ export default function PaymentPage() {
   };
 
   if (loading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <div className="text-lg">Loading...</div>
-      </div>
-    );
+    return <LoadingSpinner message="Loading Payments..." />;
   }
 
   return (
@@ -485,6 +503,15 @@ export default function PaymentPage() {
             <p className="text-gray-500">No payments found</p>
           </div>
         )}
+        
+        {/* Pagination Controls */}
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalRecords={totalRecords}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+        />
       </div>
     </div>
   );

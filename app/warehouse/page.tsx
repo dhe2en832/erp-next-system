@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import LoadingSpinner from '../components/LoadingSpinner';
+import Pagination from '../components/Pagination';
 
 interface Warehouse {
   name: string;
@@ -26,6 +28,12 @@ export default function WarehousePage() {
     is_group: false,
     parent_warehouse: ''
   });
+  
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [pageSize] = useState(20); // 20 records per page
 
   const router = useRouter();
 
@@ -46,7 +54,10 @@ export default function WarehousePage() {
       setLoading(true);
       const params = new URLSearchParams({
         company: selectedCompany,
-        ...(searchTerm && { search: searchTerm })
+        ...(searchTerm && { search: searchTerm }),
+        // Add pagination parameters
+        limit_page_length: pageSize.toString(),
+        start: ((currentPage - 1) * pageSize).toString()
       });
 
       const response = await fetch(`/api/warehouses?${params}`);
@@ -54,6 +65,17 @@ export default function WarehousePage() {
 
       if (data.success) {
         setWarehouses(data.data || []);
+        
+        // Update pagination info from API response
+        if (data.total_records !== undefined) {
+          setTotalRecords(data.total_records);
+          const calculatedTotalPages = Math.ceil(data.total_records / pageSize);
+          setTotalPages(calculatedTotalPages);
+        } else {
+          // Fallback: calculate from received data
+          setTotalRecords(data.data?.length || 0);
+          setTotalPages(1);
+        }
       } else {
         setError(data.message || 'Failed to fetch warehouses');
       }
@@ -62,13 +84,18 @@ export default function WarehousePage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedCompany, searchTerm]);
+  }, [selectedCompany, searchTerm, currentPage, pageSize]);
 
   useEffect(() => {
     if (selectedCompany) {
       fetchWarehouses();
     }
   }, [selectedCompany, fetchWarehouses]);
+
+  // Reset to page 1 when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
 
   const handleCreateWarehouse = async () => {
     if (!selectedCompany || !newWarehouse.warehouse_name) {
@@ -107,14 +134,7 @@ export default function WarehousePage() {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-indigo-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading Warehouses...</p>
-        </div>
-      </div>
-    );
+    return <LoadingSpinner message="Loading Warehouses..." />;
   }
 
   return (
@@ -223,6 +243,15 @@ export default function WarehousePage() {
               <p className="mt-1 text-sm text-gray-500">Get started by creating a new warehouse.</p>
             </div>
           )}
+          
+          {/* Pagination Controls */}
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalRecords={totalRecords}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+          />
         </div>
       </div>
 

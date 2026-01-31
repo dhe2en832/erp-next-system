@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import LoadingSpinner from '../components/LoadingSpinner';
+import Pagination from '../components/Pagination';
 
 interface StockLedger {
   name: string;
@@ -36,6 +38,12 @@ export default function StockManagementPage() {
     from_date: '',
     to_date: '',
   });
+  
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [pageSize] = useState(20); // 20 records per page
 
   useEffect(() => {
     // Get company from localStorage
@@ -113,36 +121,50 @@ export default function StockManagementPage() {
     }
     
     try {
-      let url = `/api/stock-ledger?company=${encodeURIComponent(companyToUse)}`;
+      const params = new URLSearchParams({
+        company: companyToUse,
+        limit_page_length: pageSize.toString(),
+        start: ((currentPage - 1) * pageSize).toString()
+      });
       
       if (searchTerm) {
-        url += `&search=${encodeURIComponent(searchTerm)}`;
+        params.append('search', searchTerm);
       }
       
       if (warehouseFilter) {
-        url += `&warehouse=${encodeURIComponent(warehouseFilter)}`;
+        params.append('warehouse', warehouseFilter);
       }
       
       if (voucherTypeFilter) {
-        url += `&voucher_type=${encodeURIComponent(voucherTypeFilter)}`;
+        params.append('voucher_type', voucherTypeFilter);
       }
       
       if (dateFilter.from_date) {
-        url += `&from_date=${encodeURIComponent(dateFilter.from_date)}`;
+        params.append('from_date', dateFilter.from_date);
       }
       
       if (dateFilter.to_date) {
-        url += `&to_date=${encodeURIComponent(dateFilter.to_date)}`;
+        params.append('to_date', dateFilter.to_date);
       }
 
-      console.log('Fetching Stock Ledger from:', url);
-      const response = await fetch(url);
+      console.log('Fetching Stock Ledger from:', `/api/stock-ledger?${params}`);
+      const response = await fetch(`/api/stock-ledger?${params}`);
       const data = await response.json();
       
       console.log('Stock Ledger response:', data);
       
       if (data.success) {
         setStockLedger(data.data || []);
+        
+        if (data.total_records !== undefined) {
+          setTotalRecords(data.total_records);
+          const calculatedTotalPages = Math.ceil(data.total_records / pageSize);
+          setTotalPages(calculatedTotalPages);
+        } else {
+          setTotalRecords(data.data?.length || 0);
+          setTotalPages(1);
+        }
+        
         setError('');
       } else {
         setError(data.message || 'Failed to fetch stock ledger');
@@ -153,7 +175,7 @@ export default function StockManagementPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedCompany, searchTerm, warehouseFilter, voucherTypeFilter, dateFilter]);
+  }, [selectedCompany, currentPage, pageSize, searchTerm, warehouseFilter, voucherTypeFilter, dateFilter.from_date, dateFilter.to_date]);
 
   useEffect(() => {
     fetchWarehouses();
@@ -161,7 +183,12 @@ export default function StockManagementPage() {
 
   useEffect(() => {
     fetchStockLedger();
-  }, [selectedCompany, searchTerm, warehouseFilter, voucherTypeFilter, dateFilter, fetchStockLedger]);
+  }, [fetchStockLedger]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, warehouseFilter, voucherTypeFilter, dateFilter]);
 
   const getVoucherTypeColor = (voucherType: string) => {
     switch (voucherType) {
@@ -181,11 +208,7 @@ export default function StockManagementPage() {
   };
 
   if (loading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <div className="text-lg">Loading Stock Management...</div>
-      </div>
-    );
+    return <LoadingSpinner message="Loading Stock Management..." />;
   }
 
   return (
@@ -374,6 +397,15 @@ export default function StockManagementPage() {
             <p className="text-gray-500">No stock ledger entries found</p>
           </div>
         )}
+        
+        {/* Pagination Controls */}
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalRecords={totalRecords}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+        />
       </div>
     </div>
   );

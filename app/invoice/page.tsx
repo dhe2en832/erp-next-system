@@ -1,7 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import LoadingSpinner from '../components/LoadingSpinner';
+import Pagination from '../components/Pagination';
 
 interface Invoice {
   name: string;
@@ -50,6 +52,12 @@ export default function InvoicePage() {
   const [editingInvoice, setEditingInvoice] = useState<string | null>(null);
   const [editingInvoiceStatus, setEditingInvoiceStatus] = useState<string | null>(null);
   const [error, setError] = useState('');
+  
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [pageSize] = useState(20); // 20 records per page
   const router = useRouter();
 
   const handleCloseForm = () => {
@@ -95,11 +103,7 @@ export default function InvoicePage() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchInvoices();
-  }, [dateFilter]); // Remove selectedCompany from dependencies
-
-  const fetchInvoices = async () => {
+  const fetchInvoices = useCallback(async () => {
     // Clear previous error when starting to fetch
     setError('');
     
@@ -137,7 +141,14 @@ export default function InvoicePage() {
     try {
       // Test simple request dulu untuk debugging
       console.log('Testing Sales Invoice simple request...');
-      const response = await fetch("/api/invoice-simple");
+      const params = new URLSearchParams({
+        company: companyToUse,
+        // Add pagination parameters
+        limit_page_length: pageSize.toString(),
+        start: ((currentPage - 1) * pageSize).toString()
+      });
+      
+      const response = await fetch(`/api/invoice-simple?${params}`);
       const data = await response.json();
       
       console.log('Invoice Simple Test Response:', data);
@@ -149,6 +160,18 @@ export default function InvoicePage() {
           console.log('Available fields:', Object.keys(data.data[0]));
         }
         setInvoices(data.data || []);
+        
+        // Update pagination info from API response
+        if (data.total_records !== undefined) {
+          setTotalRecords(data.total_records);
+          const calculatedTotalPages = Math.ceil(data.total_records / pageSize);
+          setTotalPages(calculatedTotalPages);
+        } else {
+          // Fallback: calculate from received data
+          setTotalRecords(data.data?.length || 0);
+          setTotalPages(1);
+        }
+        
         setError('');
       } else {
         setError('Simple test failed: ' + data.message);
@@ -158,7 +181,16 @@ export default function InvoicePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedCompany, currentPage, pageSize]);
+
+  useEffect(() => {
+    fetchInvoices();
+  }, [dateFilter, fetchInvoices]); // Add fetchInvoices dependency
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [dateFilter]);
 
   const handleAddItem = () => {
     setFormData({
@@ -293,11 +325,7 @@ export default function InvoicePage() {
   };
 
   if (loading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <div className="text-lg">Loading...</div>
-      </div>
-    );
+    return <LoadingSpinner message="Loading Sales Invoices..." />;
   }
 
   return (
@@ -613,6 +641,15 @@ export default function InvoicePage() {
             <p className="text-gray-500">No invoices found</p>
           </div>
         )}
+        
+        {/* Pagination Controls */}
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalRecords={totalRecords}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+        />
       </div>
     </div>
   );

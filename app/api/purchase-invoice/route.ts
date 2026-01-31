@@ -54,7 +54,11 @@ export async function GET(request: NextRequest) {
     
     filters += ']';
 
-    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Purchase Invoice?fields=["name","supplier","posting_date","due_date","grand_total","outstanding_amount","status"]&filters=${encodeURIComponent(filters)}&order_by=posting_date desc&limit_page_length=100`;
+    // Build ERPNext URL with dynamic pagination
+    const limit = searchParams.get('limit_page_length') || '20';
+    const start = searchParams.get('start') || '0';
+    
+    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Purchase Invoice?fields=["name","supplier","posting_date","due_date","grand_total","outstanding_amount","status"]&filters=${encodeURIComponent(filters)}&order_by=posting_date desc&limit_page_length=${limit}&start=${start}`;
 
     console.log('Purchase Invoice ERPNext URL:', erpNextUrl);
 
@@ -76,6 +80,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         success: true,
         data: data.data || [],
+        total_records: data._server_messages?.total_records || data.data?.length || 0,
       });
     } else {
       return NextResponse.json(

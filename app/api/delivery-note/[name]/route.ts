@@ -34,9 +34,21 @@ export async function GET(
     const cookies = request.cookies;
     const sid = cookies.get('sid')?.value;
 
-    if (!sid) {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    // Prioritize API Key authentication to avoid CSRF issues
+    const apiKey = process.env.ERP_API_KEY;
+    const apiSecret = process.env.ERP_API_SECRET;
+    
+    if (apiKey && apiSecret) {
+      headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
+    } else if (sid) {
+      headers['Cookie'] = `sid=${sid}`;
+    } else {
       return NextResponse.json(
-        { success: false, message: 'Unauthorized' },
+        { success: false, message: 'No authentication available' },
         { status: 401 }
       );
     }
@@ -48,10 +60,7 @@ export async function GET(
       `${ERPNEXT_API_URL}/api/method/frappe.desk.form.load.getdoc?doctype=Delivery%20Note&name=${encodeURIComponent(name.trim())}`,
       {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Cookie': `sid=${sid}`,
-        },
+        headers,
       }
     );
 

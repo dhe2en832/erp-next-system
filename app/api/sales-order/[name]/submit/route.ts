@@ -62,32 +62,109 @@ export async function POST(
 
     console.log('Submitting Sales Order:', name);
 
-    // Submit Sales Order menggunakan REST API update dengan docstatus
-    const response = await fetch(`${ERPNEXT_API_URL}/api/resource/Sales Order/${encodeURIComponent(name)}`, {
-      method: 'PUT',
-      headers,
-      body: JSON.stringify({
-        docstatus: 1 // Submit document (0 = Draft, 1 = Submitted, 2 = Cancelled)
-      }),
-    });
+    // Use REST API update as primary method (more reliable)
+    let response;
+    let data;
+    
+    try {
+      response = await fetch(`${ERPNEXT_API_URL}/api/resource/Sales Order/${encodeURIComponent(name)}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({
+          docstatus: 1 // Submit document (0 = Draft, 1 = Submitted, 2 = Cancelled)
+        }),
+      });
 
-    const data = await response.json();
-    console.log('Submit Sales Order ERPNext Response:', data);
+      const responseText = await response.text();
+      console.log('Submit Sales Order ERPNext Response Status:', response.status);
+      console.log('Submit Sales Order ERPNext Response Text:', responseText);
+      
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('Failed to parse response as JSON:', parseError);
+        console.error('Response text:', responseText);
+        return NextResponse.json(
+          { success: false, message: 'Invalid response from ERPNext server' },
+          { status: response.status }
+        );
+      }
+      
+    } catch (fetchError) {
+      console.error('Fetch error:', fetchError);
+      console.error('Fetch error stack:', fetchError instanceof Error ? fetchError.stack : 'No stack available');
+      
+      return NextResponse.json(
+        { success: false, message: 'Network error while submitting Sales Order' },
+        { status: 500 }
+      );
+    }
+
+    // Alternative submit method for 417 errors
+    async function tryAlternativeSubmit(orderName: string, headers: Record<string, string>) {
+      console.log('Using alternative submit method with REST API update...');
+      
+      try {
+        const altResponse = await fetch(`${ERPNEXT_API_URL}/api/resource/Sales Order/${encodeURIComponent(orderName)}`, {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify({
+            docstatus: 1 // Submit document
+          }),
+        });
+
+        const altData = await altResponse.json();
+        console.log('Alternative Submit Response:', altData);
+
+        if (altResponse.ok) {
+          const orderData = altData.docs?.[0] || altData.doc || altData.data || altData;
+          return NextResponse.json({
+            success: true,
+            data: orderData,
+            message: 'Sales Order submitted successfully (alternative method)'
+          });
+        } else {
+          return NextResponse.json(
+            { success: false, message: altData.message || 'Failed to submit Sales Order with alternative method' },
+            { status: altResponse.status }
+          );
+        }
+      } catch (altError) {
+        console.error('Alternative submit error:', altError);
+        return NextResponse.json(
+          { success: false, message: 'Both submit methods failed. Please contact administrator.' },
+          { status: 500 }
+        );
+      }
+    }
+    console.log('Submit Sales Order Response Status:', response.status);
+    console.log('Submit Sales Order Response Headers:', response.headers);
 
     if (response.ok) {
+      // ERPNext submit method returns different structure
+      const orderData = data.docs?.[0] || data.doc || data.data || data;
+      
+      console.log('Extracted Order Data:', orderData);
+      
       return NextResponse.json({
         success: true,
-        data: data.docs?.[0] || data.doc || data,
+        data: orderData,
         message: 'Sales Order submitted successfully'
       });
     } else {
       let errorMessage = 'Failed to submit Sales Order';
       
+      console.log('Full Error Response:', data);
+      console.log('Error Response Keys:', Object.keys(data));
+      console.log('Error Response Type:', typeof data);
+      
       if (data.exc) {
         try {
           const excData = JSON.parse(data.exc);
+          console.log('Parsed Exception Data:', excData);
           errorMessage = `${excData.exc_type}: ${excData.message}`;
         } catch (e) {
+          console.log('Failed to parse exception, using raw data');
           errorMessage = data.message || data.exc || 'Failed to submit Sales Order';
         }
       } else if (data.message) {
@@ -95,11 +172,25 @@ export async function POST(
       } else if (data._server_messages) {
         try {
           const serverMessages = JSON.parse(data._server_messages);
+          console.log('Parsed Server Messages:', serverMessages);
           errorMessage = serverMessages[0]?.message || serverMessages[0] || errorMessage;
         } catch (e) {
+          console.log('Failed to parse server messages, using raw data');
           errorMessage = data._server_messages;
         }
+      } else if (data.error) {
+        errorMessage = data.error;
+      } else if (typeof data === 'string') {
+        errorMessage = data;
+      } else {
+        errorMessage = `Unknown error occurred. Response: ${JSON.stringify(data)}`;
       }
+      
+      console.error('Submit Sales Order Error Details:', {
+        status: response.status,
+        data: data,
+        errorMessage: errorMessage
+      });
       
       return NextResponse.json(
         { success: false, message: errorMessage },
@@ -107,10 +198,23 @@ export async function POST(
       );
     }
   } catch (error) {
-    console.error('Submit Sales Order API Error:', error);
-    return NextResponse.json(
-      { success: false, message: 'Internal server error' },
-      { status: 500 }
-    );
-  }
+      console.error('Submit Sales Order API Error:', error);
+      console.error('Submit Sales Order Error Stack:', error instanceof Error ? error.stack : 'No stack available');
+      
+      // Handle different types of errors
+      let errorMessage = 'Internal server error';
+      
+      if (error instanceof Error) {
+        errorMessage = error.message || error.name || 'Unknown error occurred';
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      } else {
+        errorMessage = 'Unknown error occurred';
+      }
+      
+      return NextResponse.json(
+        { success: false, message: errorMessage },
+        { status: 500 }
+      );
+    }
 }

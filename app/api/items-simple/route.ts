@@ -14,10 +14,25 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    console.log('Testing Items without filters...');
+    // Get query parameters from frontend
+    const { searchParams } = new URL(request.url);
+    const limit = searchParams.get('limit_page_length') || '20';
+    const start = searchParams.get('start') || '0';
+    const company = searchParams.get('company');
+    const searchTerm = searchParams.get('search');
 
-    // Test 1: Simple request dengan fields yang valid
-    const response = await fetch(`${ERPNEXT_API_URL}/api/resource/Item?fields=["item_code","item_name","description","item_group","stock_uom","opening_stock"]&limit_page_length=5`, {
+    console.log('Testing Items with pagination...');
+    console.log('Parameters:', { limit, start, company, searchTerm });
+
+    // Build ERPNext URL with dynamic pagination
+    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Item?fields=["item_code","item_name","description","item_group","stock_uom","opening_stock"]&limit_page_length=${limit}&start=${start}`;
+    
+    // Add search filter if provided (remove company filter)
+    if (searchTerm) {
+      erpNextUrl += `&filters=[["item_name","like","%${searchTerm}%"],["or"],["item_code","like","%${searchTerm}%"]]`;
+    }
+
+    const response = await fetch(erpNextUrl, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -26,8 +41,8 @@ export async function GET(request: NextRequest) {
     });
 
     const data = await response.json();
-    console.log('Items simple test - Status:', response.status);
-    console.log('Items simple test - Full response structure:', JSON.stringify(data, null, 2));
+    console.log('Items API - Status:', response.status);
+    console.log('Items API - Full response structure:', JSON.stringify(data, null, 2));
     
     // Log structure details
     if (data.data && data.data.length > 0) {
@@ -39,7 +54,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         success: true,
         data: data.data || [],
-        message: 'Items doctype is working'
+        total_records: data._server_messages?.total_records || data.data?.length || 0,
+        message: 'Items fetched successfully'
       });
     } else {
       return NextResponse.json(

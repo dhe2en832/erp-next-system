@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import LoadingSpinner from '../components/LoadingSpinner';
+import Pagination from '../components/Pagination';
 
 interface PurchaseOrder {
   name: string;
@@ -31,6 +33,12 @@ export default function PurchaseOrdersPage() {
     from_date: '',
     to_date: '',
   });
+  
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [pageSize] = useState(20); // 20 records per page
 
   useEffect(() => {
     // Get company from localStorage
@@ -108,47 +116,57 @@ export default function PurchaseOrdersPage() {
     }
     
     try {
-      let url = `/api/purchase-orders?company=${encodeURIComponent(companyToUse)}`;
+      const params = new URLSearchParams({
+        company: companyToUse,
+        limit_page_length: pageSize.toString(),
+        start: ((currentPage - 1) * pageSize).toString()
+      });
       
       if (searchTerm) {
-        url += `&search=${encodeURIComponent(searchTerm)}`;
+        params.append('search', searchTerm);
       }
       
       if (statusFilter) {
-        url += `&status=${encodeURIComponent(statusFilter)}`;
+        params.append('status', statusFilter);
       }
       
       if (supplierFilter) {
-        url += `&supplier=${encodeURIComponent(supplierFilter)}`;
+        params.append('supplier', supplierFilter);
       }
       
       if (dateFilter.from_date) {
-        url += `&from_date=${encodeURIComponent(dateFilter.from_date)}`;
+        params.append('from_date', dateFilter.from_date);
       }
       
       if (dateFilter.to_date) {
-        url += `&to_date=${encodeURIComponent(dateFilter.to_date)}`;
+        params.append('to_date', dateFilter.to_date);
       }
-
-      console.log('Fetching Purchase Orders from:', url);
-      const response = await fetch(url);
+      
+      const response = await fetch(`/api/purchase-orders?${params}`);
       const data = await response.json();
-      
-      console.log('Purchase Orders response:', data);
-      
+
       if (data.success) {
         setPurchaseOrders(data.data || []);
+        
+        if (data.total_records !== undefined) {
+          setTotalRecords(data.total_records);
+          const calculatedTotalPages = Math.ceil(data.total_records / pageSize);
+          setTotalPages(calculatedTotalPages);
+        } else {
+          setTotalRecords(data.data?.length || 0);
+          setTotalPages(1);
+        }
+        
         setError('');
       } else {
         setError(data.message || 'Failed to fetch purchase orders');
       }
-    } catch (err: unknown) {
+    } catch (err) {
       setError('Failed to fetch purchase orders');
-      console.error('Error fetching purchase orders:', err);
     } finally {
       setLoading(false);
     }
-  }, [selectedCompany, searchTerm, statusFilter, supplierFilter, dateFilter]);
+  }, [selectedCompany, currentPage, pageSize, searchTerm, statusFilter, supplierFilter, dateFilter.from_date, dateFilter.to_date]);
 
   useEffect(() => {
     fetchSuppliers();
@@ -156,7 +174,12 @@ export default function PurchaseOrdersPage() {
 
   useEffect(() => {
     fetchPurchaseOrders();
-  }, [selectedCompany, searchTerm, statusFilter, supplierFilter, dateFilter, fetchPurchaseOrders]);
+  }, [fetchPurchaseOrders]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, supplierFilter, dateFilter]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -170,95 +193,103 @@ export default function PurchaseOrdersPage() {
   };
 
   if (loading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <div className="text-lg">Loading Purchase Orders...</div>
-      </div>
-    );
+    return <LoadingSpinner message="Loading Purchase Orders..." />;
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Purchase Orders</h1>
-        <button className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700">
-          Create Purchase Order
-        </button>
-      </div>
-
-      <div className="bg-white shadow rounded-lg p-4 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Search
-            </label>
-            <input
-              type="text"
-              className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              placeholder="Search by name or supplier..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Status
-            </label>
-            <select
-              className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <option value="">All Status</option>
-              <option value="Draft">Draft</option>
-              <option value="Submitted">Submitted</option>
-              <option value="To Receive">To Receive</option>
-              <option value="Completed">Completed</option>
-              <option value="Cancelled">Cancelled</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Supplier
-            </label>
-            <select
-              className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              value={supplierFilter}
-              onChange={(e) => setSupplierFilter(e.target.value)}
-            >
-              <option value="">All Suppliers</option>
-              {suppliers.map((supplier) => (
-                <option key={supplier.name} value={supplier.name}>
-                  {supplier.supplier_name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              From Date
-            </label>
-            <input
-              type="date"
-              className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              value={dateFilter.from_date}
-              onChange={(e) => setDateFilter({ ...dateFilter, from_date: e.target.value })}
-            />
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-white shadow">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-6">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Purchase Orders</h1>
+              <p className="mt-1 text-sm text-gray-600">Manage your purchase orders and procurement</p>
+            </div>
+            <button className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 flex items-center">
+              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Create Purchase Order
+            </button>
           </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              To Date
-            </label>
-            <input
-              type="date"
-              className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              value={dateFilter.to_date}
-              onChange={(e) => setDateFilter({ ...dateFilter, to_date: e.target.value })}
-            />
+      </div>
+
+      {/* Filters */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+        <div className="bg-white shadow rounded-lg p-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Search
+              </label>
+              <input
+                type="text"
+                className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                placeholder="Search by name or supplier..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Status
+              </label>
+              <select
+                className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+              >
+                <option value="">All Status</option>
+                <option value="Draft">Draft</option>
+                <option value="Submitted">Submitted</option>
+                <option value="To Receive">To Receive</option>
+                <option value="Completed">Completed</option>
+                <option value="Cancelled">Cancelled</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Supplier
+              </label>
+              <select
+                className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                value={supplierFilter}
+                onChange={(e) => setSupplierFilter(e.target.value)}
+              >
+                <option value="">All Suppliers</option>
+                {suppliers.map((supplier) => (
+                  <option key={supplier.name} value={supplier.name}>
+                    {supplier.supplier_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                From Date
+              </label>
+              <input
+                type="date"
+                className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                value={dateFilter.from_date}
+                onChange={(e) => setDateFilter({ ...dateFilter, from_date: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                To Date
+              </label>
+              <input
+                type="date"
+                className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                value={dateFilter.to_date}
+                onChange={(e) => setDateFilter({ ...dateFilter, to_date: e.target.value })}
+              />
+            </div>
           </div>
-          <div className="flex items-end">
+          <div className="mt-4 flex justify-end space-x-2">
             <button
               onClick={() => {
                 setSearchTerm('');
@@ -270,64 +301,110 @@ export default function PurchaseOrdersPage() {
             >
               Clear Filters
             </button>
+            <button
+              onClick={fetchPurchaseOrders}
+              className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
+            >
+              Apply Filters
+            </button>
           </div>
         </div>
       </div>
 
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-          {error}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+            {error}
+          </div>
         </div>
       )}
 
-      <div className="bg-white shadow overflow-hidden sm:rounded-md">
-        <ul className="divide-y divide-gray-200">
-          {purchaseOrders.map((order) => (
-            <li key={order.name}>
-              <div className="px-4 py-4 sm:px-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-indigo-600 truncate">
-                      {order.name}
-                    </p>
-                    <p className="mt-1 text-sm text-gray-900">
-                      Supplier: {order.supplier}
-                    </p>
-                    <p className="mt-1 text-sm text-gray-500">
-                      Order Date: {order.transaction_date} | Delivery Date: {order.schedule_date}
-                    </p>
-                  </div>
-                  <div className="ml-4 flex-shrink-0">
-                    <span
-                      className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(order.status)}`}
-                    >
-                      {order.status}
-                    </span>
-                  </div>
-                </div>
-                <div className="mt-2 sm:flex sm:justify-between">
-                  <div className="sm:flex">
-                    {order.items_count && (
-                      <p className="flex items-center text-sm text-gray-500">
-                        Items: {order.items_count}
-                      </p>
-                    )}
-                  </div>
-                  <div className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">
-                    <span className="text-indigo-600 font-medium">
-                      Total: {order.currency} {order.grand_total.toFixed(2)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </li>
-          ))}
-        </ul>
-        {purchaseOrders.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-gray-500">No purchase orders found</p>
+      {/* Purchase Orders List */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+        <div className="bg-white shadow overflow-hidden sm:rounded-md">
+          <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
+            <h3 className="text-sm font-medium text-gray-900">
+              Purchase Orders ({purchaseOrders.length} orders)
+            </h3>
           </div>
-        )}
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Order No
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Supplier
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Order Date
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Schedule Date
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Total
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {purchaseOrders.map((order) => (
+                  <tr key={order.name} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {order.name}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {order.supplier}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {order.transaction_date}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {order.schedule_date}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(order.status)}`}>
+                        {order.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {order.currency} {order.grand_total.toLocaleString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <button className="text-indigo-600 hover:text-indigo-900 mr-3">
+                        View
+                      </button>
+                      <button className="text-green-600 hover:text-green-900">
+                        Edit
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {purchaseOrders.length === 0 && (
+            <div className="text-center py-12">
+              <p className="text-gray-500">No purchase orders found</p>
+            </div>
+          )}
+          
+          {/* Pagination Controls */}
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalRecords={totalRecords}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+          />
+        </div>
       </div>
     </div>
   );

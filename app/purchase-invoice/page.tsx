@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import LoadingSpinner from '../components/LoadingSpinner';
+import Pagination from '../components/Pagination';
 
 interface PurchaseInvoice {
   name: string;
@@ -52,6 +54,12 @@ export default function PurchaseInvoicePage() {
     due_date: '',
     items: [{ item_code: '', qty: 1, rate: 0 }]
   });
+  
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [pageSize] = useState(20); // 20 records per page
 
   const router = useRouter();
 
@@ -72,6 +80,9 @@ export default function PurchaseInvoicePage() {
       setLoading(true);
       const params = new URLSearchParams({
         company: selectedCompany,
+        // Add pagination parameters
+        limit_page_length: pageSize.toString(),
+        start: ((currentPage - 1) * pageSize).toString(),
         ...(searchTerm && { search: searchTerm }),
         ...(supplierFilter && { supplier: supplierFilter }),
         ...(statusFilter && { status: statusFilter }),
@@ -84,6 +95,17 @@ export default function PurchaseInvoicePage() {
 
       if (data.success) {
         setInvoices(data.data || []);
+        
+        // Update pagination info from API response
+        if (data.total_records !== undefined) {
+          setTotalRecords(data.total_records);
+          const calculatedTotalPages = Math.ceil(data.total_records / pageSize);
+          setTotalPages(calculatedTotalPages);
+        } else {
+          // Fallback: calculate from received data
+          setTotalRecords(data.data?.length || 0);
+          setTotalPages(1);
+        }
       } else {
         setError(data.message || 'Failed to fetch purchase invoices');
       }
@@ -92,7 +114,7 @@ export default function PurchaseInvoicePage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedCompany, searchTerm, supplierFilter, statusFilter, dateFilter]);
+  }, [selectedCompany, currentPage, pageSize, searchTerm, supplierFilter, statusFilter, dateFilter.from_date, dateFilter.to_date]);
 
   const fetchSuppliers = useCallback(async () => {
     if (!selectedCompany) return;
@@ -130,7 +152,12 @@ export default function PurchaseInvoicePage() {
       fetchSuppliers();
       fetchItems();
     }
-  }, [selectedCompany, fetchInvoices, fetchSuppliers, fetchItems]);
+  }, [fetchInvoices, fetchSuppliers, fetchItems]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, supplierFilter, statusFilter, dateFilter]);
 
   const handleCreateInvoice = async () => {
     if (!selectedCompany || !newInvoice.supplier) {
@@ -216,14 +243,7 @@ export default function PurchaseInvoicePage() {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-indigo-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading Purchase Invoices...</p>
-        </div>
-      </div>
-    );
+    return <LoadingSpinner message="Loading Purchase Invoices..." />;
   }
 
   return (
@@ -423,6 +443,15 @@ export default function PurchaseInvoicePage() {
               <p className="text-gray-500">No purchase invoices found</p>
             </div>
           )}
+          
+          {/* Pagination Controls */}
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalRecords={totalRecords}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+          />
         </div>
       </div>
 
