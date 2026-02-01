@@ -96,6 +96,8 @@ export default function InvoicePage() {
   const [deliveryNotes, setDeliveryNotes] = useState([]);
   const [deliveryNotesLoading, setDeliveryNotesLoading] = useState(false);
   const [deliveryNotesError, setDeliveryNotesError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+  const [submittingInvoice, setSubmittingInvoice] = useState<string | null>(null);
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -612,6 +614,7 @@ export default function InvoicePage() {
         setEditingInvoiceStatus(invoiceStatus || 'Draft');
         setShowForm(true);
         setError('');
+        setSuccessMessage(''); // Clear success message when opening edit form
 
         console.log('✅ Edit form loaded with DN:', deliveryNote);
       } else {
@@ -645,10 +648,10 @@ export default function InvoicePage() {
         currency: 'IDR',
         price_list_currency: 'IDR',
         plc_conversion_rate: 1,
-        selling_price_list: 'Standard Selling',
+        // selling_price_list: 'Standard Selling',
 
         // Address and contact
-        territory: 'All Territories',
+        // territory: 'All Territories',
         customer_address: formData.customer_address || '',
         shipping_address: formData.shipping_address || '',
         contact_person: formData.contact_person || '',
@@ -667,16 +670,16 @@ export default function InvoicePage() {
         // Items with full ERPNext structure
         items: formData.items.map(item => ({
           item_code: item.item_code,
-          item_name: item.item_name,
-          description: item.item_name,
+          // item_name: item.item_name,
+          // description: item.item_name,
           qty: item.qty,
           rate: item.rate,
           amount: item.amount,
-          income_account: item.income_account,
-          cost_center: item.cost_center,
+          // income_account: item.income_account,
+          // cost_center: item.cost_center,
           warehouse: item.warehouse,
-          stock_uom: 'Nos',
-          uom_conversion_factor: 1,
+          // stock_uom: item.stock_uom, //'Nos',
+          // uom_conversion_factor: 1,
           // SO/DN data dari items, bukan header
           delivery_note: item.delivery_note,
           dn_detail: item.dn_detail,
@@ -685,13 +688,13 @@ export default function InvoicePage() {
         })),
 
         // Calculated totals
-        total: total,
-        net_total: total,
-        grand_total: total,
-        base_total: total,
-        base_net_total: total,
-        base_grand_total: total,
-        outstanding_amount: total,
+        // total: total,
+        // net_total: total,
+        // grand_total: total,
+        // base_total: total,
+        // base_net_total: total,
+        // base_grand_total: total,
+        // outstanding_amount: total,
 
         // Additional fields
         status: 'Draft',
@@ -709,57 +712,54 @@ export default function InvoicePage() {
       const data = await response.json();
 
       if (data.success) {
+        setSuccessMessage(`✅ Sales Invoice berhasil disimpan!\n\n📄 Nomor: ${data.data?.name || 'INV Baru'}\n👤 Customer: ${formData.customer}\n📅 Tanggal: ${formData.posting_date}\n💰 Total: ${total.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}\n\n🎯 Next Steps:\n• Klik tombol "Submit" untuk mengubah status menjadi "Submitted"\n• Setelah submit, invoice akan masuk ke sistem akuntansi`);
+        
         setShowForm(false);
-        // Reset form with proper structure using VALID data
-        setFormData({
-          customer: '',
-          posting_date: new Date().toISOString().split('T')[0],
-          due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          // ❌ HAPUS delivery_note dari header
-          items: [{
-            item_code: '',
-            item_name: '',
-            qty: 1,
-            rate: 0,
-            amount: 0,
-            income_account: '411000 - Penjualan - ST',
-            cost_center: 'Main - ST',
-            warehouse: 'Finished Goods - ST',
-            // SO/DN fields di items, bukan header
-            sales_order: '',
-            so_detail: '',
-            dn_detail: '',
-            delivery_note: '',
-          }],
-          company: '',
-          currency: 'IDR',
-          price_list_currency: 'IDR',
-          plc_conversion_rate: 1,
-          selling_price_list: 'Standard Selling',
-          territory: 'All Territories',
-          tax_id: '',
-          customer_address: '',
-          shipping_address: '',
-          contact_person: '',
-          tax_category: 'On Net Total',
-          taxes_and_charges: '',
-          base_total: 0,
-          base_net_total: 0,
-          base_grand_total: 0,
-          total: 0,
-          net_total: 0,
-          grand_total: 0,
-          outstanding_amount: 0,
-        });
-        fetchInvoices(); // Refresh invoice list
+        fetchInvoices();
+        
+        // Clear success message after 5 seconds
+        setTimeout(() => setSuccessMessage(''), 5000);
       } else {
-        setError(data.message || 'Failed to create invoice');
+        setError(`❌ Gagal menyimpan Sales Invoice: ${data.message}`);
       }
     } catch (error) {
       console.error('Error creating invoice:', error);
       setError('An error occurred. Please try again.');
     } finally {
       setFormLoading(false);
+    }
+  };
+
+  // Submit Sales Invoice
+  const handleSubmitSalesInvoice = async (invoiceName: string) => {
+    try {
+      console.log('Submitting Sales Invoice:', invoiceName);
+      setSubmittingInvoice(invoiceName); // Set loading state
+      
+      const response = await fetch(`/api/invoice/${invoiceName}/submit`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const result = await response.json();
+      console.log('Submit Sales Invoice Response:', result);
+
+      if (result.success) {
+        setSuccessMessage(`✅ Sales Invoice ${invoiceName} berhasil di-submit!\n\n📄 Status: Draft → Unpaid\n💰 Accounting Impact:\n• Invoice masuk ke sistem akuntansi\n• Jurnal penjualan otomatis terbuat\n• Piutang customer tercatat\n\n🔔 Next Steps:\n• Customer dapat melihat invoice\n• Pembayaran dapat diproses\n• Status akan berubah menjadi "Paid" setelah pembayaran`);
+        fetchInvoices(); // Refresh list
+        
+        // Clear success message after 5 seconds
+        setTimeout(() => setSuccessMessage(''), 5000);
+      } else {
+        setError(`❌ Gagal submit Sales Invoice: ${result.message}`);
+      }
+    } catch (error) {
+      console.error('Error submitting sales invoice:', error);
+      setError('❌ Terjadi error saat submit Sales Invoice');
+    } finally {
+      setSubmittingInvoice(null); // Clear loading state
     }
   };
 
@@ -818,6 +818,7 @@ export default function InvoicePage() {
                 outstanding_amount: 0,
               });
               setError('');
+              setSuccessMessage(''); // Clear success message when opening new form
               setShowForm(true);
             }}
             className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 flex items-center"
@@ -895,6 +896,38 @@ export default function InvoicePage() {
         <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-md mb-6">
           <div className="flex">
             <div className="text-sm text-red-700">{error}</div>
+          </div>
+        </div>
+      )}
+
+      {/* Success Message Alert */}
+      {successMessage && (
+        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-md">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-green-800">Berhasil!</h3>
+              <div className="mt-2 text-sm text-green-700">
+                <pre className="whitespace-pre-wrap font-sans">{successMessage}</pre>
+              </div>
+            </div>
+            <div className="ml-auto pl-3">
+              <div className="-mx-1.5 -my-1.5">
+                <button
+                  onClick={() => setSuccessMessage('')}
+                  className="inline-flex bg-green-50 rounded-md p-1.5 text-green-500 hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-green-50 focus:ring-green-600"
+                >
+                  <span className="sr-only">Dismiss</span>
+                  <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -1213,24 +1246,20 @@ export default function InvoicePage() {
                       {invoice.name}
                     </p>
                     <p className="mt-1 text-sm text-gray-900">Customer: {invoice.customer}</p>
-                    <p className="mt-1 text-sm text-gray-500">
-                      Delivery Note: {
-                        invoice.items && invoice.items.length > 0
-                          ? invoice.items.find((item: any) => item.delivery_note)?.delivery_note || '-'
-                          : invoice.delivery_note || '-'
-                      }
-                    </p>
                   </div>
                   <div className="ml-4 flex-shrink-0">
                     <span
-                      className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${invoice.status === 'Submitted'
+                      className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        invoice.status === 'Unpaid'
+                          ? 'bg-green-100 text-green-800'
+                          : invoice.status === 'Submitted'
                           ? 'bg-green-100 text-green-800'
                           : invoice.status === 'Draft'
                             ? 'bg-yellow-100 text-yellow-800'
                             : invoice.status === 'Paid'
                               ? 'bg-blue-100 text-blue-800'
                               : 'bg-gray-100 text-gray-800'
-                        }`}
+                      }`}
                     >
                       {invoice.status}
                     </span>
@@ -1244,31 +1273,36 @@ export default function InvoicePage() {
                     <p className="mt-2 sm:mt-0 sm:ml-6 flex items-center text-sm text-gray-500">
                       Due Date: {invoice.due_date}
                     </p>
-                    {invoice.delivery_note && (
+                    {invoice.items && invoice.items.length > 0 && invoice.items.find((item: any) => item.delivery_note) && (
                       <p className="mt-2 sm:mt-0 sm:ml-6 flex items-center text-sm text-gray-500">
-                        DN: {
-                          // Extract DN from items (bukan header)
-                          invoice.items && invoice.items.length > 0
-                            ? invoice.items.find((item: any) => item.delivery_note)?.delivery_note || '-'
-                            : invoice.delivery_note || '-'
-                        }
+                        DN: {invoice.items.find((item: any) => item.delivery_note)?.delivery_note || '-'}
                       </p>
                     )}
                   </div>
                   <div className="mt-2 flex items-center justify-between sm:mt-0">
                     <span className="font-medium text-sm text-gray-500">Total: Rp {invoice.grand_total ? invoice.grand_total.toLocaleString('id-ID') : '0'}</span>
-
-                    {/* Submit button for Draft invoices */}
+                    
+                    {/* Submit Button for Draft Invoices */}
                     {invoice.status === 'Draft' && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation(); // Prevent opening invoice details
-                          // TODO: Add submit functionality for invoices
-                          console.log('Submit invoice:', invoice.name);
+                          handleSubmitSalesInvoice(invoice.name);
                         }}
-                        className="ml-4 px-3 py-1 bg-green-600 text-white text-xs font-medium rounded hover:bg-green-700 transition-colors"
+                        disabled={submittingInvoice === invoice.name}
+                        className="ml-4 px-3 py-1 bg-green-600 text-white text-xs font-medium rounded hover:bg-green-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center"
                       >
-                        Submit
+                        {submittingInvoice === invoice.name ? (
+                          <>
+                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Submitting...
+                          </>
+                        ) : (
+                          'Submit'
+                        )}
                       </button>
                     )}
                   </div>
