@@ -25,8 +25,8 @@ export async function POST(request: NextRequest) {
 
     console.log('Fetching invoice details for:', invoiceName);
 
-    // Build ERPNext URL untuk mendapatkan detail invoice
-    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Sales Invoice/${invoiceName}?fields=["name","customer","posting_date","due_date","grand_total","outstanding_amount","status","delivery_note","items"]`;
+    // Build ERPNext URL untuk mendapatkan detail invoice (tanpa delivery_note field)
+    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Sales Invoice/${invoiceName}?fields=["name","customer","posting_date","due_date","grand_total","outstanding_amount","status","items"]`;
 
     console.log('Invoice Details ERPNext URL:', erpNextUrl);
 

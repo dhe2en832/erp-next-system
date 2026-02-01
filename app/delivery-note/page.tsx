@@ -542,7 +542,7 @@ export default function DeliveryNotePage() {
 
         <div className="bg-white shadow rounded-lg">
           <div className="px-4 py-5 sm:p-6 border-b border-gray-200">
-            <p className="text-sm text-gray-500">Manage delivery notes and surat jalan</p>
+            <p className="text-sm text-gray-500">Manage delivery notes (surat jalan)</p>
           </div>
         </div>
 
@@ -789,18 +789,12 @@ export default function DeliveryNotePage() {
                 <div className="mt-6">
                   <div className="flex justify-between items-center mb-4">
                     <h4 className="text-md font-medium text-gray-900">Items</h4>
-                    <button
-                      type="button"
-                      onClick={handleAddItem}
-                      className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700"
-                    >
-                      Add Item
-                    </button>
+                    {/* Always hide Add Item button */}
                   </div>
                   
                   {formData.items.map((item, index) => (
                     <div key={index} className="border border-gray-200 rounded-lg p-4 mb-4">
-                      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
                         <div>
                           <label className="block text-xs font-medium text-gray-700">
                             Item Code
@@ -809,8 +803,9 @@ export default function DeliveryNotePage() {
                             type="text"
                             value={item.item_code}
                             onChange={(e) => handleItemChange(index, 'item_code', e.target.value)}
-                            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm"
+                            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm bg-gray-50"
                             placeholder="ITEM-001"
+                            readOnly
                           />
                         </div>
                         <div>
@@ -821,8 +816,9 @@ export default function DeliveryNotePage() {
                             type="text"
                             value={item.item_name}
                             onChange={(e) => handleItemChange(index, 'item_name', e.target.value)}
-                            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm"
+                            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm bg-gray-50"
                             placeholder="Item description"
+                            readOnly
                           />
                         </div>
                         <div>
@@ -830,11 +826,24 @@ export default function DeliveryNotePage() {
                             Quantity
                           </label>
                           <input
-                            type="number"
-                            value={item.qty}
+                            type="text"
+                            value={item.qty ? item.qty.toLocaleString('id-ID') : '0'}
                             onChange={(e) => handleItemChange(index, 'qty', parseFloat(e.target.value) || 0)}
-                            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm"
+                            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm bg-gray-50 text-right"
                             min="0"
+                            readOnly
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700">
+                            UoM
+                          </label>
+                          <input
+                            type="text"
+                            value={item.stock_uom || '-'}
+                            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm bg-gray-50 text-center"
+                            placeholder="-"
+                            readOnly
                           />
                         </div>
                         <div>
@@ -842,12 +851,13 @@ export default function DeliveryNotePage() {
                             Rate
                           </label>
                           <input
-                            type="number"
-                            value={item.rate}
+                            type="text"
+                            value={item.rate ? item.rate.toLocaleString('id-ID') : '0'}
                             onChange={(e) => handleItemChange(index, 'rate', parseFloat(e.target.value) || 0)}
-                            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm"
+                            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm bg-gray-50 text-right"
                             min="0"
                             step="0.01"
+                            readOnly
                           />
                         </div>
                         <div>
@@ -855,24 +865,61 @@ export default function DeliveryNotePage() {
                             Amount
                           </label>
                           <input
-                            type="number"
+                            type="text"
                             readOnly
-                            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm bg-gray-50"
-                            value={item.amount}
+                            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm bg-gray-50 text-right"
+                            value={item.amount ? item.amount.toLocaleString('id-ID') : '0'}
                           />
                         </div>
                       </div>
-                      {formData.items.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveItem(index)}
-                          className="mt-2 text-red-600 text-sm hover:text-red-800"
-                        >
-                          Remove
-                        </button>
-                      )}
+                      <div className="flex justify-between items-center mt-3">
+                        <div className="flex-1"></div>
+                        {formData.items.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveItem(index)}
+                            disabled={editingDeliveryNote && currentDeliveryNoteStatus !== 'Draft'}
+                            className={`text-sm px-3 py-1 rounded ${
+                              editingDeliveryNote && currentDeliveryNoteStatus !== 'Draft'
+                                ? 'text-gray-400 cursor-not-allowed bg-gray-100'
+                                : 'text-red-600 hover:text-red-800 hover:bg-red-50'
+                            }`}
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
                     </div>
                   ))}
+                </div>
+
+                {/* Totals Section */}
+                <div className="mt-6 bg-gray-50 rounded-lg p-4">
+                  <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+                    <div className="col-span-2 md:col-span-4"></div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700">
+                        Total Quantity
+                      </label>
+                      <input
+                        type="text"
+                        readOnly
+                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 text-sm bg-white text-right font-semibold"
+                        value={formData.items.reduce((total, item) => total + (item.qty || 0), 0).toLocaleString('id-ID')}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700">
+                        Total Amount
+                      </label>
+                      <input
+                        type="text"
+                        readOnly
+                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 text-sm bg-white text-right font-semibold"
+                        value={formData.items.reduce((total, item) => total + (item.amount || 0), 0).toLocaleString('id-ID')}
+                      />
+                    </div>
+                  </div>
                 </div>
 
                 <div className="flex justify-end space-x-3 mt-6">
