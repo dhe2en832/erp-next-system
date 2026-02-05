@@ -4,10 +4,11 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
+  const [loginId, setLoginId] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [isRedirecting, setIsRedirecting] = useState(false);
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -22,7 +23,7 @@ export default function LoginPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          usr: email,
+          usr: loginId,
           pwd: password,
         }),
       });
@@ -30,6 +31,12 @@ export default function LoginPage() {
       const data = await response.json();
 
       if (data.success) {
+        setIsRedirecting(true);
+        console.log('Login response data:', data);
+        console.log('Full name:', data.full_name);
+        console.log('Companies:', data.companies);
+        console.log('Needs company selection:', data.needs_company_selection);
+        
         // Store login data in localStorage for company selection page
         localStorage.setItem('loginData', JSON.stringify({
           full_name: data.full_name,
@@ -38,10 +45,14 @@ export default function LoginPage() {
         }));
 
         // Redirect to company selection
-        if (data.needs_company_selection && data.companies.length > 1) {
-          router.push('/select-company');
+        if (data.needs_company_selection) {
+          console.log('Redirecting to company selection...');
+          // Use window.location.href for immediate redirect
+          window.location.href = '/select-company';
+          return; // Stop execution here
         } else if (data.companies.length === 1) {
-          // Auto-select single company
+          // Auto-select single company (fallback)
+          console.log('Auto-selecting single company...');
           const companyResponse = await fetch('/api/auth/set-company', {
             method: 'POST',
             headers: {
@@ -53,13 +64,14 @@ export default function LoginPage() {
           });
 
           if (companyResponse.ok) {
-            localStorage.setItem('selectedCompany', JSON.stringify(data.companies[0]));
+            localStorage.setItem('selected_company', data.companies[0].name);
             router.push('/dashboard');
           } else {
             setError('Failed to set company');
           }
         } else {
           // Fallback to dashboard
+          console.log('Fallback to dashboard...');
           router.push('/dashboard');
         }
       } else {
@@ -72,6 +84,18 @@ export default function LoginPage() {
     }
   };
 
+  // Show loading state while redirecting
+  if (isRedirecting) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Redirecting...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
@@ -83,19 +107,19 @@ export default function LoginPage() {
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="rounded-md shadow-sm -space-y-px">
             <div>
-              <label htmlFor="email" className="sr-only">
-                Email address
+              <label htmlFor="loginId" className="sr-only">
+                Username or Email
               </label>
               <input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
+                id="loginId"
+                name="loginId"
+                type="text"
+                autoComplete="username"
                 required
                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                placeholder="Email address"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Username or Email"
+                value={loginId}
+                onChange={(e) => setLoginId(e.target.value)}
               />
             </div>
             <div>

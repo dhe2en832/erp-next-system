@@ -31,16 +31,20 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Get selected company from localStorage
+    // Check if company is selected
     const storedCompany = localStorage.getItem('selected_company');
-    if (storedCompany) {
-      setSelectedCompany({
-        name: storedCompany,
-        company_name: storedCompany,
-        country: '',
-        abbr: storedCompany.substring(0, 3).toUpperCase()
-      });
+    if (!storedCompany) {
+      // Redirect to company selection if no company selected
+      window.location.href = '/select-company';
+      return;
     }
+
+    setSelectedCompany({
+      name: storedCompany,
+      company_name: storedCompany,
+      country: '',
+      abbr: storedCompany.substring(0, 3).toUpperCase()
+    });
     fetchDashboardStats();
   }, []);
 
@@ -84,19 +88,6 @@ export default function DashboardPage() {
     <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-        {selectedCompany && (
-          <div className="flex items-center space-x-4">
-            <div className="text-sm text-gray-600">
-              <span className="font-medium">Current Company:</span> {selectedCompany.company_name}
-            </div>
-            <button
-              onClick={handleSwitchCompany}
-              className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 text-sm"
-            >
-              Switch Company
-            </button>
-          </div>
-        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">

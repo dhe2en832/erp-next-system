@@ -7,17 +7,29 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search');
     const limit = searchParams.get('limit') || '20';
+    const company = searchParams.get('company');
 
     const cookies = request.cookies;
     const sid = cookies.get('sid')?.value;
 
     let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Customer?fields=["name","customer_name"]&limit_page_length=${limit}`;
     
+    // Build filters array
+    const filters = [];
     if (search) {
-      erpNextUrl += `&filters=[["name","like","%${search}%"]]`;
+      filters.push(["name", "like", `%${search}%`]);
+    }
+    // Remove company filter temporarily as customer_group might not match company name
+    // if (company) {
+    //   filters.push(["customer_group", "=", company]);
+    // }
+    
+    if (filters.length > 0) {
+      erpNextUrl += `&filters=${encodeURIComponent(JSON.stringify(filters))}`;
     }
 
     console.log('Customers ERPNext URL:', erpNextUrl);
+    console.log('Request params:', { search, limit, company });
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -26,6 +38,7 @@ export async function GET(request: NextRequest) {
     // Try session-based authentication first
     if (sid) {
       headers['Cookie'] = `sid=${sid}`;
+      console.log('Using session authentication');
     } else {
       // Fallback to API key authentication
       const apiKey = process.env.ERP_API_KEY;
@@ -33,7 +46,9 @@ export async function GET(request: NextRequest) {
       
       if (apiKey && apiSecret) {
         headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
+        console.log('Using API key authentication');
       } else {
+        console.log('No authentication available');
         return NextResponse.json(
           { success: false, message: 'No authentication available' },
           { status: 401 }
@@ -47,7 +62,12 @@ export async function GET(request: NextRequest) {
     });
 
     const data = await response.json();
-    console.log('Customers API Response:', { status: response.status, data });
+    console.log('Customers API Response:', { 
+      status: response.status, 
+      success: response.ok,
+      dataLength: data.data?.length || 0,
+      data: data 
+    });
 
     if (response.ok) {
       return NextResponse.json({

@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
       full_name: loginData.full_name,
       home_page: loginData.home_page,
       companies: companies,
-      needs_company_selection: companies.length > 1,
+      needs_company_selection: companies.length >= 1,
     });
 
     // Forward the session cookie from ERPNext

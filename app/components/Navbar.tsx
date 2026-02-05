@@ -30,15 +30,22 @@ export default function Navbar() {
   const pathname = usePathname();
 
   useEffect(() => {
+    console.log('Navbar useEffect triggered');
     // Get selected company from localStorage
     const storedCompany = localStorage.getItem('selected_company');
+    console.log('Stored company from localStorage:', storedCompany);
+    
     if (storedCompany) {
-      setSelectedCompany({
+      const companyData = {
         name: storedCompany,
         company_name: storedCompany,
         country: '',
         abbr: storedCompany.substring(0, 3).toUpperCase()
-      });
+      };
+      console.log('Setting selected company:', companyData);
+      setSelectedCompany(companyData);
+    } else {
+      console.log('No stored company found');
     }
 
     // Get user data from localStorage
@@ -46,11 +53,30 @@ export default function Navbar() {
     if (loginData) {
       try {
         const data = JSON.parse(loginData);
+        console.log('Navbar login data:', data);
+        console.log('User full_name:', data.full_name);
         setUser({ full_name: data.full_name });
       } catch {
         console.log('Invalid login data in localStorage');
       }
     }
+
+    // Listen for storage changes (for cross-tab synchronization)
+    const handleStorageChange = () => {
+      const updatedCompany = localStorage.getItem('selected_company');
+      if (updatedCompany) {
+        setSelectedCompany({
+          name: updatedCompany,
+          company_name: updatedCompany,
+          country: '',
+          abbr: updatedCompany.substring(0, 3).toUpperCase()
+        });
+      } else {
+        setSelectedCompany(null);
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
 
     // Close dropdowns when clicking outside
     const handleClickOutside = (event: MouseEvent) => {
@@ -72,7 +98,11 @@ export default function Navbar() {
     };
 
     document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
+    
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+      window.removeEventListener('storage', handleStorageChange);
+    };
   }, []);
 
   const handleLogout = async () => {
@@ -167,9 +197,12 @@ export default function Navbar() {
   ];
 
   // Don't show navbar on login and company selection pages
+  console.log('Current pathname:', pathname);
   if (pathname === '/login' || pathname === '/select-company') {
+    console.log('Hiding navbar for pathname:', pathname);
     return null;
   }
+  console.log('Showing navbar for pathname:', pathname);
 
   return (
     <>

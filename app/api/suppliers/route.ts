@@ -6,6 +6,8 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const company = searchParams.get('company');
+    const search = searchParams.get('search');
+    const limit = searchParams.get('limit') || '500';
 
     const cookies = request.cookies;
     const sid = cookies.get('sid')?.value;
@@ -17,18 +19,18 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    if (!company) {
-      return NextResponse.json(
-        { success: false, message: 'Company is required' },
-        { status: 400 }
-      );
+    // Build filters
+    const filters = [];
+    filters.push(["supplier_type", "=", "Company"]);
+    
+    if (search) {
+      filters.push(["name", "like", `%${search}%`]);
     }
 
-    // Build filters
-    const filters = `[["supplier_type","=","Company"],["is_supplier","=",1]]`;
+    const filtersString = filters.length > 0 ? JSON.stringify(filters) : '[]';
 
     // Build ERPNext URL
-    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Supplier?fields=["name","supplier_name"]&filters=${encodeURIComponent(filters)}&order_by=supplier_name&limit_page_length=500`;
+    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Supplier?fields=["name","supplier_name"]&filters=${encodeURIComponent(filtersString)}&order_by=supplier_name&limit_page_length=${limit}`;
 
     console.log('Suppliers ERPNext URL:', erpNextUrl);
 
@@ -50,15 +52,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         success: true,
         data: data.data || [],
+        message: 'Suppliers fetched successfully'
       });
     } else {
       return NextResponse.json(
-        { success: false, message: data.exc || data.message || 'Failed to fetch suppliers' },
+        { success: false, message: data.message || 'Failed to fetch suppliers' },
         { status: response.status }
       );
     }
   } catch (error) {
-    console.error('Suppliers API error:', error);
+    console.error('Suppliers API Error:', error);
     return NextResponse.json(
       { success: false, message: 'Internal server error' },
       { status: 500 }

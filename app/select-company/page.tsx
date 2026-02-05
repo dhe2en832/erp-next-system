@@ -49,15 +49,21 @@ export default function SelectCompanyPage() {
     setError('');
 
     try {
+      console.log('Selecting company:', company);
       // Store selected company in localStorage
       localStorage.setItem('selected_company', company.name);
+      console.log('Stored selected_company in localStorage:', company.name);
 
       // Also set as cookie for API calls
       document.cookie = `selected_company=${company.name}; path=/; max-age=86400`;
+      console.log('Set cookie for company');
 
       // Redirect to dashboard or original URL
       const redirectUrl = '/dashboard';
-      router.push(redirectUrl);
+      console.log('Redirecting to dashboard...');
+      
+      // Use window.location.href for full page refresh to ensure Navbar reads updated localStorage
+      window.location.href = redirectUrl;
     } catch (error) {
       console.error('Error selecting company:', error);
       setError('Failed to select company. Please try again.');

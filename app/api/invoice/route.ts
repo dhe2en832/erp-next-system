@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Simple URL dengan items field
-    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Sales Invoice?fields=["name","customer","posting_date","due_date","grand_total","outstanding_amount","status","items"]&limit_page_length=100&order_by=posting_date desc`;
+    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Sales Invoice?fields=["name","customer","posting_date","due_date","grand_total","outstanding_amount","paid_amount","status","items"]&limit_page_length=100&order_by=posting_date desc`;
     
     console.log('Invoice ERPNext URL:', erpNextUrl);
 

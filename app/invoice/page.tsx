@@ -12,6 +12,7 @@ interface Invoice {
   due_date: string;
   grand_total: number;
   outstanding_amount: number;
+  paid_amount: number;
   status: string;
   delivery_note: string;
   items?: InvoiceItem[];
@@ -1250,15 +1251,15 @@ export default function InvoicePage() {
                   <div className="ml-4 flex-shrink-0">
                     <span
                       className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        invoice.status === 'Unpaid'
+                        invoice.status === 'Paid'
                           ? 'bg-green-100 text-green-800'
+                          : invoice.status === 'Unpaid'
+                          ? 'bg-red-100 text-red-800'
                           : invoice.status === 'Submitted'
-                          ? 'bg-green-100 text-green-800'
+                          ? 'bg-blue-100 text-blue-800'
                           : invoice.status === 'Draft'
                             ? 'bg-yellow-100 text-yellow-800'
-                            : invoice.status === 'Paid'
-                              ? 'bg-blue-100 text-blue-800'
-                              : 'bg-gray-100 text-gray-800'
+                            : 'bg-gray-100 text-gray-800'
                       }`}
                     >
                       {invoice.status}
@@ -1280,7 +1281,33 @@ export default function InvoicePage() {
                     )}
                   </div>
                   <div className="mt-2 flex items-center justify-between sm:mt-0">
-                    <span className="font-medium text-sm text-gray-500">Total: Rp {invoice.grand_total ? invoice.grand_total.toLocaleString('id-ID') : '0'}</span>
+                    <div className="text-right">
+                      <div className="font-medium text-sm text-gray-900">Total: Rp {invoice.grand_total ? invoice.grand_total.toLocaleString('id-ID') : '0'}</div>
+                      <div className="flex items-center space-x-4 mt-1">
+                        <span className="text-xs text-green-600">
+                          Paid: Rp {(invoice.paid_amount || (invoice.grand_total - invoice.outstanding_amount) || 0).toLocaleString('id-ID')}
+                        </span>
+                        <span className="text-xs text-orange-600">
+                          Outstanding: Rp {invoice.outstanding_amount ? invoice.outstanding_amount.toLocaleString('id-ID') : '0'}
+                        </span>
+                      </div>
+                      {/* Payment Progress Bar */}
+                      {invoice.grand_total && invoice.grand_total > 0 && (
+                        <div className="mt-2 w-32">
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div 
+                              className="bg-green-600 h-2 rounded-full transition-all duration-300"
+                              style={{ 
+                                width: `${Math.min(((invoice.paid_amount || (invoice.grand_total - invoice.outstanding_amount) || 0) / invoice.grand_total) * 100, 100)}%` 
+                              }}
+                            ></div>
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            {Math.round(((invoice.paid_amount || (invoice.grand_total - invoice.outstanding_amount) || 0) / invoice.grand_total) * 100)}% Paid
+                          </div>
+                        </div>
+                      )}
+                    </div>
                     
                     {/* Submit Button for Draft Invoices */}
                     {invoice.status === 'Draft' && (
