@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import SalesOrderDialog from '../components/SalesOrderDialog';
+import CustomerDialog from '../components/CustomerDialog';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Pagination from '../components/Pagination';
 
@@ -64,6 +65,7 @@ export default function DeliveryNotePage() {
   const [formLoading, setFormLoading] = useState(false);
   const [error, setError] = useState('');
   const [showSalesOrderDialog, setShowSalesOrderDialog] = useState(false);
+  const [showCustomerDialog, setShowCustomerDialog] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   
   // Pagination states
@@ -470,6 +472,17 @@ export default function DeliveryNotePage() {
     setSuccessMessage(''); // Clear success message when opening new form
   };
 
+  // Handle customer selection
+  const handleCustomerSelect = (customer: { name: string; customer_name: string }) => {
+    setFormData(prev => ({ 
+      ...prev, 
+      customer: customer.name,
+      customer_name: customer.customer_name
+    }));
+    setShowCustomerDialog(false);
+    setError('');
+  };
+
   if (loading) {
     return <LoadingSpinner message="Loading Delivery Notes..." />;
   }
@@ -787,13 +800,25 @@ export default function DeliveryNotePage() {
                     <label className="block text-sm font-medium text-gray-700">
                       Customer
                     </label>
-                    <input
-                      type="text"
-                      value={formData.customer_name || formData.customer}
-                      onChange={(e) => setFormData({ ...formData, customer: e.target.value })}
-                      className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                      required
-                    />
+                    <div className="flex mt-1">
+                      <input
+                        type="text"
+                        value={formData.customer_name || formData.customer}
+                        onChange={(e) => setFormData({ ...formData, customer: e.target.value })}
+                        className="mt-1 block w-full border border-gray-300 rounded-l-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                        placeholder="Select customer..."
+                        readOnly
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowCustomerDialog(true)}
+                        className="px-3 py-2 border border-l-0 border-gray-300 rounded-r-md bg-gray-50 text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                      >
+                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700">
@@ -988,6 +1013,14 @@ export default function DeliveryNotePage() {
         onClose={() => setShowSalesOrderDialog(false)}
         onSelect={handleSalesOrderSelect}
         selectedCompany={selectedCompany}
+        customerFilter={formData.customer}
+      />
+
+      {/* Customer Dialog */}
+      <CustomerDialog
+        isOpen={showCustomerDialog}
+        onClose={() => setShowCustomerDialog(false)}
+        onSelect={handleCustomerSelect}
       />
     </div>
   );

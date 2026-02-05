@@ -25,9 +25,10 @@ interface SalesOrderDialogProps {
   onClose: () => void;
   onSelect: (salesOrder: SalesOrder) => void;
   selectedCompany: string;
+  customerFilter?: string;
 }
 
-export default function SalesOrderDialog({ isOpen, onClose, onSelect, selectedCompany }: SalesOrderDialogProps) {
+export default function SalesOrderDialog({ isOpen, onClose, onSelect, selectedCompany, customerFilter }: SalesOrderDialogProps) {
   const [salesOrders, setSalesOrders] = useState<SalesOrder[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -269,7 +270,7 @@ export default function SalesOrderDialog({ isOpen, onClose, onSelect, selectedCo
     } finally {
       setLoading(false);
     }
-  }, [selectedCompany, searchTerm]);
+  }, [selectedCompany, searchTerm, customerFilter]);
 
   useEffect(() => {
     if (isOpen && selectedCompany) {
@@ -292,10 +293,17 @@ export default function SalesOrderDialog({ isOpen, onClose, onSelect, selectedCo
     }
   }, [isOpen]);
 
-  const filteredOrders = salesOrders.filter(order =>
-    order.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    order.customer.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredOrders = salesOrders.filter(order => {
+    const matchesSearch = searchTerm === '' || 
+      order.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.customer.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.customer_name.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesCustomer = !customerFilter || 
+      order.customer === customerFilter;
+    
+    return matchesSearch && matchesCustomer;
+  });
 
   const handleSelect = () => {
     if (selectedOrder) {
