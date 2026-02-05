@@ -26,7 +26,7 @@ export default function COADashboardModern() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('All');
-  const [sortBy, setSortBy] = useState<'name'|'balance'>('name');
+  const [sortBy, setSortBy] = useState<'name'|'number'|'balance'>('number');
   const [sortAsc, setSortAsc] = useState(true);
   const [journal, setJournal] = useState<JournalEntry[]>([]);
   const [selectedAccount, setSelectedAccount] = useState('');
@@ -99,6 +99,8 @@ export default function COADashboardModern() {
     const sorted = [...accs].sort((a, b) => {
       const cmp = sortBy === 'name' 
         ? (a.account_name || '').localeCompare(b.account_name || '') 
+        : sortBy === 'number'
+        ? (a.name || '').localeCompare(b.name || '', undefined, { numeric: true })
         : calculateTotalBalance(a) - calculateTotalBalance(b);
       return sortAsc ? cmp : -cmp;
     });
@@ -346,9 +348,10 @@ export default function COADashboardModern() {
             <div className="min-w-40">
               <select
                 value={sortBy}
-                onChange={e => setSortBy(e.target.value as 'name' | 'balance')}
+                onChange={e => setSortBy(e.target.value as 'name' | 'number' | 'balance')}
                 className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-lg"
               >
+                <option value="number">Sort by Number</option>
                 <option value="name">Sort by Name</option>
                 <option value="balance">Sort by Balance</option>
               </select>

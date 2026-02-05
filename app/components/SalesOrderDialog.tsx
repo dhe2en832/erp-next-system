@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback } from 'react';
 interface SalesOrder {
   name: string;
   customer: string;
+  customer_name: string;
   transaction_date: string;
   grand_total: number;
   status: string;
@@ -398,7 +399,7 @@ export default function SalesOrderDialog({ isOpen, onClose, onSelect, selectedCo
                           {order.docstatus === 1 ? 'Submitted' : order.docstatus === 0 ? 'Draft' : 'Unknown'}
                         </span>
                       </div>
-                      <p className="mt-1 text-sm text-gray-900">Customer: {order.customer}</p>
+                      <p className="mt-1 text-sm text-gray-900">Customer: {order.customer_name}</p>
                       <div className="mt-1 flex items-center space-x-4 text-xs text-gray-500">
                         <span>Date: {order.transaction_date}</span>
                         <span>Delivery Date: {order.delivery_date}</span>
@@ -406,7 +407,10 @@ export default function SalesOrderDialog({ isOpen, onClose, onSelect, selectedCo
                     </div>
                     <div className="ml-4 text-right">
                       <p className="text-sm font-medium text-gray-900">
-                        ${order.grand_total ? order.grand_total.toFixed(2) : '0.00'}
+                        {order.grand_total ? order.grand_total.toLocaleString('id-ID', {
+                          style: 'currency',
+                          currency: 'IDR'
+                        }) : 'Rp 0,00'}
                       </p>
                       {order.items && (
                         <p className="text-xs text-gray-500">{order.items.length} items</p>
@@ -424,7 +428,7 @@ export default function SalesOrderDialog({ isOpen, onClose, onSelect, selectedCo
           <div className="flex justify-between items-center">
             <div className="text-sm text-gray-500">
               {selectedOrder ? (
-                <span>Selected: <strong>{selectedOrder.name}</strong> - {selectedOrder.customer}</span>
+                <span>Selected: <strong>{selectedOrder.name}</strong> - {selectedOrder.customer_name}</span>
               ) : (
                 <span>No order selected</span>
               )}

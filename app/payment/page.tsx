@@ -34,6 +34,11 @@ interface PaymentEntry {
   }>;
 }
 
+interface CompanyAccount {
+  name: string;
+  account_type: string;
+}
+
 interface PaymentFormData {
   payment_type: 'Receive' | 'Pay';
   party_type: 'Customer' | 'Supplier';
@@ -144,6 +149,55 @@ export default function PaymentPage() {
       setLoadingAccounts(false);
     }
   }, [selectedCompany]);
+
+  // Auto-update debit and credit accounts when payment type or mode changes
+  useEffect(() => {
+    if (!companyAccounts.available_accounts || !selectedCompany) return;
+    
+    console.log('🤖 Auto-updating accounts based on payment type and mode:', {
+      paymentType: formData.payment_type,
+      paymentMode: formData.mode_of_payment
+    });
+    
+    // Auto-select debit account
+    let newDebitAccount = '';
+    if (formData.payment_type === 'Receive') {
+      if (formData.mode_of_payment === 'Bank Transfer' || formData.mode_of_payment === 'Warkat') {
+        newDebitAccount = companyAccounts.default_bank_account || 'Bank Account';
+      } else if (formData.mode_of_payment === 'Credit Card') {
+        newDebitAccount = companyAccounts.default_credit_card_account || 'Credit Card';
+      } else {
+        newDebitAccount = companyAccounts.default_cash_account || 'Cash Account';
+      }
+    } else {
+      newDebitAccount = companyAccounts.default_payable_account || 'Accounts Payable';
+    }
+    
+    // Auto-select credit account
+    let newCreditAccount = '';
+    if (formData.payment_type === 'Receive') {
+      newCreditAccount = companyAccounts.default_receivable_account || 'Accounts Receivable';
+    } else {
+      if (formData.mode_of_payment === 'Bank Transfer' || formData.mode_of_payment === 'Warkat') {
+        newCreditAccount = companyAccounts.default_bank_account || 'Bank Account';
+      } else if (formData.mode_of_payment === 'Credit Card') {
+        newCreditAccount = companyAccounts.default_credit_card_account || 'Credit Card';
+      } else {
+        newCreditAccount = companyAccounts.default_cash_account || 'Cash Account';
+      }
+    }
+    
+    setFormData(prev => ({
+      ...prev,
+      debit_account: newDebitAccount,
+      credit_account: newCreditAccount
+    }));
+    
+    console.log('✅ Accounts auto-selected:', {
+      debit: newDebitAccount,
+      credit: newCreditAccount
+    });
+  }, [formData.payment_type, formData.mode_of_payment, companyAccounts, selectedCompany]);
 
   // Fetch company accounts when company changes
   useEffect(() => {
@@ -327,20 +381,39 @@ export default function PaymentPage() {
   };
 
   // Get filtered accounts for dropdowns
-  const getFilteredAccounts = useCallback((accountType: 'debit' | 'credit') => {
+  const getFilteredAccounts = useCallback((accountType: 'debit' | 'credit'): CompanyAccount[] => {
     if (!companyAccounts.available_accounts) return [];
     
-    return companyAccounts.available_accounts.filter((account: any) => {
+    return companyAccounts.available_accounts.filter((account: CompanyAccount) => {
       // For Receive Payment (AR)
       if (formData.payment_type === 'Receive') {
-        // Debit: Cash/Bank accounts (menerima uang)
+        // Debit: Cash/Bank accounts (menerima uang) - depends on payment mode
         if (accountType === 'debit') {
-          return ['Bank', 'Cash', 'Asset'].includes(account.account_type) || 
-                 account.name.toLowerCase().includes('bank') ||
-                 account.name.toLowerCase().includes('cash') ||
-                 account.name.toLowerCase().includes('kas');
+          if (formData.mode_of_payment === 'Warkat') {
+            // For Warkat: show bank accounts primarily
+            return ['Bank', 'Asset'].includes(account.account_type) || 
+                   account.name.toLowerCase().includes('bank') ||
+                   account.name.toLowerCase().includes('cek') ||
+                   account.name.toLowerCase().includes('warkat') ||
+                   account.name.toLowerCase().includes('giro');
+          } else if (formData.mode_of_payment === 'Bank Transfer') {
+            // For Bank Transfer: show bank accounts
+            return ['Bank', 'Asset'].includes(account.account_type) || 
+                   account.name.toLowerCase().includes('bank');
+          } else if (formData.mode_of_payment === 'Credit Card') {
+            // For Credit Card: show credit card accounts
+            return ['Bank', 'Asset'].includes(account.account_type) || 
+                   account.name.toLowerCase().includes('bank') ||
+                   account.name.toLowerCase().includes('credit') ||
+                   account.name.toLowerCase().includes('card');
+          } else {
+            // For Cash: show cash accounts
+            return ['Cash', 'Asset'].includes(account.account_type) || 
+                   account.name.toLowerCase().includes('cash') ||
+                   account.name.toLowerCase().includes('kas');
+          }
         }
-        // Credit: Receivable accounts (mengurangi piutang)
+        // Credit: Receivable accounts (mengurangi piutang) - same for all modes
         if (accountType === 'credit') {
           return ['Receivable'].includes(account.account_type) ||
                  account.name.toLowerCase().includes('receivable') ||
@@ -350,7 +423,7 @@ export default function PaymentPage() {
       
       // For Pay Payment (AP)
       if (formData.payment_type === 'Pay') {
-        // Debit: Expense/Purchase accounts (menambah expense)
+        // Debit: Expense/Purchase accounts (menambah expense) - same for all modes
         if (accountType === 'debit') {
           return ['Expense', 'Purchase', 'Cost'].includes(account.account_type) ||
                  account.name.toLowerCase().includes('expense') ||
@@ -358,18 +431,37 @@ export default function PaymentPage() {
                  account.name.toLowerCase().includes('biaya') ||
                  account.name.toLowerCase().includes('belanja');
         }
-        // Credit: Cash/Bank accounts (mengeluarkan uang)
+        // Credit: Cash/Bank accounts (mengeluarkan uang) - depends on payment mode
         if (accountType === 'credit') {
-          return ['Bank', 'Cash', 'Asset'].includes(account.account_type) || 
-                 account.name.toLowerCase().includes('bank') ||
-                 account.name.toLowerCase().includes('cash') ||
-                 account.name.toLowerCase().includes('kas');
+          if (formData.mode_of_payment === 'Warkat') {
+            // For Warkat: show bank accounts primarily
+            return ['Bank', 'Asset'].includes(account.account_type) || 
+                   account.name.toLowerCase().includes('bank') ||
+                   account.name.toLowerCase().includes('cek') ||
+                   account.name.toLowerCase().includes('warkat') ||
+                   account.name.toLowerCase().includes('giro');
+          } else if (formData.mode_of_payment === 'Bank Transfer') {
+            // For Bank Transfer: show bank accounts
+            return ['Bank', 'Asset'].includes(account.account_type) || 
+                   account.name.toLowerCase().includes('bank');
+          } else if (formData.mode_of_payment === 'Credit Card') {
+            // For Credit Card: show credit card accounts
+            return ['Bank', 'Asset'].includes(account.account_type) || 
+                   account.name.toLowerCase().includes('bank') ||
+                   account.name.toLowerCase().includes('credit') ||
+                   account.name.toLowerCase().includes('card');
+          } else {
+            // For Cash: show cash accounts
+            return ['Cash', 'Asset'].includes(account.account_type) || 
+                   account.name.toLowerCase().includes('cash') ||
+                   account.name.toLowerCase().includes('kas');
+          }
         }
       }
       
       return false;
     });
-  }, [companyAccounts.available_accounts, formData.payment_type]);
+  }, [companyAccounts.available_accounts, formData.payment_type, formData.mode_of_payment]);
 
   // Calculate total outstanding for validation
   const getTotalOutstanding = useCallback(() => {
@@ -421,7 +513,7 @@ export default function PaymentPage() {
     if (formData.payment_type === 'Receive') {
       // Automatic debit account based on payment mode
       let debitAccount = '';
-      if (formData.mode_of_payment === 'Bank Transfer' || formData.mode_of_payment === 'Check') {
+      if (formData.mode_of_payment === 'Bank Transfer' || formData.mode_of_payment === 'Warkat') {
         debitAccount = companyAccounts.default_bank_account || 'Bank Account';
       } else if (formData.mode_of_payment === 'Credit Card') {
         debitAccount = companyAccounts.default_credit_card_account || 'Credit Card';
@@ -465,7 +557,7 @@ export default function PaymentPage() {
       
       // Automatic credit account based on payment mode
       let creditAccount = '';
-      if (formData.mode_of_payment === 'Bank Transfer' || formData.mode_of_payment === 'Check') {
+      if (formData.mode_of_payment === 'Bank Transfer' || formData.mode_of_payment === 'Warkat') {
         creditAccount = companyAccounts.default_bank_account || 'Bank Account';
       } else if (formData.mode_of_payment === 'Credit Card') {
         creditAccount = companyAccounts.default_credit_card_account || 'Credit Card';
@@ -803,13 +895,13 @@ export default function PaymentPage() {
                   >
                     <option value="Cash">Cash</option>
                     <option value="Bank Transfer">Bank Transfer</option>
-                    <option value="Check">Check</option>
+                    <option value="Warkat">Warkat</option>
                     <option value="Credit Card">Credit Card</option>
                   </select>
                 </div>
               </div>
 
-              {/* Account Selection - Fully Automatic */}
+              {/* Account Selection - Dropdown dengan Auto-Selection */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -818,26 +910,31 @@ export default function PaymentPage() {
                       ✅ Auto-selected
                     </span>
                   </label>
-                  <div className="mt-1 p-3 bg-green-50 border border-green-200 rounded-md">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-green-800">
-                        {formData.payment_type === 'Receive' ? 
-                          (formData.mode_of_payment === 'Bank Transfer' || formData.mode_of_payment === 'Check' ? 
-                            companyAccounts.default_bank_account || 'Bank Account' :
-                           formData.mode_of_payment === 'Credit Card' ? 
-                            companyAccounts.default_credit_card_account || 'Credit Card' :
-                           companyAccounts.default_cash_account || 'Cash Account') :
-                          companyAccounts.default_payable_account || 'Accounts Payable'
-                        }
-                      </span>
-                      <span className="text-xs text-green-600">
-                        {formData.payment_type === 'Receive' ? 'Receiving money' : 'Paying expenses'}
-                      </span>
-                    </div>
-                    <p className="text-xs text-green-600 mt-1">
-                      💡 Automatically selected based on payment type and mode
-                    </p>
-                  </div>
+                  <select
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    value={formData.debit_account || (formData.payment_type === 'Receive' ? 
+                      (formData.mode_of_payment === 'Bank Transfer' || formData.mode_of_payment === 'Warkat' ? 
+                        companyAccounts.default_bank_account || 'Bank Account' :
+                       formData.mode_of_payment === 'Credit Card' ? 
+                        companyAccounts.default_credit_card_account || 'Credit Card' :
+                       companyAccounts.default_cash_account || 'Cash Account') :
+                      companyAccounts.default_payable_account || 'Accounts Payable')
+                    }
+                    onChange={(e) => {
+                      const selectedAccount = e.target.value;
+                      setFormData(prev => ({ ...prev, debit_account: selectedAccount }));
+                      console.log('🏦 Debit account changed to:', selectedAccount);
+                    }}
+                  >
+                    {getFilteredAccounts('debit').map((account: CompanyAccount) => (
+                      <option key={account.name} value={account.name}>
+                        {account.name} ({account.account_type})
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-green-600 mt-1">
+                    💡 Automatically selected based on payment type and mode
+                  </p>
                 </div>
                 
                 <div>
@@ -847,26 +944,31 @@ export default function PaymentPage() {
                       ✅ Auto-selected
                     </span>
                   </label>
-                  <div className="mt-1 p-3 bg-green-50 border border-green-200 rounded-md">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-green-800">
-                        {formData.payment_type === 'Receive' ? 
-                          companyAccounts.default_receivable_account || 'Accounts Receivable' :
-                          (formData.mode_of_payment === 'Bank Transfer' || formData.mode_of_payment === 'Check' ? 
-                            companyAccounts.default_bank_account || 'Bank Account' :
-                           formData.mode_of_payment === 'Credit Card' ? 
-                            companyAccounts.default_credit_card_account || 'Credit Card' :
-                           companyAccounts.default_cash_account || 'Cash Account')
-                        }
-                      </span>
-                      <span className="text-xs text-green-600">
-                        {formData.payment_type === 'Receive' ? 'Reducing receivables' : 'Paying out money'}
-                      </span>
-                    </div>
-                    <p className="text-xs text-green-600 mt-1">
-                      💡 Automatically selected based on payment type and mode
-                    </p>
-                  </div>
+                  <select
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    value={formData.credit_account || (formData.payment_type === 'Receive' ? 
+                      companyAccounts.default_receivable_account || 'Accounts Receivable' :
+                      (formData.mode_of_payment === 'Bank Transfer' || formData.mode_of_payment === 'Warkat' ? 
+                        companyAccounts.default_bank_account || 'Bank Account' :
+                       formData.mode_of_payment === 'Credit Card' ? 
+                        companyAccounts.default_credit_card_account || 'Credit Card' :
+                       companyAccounts.default_cash_account || 'Cash Account'))
+                    }
+                    onChange={(e) => {
+                      const selectedAccount = e.target.value;
+                      setFormData(prev => ({ ...prev, credit_account: selectedAccount }));
+                      console.log('💳 Credit account changed to:', selectedAccount);
+                    }}
+                  >
+                    {getFilteredAccounts('credit').map((account: CompanyAccount) => (
+                      <option key={account.name} value={account.name}>
+                        {account.name} ({account.account_type})
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-green-600 mt-1">
+                    💡 Automatically selected based on payment type and mode
+                  </p>
                 </div>
               </div>
 
@@ -889,14 +991,14 @@ export default function PaymentPage() {
                 </div>
               </div>
 
-              {/* Check Payment Details */}
-              {formData.mode_of_payment === 'Check' && (
+              {/* Warkat Payment Details */}
+              {formData.mode_of_payment === 'Warkat' && (
                 <div className="border rounded-lg p-4 mb-6 bg-gray-50">
-                  <h5 className="text-md font-medium text-gray-900 mb-4">💳 Check Details</h5>
+                  <h5 className="text-md font-medium text-gray-900 mb-4">💳 Warkat Details</h5>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Check Number
+                        Warkat Number
                       </label>
                       <input
                         type="text"
@@ -909,7 +1011,7 @@ export default function PaymentPage() {
                     
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Check Date
+                        Warkat Date
                       </label>
                       <input
                         type="date"
@@ -940,9 +1042,16 @@ export default function PaymentPage() {
                 <div className="border rounded-lg p-4 mb-6">
                   <div className="flex justify-between items-center mb-4">
                     <h4 className="text-md font-medium text-gray-900">Outstanding Invoices</h4>
-                    <span className="text-sm text-gray-600">
-                      {outstandingInvoices.length} invoice(s) • Total: Rp {getTotalOutstanding().toLocaleString('id-ID')}
-                    </span>
+                    <div className="text-sm text-gray-600">
+                      <span className="mr-3">
+                        {outstandingInvoices.length} invoice(s) • Total: Rp {getTotalOutstanding().toLocaleString('id-ID')}
+                      </span>
+                      {formData.selected_invoices.length > 0 && (
+                        <span className="text-indigo-600 font-medium">
+                          {formData.selected_invoices.length} selected
+                        </span>
+                      )}
+                    </div>
                   </div>
                   
                   {loadingInvoices ? (
@@ -954,28 +1063,112 @@ export default function PaymentPage() {
                       No outstanding invoices found for this customer
                     </div>
                   ) : (
-                    <div className="space-y-3">
+                    <>
+                      {/* Helper text for checkbox functionality */}
+                      <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                        <div className="flex items-start">
+                          <svg className="w-5 h-5 text-blue-600 mr-2 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <div className="text-xs text-blue-700">
+                            <p className="font-medium mb-1">📋 Invoice Selection Instructions:</p>
+                            <ul className="ml-4 space-y-1">
+                              <li>• Check the box next to invoices you want to pay</li>
+                              <li>• Enter allocation amount for each selected invoice</li>
+                              <li>• Leave allocation amount blank to use full outstanding amount</li>
+                              <li>• Total payment will be calculated based on your selections</li>
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-3">
                       {outstandingInvoices.map(invoice => (
                         <div key={invoice.name} className="border rounded p-3 bg-gray-50">
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <p className="font-medium text-gray-900">{invoice.name}</p>
-                              <p className="text-sm text-gray-500">
-                                Due: {invoice.due_date} | Total: Rp {invoice.grand_total.toLocaleString('id-ID')}
-                              </p>
+                          <div className="flex items-start space-x-3">
+                            <div className="pt-1">
+                              <input
+                                type="checkbox"
+                                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                                checked={formData.selected_invoices.some(selected => selected.invoice_name === invoice.name)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    // Add invoice to selected_invoices
+                                    setFormData(prev => ({
+                                      ...prev,
+                                      selected_invoices: [
+                                        ...prev.selected_invoices,
+                                        {
+                                          invoice_name: invoice.name,
+                                          invoice_total: invoice.grand_total,
+                                          outstanding_amount: invoice.outstanding_amount,
+                                          allocated_amount: 0
+                                        }
+                                      ]
+                                    }));
+                                  } else {
+                                    // Remove invoice from selected_invoices
+                                    setFormData(prev => ({
+                                      ...prev,
+                                      selected_invoices: prev.selected_invoices.filter(
+                                        selected => selected.invoice_name !== invoice.name
+                                      )
+                                    }));
+                                  }
+                                }}
+                              />
                             </div>
-                            <div className="text-right">
-                              <p className="text-sm font-medium text-orange-600">
-                                Outstanding: Rp {invoice.outstanding_amount.toLocaleString('id-ID')}
-                              </p>
-                              <p className="text-xs text-gray-500">
-                                {invoice.outstanding_amount > 0 ? 'Unpaid' : 'Paid'}
-                              </p>
+                            <div className="flex-1">
+                              <div className="flex justify-between items-start">
+                                <div className="flex-1">
+                                  <p className="font-medium text-gray-900">{invoice.name}</p>
+                                  <p className="text-sm text-gray-500">
+                                    Due: {invoice.due_date} | Total: Rp {invoice.grand_total.toLocaleString('id-ID')}
+                                  </p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-sm font-medium text-orange-600">
+                                    Outstanding: Rp {invoice.outstanding_amount.toLocaleString('id-ID')}
+                                  </p>
+                                  <p className="text-xs text-gray-500">
+                                    {invoice.outstanding_amount > 0 ? 'Unpaid' : 'Paid'}
+                                  </p>
+                                </div>
+                              </div>
+                              
+                              {/* Allocation amount input for selected invoices */}
+                              {formData.selected_invoices.some(selected => selected.invoice_name === invoice.name) && (
+                                <div className="mt-2 pt-2 border-t border-gray-200">
+                                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                                    Allocation Amount (Max: Rp {invoice.outstanding_amount.toLocaleString('id-ID')})
+                                  </label>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max={invoice.outstanding_amount}
+                                    step="0.01"
+                                    className="block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-xs focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                                    placeholder="Enter allocation amount"
+                                    onChange={(e) => {
+                                      const allocationAmount = parseFloat(e.target.value) || 0;
+                                      setFormData(prev => ({
+                                        ...prev,
+                                        selected_invoices: prev.selected_invoices.map(selected =>
+                                          selected.invoice_name === invoice.name
+                                            ? { ...selected, allocated_amount: allocationAmount }
+                                            : selected
+                                        )
+                                      }));
+                                    }}
+                                  />
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
                       ))}
                     </div>
+                    </>
                   )}
                 </div>
               )}

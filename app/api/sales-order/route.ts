@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     const sid = cookies.get('sid')?.value;
 
     // Build ERPNext URL
-    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Sales Order?fields=["name","customer","transaction_date","grand_total","status","docstatus","delivery_date"]&limit_page_length=${limit}&start=${start}`;
+    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Sales Order?fields=["name","customer","customer_name","transaction_date","grand_total","status","docstatus","delivery_date"]&limit_page_length=${limit}&start=${start}`;
     
     if (filters) {
       erpNextUrl += `&filters=${filters}`;

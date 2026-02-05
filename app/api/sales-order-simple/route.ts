@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
       ["status", "=", "To Deliver and Bill"]
     ];
     
-    const url = `${ERPNEXT_API_URL}/api/resource/Sales Order?fields=["name","customer","transaction_date","grand_total","status","docstatus","delivery_date"]&filters=${encodeURIComponent(JSON.stringify(filters))}&order_by=transaction_date desc&limit_page_length=50`;
+    const url = `${ERPNEXT_API_URL}/api/resource/Sales Order?fields=["name","customer","customer_name","transaction_date","grand_total","status","docstatus","delivery_date"]&filters=${encodeURIComponent(JSON.stringify(filters))}&order_by=transaction_date desc&limit_page_length=50`;
     
     console.log('Simple Sales Orders URL:', url);
     

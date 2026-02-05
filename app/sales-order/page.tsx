@@ -11,6 +11,7 @@ import Pagination from '../components/Pagination';
 interface SalesOrder {
   name: string;
   customer: string;
+  customer_name: string;
   transaction_date: string;
   grand_total: number;
   status: string;
@@ -50,6 +51,7 @@ export default function SalesOrderPage() {
   const [selectedCompany, setSelectedCompany] = useState('');
   const [formData, setFormData] = useState({
     customer: '',
+    customer_name: '',
     transaction_date: '',
     delivery_date: '',
     sales_person: '',
@@ -324,6 +326,7 @@ export default function SalesOrderPage() {
         
         setFormData({
           customer: order.customer || '',
+          customer_name: order.customer_name || '',
           transaction_date: order.transaction_date || '',
           delivery_date: order.delivery_date || '',
           sales_person: salesPersonValue,
@@ -354,7 +357,11 @@ export default function SalesOrderPage() {
   };
 
   const handleCustomerSelect = (customer: { name: string; customer_name: string }) => {
-    setFormData(prev => ({ ...prev, customer: customer.name }));
+    setFormData(prev => ({ 
+      ...prev, 
+      customer: customer.name,
+      customer_name: customer.customer_name
+    }));
     setShowCustomerDialog(false);
     setError('');
     
@@ -477,6 +484,7 @@ export default function SalesOrderPage() {
     
     setFormData({
       customer: '',
+      customer_name: '',
       transaction_date: todayString,
       delivery_date: todayString,
       sales_person: '',
@@ -547,7 +555,25 @@ export default function SalesOrderPage() {
     }
   };
 
-  const checkItemStock = async (itemCode: string, itemIndex: number, currentItem: any) => {
+  // Get default warehouse from company settings
+  const getDefaultWarehouse = async () => {
+    try {
+      const response = await fetch('/api/company-settings');
+      const data = await response.json();
+      
+      if (data.success && data.data?.default_warehouse) {
+        console.log('Using default warehouse from company settings:', data.data.default_warehouse);
+        return data.data.default_warehouse;
+      }
+    } catch (error: unknown) {
+      console.log('Failed to get default warehouse from settings, using fallback:', error);
+    }
+    
+    // Fallback to a generic warehouse name
+    return 'Stores';
+  };
+
+  const checkItemStock = async (itemCode: string, itemIndex: number, currentItem: OrderItem) => {
     console.log('Checking stock for item:', itemCode, 'at index:', itemIndex);
     console.log('Current item passed to stock check:', currentItem);
     
@@ -586,10 +612,10 @@ export default function SalesOrderPage() {
         
         console.log('Form data updated with warehouse');
       } else {
-        console.log('No available stock data found, using first warehouse from stock data');
+        console.log('No available stock data found, getting default warehouse');
         
-        // Set default warehouse
-        const defaultWarehouse = data.length > 0 ? data[0].warehouse : 'Stores - E1D';
+        // Get default warehouse dynamically
+        const defaultWarehouse = await getDefaultWarehouse();
         const actualStock = data.length > 0 ? data[0].available : 0;
         
         const updatedItem = {
@@ -607,10 +633,12 @@ export default function SalesOrderPage() {
           )
         }));
         
-        console.log('Set default warehouse from stock database data');
+        console.log('Set default warehouse dynamically:', defaultWarehouse);
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Stock check failed:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('Error details:', errorMessage);
     }
   };
 
@@ -764,7 +792,12 @@ export default function SalesOrderPage() {
         // Handle error dengan detail yang lebih baik
         const errorMessage = result.message || result.error || 'Failed to save sales order';
         setError(errorMessage);
-        console.error('Sales Order operation failed:', result);
+        console.error('Sales Order operation failed:', {
+          error: result,
+          message: result.message || result.error || 'Unknown error',
+          status: response.status,
+          payload: orderPayload
+        });
       }
     } catch (error) {
       console.error('Error saving order:', error);
@@ -950,7 +983,7 @@ export default function SalesOrderPage() {
                       className={`mt-1 block w-full border border-gray-300 rounded-l-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm ${
                         currentOrderStatus !== 'Draft' && currentOrderStatus !== '' ? 'bg-gray-100 cursor-not-allowed' : ''
                       }`}
-                      value={formData.customer}
+                      value={formData.customer_name || formData.customer}
                       onChange={(e) =>
                         setFormData({ ...formData, customer: e.target.value })
                       }
@@ -1310,7 +1343,7 @@ export default function SalesOrderPage() {
                     <p className="text-sm font-medium text-indigo-600 truncate">
                       {order.name}
                     </p>
-                    <p className="mt-1 text-sm text-gray-900">Customer: {order.customer}</p>
+                    <p className="mt-1 text-sm text-gray-900">Customer: {order.customer_name}</p>
                   </div>
                   <div className="ml-4 flex-shrink-0">
                     <span

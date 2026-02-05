@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 interface Customer {
   name: string;
@@ -17,38 +17,113 @@ export default function CustomerDialog({ isOpen, onClose, onSelect }: CustomerDi
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Debounce search term
+  useEffect(() => {
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current);
+    }
+    
+    debounceTimeoutRef.current = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 300); // 300ms delay
+    
+    return () => {
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+      }
+    };
+  }, [searchTerm]);
+
+  const fetchCustomers = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams();
+      if (debouncedSearchTerm.trim()) {
+        params.append('search', debouncedSearchTerm.trim());
+      }
+      
+      console.log('🔍 Searching customers with term:', debouncedSearchTerm.trim());
+      const response = await fetch(`/api/customers?${params.toString()}`);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.message || `HTTP ${response.status}: ${response.statusText}`;
+        console.error('❌ HTTP Error:', {
+          status: response.status,
+          statusText: response.statusText,
+          message: errorData.message
+        });
+        setError(errorMessage);
+        setCustomers([]);
+        return;
+      }
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        let customers = data.data || [];
+        
+        // If server-side search failed, try client-side filtering as fallback
+        if (debouncedSearchTerm.trim() && customers.length === 0) {
+          console.log('🔄 Server search returned empty, trying client-side filtering...');
+          try {
+            // Fetch all customers without search
+            const allResponse = await fetch('/api/customers?limit=100');
+            if (allResponse.ok) {
+              const allData = await allResponse.json();
+              if (allData.success && allData.data) {
+                const searchTermLower = debouncedSearchTerm.trim().toLowerCase();
+                customers = allData.data.filter((customer: Customer) => 
+                  customer.name.toLowerCase().includes(searchTermLower) ||
+                  customer.customer_name.toLowerCase().includes(searchTermLower)
+                );
+                console.log('✅ Client-side filtering found:', customers.length, 'customers');
+              }
+            }
+          } catch (fallbackError) {
+            console.error('❌ Client-side filtering failed:', fallbackError);
+          }
+        }
+        
+        setCustomers(customers);
+        console.log('✅ Final customers count:', customers.length);
+        setError(null);
+      } else {
+        const errorMessage = data.message || 'Failed to fetch customers';
+        console.error('❌ API Error:', {
+          message: data.message,
+          status: response.status
+        });
+        setError(errorMessage);
+        setCustomers([]);
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Network error occurred';
+      console.error('❌ Network Error:', error);
+      setError(errorMessage);
+      setCustomers([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [debouncedSearchTerm]);
 
   useEffect(() => {
     if (isOpen) {
       fetchCustomers();
     }
-  }, [isOpen, searchTerm]);
-
-  const fetchCustomers = async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (searchTerm) {
-        params.append('search', searchTerm);
-      }
-      
-      const response = await fetch(`/api/customers?${params.toString()}`);
-      const data = await response.json();
-      
-      if (data.success) {
-        setCustomers(data.data || []);
-      }
-    } catch (error) {
-      console.error('Error fetching customers:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [isOpen, fetchCustomers]);
 
   const handleSelect = (customer: Customer) => {
     onSelect(customer);
     onClose();
     setSearchTerm('');
+    setDebouncedSearchTerm('');
+    setError(null);
   };
 
   if (!isOpen) return null;
@@ -72,10 +147,15 @@ export default function CustomerDialog({ isOpen, onClose, onSelect }: CustomerDi
           <input
             type="text"
             className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-            placeholder="Search customers..."
+            placeholder="Search customers by name or customer name..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
+          {searchTerm && (
+            <div className="mt-1 text-xs text-gray-500">
+              Searching for: &quot;{searchTerm}&quot;
+            </div>
+          )}
         </div>
 
         <div className="max-h-96 overflow-y-auto">
@@ -83,9 +163,24 @@ export default function CustomerDialog({ isOpen, onClose, onSelect }: CustomerDi
             <div className="text-center py-4">
               <div className="text-gray-500">Loading...</div>
             </div>
+          ) : error ? (
+            <div className="text-center py-4">
+              <div className="text-red-500">❌ {error}</div>
+              <button
+                onClick={() => {
+                  setError(null);
+                  fetchCustomers();
+                }}
+                className="mt-2 text-sm text-blue-600 hover:text-blue-800 underline"
+              >
+                Try Again
+              </button>
+            </div>
           ) : customers.length === 0 ? (
             <div className="text-center py-4">
-              <div className="text-gray-500">No customers found</div>
+              <div className="text-gray-500">
+                {debouncedSearchTerm.trim() ? 'No customers found matching your search' : 'No customers found'}
+              </div>
             </div>
           ) : (
             <div className="space-y-2">

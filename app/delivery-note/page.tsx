@@ -33,6 +33,7 @@ interface DeliveryNoteItem {
 interface DeliveryNote {
   name: string;
   customer: string;
+  customer_name: string;
   posting_date: string;
   status: string;
   grand_total: number;
@@ -49,11 +50,13 @@ export default function DeliveryNotePage() {
     to_date: '',
   });
   const [nameFilter, setNameFilter] = useState('');
+  const [customerFilter, setCustomerFilter] = useState('');
   const [editingDeliveryNote, setEditingDeliveryNote] = useState<DeliveryNote | null>(null);
   const [currentDeliveryNoteStatus, setCurrentDeliveryNoteStatus] = useState<string>('');
   const [selectedCompany, setSelectedCompany] = useState('');
   const [formData, setFormData] = useState({
     customer: '',
+    customer_name: '',
     posting_date: new Date().toISOString().split('T')[0],
     sales_order: '',
     items: [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0 }],
@@ -150,12 +153,16 @@ export default function DeliveryNotePage() {
       console.log('Delivery Notes Response:', data);
       
       if (data.success) {
-        // Filter by name if nameFilter is provided
+        // Filter by name and customer if filters are provided
         let filteredData = data.data || [];
         if (nameFilter) {
           filteredData = filteredData.filter((dn: DeliveryNote) => 
-            dn.name.toLowerCase().includes(nameFilter.toLowerCase()) ||
-            dn.customer.toLowerCase().includes(nameFilter.toLowerCase())
+            dn.name.toLowerCase().includes(nameFilter.toLowerCase())
+          );
+        }
+        if (customerFilter) {
+          filteredData = filteredData.filter((dn: DeliveryNote) => 
+            dn.customer.toLowerCase().includes(customerFilter.toLowerCase())
           );
         }
         
@@ -182,7 +189,7 @@ export default function DeliveryNotePage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedCompany, dateFilter, nameFilter, currentPage, pageSize]);
+  }, [selectedCompany, dateFilter, nameFilter, customerFilter, currentPage, pageSize]);
 
   useEffect(() => {
     fetchDeliveryNotes();
@@ -191,7 +198,7 @@ export default function DeliveryNotePage() {
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [dateFilter, nameFilter]);
+  }, [dateFilter, nameFilter, customerFilter]);
 
   const handleSalesOrderChange = async (salesOrderName: string) => {
     if (!salesOrderName) {
@@ -213,6 +220,7 @@ export default function DeliveryNotePage() {
         const order = data.data;
         setFormData({
           customer: order.customer,
+          customer_name: order.customer_name,
           posting_date: new Date().toISOString().split('T')[0],
           sales_order: salesOrderName,
           items: order.items || [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0 }],
@@ -249,6 +257,7 @@ export default function DeliveryNotePage() {
         
         setFormData({
           customer: deliveryNote.customer,
+          customer_name: deliveryNote.customer_name,
           posting_date: deliveryNote.posting_date,
           sales_order: salesOrderValue, // Extract from items
           items: deliveryNote.items || [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0 }],
@@ -393,6 +402,7 @@ export default function DeliveryNotePage() {
   const resetForm = () => {
     setFormData({
       customer: '',
+      customer_name: '',
       posting_date: new Date().toISOString().split('T')[0],
       sales_order: '',
       items: [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0, uom: 'Nos' }],
@@ -437,6 +447,7 @@ export default function DeliveryNotePage() {
         // Set form dengan data dari sales order
         setFormData({
           customer: order.customer,
+          customer_name: order.customer_name,
           posting_date: new Date().toISOString().split('T')[0],
           sales_order: order.name,
           items: deliveryNoteItems,
@@ -548,7 +559,7 @@ export default function DeliveryNotePage() {
 
           {/* Filters */}
           <div className="bg-white shadow rounded-lg p-4 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Search Name
@@ -559,6 +570,18 @@ export default function DeliveryNotePage() {
               placeholder="Search by name..."
               value={nameFilter}
               onChange={(e) => setNameFilter(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Search Customer
+            </label>
+            <input
+              type="text"
+              className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              placeholder="Search by customer..."
+              value={customerFilter}
+              onChange={(e) => setCustomerFilter(e.target.value)}
             />
           </div>
           <div>
@@ -588,6 +611,7 @@ export default function DeliveryNotePage() {
               onClick={() => {
                 setDateFilter({ from_date: '', to_date: '' });
                 setNameFilter('');
+                setCustomerFilter('');
               }}
               className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400"
             >
@@ -627,7 +651,7 @@ export default function DeliveryNotePage() {
                     <p className="text-sm font-medium text-indigo-600 truncate">
                       {deliveryNote.name}
                     </p>
-                    <p className="mt-1 text-sm text-gray-900">Customer: {deliveryNote.customer}</p>
+                    <p className="mt-1 text-sm text-gray-900">Customer: {deliveryNote.customer_name}</p>
                   </div>
                   <div className="ml-4 flex-shrink-0">
                     <span
@@ -765,7 +789,7 @@ export default function DeliveryNotePage() {
                     </label>
                     <input
                       type="text"
-                      value={formData.customer}
+                      value={formData.customer_name || formData.customer}
                       onChange={(e) => setFormData({ ...formData, customer: e.target.value })}
                       className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                       required
@@ -794,7 +818,7 @@ export default function DeliveryNotePage() {
                   
                   {formData.items.map((item, index) => (
                     <div key={index} className="border border-gray-200 rounded-lg p-4 mb-4">
-                      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+                      <div className="grid grid-cols-2 lg:grid-cols-6 gap-6">
                         <div>
                           <label className="block text-xs font-medium text-gray-700">
                             Item Code
