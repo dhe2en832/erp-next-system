@@ -25,8 +25,8 @@ export async function POST(request: NextRequest) {
 
     console.log('Fetching invoice details for:', invoiceName);
 
-    // Build ERPNext URL untuk mendapatkan detail invoice (tanpa delivery_note field)
-    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Sales Invoice/${invoiceName}?fields=["name","customer","posting_date","due_date","grand_total","outstanding_amount","status","items"]`;
+    // Build ERPNext URL untuk mendapatkan detail invoice dengan custom fields
+    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Sales Invoice/${invoiceName}?fields=["name","customer","customer_name","posting_date","due_date","grand_total","outstanding_amount","status","items","custom_total_komisi_sales"]`;
 
     console.log('Invoice Details ERPNext URL:', erpNextUrl);
 
@@ -56,10 +56,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-  } catch (error: any) {
+  } catch (error: Error | unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     console.error('Invoice details API error:', error);
     return NextResponse.json(
-      { success: false, message: 'Internal server error', error: error.toString() },
+      { success: false, message: 'Internal server error', error: errorMessage },
       { status: 500 }
     );
   }

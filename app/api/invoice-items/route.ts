@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     
     // LANGKAH 1: Get semua submitted DN
     const allDNRes = await fetch(`${ERP_URL}/api/resource/Delivery Note?` + new URLSearchParams({
-        fields: '["name","customer","grand_total","status"]',
+        fields: '["name","customer","customer_name","grand_total","status"]',
         filters: JSON.stringify([
             ["docstatus", "=", 1],
             ["company", "=", company || ""],

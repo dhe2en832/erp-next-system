@@ -19,8 +19,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Simple URL dengan items field
-    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Sales Invoice?fields=["name","customer","posting_date","due_date","grand_total","outstanding_amount","paid_amount","status","items"]&limit_page_length=100&order_by=posting_date desc`;
+    // Simple URL dengan items field dan custom fields
+    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Sales Invoice?fields=["name","customer","customer_name","posting_date","due_date","grand_total","outstanding_amount","paid_amount","status","items","custom_total_komisi_sales"]&limit_page_length=100&order_by=posting_date desc`;
     
     console.log('Invoice ERPNext URL:', erpNextUrl);
 
@@ -115,6 +115,7 @@ export async function POST(request: NextRequest) {
     const payload: any = {
       company: invoiceData.company,
       customer: invoiceData.customer,
+      customer_name: invoiceData.customer_name,
       posting_date: invoiceData.posting_date,
       due_date: invoiceData.due_date || invoiceData.posting_date,
       items: invoiceData.items || [],
@@ -127,7 +128,9 @@ export async function POST(request: NextRequest) {
       territory: invoiceData.territory || 'Semua Wilayah',
       // Skip tax_category to use system default (Tax Category is empty)
       status: invoiceData.status || 'Draft',
-      docstatus: invoiceData.docstatus || 0
+      docstatus: invoiceData.docstatus || 0,
+      // Custom fields
+      custom_total_komisi_sales: invoiceData.custom_total_komisi_sales || 0
     };
 
     // Add calculated totals if provided

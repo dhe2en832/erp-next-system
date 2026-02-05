@@ -310,7 +310,7 @@ export default function DeliveryNotePage() {
         customer: formData.customer,
         posting_date: formData.posting_date,
         // Field tambahan yang penting untuk ERPNext
-        naming_series: 'MAT-DN-.YYYY.-', // ✅ Fixed naming series (sesuai ERPNext)
+        naming_series: 'DN-.YYYY.-', // Standard naming series
         // Reference ke Sales Order melalui remarks (ERPNext standard)
         ...(formData.sales_order && { 
           remarks: `Based on Sales Order: ${formData.sales_order}`
@@ -323,18 +323,18 @@ export default function DeliveryNotePage() {
           rate: item.rate,
           amount: item.amount,
           // Field penting untuk ERPNext Delivery Note items
-          warehouse: 'Stores - E1D', // ✅ Fixed warehouse
+          warehouse: item.warehouse || 'Stores', // Dynamic warehouse dari item
           // ✅ KEEP THIS - Field yang valid di ERPNext!
           ...(formData.sales_order && {
             against_sales_order: formData.sales_order,
             so_detail: item.so_detail || '' // Harus diisi dengan valid SO item ID
           }),
           delivered_qty: item.qty, // Default delivered qty
-          target_warehouse: 'Stores - E1D', // ✅ Fixed warehouse
+          target_warehouse: item.warehouse || 'Stores', // Dynamic warehouse
           conversion_factor: 1, // Default conversion factor
-          stock_uom: 'Nos', // Unit of measurement
-          // expense_account: '4210.000 - HPP Pembelian - E1D', // ✅ Auto-filled oleh ERPNext
-          cost_center: 'Main - E1D' // ✅ Fixed cost center
+          stock_uom: item.stock_uom || 'Nos', // Unit of measurement dari item
+          // Hapus field yang mungkin bermasalah:
+          // cost_center - akan di-auto fill oleh ERPNext
         }))
       };
       

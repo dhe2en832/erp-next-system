@@ -63,6 +63,26 @@ export async function POST(
     const submitUrl = `${ERPNEXT_API_URL}/api/resource/Sales%20Invoice/${invoiceName}`;
     console.log('Submit URL:', submitUrl);
 
+    // Get current invoice data to verify custom fields before submit
+    try {
+      const getCurrentData = await fetch(`${ERPNEXT_API_URL}/api/resource/Sales%20Invoice/${invoiceName}?fields=["name","custom_total_komisi_sales","items"]`, {
+        method: 'GET',
+        headers: headers,
+      });
+      
+      if (getCurrentData.ok) {
+        const currentData = await getCurrentData.json();
+        console.log('Current Invoice Data Before Submit:', {
+          name: currentData.data.name,
+          custom_total_komisi_sales: currentData.data.custom_total_komisi_sales,
+          items_count: currentData.data.items?.length || 0,
+          items_with_commission: currentData.data.items?.filter((item: any) => item.custom_komisi_sales > 0).length || 0
+        });
+      }
+    } catch (getDataError) {
+      console.warn('Failed to get current invoice data:', getDataError);
+    }
+
     const response = await fetch(submitUrl, {
       method: 'PUT',
       headers: headers,

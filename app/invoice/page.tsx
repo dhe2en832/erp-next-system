@@ -8,6 +8,7 @@ import Pagination from '../components/Pagination';
 interface Invoice {
   name: string;
   customer: string;
+  customer_name: string;
   posting_date: string;
   due_date: string;
   grand_total: number;
@@ -16,6 +17,7 @@ interface Invoice {
   status: string;
   delivery_note: string;
   items?: InvoiceItem[];
+  custom_total_komisi_sales?: number; // Add custom total komisi sales field
 }
 
 interface InvoiceItem {
@@ -31,6 +33,16 @@ interface InvoiceItem {
   sales_order?: string;   // Add sales_order field
   so_detail?: string;     // Add so_detail field
   dn_detail?: string;     // Add dn_detail field
+  custom_komisi_sales?: number; // Add custom komisi sales field
+}
+
+interface CompleteInvoiceItem extends InvoiceItem {
+  name?: string;
+  description?: string;
+  against_sales_order?: string;
+  sales_order_item?: string;
+  stock_uom?: string;
+  conversion_factor?: number;
 }
 
 export default function InvoicePage() {
@@ -50,6 +62,7 @@ export default function InvoicePage() {
   const ERP_API_SECRET = process.env.NEXT_PUBLIC_ERP_API_SECRET || '';
   const [formData, setFormData] = useState({
     customer: '',
+    customer_name: '',
     posting_date: new Date().toISOString().split('T')[0],
     due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // +30 days
     // ❌ HAPUS delivery_note dari header
@@ -67,6 +80,7 @@ export default function InvoicePage() {
       so_detail: '',
       dn_detail: '',
       delivery_note: '', // ✅ Delivery note hanya di items
+      custom_komisi_sales: 0, // ✅ Custom komisi sales per item
     }],
     // ERPNext mandatory fields
     company: '',
@@ -88,6 +102,7 @@ export default function InvoicePage() {
     net_total: 0,
     grand_total: 0,
     outstanding_amount: 0,
+    custom_total_komisi_sales: 0, // ✅ Custom total komisi sales di header
   });
   const [formLoading, setFormLoading] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<string | null>(null);
@@ -213,9 +228,9 @@ export default function InvoicePage() {
 
           // Log DN references untuk debugging
           const dnReferences = data.data
-            .flatMap((inv: any) => (inv.items || []))
-            .filter((item: any) => item.delivery_note && item.delivery_note.trim() !== '')
-            .map((item: any) => item.delivery_note);
+            .flatMap((inv: Invoice) => (inv.items || []))
+            .filter((item: InvoiceItem) => item.delivery_note && item.delivery_note.trim() !== '')
+            .map((item: InvoiceItem) => item.delivery_note);
 
           console.log('📦 DN References found:', dnReferences);
         }
@@ -311,9 +326,9 @@ export default function InvoicePage() {
                 },
                 items_count: completeInvoice.items ? completeInvoice.items.length : 0,
                 items_with_dn: completeInvoice.items ?
-                  completeInvoice.items.filter((item: any) => item.delivery_note).length : 0,
+                  completeInvoice.items.filter((item: CompleteInvoiceItem) => item.delivery_note).length : 0,
                 items: completeInvoice.items ?
-                  completeInvoice.items.map((item: any) => ({
+                  completeInvoice.items.map((item: CompleteInvoiceItem) => ({
                     item_code: item.item_code,
                     delivery_note: item.delivery_note,
                     qty: item.qty,
@@ -338,11 +353,11 @@ export default function InvoicePage() {
           invoices_with_items: completeInvoices.filter(inv => inv.items && inv.items.length > 0).length,
           total_items: completeInvoices.reduce((sum, inv) => sum + (inv.items ? inv.items.length : 0), 0),
           items_with_dn: completeInvoices.reduce((sum, inv) =>
-            sum + (inv.items ? inv.items.filter((item: any) => item.delivery_note).length : 0), 0),
+            sum + (inv.items ? inv.items.filter((item: InvoiceItem) => item.delivery_note).length : 0), 0),
           all_dn_references: completeInvoices
             .flatMap(inv => inv.items || [])
-            .filter((item: any) => item.delivery_note)
-            .map((item: any) => item.delivery_note)
+            .filter((item: InvoiceItem) => item.delivery_note)
+            .map((item: InvoiceItem) => item.delivery_note)
         });
 
         // Store complete data (you can use this for debugging or display)
@@ -358,30 +373,45 @@ export default function InvoicePage() {
   }, [selectedCompany]);
 
   const handleAddItem = () => {
+    const newItems = [...formData.items, {
+      item_code: '',
+      item_name: '',
+      qty: 1,
+      rate: 0,
+      amount: 0,
+      // Use VALID ERPNext data
+      income_account: '411000 - Penjualan - ST',
+      cost_center: 'Main - ST',
+      warehouse: 'Finished Goods - ST',
+      // SO/DN fields di items
+      sales_order: '',
+      so_detail: '',
+      dn_detail: '',
+      delivery_note: '',
+      custom_komisi_sales: 0, // ✅ Custom komisi sales per item
+    }];
+    
+    // Calculate total komisi sales
+    const totalKomisiSales = newItems.reduce((sum, item) => sum + (item.custom_komisi_sales || 0), 0);
+    
     setFormData({
       ...formData,
-      items: [...formData.items, {
-        item_code: '',
-        item_name: '',
-        qty: 1,
-        rate: 0,
-        amount: 0,
-        // Use VALID ERPNext data
-        income_account: '411000 - Penjualan - ST',
-        cost_center: 'Main - ST',
-        warehouse: 'Finished Goods - ST',
-        // SO/DN fields di items
-        sales_order: '',
-        so_detail: '',
-        dn_detail: '',
-        delivery_note: '',
-      }],
+      items: newItems,
+      custom_total_komisi_sales: totalKomisiSales
     });
   };
 
   const handleRemoveItem = (index: number) => {
     const newItems = formData.items.filter((_, i) => i !== index);
-    setFormData({ ...formData, items: newItems });
+    
+    // Calculate total komisi sales
+    const totalKomisiSales = newItems.reduce((sum, item) => sum + (item.custom_komisi_sales || 0), 0);
+    
+    setFormData({ 
+      ...formData, 
+      items: newItems,
+      custom_total_komisi_sales: totalKomisiSales
+    });
   };
 
   const handleItemChange = (index: number, field: string, value: string | number) => {
@@ -394,6 +424,7 @@ export default function InvoicePage() {
 
     // Recalculate totals
     const total = newItems.reduce((sum, item) => sum + (item.amount || 0), 0);
+    const totalKomisiSales = newItems.reduce((sum, item) => sum + (item.custom_komisi_sales || 0), 0);
 
     setFormData({
       ...formData,
@@ -404,7 +435,8 @@ export default function InvoicePage() {
       base_total: total,
       base_net_total: total,
       base_grand_total: total,
-      outstanding_amount: total
+      outstanding_amount: total,
+      custom_total_komisi_sales: totalKomisiSales
     });
   };
 
@@ -431,10 +463,10 @@ export default function InvoicePage() {
         });
 
         // Filter DN yang belum digunakan di frontend
-        const availableDNs = allDNs.filter((dn: any) => !usedDNs.includes(dn.name));
+        const availableDNs = allDNs.filter((dn: { name: string }) => !usedDNs.includes(dn.name));
 
         console.log('✅ Available DNs after filtering:', availableDNs.length);
-        console.log('📋 Available DN Names:', availableDNs.map((dn: any) => dn.name));
+        console.log('📋 Available DN Names:', availableDNs.map((dn: { name: string }) => dn.name));
 
         setDeliveryNotes(availableDNs);
       } else {
@@ -449,9 +481,198 @@ export default function InvoicePage() {
     } finally {
       setDeliveryNotesLoading(false);
     }
-  };
+  }
 
-  const handleDeliveryNoteSelect = async (deliveryNote: any) => {
+  // Main function to handle delivery note selection - combines preview and form creation
+  async function handleSelectDeliveryNote(dn: string) {
+    try {
+      console.log('🔍 Getting commission preview for DN:', dn);
+      
+      // Step 1: Try to get commission preview (fallback to manual calculation if fails)
+      let commissionData = null;
+      try {
+        const res = await fetch(
+          `/api/preview-sales-invoice-commission?delivery_note=${encodeURIComponent(dn)}`,
+          {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+
+        const data = await res.json();
+        console.log('Commission Preview API Response:', data);
+
+        if (data.success && data.message) {
+          commissionData = data.message;
+          console.log('Commission Preview Data:', commissionData);
+          
+          // Validate expected response format
+          if (commissionData.preview_available && commissionData.items && commissionData.total_commission !== undefined) {
+            console.log('✅ Valid commission preview format received:', {
+              sales_person: commissionData.sales_person,
+              commission_rate: commissionData.commission_rate,
+              items_count: commissionData.items.length,
+              total_commission: commissionData.total_commission
+            });
+          } else {
+            console.warn('⚠️ Invalid commission preview format, using fallback');
+            commissionData = null;
+          }
+        } else {
+          console.warn('Failed to get commission preview:', data.message);
+        }
+      } catch (previewError) {
+        console.warn('Commission preview API failed, using fallback calculation:', previewError);
+        // Continue with manual calculation as fallback
+      }
+
+      // Step 2: Get complete DN data and create form
+      console.log('📦 Getting complete DN data for form creation:', dn);
+      const dnUrl = `/api/delivery-note-detail?name=${encodeURIComponent(dn)}`;
+      console.log('🔗 Fetching DN from URL:', dnUrl);
+
+      const dnResponse = await fetch(dnUrl);
+      console.log('📡 DN Response Status:', dnResponse.status);
+
+      if (!dnResponse.ok) {
+        const errorText = await dnResponse.text();
+        console.error('❌ DN API Error Response:', errorText);
+        throw new Error(`Failed to fetch DN details: ${dnResponse.status} ${dnResponse.statusText}`);
+      }
+
+      const dnData = await dnResponse.json();
+      console.log('📋 Complete DN Data:', dnData);
+
+      if (dnData.success && dnData.data) {
+        const completeDnData = dnData.data;
+        
+        // Debug customer fields
+        // console.log('🔍 Customer Data Debug:', {
+        //   customer: completeDnData.customer,
+        //   customer_name: completeDnData.customer_name,
+        //   has_customer_name: !!completeDnData.customer_name,
+        //   sales_team: completeDnData.sales_team,
+        //   sales_team_length: completeDnData.sales_team?.length || 0,
+        //   items_count: completeDnData.items?.length || 0
+        // });
+
+        // Create invoice items from DN items
+        const invoiceItems = completeDnData.items.map((item: CompleteInvoiceItem) => {
+          // Get commission from preview data based on item_code
+          let commission = 0;
+          if (commissionData && commissionData.preview_available && commissionData.items) {
+            const foundCommission = commissionData.items.find((p: any) => p.item_code === item.item_code);
+            commission = foundCommission?.commission || 0;
+            
+            // console.log(`💰 Commission for item ${item.item_code}:`, {
+            //   item_code: item.item_code,
+            //   commission: commission,
+            //   from_preview: !!foundCommission,
+            //   preview_data: foundCommission
+            // });
+          }
+          
+          return {
+            item_code: item.item_code,
+            item_name: item.item_name || item.description,
+            description: item.description || item.item_name,
+            qty: item.qty,
+            rate: item.rate || 0,
+            amount: item.amount || (item.qty * (item.rate || 0)),
+            // KRUSIAL: Link ke DN agar status berubah
+            delivery_note: completeDnData.name,
+            dn_detail: item.name, // Link ke ID baris spesifik di DN
+            // TAMBAHKAN SALES ORDER DATA
+            sales_order: item.against_sales_order || item.sales_order || completeDnData.sales_order || '',
+            so_detail: item.so_detail || item.sales_order_item || '',
+            // Custom komisi sales - gunakan commission dari preview
+            custom_komisi_sales: commission,
+            // ERPNext mandatory fields
+            income_account: item.income_account || '411000 - Penjualan - ST',
+            cost_center: item.cost_center || 'Main - ST',
+            warehouse: item.warehouse || 'Finished Goods - ST',
+            stock_uom: item.stock_uom || 'Nos',
+            uom_conversion_factor: item.conversion_factor || 1,
+          };
+        });
+
+        // Use total_commission from preview data, or calculate manually
+        const totalKomisiSales = commissionData && commissionData.preview_available ? 
+          commissionData.total_commission : 
+          invoiceItems.reduce((sum: number, item: CompleteInvoiceItem) => sum + (item.custom_komisi_sales || 0), 0);
+
+        console.log('💰 Commission Summary:', {
+          preview_available: !!commissionData && commissionData.preview_available,
+          sales_person: commissionData?.sales_person,
+          commission_rate: commissionData?.commission_rate,
+          items_with_commission: invoiceItems.filter(item => item.custom_komisi_sales > 0).length,
+          total_commission: totalKomisiSales,
+          used_preview_total: commissionData && commissionData.preview_available
+        });
+
+        // Update form with DN data and items
+        setFormData({
+          // Basic fields
+          customer: completeDnData.customer || '',
+          customer_name: completeDnData.customer_name || '',
+          posting_date: new Date().toISOString().split('T')[0],
+          due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          items: invoiceItems,
+          custom_total_komisi_sales: totalKomisiSales,
+          
+          // ERPNext mandatory fields
+          company: selectedCompany,
+          currency: 'IDR',
+          price_list_currency: 'IDR',
+          plc_conversion_rate: 1,
+          selling_price_list: 'Standard Selling',
+          territory: 'All Territories',
+          tax_id: '',
+          customer_address: '',
+          shipping_address: '',
+          contact_person: '',
+          tax_category: 'On Net Total',
+          taxes_and_charges: '',
+          base_total: 0,
+          base_net_total: 0,
+          base_grand_total: 0,
+          total: 0,
+          net_total: 0,
+          grand_total: 0,
+          outstanding_amount: 0,
+        });
+
+        // Close dialog
+        setShowDeliveryNoteDialog(false);
+
+        // Show success alert
+        // if (commissionData && commissionData.preview_available) {
+        //   alert(`✅ Invoice Created with Commission!\n\nDN: ${dn}\nItems: ${invoiceItems.length}\nSales Person: ${commissionData.sales_person}\nCommission Rate: ${commissionData.commission_rate}%\nTotal Commission: ${totalKomisiSales}\n\nForm has been populated with DN data and commission.`);
+        // } else {
+        //   alert(`✅ Invoice Created!\n\nDN: ${dn}\nItems: ${invoiceItems.length}\n\nForm has been populated with DN data.\nCommission preview was not available, using manual calculation.`);
+        // }
+
+        console.log('✅ Form successfully updated with DN data and commission:', {
+          dn: dn,
+          items_created: invoiceItems.length,
+          total_commission: totalKomisiSales,
+          customer: completeDnData.customer_name,
+          preview_used: !!commissionData
+        });
+
+      } else {
+        throw new Error('Invalid DN data received');
+      }
+
+    } catch (error) {
+      console.error('Error in handleSelectDeliveryNote:', error);
+      alert(`❌ System Error!\n\nFailed to process delivery note.\n\nError: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  const handleDeliveryNoteSelect = async (deliveryNote: { name: string; customer: string; customer_name?: string }) => {
     try {
       console.log('📦 Selected Delivery Note:', deliveryNote);
 
@@ -475,9 +696,19 @@ export default function InvoicePage() {
 
       if (dnData.success && dnData.data) {
         const completeDnData = dnData.data;
+        
+        // Debug customer fields
+        console.log('🔍 Customer Data Debug:', {
+          customer: completeDnData.customer,
+          customer_name: completeDnData.customer_name,
+          has_customer_name: !!completeDnData.customer_name,
+          sales_team: completeDnData.sales_team,
+          sales_team_length: completeDnData.sales_team?.length || 0,
+          items_count: completeDnData.items?.length || 0
+        });
 
         // Create invoice items from DN items
-        const invoiceItems = completeDnData.items.map((item: any) => ({
+        const invoiceItems = completeDnData.items.map((item: CompleteInvoiceItem) => ({
           item_code: item.item_code,
           item_name: item.item_name || item.description,
           description: item.description || item.item_name,
@@ -490,6 +721,8 @@ export default function InvoicePage() {
           // TAMBAHKAN SALES ORDER DATA
           sales_order: item.against_sales_order || item.sales_order || completeDnData.sales_order || '',
           so_detail: item.so_detail || item.sales_order_item || '',
+          // Custom komisi sales
+          custom_komisi_sales: item.custom_komisi_sales || 0,
           // ERPNext mandatory fields
           income_account: item.income_account || '411000 - Penjualan - ST',
           cost_center: item.cost_center || 'Main - ST',
@@ -498,12 +731,203 @@ export default function InvoicePage() {
           uom_conversion_factor: item.conversion_factor || 1,
         }));
 
+        // Calculate total komisi sales
+        const totalKomisiSales = invoiceItems.reduce((sum: number, item: CompleteInvoiceItem) => sum + (item.custom_komisi_sales || 0), 0);
+
+        // Auto-calculate commission based on ERPNext script logic
+        await Promise.all(invoiceItems.map(async (item, index) => {
+          if (item.delivery_note && !item.custom_komisi_sales) {
+            try 
+            {
+              // Get delivery note details to get margin and sales person
+              const dnDetailResponse = await fetch(`/api/delivery-note-detail?name=${encodeURIComponent(item.delivery_note)}`);
+              if (dnDetailResponse.ok) {
+                const dnDetailData = await dnDetailResponse.json();
+                if (dnDetailData.success && dnDetailData.data) {
+                  // Find matching item in DN to get margin
+                  const dnItem = dnDetailData.data.items?.find((dnItem: any) => 
+                    dnItem.item_code === item.item_code || 
+                    dnItem.item_name === item.item_name || 
+                    dnItem.name === item.item_name
+                  );
+                  
+                  if (dnItem) {
+                    // Get sales person from customer data (simple approach)
+                    let salesPerson = null;
+                    
+                    // Alert untuk debugging - cek data yang tersedia
+                    console.log('🔍 DEBUG - Available Data:', {
+                      dn_customer: dnData.customer,
+                      dn_customer_name: dnData.customer_name,
+                      dn_sales_team: dnDetailData.data.sales_team,
+                      dn_sales_team_length: dnDetailData.data.sales_team?.length || 0,
+                      dn_item_sales_person: dnItem.sales_person,
+                      dn_item_data: dnItem,
+                      complete_dn_data: dnDetailData.data,
+                      dn_detail_customer: dnDetailData.data.customer
+                    });
+                    
+                    // Coba dapatkan sales person dari berbagai sumber
+                    if (dnDetailData.data.sales_team && dnDetailData.data.sales_team.length > 0) {
+                      salesPerson = dnDetailData.data.sales_team[0].sales_person;
+                      console.log(`👥 Found sales person from DN sales team: ${salesPerson}`);
+                    } else if (dnItem.sales_person) {
+                      salesPerson = dnItem.sales_person;
+                      console.log(`👥 Found sales person from DN item: ${salesPerson}`);
+                    } else {
+                      console.warn(`⚠️ No sales person found in DN data`);
+                      const customerName = dnData.customer_name || dnDetailData.data.customer_name || 'Unknown';
+                      const customerCode = dnDetailData.data.customer || 'Unknown';
+                      
+                      // Ambil sales team dari customer master
+                      console.log(`🔍 Getting sales team from customer master: ${customerCode}`);
+                      // TODO: API customer-sales-team masih 404, dikomentari dulu
+                      // const customerResponse = await fetch(`/api/customer-sales-team?customer=${encodeURIComponent(customerCode)}`);
+                      // if (customerResponse.ok) {
+                      //   const customerData = await customerResponse.json();
+                      //   console.log('Customer Sales Team Response:', customerData);
+                      //   
+                      //   if (customerData.success && customerData.data && customerData.data.sales_persons && customerData.data.sales_persons.length > 0) {
+                      //     salesPerson = customerData.data.sales_persons[0];
+                      //     console.log(`👥 Found sales person from Customer Sales Team: ${salesPerson}`);
+                      //     
+                      //     // Ambil commission rate dari sales person master
+                      //     console.log(`🔍 Getting commission rate for sales person: ${salesPerson}`);
+                      //     const spResponse = await fetch(`/api/sales-person-rate?sales_person=${encodeURIComponent(salesPerson)}`);
+                      //     if (spResponse.ok) {
+                      //       const spData = await spResponse.json();
+                      //       console.log('Sales Person Rate Response Data:', spData);
+                      //       
+                      //       // Alert untuk debugging
+                      //       if (spData.success && spData.data) {
+                      //         const commissionRate = spData.data.custom_default_commission_rate || 0;
+                      //         alert(`✅ Sales Person Data Found!\n\nSales Person: ${salesPerson}\nCommission Rate: ${commissionRate}%\nCustomer: ${customerName}\nDN: ${item.delivery_note}\nItem: ${item.item_code}\n\nCommission will be calculated automatically.`);
+                      //           
+                      //         const margin = dnItem.margin_rate_or_amount || dnItem.margin_rate || 0;
+                      //         const calculatedCommission = margin * item.qty * commissionRate;
+                      //         
+                      //         // Update item with calculated commission
+                      //         item.custom_komisi_sales = calculatedCommission;
+                      //         console.log(`💰 Auto-calculated commission for item ${index}:`, {
+                      //           item_code: item.item_code,
+                      //           method: 'Found',
+                      //           sales_person: salesPerson,
+                      //           commission_rate: commissionRate,
+                      //           margin: margin,
+                      //           qty: item.qty,
+                      //           commission: calculatedCommission,
+                      //           dn_item_margin: dnItem.margin_rate_or_amount || dnItem.margin_rate
+                      //         });
+                      //       } else {
+                      //         alert(`⚠️ Sales Person Rate Not Found!\n\nSales Person: ${salesPerson}\nCustomer: ${customerName}\n\nCommission rate will be set to 0%.`);
+                      //         item.custom_komisi_sales = 0;
+                      //       }
+                      //     } else {
+                      //       console.warn(`⚠️ Failed to get sales person rate for ${salesPerson}`);
+                      //       alert(`❌ API Error!\n\nFailed to get commission rate for ${salesPerson}\nPlease check API connection.`);
+                      //       item.custom_komisi_sales = 0;
+                      //     }
+                      //   } else {
+                      //     console.warn(`⚠️ Customer ${customerCode} has no sales team members`);
+                      //     alert(`⚠️ Customer Has No Sales Team!\n\nCustomer: ${customerName} (${customerCode})\nDN: ${item.delivery_note}\nItem: ${item.item_code}\n\nSales Team: 0 members\n\nPlease check Customer master data.`);
+                      //     item.custom_komisi_sales = 0;
+                      //   }
+                      // } else {
+                      //   console.warn(`⚠️ Failed to fetch customer sales team for ${customerCode}`);
+                      //   alert(`❌ Customer API Error!\n\nFailed to get sales team for ${customerName} (${customerCode})\nPlease check API connection.`);
+                      //   item.custom_komisi_sales = 0;
+                      // }
+                      
+                      // Sementara set commission ke 0 karena API customer-sales-team masih 404
+                      console.warn(`⚠️ Customer API disabled - setting commission to 0 for ${customerName} (${customerCode})`);
+                      alert(`⚠️ Customer API Disabled!\n\nCustomer: ${customerName} (${customerCode})\nDN: ${item.delivery_note}\nItem: ${item.item_code}\n\nCustomer Sales Team API is temporarily disabled.\nCommission set to 0%.`);
+                      item.custom_komisi_sales = 0;
+                    }
+                    
+                    // Get sales person commission rate - ONLY if sales person exists
+                    if (salesPerson) {
+                      console.log(`🔍 Getting commission rate for sales person: ${salesPerson}`);
+                      const spResponse = await fetch(`/api/sales-person-rate?sales_person=${encodeURIComponent(salesPerson)}`);
+                      if (spResponse.ok) {
+                        const spData = await spResponse.json();
+                        console.log('Sales Person Rate Response Data:', spData);
+                        
+                        // Alert untuk debugging
+                        if (spData.success && spData.data) {
+                          const commissionRate = spData.data.custom_default_commission_rate || 0;
+                          alert(`✅ Sales Person Data Found!\n\nSales Person: ${salesPerson}\nCommission Rate: ${commissionRate}%\nCustomer: ${dnData.customer_name}\nDN: ${item.delivery_note}\nItem: ${item.item_code}\n\nCommission will be calculated automatically.`);
+                        } else {
+                          alert(`⚠️ Sales Person Rate Not Found!\n\nSales Person: ${salesPerson}\nCustomer: ${dnData.customer_name}\n\nCommission rate will be set to 0%.`);
+                        }
+                        
+                        // Use custom_default_commission_rate as primary (sesuai ERPNext)
+                        const commissionRate = spData.success && spData.data ? 
+                          spData.data.custom_default_commission_rate || 0 : 0;
+                          
+                        const margin = dnItem.margin_rate_or_amount || dnItem.margin_rate || 0;
+                        const calculatedCommission = margin * item.qty * commissionRate;
+                        
+                        // Update item with calculated commission
+                        item.custom_komisi_sales = calculatedCommission;
+                        console.log(`💰 Auto-calculated commission for item ${index}:`, {
+                          item_code: item.item_code,
+                          method: 'Found',
+                          sales_person: salesPerson,
+                          commission_rate: commissionRate,
+                          margin: margin,
+                          qty: item.qty,
+                          commission: calculatedCommission,
+                          dn_item_margin: dnItem.margin_rate_or_amount || dnItem.margin_rate
+                        });
+                      } else {
+                        console.warn(`⚠️ Failed to get sales person rate for ${salesPerson}`);
+                        alert(`❌ API Error!\n\nFailed to get commission rate for ${salesPerson}\nPlease check API connection.`);
+                        item.custom_komisi_sales = 0;
+                      }
+                    } else {
+                      console.warn(`⚠️ No sales person found for item ${item.item_code} - setting commission to 0`);
+                      item.custom_komisi_sales = 0;
+                    }  // Use default commission if rate fetch fails
+                        const margin = dnItem.margin_rate_or_amount || dnItem.margin_rate || 0;
+                        const defaultCommissionRate = 0; // 0% default
+                        const calculatedCommission = margin * item.qty * defaultCommissionRate;
+                        item.custom_komisi_sales = calculatedCommission;
+                        console.log(`💰 Using default commission (5%) for item ${index}:`, {
+                          item_code: item.item_code,
+                          commission: calculatedCommission,
+                          margin: margin,
+                          rate: defaultCommissionRate
+                        });
+                      }
+                    } else {
+                      console.warn(`⚠️ No sales person found for item ${item.item_code}`);
+                      // Set commission to 0 if no sales person
+                      item.custom_komisi_sales = 0;
+                    }
+                  } else {
+                    console.warn(`⚠️ No matching item found in DN for ${item.item_code}`);
+                    item.custom_komisi_sales = 0;
+                  }
+                }
+              
+             catch (error) {
+              console.warn(`⚠️ Failed to auto-calculate commission for item ${index}:`, error);
+              item.custom_komisi_sales = 0;
+            }
+            
+          }
+        }));
+
+        // Recalculate total after auto-calculation
+        const finalTotalKomisiSales = invoiceItems.reduce((sum: number, item: CompleteInvoiceItem) => sum + (item.custom_komisi_sales || 0), 0);
+
         console.log('🛒 Invoice Items with SO/DN data:', invoiceItems);
 
         // Update form dengan data lengkap (HEADER + DETAIL)
         setFormData({
           // HEADER DATA dari DN
           customer: completeDnData.customer,
+          customer_name: completeDnData.customer_name || completeDnData.customer,
           posting_date: new Date().toISOString().split('T')[0],
           due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // +30 days
           company: selectedCompany,
@@ -533,6 +957,7 @@ export default function InvoicePage() {
           net_total: completeDnData.net_total || 0,
           grand_total: completeDnData.grand_total || 0,
           outstanding_amount: completeDnData.outstanding_amount || 0,
+          custom_total_komisi_sales: finalTotalKomisiSales, // ✅ Custom total komisi sales terhitung otomatis
         });
 
         console.log('✅ Form updated with complete DN data:', {
@@ -542,8 +967,8 @@ export default function InvoicePage() {
           posting_date: completeDnData.posting_date,
           // Detail data
           items_count: invoiceItems.length,
-          items_with_so: invoiceItems.filter((item: any) => item.sales_order).length,
-          items_with_dn: invoiceItems.filter((item: any) => item.delivery_note).length,
+          items_with_so: invoiceItems.filter((item: CompleteInvoiceItem) => item.sales_order).length,
+          items_with_dn: invoiceItems.filter((item: CompleteInvoiceItem) => item.delivery_note).length,
           // Totals
           total: completeDnData.total,
           grand_total: completeDnData.grand_total,
@@ -584,32 +1009,41 @@ export default function InvoicePage() {
         const invoice = data.data;
 
         // Extract DN from items (bukan header)
-        const itemWithDN = (invoice.items || []).find((item: any) => item.delivery_note && item.delivery_note.trim() !== '');
+        const itemWithDN = (invoice.items || []).find((item: InvoiceItem) => item.delivery_note && item.delivery_note.trim() !== '');
         const deliveryNote = itemWithDN ? itemWithDN.delivery_note : '';
+
+        // Map items dan hitung total komisi sales
+        const invoiceItems = (invoice.items || []).map((item: CompleteInvoiceItem) => ({
+          item_code: item.item_code,
+          item_name: item.item_name,
+          qty: item.qty,
+          rate: item.rate,
+          amount: item.amount,
+          // Use VALID ERPNext data
+          income_account: item.income_account || '411000 - Penjualan - ST',
+          cost_center: item.cost_center || 'Main - ST',
+          warehouse: item.warehouse || 'Finished Goods - ST',
+          // Add SO/DN fields di items
+          sales_order: item.sales_order || '',
+          so_detail: item.so_detail || '',
+          dn_detail: item.dn_detail || '',
+          delivery_note: item.delivery_note || '',
+          custom_komisi_sales: item.custom_komisi_sales || 0, // ✅ Custom komisi sales per item
+        }));
+
+        // Calculate total komisi sales
+        const totalKomisiSales = invoiceItems.reduce((sum: number, item: CompleteInvoiceItem) => sum + (item.custom_komisi_sales || 0), 0);
 
         setFormData({
           ...formData,
           customer: invoice.customer,
+          customer_name: invoice.customer_name || invoice.customer,
           posting_date: invoice.posting_date,
           due_date: invoice.due_date,
           // ❌ HAPUS delivery_note dari header
           company: selectedCompany,
-          items: (invoice.items || []).map((item: any) => ({
-            item_code: item.item_code,
-            item_name: item.item_name,
-            qty: item.qty,
-            rate: item.rate,
-            amount: item.amount,
-            // Use VALID ERPNext data
-            income_account: item.income_account || '411000 - Penjualan - ST',
-            cost_center: item.cost_center || 'Main - ST',
-            warehouse: item.warehouse || 'Finished Goods - ST',
-            // Add SO/DN fields di items
-            sales_order: item.sales_order || '',
-            so_detail: item.so_detail || '',
-            dn_detail: item.dn_detail || '',
-            delivery_note: item.delivery_note || '',
-          })),
+          items: invoiceItems,
+          custom_total_komisi_sales: totalKomisiSales, // ✅ Custom total komisi sales terhitung otomatis
         });
         setEditingInvoice(invoiceName);
         setEditingInvoiceStatus(invoiceStatus || 'Draft');
@@ -686,6 +1120,7 @@ export default function InvoicePage() {
           dn_detail: item.dn_detail,
           sales_order: item.sales_order,
           so_detail: item.so_detail,
+          custom_komisi_sales: item.custom_komisi_sales, // ✅ Custom komisi sales per item
         })),
 
         // Calculated totals
@@ -700,6 +1135,7 @@ export default function InvoicePage() {
         // Additional fields
         status: 'Draft',
         docstatus: 0,
+        custom_total_komisi_sales: formData.custom_total_komisi_sales, // ✅ Custom total komisi sales
       };
 
       const response = await fetch('/api/invoice', {
@@ -780,6 +1216,7 @@ export default function InvoicePage() {
               setEditingInvoiceStatus(null);
               setFormData({
                 customer: '',
+                customer_name: '',
                 posting_date: new Date().toISOString().split('T')[0],
                 due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
                 // ❌ HAPUS delivery_note dari header
@@ -797,6 +1234,7 @@ export default function InvoicePage() {
                   so_detail: '',
                   dn_detail: '',
                   delivery_note: '',
+                  custom_komisi_sales: 0, // ✅ Custom komisi sales per item
                 }],
                 company: selectedCompany,
                 currency: 'IDR',
@@ -817,6 +1255,7 @@ export default function InvoicePage() {
                 net_total: 0,
                 grand_total: 0,
                 outstanding_amount: 0,
+                custom_total_komisi_sales: 0, // ✅ Custom total komisi sales di header
               });
               setError('');
               setSuccessMessage(''); // Clear success message when opening new form
@@ -965,9 +1404,9 @@ export default function InvoicePage() {
                     type="text"
                     required
                     className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                    value={formData.customer}
+                    value={formData.customer_name}
                     onChange={(e) =>
-                      setFormData({ ...formData, customer: e.target.value })
+                      setFormData({ ...formData, customer_name: e.target.value })
                     }
                   />
                 </div>
@@ -997,6 +1436,18 @@ export default function InvoicePage() {
                     onChange={(e) =>
                       setFormData({ ...formData, due_date: e.target.value })
                     }
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Total Komisi Sales
+                  </label>
+                  <input
+                    type="text"
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-gray-50"
+                    value={formData.custom_total_komisi_sales ? formData.custom_total_komisi_sales.toLocaleString('id-ID') : '0'}
+                    readOnly
+                    placeholder="0"
                   />
                 </div>
                 {/* ❌ HAPUS Delivery Note field dari header - sekarang hanya di items */}
@@ -1090,7 +1541,7 @@ export default function InvoicePage() {
                       </div>
                     </div>
                     {/* DN/SO Fields */}
-                    <div className="grid grid-cols-3 gap-2 mt-2">
+                    <div className="grid grid-cols-4 gap-2 mt-2">
                       <div>
                         <label className="block text-xs font-medium text-gray-700">
                           Delivery Note
@@ -1127,6 +1578,18 @@ export default function InvoicePage() {
                           placeholder="Auto-filled from DN..."
                         />
                       </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700">
+                          Komisi Sales
+                        </label>
+                        <input
+                          type="text"
+                          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm bg-gray-50 text-right"
+                          value={item.custom_komisi_sales ? item.custom_komisi_sales.toLocaleString('id-ID') : '0'}
+                          readOnly
+                          placeholder="0"
+                        />
+                      </div>
                     </div>
                     {formData.items.length > 1 && (
                       <button
@@ -1143,7 +1606,13 @@ export default function InvoicePage() {
                 {/* Total Summary */}
                 <div className="border-t border-gray-200 pt-4">
                   <div className="flex justify-end">
-                    <div className="grid grid-cols-2 gap-8 text-sm">
+                    <div className="grid grid-cols-3 gap-8 text-sm">
+                      <div className="text-left">
+                        <div className="text-gray-600">Total Komisi Sales:</div>
+                        <div className="font-semibold text-gray-900">
+                          Rp {formData.items.reduce((sum, item) => sum + (item.custom_komisi_sales || 0), 0).toLocaleString('id-ID')}
+                        </div>
+                      </div>
                       <div className="text-right">
                         <div className="text-gray-600">Total Quantity:</div>
                         <div className="font-semibold text-gray-900">
@@ -1170,6 +1639,7 @@ export default function InvoicePage() {
                     setEditingInvoiceStatus(null);
                     setFormData({
                       customer: '',
+                      customer_name: '',
                       posting_date: new Date().toISOString().split('T')[0],
                       due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
                       // ❌ HAPUS delivery_note dari header
@@ -1187,6 +1657,7 @@ export default function InvoicePage() {
                         so_detail: '',
                         dn_detail: '',
                         delivery_note: '',
+                        custom_komisi_sales: 0, // ✅ Custom komisi sales per item
                       }],
                       company: selectedCompany,
                       currency: 'IDR',
@@ -1207,6 +1678,7 @@ export default function InvoicePage() {
                       net_total: 0,
                       grand_total: 0,
                       outstanding_amount: 0,
+                      custom_total_komisi_sales: 0, // ✅ Custom total komisi sales di header
                     });
                     setError('');
                     setShowForm(false);
@@ -1246,7 +1718,7 @@ export default function InvoicePage() {
                     <p className="text-sm font-medium text-indigo-600 truncate">
                       {invoice.name}
                     </p>
-                    <p className="mt-1 text-sm text-gray-900">Customer: {invoice.customer}</p>
+                    <p className="mt-1 text-sm text-gray-900">Customer: {invoice.customer_name || invoice.customer}</p>
                   </div>
                   <div className="ml-4 flex-shrink-0">
                     <span
@@ -1274,9 +1746,9 @@ export default function InvoicePage() {
                     <p className="mt-2 sm:mt-0 sm:ml-6 flex items-center text-sm text-gray-500">
                       Due Date: {invoice.due_date}
                     </p>
-                    {invoice.items && invoice.items.length > 0 && invoice.items.find((item: any) => item.delivery_note) && (
+                    {invoice.items && invoice.items.length > 0 && invoice.items.find((item: InvoiceItem) => item.delivery_note) && (
                       <p className="mt-2 sm:mt-0 sm:ml-6 flex items-center text-sm text-gray-500">
-                        DN: {invoice.items.find((item: any) => item.delivery_note)?.delivery_note || '-'}
+                        DN: {invoice.items.find((item: InvoiceItem) => item.delivery_note)?.delivery_note || '-'}
                       </p>
                     )}
                   </div>
@@ -1403,10 +1875,10 @@ export default function InvoicePage() {
               ) : (
                 <div className="bg-white shadow overflow-hidden sm:rounded-md">
                   <ul className="divide-y divide-gray-200 max-h-96 overflow-y-auto">
-                    {deliveryNotes.map((dn: any) => (
+                    {deliveryNotes.map((dn: { name: string; customer: string; customer_name?: string; status: string }) => (
                       <li
                         key={dn.name}
-                        onClick={() => handleDeliveryNoteSelect(dn)}
+                        onClick={() => handleSelectDeliveryNote(dn.name)}
                         className="cursor-pointer hover:bg-gray-50 transition-colors"
                       >
                         <div className="px-4 py-4 sm:px-6">
@@ -1415,7 +1887,7 @@ export default function InvoicePage() {
                               <p className="text-sm font-medium text-indigo-600 truncate">
                                 {dn.name}
                               </p>
-                              <p className="mt-1 text-sm text-gray-900">Customer: {dn.customer}</p>
+                              <p className="mt-1 text-sm text-gray-900">Customer: {dn.customer_name || dn.customer}</p>
                             </div>
                             <div className="ml-4 flex-shrink-0">
                               <span

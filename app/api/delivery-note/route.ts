@@ -15,6 +15,8 @@ export async function GET(request: NextRequest) {
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
     };
 
     // Prioritize API Key authentication to avoid CSRF issues
@@ -148,6 +150,8 @@ export async function POST(request: NextRequest) {
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
     };
 
     // Prioritize API Key authentication to avoid CSRF issues
@@ -208,6 +212,13 @@ export async function POST(request: NextRequest) {
     } else {
       // Extract detailed error message from ERPNext
       let errorMessage = 'Failed to create delivery note';
+      
+      // Special handling for 417 Expectation Failed
+      if (response.status === 417) {
+        errorMessage = 'Expectation Failed - Invalid payload or headers. Please check the data structure.';
+        console.error('HTTP 417 Error - Payload:', deliveryNoteData);
+        console.error('HTTP 417 Error - Headers:', headers);
+      }
       
       console.log('Error parsing - data keys:', Object.keys(data));
       console.log('Error parsing - data.exc:', data.exc);
