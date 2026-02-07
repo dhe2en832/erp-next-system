@@ -212,7 +212,17 @@ export default function PaymentPage() {
       companyAccounts: accounts
     });
 
-    
+    console.log('🔧 MANUAL TRIGGER - Company accounts structure:', {
+      has_default_accounts: !!accounts.default_accounts,
+      default_accounts: accounts.default_accounts,
+      direct_properties: {
+        default_bank_account: accounts.default_bank_account,
+        default_cash_account: accounts.default_cash_account,
+        default_receivable_account: accounts.default_receivable_account,
+        default_payable_account: accounts.default_payable_account,
+        default_credit_card_account: accounts.default_credit_card_account
+      }
+    });
 
     if (!accounts || !paymentType || !paymentMode) {
       console.log('🔧 MANUAL TRIGGER - Missing required data');
@@ -749,76 +759,7 @@ export default function PaymentPage() {
         setOutstandingInvoices(allocatedInvoices);
       } else {
         setSelectedSupplierName(paymentDetails.party_name || paymentDetails.party);
-
-        // For edit payment, fetch actual purchase invoice details for allocated invoices
-        const fetchPurchaseInvoiceDetails = async (references: Array<{ reference_name: string; allocated_amount: number }>) => {
-          if (!references || references.length === 0) return [];
-
-          const invoicePromises = references.map(async (ref) => {
-            try {
-              // Fetch purchase invoice details from ERPNext
-              const response = await fetch(`/api/purchase-invoice-details?invoice_name=${ref.reference_name}&company=${selectedCompany}`);
-              const data = await response.json();
-
-              if (data.success && data.data) {
-                const invoice = data.data;
-                return {
-                  name: ref.reference_name,
-                  invoice_name: ref.reference_name,
-                  invoice_total: invoice.grand_total || 0,
-                  outstanding_amount: invoice.outstanding_amount || 0,
-                  visual_outstanding: (invoice.outstanding_amount || 0) - (ref.allocated_amount || 0),
-                  allocated_amount: ref.allocated_amount || 0,
-                  grand_total: invoice.grand_total || 0,
-                  due_date: invoice.due_date || '',
-                  supplier: invoice.supplier || '',
-                  supplier_name: invoice.supplier_name || '',
-                  posting_date: invoice.posting_date || '',
-                  status: invoice.status || ''
-                };
-              } else {
-                // Fallback if API fails
-                return {
-                  name: ref.reference_name,
-                  invoice_name: ref.reference_name,
-                  invoice_total: 0,
-                  outstanding_amount: ref.allocated_amount || 0,
-                  visual_outstanding: 0,
-                  allocated_amount: ref.allocated_amount || 0,
-                  grand_total: 0,
-                  due_date: '',
-                  supplier: '',
-                  supplier_name: '',
-                  posting_date: '',
-                  status: 'Unknown'
-                };
-              }
-            } catch (error) {
-              console.error(`Failed to fetch details for purchase invoice ${ref.reference_name}:`, error);
-              // Fallback on error
-              return {
-                name: ref.reference_name,
-                invoice_name: ref.reference_name,
-                invoice_total: 0,
-                outstanding_amount: ref.allocated_amount || 0,
-                visual_outstanding: 0,
-                allocated_amount: ref.allocated_amount || 0,
-                grand_total: 0,
-                due_date: '',
-                supplier: '',
-                supplier_name: '',
-                posting_date: '',
-                status: 'Unknown'
-              };
-            }
-          });
-
-          const results = await Promise.all(invoicePromises);
-          return results;
-        };
-
-        const allocatedPurchaseInvoices = await fetchPurchaseInvoiceDetails(paymentDetails.references || []);
-        setOutstandingPurchaseInvoices(allocatedPurchaseInvoices);
+        // Clear outstanding invoices for supplier
         setOutstandingInvoices([]);
       }
 
@@ -1008,214 +949,107 @@ export default function PaymentPage() {
   }, []);
 
   // Get journal entry preview - Fully Automatic
-  // const getJournalPreview = useCallback((paymentAmount: number, allocation: any) => {
-  //   const totalAllocated = allocation.totalAllocated || 0;
-  //   const unallocated = paymentAmount - totalAllocated;
+  const getJournalPreview = useCallback((paymentAmount: number, allocation: any) => {
+    const totalAllocated = allocation.totalAllocated || 0;
+    const unallocated = paymentAmount - totalAllocated;
 
-  //   console.log('🤖 Automatic Journal Preview:', {
-  //     paymentType: formData.payment_type,
-  //     paymentMode: formData.mode_of_payment,
-  //     companyAccounts: companyAccounts
-  //   });
-
-  //   // For Receive Payment: Debit Cash/Bank, Credit Receivable
-  //   if (formData.payment_type === 'Receive') {
-  //     // Automatic debit account based on payment mode
-  //     let debitAccount = '';
-  //     if (formData.mode_of_payment === 'Bank Transfer' || formData.mode_of_payment === 'Warkat') {
-  //       debitAccount = companyAccounts.default_accounts?.bank || 'Bank Account';
-  //     } else if (formData.mode_of_payment === 'Credit Card') {
-  //       debitAccount = companyAccounts.default_accounts?.credit_card || 'Credit Card';
-  //     } else {
-  //       debitAccount = companyAccounts.default_accounts?.cash || 'Cash Account';
-  //     }
-
-  //     // Automatic credit account
-  //     const creditAccount = companyAccounts.default_accounts?.receivable || 'Accounts Receivable';
-
-  //     console.log('✅ Automatic Receive Payment Journal:', {
-  //       debit: debitAccount,
-  //       credit: creditAccount,
-  //       amount: paymentAmount
-  //     });
-
-  //     return {
-  //       debit: {
-  //         account: debitAccount,
-  //         amount: paymentAmount
-  //       },
-  //       const baseCredits = [{
-  //         account: creditAccount,
-  //         amount: totalAllocated,
-  //         reference: 'Customer Invoice Payments'
-  //       }];
-
-  //       const additionalCredits = unallocated > 0 ? [{
-  //         account: companyAccounts.default_advance_account || 'Customer Advance',
-  //         amount: unallocated,
-  //         reference: 'Customer Overpayment'
-  //       }] : [];
-
-  //       return {
-  //         debit: {
-  //           account: debitAccount,
-  //           amount: paymentAmount
-  //         },
-  //         credits: baseCredits.concat(additionalCredits)
-  //       };
-  //     };
-  //   }
-
-  //   // For Pay Payment: Debit Expense, Credit Cash/Bank
-  //   if (formData.payment_type === 'Pay') {
-  //     // Automatic debit account
-  //     const debitAccount = companyAccounts.default_accounts?.payable || 'Accounts Payable';
-
-  //     // Automatic credit account based on payment mode
-  //     let creditAccount = '';
-  //     if (formData.mode_of_payment === 'Bank Transfer' || formData.mode_of_payment === 'Warkat') {
-  //       creditAccount = companyAccounts.default_accounts?.bank || 'Bank Account';
-  //     } else if (formData.mode_of_payment === 'Credit Card') {
-  //       creditAccount = companyAccounts.default_accounts?.credit_card || 'Credit Card';
-  //     } else {
-  //       creditAccount = companyAccounts.default_accounts?.cash || 'Cash Account';
-  //     }
-
-  //     console.log('✅ Automatic Pay Payment Journal:', {
-  //       debit: debitAccount,
-  //       credit: creditAccount,
-  //       amount: paymentAmount
-  //     });
-
-  //     return {
-  //       debit: {
-  //         account: debitAccount,
-  //         amount: paymentAmount
-  //       },
-  //       credits: [
-  //         {
-  //           account: creditAccount,
-  //           amount: totalAllocated,
-  //           reference: 'Supplier Bill Payments'
-  //         },
-  //         ...(unallocated > 0 ? [{
-  //           account: companyAccounts.default_advance_account || 'Supplier Advance',
-  //           amount: unallocated,
-  //           reference: 'Supplier Overpayment'
-  //         }] : [])
-  //       ]
-  //     };
-  //   }
-
-  //   // Fallback (should not reach here)
-  //   return {
-  //     debit: {
-  //       account: 'Unknown Account',
-  //       amount: paymentAmount
-  //     },
-  //     credits: []
-  //   };
-  // }, [formData.payment_type, formData.mode_of_payment, companyAccounts]);
-
-  // Get journal entry preview - Fully Automatic
-const getJournalPreview = useCallback((paymentAmount: number, allocation: any) => {
-  const totalAllocated = allocation.totalAllocated || 0;
-  const unallocated = paymentAmount - totalAllocated;
-
-  console.log('🤖 Automatic Journal Preview:', {
-    paymentType: formData.payment_type,
-    paymentMode: formData.mode_of_payment,
-    companyAccounts: companyAccounts
-  });
-
-  // For Receive Payment: Debit Cash/Bank, Credit Receivable
-  if (formData.payment_type === 'Receive') {
-    // Automatic debit account based on payment mode
-    let debitAccount = '';
-    if (formData.mode_of_payment === 'Bank Transfer' || formData.mode_of_payment === 'Warkat') {
-      debitAccount = companyAccounts.default_accounts?.bank || 'Bank Account';
-    } else if (formData.mode_of_payment === 'Credit Card') {
-      debitAccount = companyAccounts.default_accounts?.credit_card || 'Credit Card';
-    } else {
-      debitAccount = companyAccounts.default_accounts?.cash || 'Cash Account';
-    }
-
-    // Automatic credit account
-    const creditAccount = companyAccounts.default_accounts?.receivable || 'Accounts Receivable';
-
-    console.log('✅ Automatic Receive Payment Journal:', {
-      debit: debitAccount,
-      credit: creditAccount,
-      amount: paymentAmount
+    console.log('🤖 Automatic Journal Preview:', {
+      paymentType: formData.payment_type,
+      paymentMode: formData.mode_of_payment,
+      companyAccounts: companyAccounts
     });
 
-    return {
-      debit: {
-        account: debitAccount,
+    // For Receive Payment: Debit Cash/Bank, Credit Receivable
+    if (formData.payment_type === 'Receive') {
+      // Automatic debit account based on payment mode
+      let debitAccount = '';
+      if (formData.mode_of_payment === 'Bank Transfer' || formData.mode_of_payment === 'Warkat') {
+        debitAccount = companyAccounts.default_accounts?.bank || 'Bank Account';
+      } else if (formData.mode_of_payment === 'Credit Card') {
+        debitAccount = companyAccounts.default_accounts?.credit_card || 'Credit Card';
+      } else {
+        debitAccount = companyAccounts.default_accounts?.cash || 'Cash Account';
+      }
+
+      // Automatic credit account
+      const creditAccount = companyAccounts.default_accounts?.receivable || 'Accounts Receivable';
+
+      console.log('✅ Automatic Receive Payment Journal:', {
+        debit: debitAccount,
+        credit: creditAccount,
         amount: paymentAmount
-      },
-      credits: [
-        {
-          account: creditAccount,
-          amount: totalAllocated,
-          reference: 'Customer Invoice Payments'
+      });
+
+      return {
+        debit: {
+          account: debitAccount,
+          amount: paymentAmount
         },
-        ...(unallocated > 0 ? [{
-          account: companyAccounts.default_advance_account || 'Customer Advance',
-          amount: unallocated,
-          reference: 'Customer Overpayment'
-        }] : [])
-      ]
-    };
-  }
-
-  // For Pay Payment: Debit Expense, Credit Cash/Bank
-  if (formData.payment_type === 'Pay') {
-    // Automatic debit account
-    const debitAccount = companyAccounts.default_accounts?.payable || 'Accounts Payable';
-
-    // Automatic credit account based on payment mode
-    let creditAccount = '';
-    if (formData.mode_of_payment === 'Bank Transfer' || formData.mode_of_payment === 'Warkat') {
-      creditAccount = companyAccounts.default_accounts?.bank || 'Bank Account';
-    } else if (formData.mode_of_payment === 'Credit Card') {
-      creditAccount = companyAccounts.default_accounts?.credit_card || 'Credit Card';
-    } else {
-      creditAccount = companyAccounts.default_accounts?.cash || 'Cash Account';
+        credits: [
+          {
+            account: creditAccount,
+            amount: totalAllocated,
+            reference: 'Customer Invoice Payments'
+          },
+          ...(unallocated > 0 ? [{
+            account: companyAccounts.default_advance_account || 'Customer Advance',
+            amount: unallocated,
+            reference: 'Customer Overpayment'
+          }] : [])
+        ]
+      };
     }
 
-    console.log('✅ Automatic Pay Payment Journal:', {
-      debit: debitAccount,
-      credit: creditAccount,
-      amount: paymentAmount
-    });
+    // For Pay Payment: Debit Expense, Credit Cash/Bank
+    if (formData.payment_type === 'Pay') {
+      // Automatic debit account
+      const debitAccount = companyAccounts.default_accounts?.payable || 'Accounts Payable';
 
+      // Automatic credit account based on payment mode
+      let creditAccount = '';
+      if (formData.mode_of_payment === 'Bank Transfer' || formData.mode_of_payment === 'Warkat') {
+        creditAccount = companyAccounts.default_accounts?.bank || 'Bank Account';
+      } else if (formData.mode_of_payment === 'Credit Card') {
+        creditAccount = companyAccounts.default_accounts?.credit_card || 'Credit Card';
+      } else {
+        creditAccount = companyAccounts.default_accounts?.cash || 'Cash Account';
+      }
+
+      console.log('✅ Automatic Pay Payment Journal:', {
+        debit: debitAccount,
+        credit: creditAccount,
+        amount: paymentAmount
+      });
+
+      return {
+        debit: {
+          account: debitAccount,
+          amount: paymentAmount
+        },
+        credits: [
+          {
+            account: creditAccount,
+            amount: totalAllocated,
+            reference: 'Supplier Bill Payments'
+          },
+          ...(unallocated > 0 ? [{
+            account: companyAccounts.default_advance_account || 'Supplier Advance',
+            amount: unallocated,
+            reference: 'Supplier Overpayment'
+          }] : [])
+        ]
+      };
+    }
+
+    // Fallback (should not reach here)
     return {
       debit: {
-        account: debitAccount,
+        account: 'Unknown Account',
         amount: paymentAmount
       },
-      credits: [
-        {
-          account: creditAccount,
-          amount: totalAllocated,
-          reference: 'Supplier Bill Payments'
-        },
-        ...(unallocated > 0 ? [{
-          account: companyAccounts.default_advance_account || 'Supplier Advance',
-          amount: unallocated,
-          reference: 'Supplier Overpayment'
-        }] : [])
-      ]
+      credits: []
     };
-  }
-
-  // Default fallback
-  return {
-    debit: { account: '', amount: 0 },
-    credits: []
-  };
-}, [formData.payment_type, formData.mode_of_payment, companyAccounts]);
+  }, [formData.payment_type, formData.mode_of_payment, companyAccounts]);
 
   // Fetch outstanding invoices when customer is selected
   const getRealPaidFrom = (paymentType: string, paymentMode: string) => {
@@ -1347,7 +1181,7 @@ const getJournalPreview = useCallback((paymentAmount: number, allocation: any) =
       });
 
       console.log('🔍 Response Status:', response.status);
-      console.log('🔍 Response Headers:', Object.fromEntries(response.headers));
+      console.log('🔍 Response Headers:', Object.fromEntries(response.headers.entries()));
 
       const data = await response.json();
       console.log('📊 Response Data:', data);
@@ -2321,7 +2155,7 @@ const getJournalPreview = useCallback((paymentAmount: number, allocation: any) =
                         <div className="flex justify-between items-center text-sm">
                           <span className="font-medium text-gray-900">Total Credit:</span>
                           <span className="font-bold text-red-600">
-                            Rp {journal.credits.reduce((sum: number, credit) => sum + credit.amount, 0).toLocaleString('id-ID')}
+                            Rp {journal.credits.reduce((sum, credit) => sum + credit.amount, 0).toLocaleString('id-ID')}
                           </span>
                         </div>
                       </div>
