@@ -71,6 +71,8 @@ interface PaymentFormData {
   check_number?: string;
   check_date?: string;
   bank_reference?: string;
+  reference_no?: string;
+  reference_date?: string;
   selected_invoices: Array<{
     invoice_name: string;
     invoice_total: number;
@@ -117,6 +119,8 @@ export default function PaymentPage() {
     check_number: '',
     check_date: '',
     bank_reference: '',
+    reference_no: '',
+    reference_date: '',
     selected_invoices: [],
     paid_from: '',
     paid_to: '',
@@ -283,15 +287,6 @@ export default function PaymentPage() {
 
   // Auto-update debit and credit accounts when payment type or mode changes
   useEffect(() => {
-    console.log('� AUTO-SELECTION USEEFFECT TRIGGERED!');
-    console.log('� Checking auto-selection conditions:', {
-      companyAccounts: companyAccounts,
-      available_accounts: companyAccounts.available_accounts,
-      selectedCompany: selectedCompany,
-      payment_type: formData.payment_type,
-      mode_of_payment: formData.mode_of_payment
-    });
-
     if (!companyAccounts || !selectedCompany) {
       console.log('🔍 Auto-selection blocked - missing companyAccounts or selectedCompany');
       return;
@@ -340,16 +335,27 @@ export default function PaymentPage() {
 
     console.log('🔍 Selected Credit Account:', newCreditAccount);
 
-    setFormData(prev => ({
-      ...prev,
-      debit_account: newDebitAccount,
-      credit_account: newCreditAccount,
-      // Map to ERPNext fields based on business logic:
-      // Receive: paid_from = Piutang (newCreditAccount), paid_to = Bank (newDebitAccount)
-      // Pay: paid_from = Bank (newDebitAccount), paid_to = Hutang (newCreditAccount)
-      paid_from: formData.payment_type === 'Receive' ? newCreditAccount : newDebitAccount,  // Source of funds
-      paid_to: formData.payment_type === 'Receive' ? newDebitAccount : newCreditAccount      // Destination of funds
-    }));
+    // Force update with functional form to ensure consistency
+    setFormData(prev => {
+      console.log('🔧 FORCE UPDATE - Before:', {
+        debit_account: prev.debit_account,
+        credit_account: prev.credit_account
+      }, 'To:', {
+        debit_account: newDebitAccount,
+        credit_account: newCreditAccount
+      });
+      
+      return {
+        ...prev,
+        debit_account: newDebitAccount,
+        credit_account: newCreditAccount,
+        // Map to ERPNext fields based on business logic:
+        // Receive: paid_from = Piutang (newCreditAccount), paid_to = Bank (newDebitAccount)
+        // Pay: paid_from = Bank (newDebitAccount), paid_to = Hutang (newCreditAccount)
+        paid_from: formData.payment_type === 'Receive' ? newCreditAccount : newDebitAccount,  // Source of funds
+        paid_to: formData.payment_type === 'Receive' ? newDebitAccount : newCreditAccount      // Destination of funds
+      };
+    });
 
     console.log('✅ Accounts auto-selected:', {
       debit: newDebitAccount,
@@ -669,6 +675,8 @@ export default function PaymentPage() {
         check_number: paymentDetails.reference_no || '',
         check_date: paymentDetails.reference_date || '',
         bank_reference: paymentDetails.reference_no || '',
+        reference_no: paymentDetails.reference_no || '',
+        reference_date: paymentDetails.reference_date || '',
         selected_invoices: paymentDetails.references?.map((ref: { reference_name: string; allocated_amount: number }) => ({
           invoice_name: ref.reference_name,
           invoice_total: 0, // Will be fetched from ERPNext if needed
@@ -1306,7 +1314,7 @@ const getJournalPreview = useCallback((paymentAmount: number, allocation: any) =
 
       // Fallback: If paid_from and paid_to are still empty, trigger auto-selection manually
       if (!formData.paid_from || !formData.paid_to || formData.paid_from === "Accounts Receivable" || formData.paid_to === "Cash Account") {
-        console.log('🚨 FALLBACK TRIGGER - paid_from/paid_to are empty or fallback, triggering auto-selection');
+        
         if (companyAccounts && formData.payment_type && formData.mode_of_payment) {
           triggerAutoSelection(companyAccounts, formData.payment_type, formData.mode_of_payment);
 
@@ -1316,8 +1324,7 @@ const getJournalPreview = useCallback((paymentAmount: number, allocation: any) =
       }
       const realPaidFrom = getRealPaidFrom(formData.payment_type, formData.mode_of_payment);
       const realPaidTo = getRealPaidTo(formData.payment_type, formData.mode_of_payment);
-      console.log('realPaidFrom', realPaidFrom);
-      console.log('realPaidTo', realPaidTo);
+
       // exitCode;
       const paymentPayload = {
         company: selectedCompany,
@@ -1330,9 +1337,12 @@ const getJournalPreview = useCallback((paymentAmount: number, allocation: any) =
         paid_amount: formData.payment_type === 'Receive' ? formData.received_amount : formData.paid_amount,
         received_amount: formData.payment_type === 'Receive' ? formData.received_amount : formData.paid_amount,
         mode_of_payment: formData.mode_of_payment,
+        // Add reference fields
+        reference_no: formData.reference_no,
+        reference_date: formData.reference_date,
         // Add ERPNext required fields
-        paid_from: realPaidFrom, //formData.paid_from || formData.debit_account,
-        paid_to: realPaidTo, //formData.paid_to || formData.credit_account,
+        paid_from: formData.payment_type === 'Receive' ? realPaidFrom : realPaidTo, //formData.paid_from || formData.debit_account,
+        paid_to: formData.payment_type === 'Receive' ? realPaidTo : realPaidFrom, //formData.paid_to || formData.credit_account,
         // Add references only for checked invoices
         references: checkedInvoices.map(invoice => ({
           reference_doctype: formData.payment_type === 'Receive' ? "Sales Invoice" : "Purchase Invoice",  // Dynamic reference_doctype
@@ -1342,22 +1352,6 @@ const getJournalPreview = useCallback((paymentAmount: number, allocation: any) =
         // ERPNext will auto-allocate to outstanding invoices
       };
 
-      console.log('🚀 === PAYMENT CREATION PAYLOAD ===');
-      console.log('📋 Form Data:', formData);
-      console.log('💰 Payment Amount:', paymentAmount);
-      console.log('📊 Total Outstanding:', totalOutstanding);
-      console.log('✅ Checked Invoices:', checkedInvoices);
-      console.log('� Company Accounts:', companyAccounts);
-      console.log('💳 Debit Account:', formData.debit_account);
-      console.log('💳 Credit Account:', formData.credit_account);
-      console.log('💳 Paid From:', formData.paid_from);
-      console.log('💳 Paid To:', formData.paid_to);
-      console.log('�� Final Payment Payload:', JSON.stringify(paymentPayload, null, 2));
-      console.log('🔗 API Endpoint: /api/payment');
-      console.log('📡 Request Method: POST');
-      console.log('=====================================');
-
-      console.log('🚀 Submitting Payment:', paymentPayload);
       // exitCode;
       const response = await fetch('/api/payment', {
         method: 'POST',
@@ -1366,9 +1360,6 @@ const getJournalPreview = useCallback((paymentAmount: number, allocation: any) =
         },
         body: JSON.stringify(paymentPayload),
       });
-
-      console.log('🔍 Response Status:', response.status);
-      console.log('🔍 Response Headers:', Object.fromEntries(response.headers));
 
       const data = await response.json();
       console.log('📊 Response Data:', data);
@@ -1389,7 +1380,6 @@ const getJournalPreview = useCallback((paymentAmount: number, allocation: any) =
         resetForm();
         fetchPayments();
 
-        // Clear success message after 8 seconds
         setTimeout(() => setSuccessMessage(''), 8000);
       } else {
         setError(data.message || 'Failed to create payment');
@@ -1426,6 +1416,8 @@ const getJournalPreview = useCallback((paymentAmount: number, allocation: any) =
       check_number: '',
       check_date: '',
       bank_reference: '',
+      reference_no: '',
+      reference_date: '',
       selected_invoices: [],
       paid_from: '',
       paid_to: '',
@@ -1710,6 +1702,30 @@ const getJournalPreview = useCallback((paymentAmount: number, allocation: any) =
                 </div>
               </div>
 
+              {/* Reference Fields */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Reference No</label>
+                  <input
+                    type="text"
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    value={formData.reference_no}
+                    onChange={(e) => setFormData(prev => ({ ...prev, reference_no: e.target.value }))}
+                    placeholder="e.g., TRX-20260207-0001"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Reference Date</label>
+                  <input
+                    type="date"
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    value={formData.reference_date}
+                    onChange={(e) => setFormData(prev => ({ ...prev, reference_date: e.target.value }))}
+                  />
+                </div>
+              </div>
+
               {/* Account Selection - Dropdown dengan Auto-Selection */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div>
@@ -1721,20 +1737,15 @@ const getJournalPreview = useCallback((paymentAmount: number, allocation: any) =
                   </label>
                   <select
                     className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                    value={formData.debit_account || (formData.payment_type === 'Receive' ?
-                      (formData.mode_of_payment === 'Bank Transfer' || formData.mode_of_payment === 'Warkat' ?
-                        companyAccounts.default_bank_account || 'Bank Account' :
-                        formData.mode_of_payment === 'Credit Card' ?
-                          companyAccounts.default_credit_card_account || 'Credit Card' :
-                          companyAccounts.default_cash_account || 'Cash Account') :
-                      companyAccounts.default_payable_account || 'Accounts Payable')
-                    }
+                    value={formData.debit_account}
                     onChange={(e) => {
                       const selectedAccount = e.target.value;
                       setFormData(prev => ({ ...prev, debit_account: selectedAccount }));
                       console.log('🏦 Debit account changed to:', selectedAccount);
+                      console.log('🏦 DEBUG - formData.debit_account after change:', selectedAccount);
                     }}
                   >
+                    {console.log('🏦 DEBUG - Rendering debit dropdown, formData.debit_account:', formData.debit_account)}
                     {getFilteredAccounts('debit').map((account: CompanyAccount) => (
                       <option key={account.name} value={account.name}>
                         {account.name} ({account.account_type})
@@ -1754,21 +1765,17 @@ const getJournalPreview = useCallback((paymentAmount: number, allocation: any) =
                     </span>
                   </label>
                   <select
+                    key={`credit-account-${formData.credit_account}-${formData.mode_of_payment}`}
                     className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                    value={formData.credit_account || (formData.payment_type === 'Receive' ?
-                      companyAccounts.default_receivable_account || 'Accounts Receivable' :
-                      (formData.mode_of_payment === 'Bank Transfer' || formData.mode_of_payment === 'Warkat' ?
-                        companyAccounts.default_bank_account || 'Bank Account' :
-                        formData.mode_of_payment === 'Credit Card' ?
-                          companyAccounts.default_credit_card_account || 'Credit Card' :
-                          companyAccounts.default_cash_account || 'Cash Account'))
-                    }
+                    value={formData.credit_account}
                     onChange={(e) => {
                       const selectedAccount = e.target.value;
                       setFormData(prev => ({ ...prev, credit_account: selectedAccount }));
                       console.log('💳 Credit account changed to:', selectedAccount);
+                      console.log('💳 DEBUG - formData.credit_account after change:', selectedAccount);
                     }}
                   >
+                    {console.log('💳 DEBUG - Rendering credit dropdown, formData.credit_account:', formData.credit_account)}
                     {getFilteredAccounts('credit').map((account: CompanyAccount) => (
                       <option key={account.name} value={account.name}>
                         {account.name} ({account.account_type})
@@ -1776,7 +1783,7 @@ const getJournalPreview = useCallback((paymentAmount: number, allocation: any) =
                     ))}
                   </select>
                   <p className="text-xs text-green-600 mt-1">
-                    💡 Automatically selected based on payment type and mode
+                    💡 Automatically selected based on payment type and mode kanan
                   </p>
                 </div>
               </div>

@@ -175,6 +175,9 @@ export async function POST(request: NextRequest) {
       paid_amount: paymentData.payment_type === 'Receive' ? (paymentData.received_amount || 0) : (paymentData.paid_amount || 0),
       received_amount: paymentData.payment_type === 'Receive' ? (paymentData.received_amount || 0) : (paymentData.paid_amount || 0),
       mode_of_payment: paymentData.mode_of_payment,
+      // Add reference fields
+      reference_no: paymentData.reference_no,
+      reference_date: paymentData.reference_date,
       // Add references if provided (invoice allocations)
       references: paymentData.references || [],
       // Set default values that ERPNext requires
