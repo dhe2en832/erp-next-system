@@ -19,12 +19,24 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Build filters
-    const filters = [];
-    filters.push(["supplier_type", "=", "Company"]);
+    // Build filters - Enable search with proper structure
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const filters: any[] = [];
     
     if (search) {
-      filters.push(["name", "like", `%${search}%`]);
+      // Search by both name and supplier_name for better user experience
+      filters.push([
+        "and",
+        ["supplier_type", "=", "Company"],
+        [
+          "or", 
+          ["name", "like", `%${search}%`],
+          ["supplier_name", "like", `%${search}%`]
+        ]
+      ]);
+    } else {
+      // If no search, just filter by supplier_type
+      filters.push(["supplier_type", "=", "Company"]);
     }
 
     const filtersString = filters.length > 0 ? JSON.stringify(filters) : '[]';

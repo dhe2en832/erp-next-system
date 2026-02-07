@@ -83,20 +83,19 @@ export async function GET(request: NextRequest) {
     }
 
     if (response.ok) {
-      // Filter invoices that have outstanding amount > 0
-      const outstandingInvoices = (data.data || []).filter((invoice: any) => 
-        invoice.outstanding_amount > 0
-      );
-
-      console.log('🔍 Filtered Outstanding Invoices:', outstandingInvoices.length);
-      outstandingInvoices.forEach((invoice: any, index: number) => {
-        console.log(`  ${index + 1}. ${invoice.name}: ${invoice.outstanding_amount}`);
+      // Return all invoices for this customer (both outstanding and partially paid)
+      // The frontend will handle the allocation logic
+      const allInvoices = data.data || [];
+      
+      console.log('🔍 All Invoices for Customer:', allInvoices.length);
+      allInvoices.forEach((invoice: any, index: number) => {
+        console.log(`  ${index + 1}. ${invoice.name}: Outstanding=${invoice.outstanding_amount}, Status=${invoice.status}`);
       });
 
       return NextResponse.json({
         success: true,
-        data: outstandingInvoices,
-        message: `Found ${outstandingInvoices.length} outstanding invoices`
+        data: allInvoices,
+        message: `Found ${allInvoices.length} invoices for customer`
       });
     } else {
       return NextResponse.json({

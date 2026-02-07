@@ -6,6 +6,8 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import Pagination from '../components/Pagination';
 import PaymentCustomerDialog from '../components/PaymentCustomerDialog';
 import PaymentSupplierDialog from '../components/PaymentSupplierDialog';
+import CurrencyInput from '../components/CurrencyInput';
+import { exitCode } from 'process';
 
 interface SalesInvoice {
   name: string;
@@ -14,13 +16,16 @@ interface SalesInvoice {
   due_date: string;
   grand_total: number;
   outstanding_amount: number;
+  visual_outstanding?: number;
   status: string;
+  allocated_amount?: number;
 }
 
 interface PaymentEntry {
   name: string;
   payment_type: string;
   party: string;
+  party_name?: string;
   party_type: string;
   paid_amount: number;
   received_amount: number;
@@ -59,6 +64,9 @@ interface PaymentFormData {
     outstanding_amount: number;
     allocated_amount: number;
   }>;
+  // ERPNext specific fields
+  paid_from?: string;
+  paid_to?: string;
 }
 
 export default function PaymentPage() {
@@ -75,6 +83,10 @@ export default function PaymentPage() {
   const [showCustomerDialog, setShowCustomerDialog] = useState(false);
   const [showSupplierDialog, setShowSupplierDialog] = useState(false);
   
+  // Display names for form
+  const [selectedCustomerName, setSelectedCustomerName] = useState('');
+  const [selectedSupplierName, setSelectedSupplierName] = useState('');
+  
   const [formData, setFormData] = useState<PaymentFormData>({
     payment_type: 'Receive',
     party_type: 'Customer',
@@ -82,7 +94,7 @@ export default function PaymentPage() {
     posting_date: new Date().toISOString().split('T')[0],
     paid_amount: 0,
     received_amount: 0,
-    mode_of_payment: 'Cash',
+    mode_of_payment: 'Kas',
     company: '',
     debit_account: '',
     credit_account: '',
@@ -90,6 +102,8 @@ export default function PaymentPage() {
     check_date: '',
     bank_reference: '',
     selected_invoices: [],
+    paid_from: '',
+    paid_to: '',
   });
   
   const [formLoading, setFormLoading] = useState(false);
@@ -108,6 +122,8 @@ export default function PaymentPage() {
     from_date: '',
     to_date: ''
   });
+  const [searchFilter, setSearchFilter] = useState('');
+  const [paymentTypeFilter, setPaymentTypeFilter] = useState(''); // '', 'Receive', 'Pay'
   
   const router = useRouter();
 
@@ -120,8 +136,22 @@ export default function PaymentPage() {
       return;
     }
 
-    setSelectedCompany(savedCompany);
-    setFormData(prev => ({ ...prev, company: savedCompany }));
+    // Use selected company from localStorage, not hardcoded
+    const companyToUse = savedCompany || 'BAC';
+    setSelectedCompany(companyToUse);
+    setFormData(prev => ({ ...prev, company: companyToUse }));
+    
+    console.log('🏢 Selected Company:', {
+      saved: savedCompany,
+      actual: companyToUse,
+      willUse: companyToUse
+    });
+  }, []);
+
+  // Initial fetch when component mounts
+  useEffect(() => {
+    console.log('🚀 Initial component mount - fetching payments');
+    fetchPayments();
   }, []);
 
   // Fetch company default accounts
@@ -138,6 +168,14 @@ export default function PaymentPage() {
         setCompanyAccounts(data.data || {});
         console.log('✅ Company accounts loaded:', data.data);
         console.log('🤖 Accounts will be automatically selected based on payment type and mode');
+        
+        // Trigger auto-selection immediately after company accounts are loaded
+        if (formData.payment_type && formData.mode_of_payment) {
+          console.log('🔄 Triggering auto-selection after company accounts loaded');
+          setTimeout(() => {
+            triggerAutoSelection(data.data || {}, formData.payment_type, formData.mode_of_payment);
+          }, 100);
+        }
       } else {
         console.error('❌ Failed to fetch company accounts:', data.message);
         setCompanyAccounts({});
@@ -150,9 +188,108 @@ export default function PaymentPage() {
     }
   }, [selectedCompany]);
 
+  // Manual trigger function for auto-selection
+  const triggerAutoSelection = useCallback((accounts: any, paymentType: string, paymentMode: string) => {
+    console.log('🔧 MANUAL TRIGGER - Auto-selecting accounts:', {
+      payment_type: paymentType,
+      mode_of_payment: paymentMode,
+      companyAccounts: accounts
+    });
+    
+    console.log('🔧 MANUAL TRIGGER - Company accounts structure:', {
+      has_default_accounts: !!accounts.default_accounts,
+      default_accounts: accounts.default_accounts,
+      direct_properties: {
+        default_bank_account: accounts.default_bank_account,
+        default_cash_account: accounts.default_cash_account,
+        default_receivable_account: accounts.default_receivable_account,
+        default_payable_account: accounts.default_payable_account,
+        default_credit_card_account: accounts.default_credit_card_account
+      }
+    });
+    
+    if (!accounts || !paymentType || !paymentMode) {
+      console.log('🔧 MANUAL TRIGGER - Missing required data');
+      return;
+    }
+    
+    // Auto-select debit account
+    let newDebitAccount = '';
+    if (paymentType === 'Receive') {
+      if (paymentMode === 'Bank Transfer' || paymentMode === 'Warkat') {
+        newDebitAccount = accounts.default_accounts?.bank || accounts.default_accounts?.cash || 'Bank Account';
+      } else if (paymentMode === 'Credit Card') {
+        newDebitAccount = accounts.default_accounts?.credit_card || accounts.default_accounts?.cash || 'Credit Card';
+      } else {
+        newDebitAccount = accounts.default_accounts?.cash || 'Cash Account';
+      }
+    } else {
+      newDebitAccount = accounts.default_accounts?.payable || 'Accounts Payable';
+    }
+    
+    // Auto-select credit account
+    let newCreditAccount = '';
+    if (paymentType === 'Receive') {
+      newCreditAccount = accounts.default_accounts?.receivable || 'Accounts Receivable';
+    } else {
+      if (paymentMode === 'Bank Transfer' || paymentMode === 'Warkat') {
+        newCreditAccount = accounts.default_accounts?.bank || accounts.default_accounts?.cash || 'Bank Account';
+      } else if (paymentMode === 'Credit Card') {
+        newCreditAccount = accounts.default_accounts?.credit_card || accounts.default_accounts?.cash || 'Credit Card';
+      } else {
+        newCreditAccount = accounts.default_accounts?.cash || 'Cash Account';
+      }
+    }
+    
+    console.log('🔧 MANUAL TRIGGER - Selected Debit Account:', newDebitAccount);
+    console.log('🔧 MANUAL TRIGGER - Selected Credit Account:', newCreditAccount);
+    
+    console.log('🔧 MANUAL TRIGGER - Before formData update:', {
+      current_paid_from: formData.paid_from,
+      current_paid_to: formData.paid_to,
+      new_paid_from: paymentType === 'Receive' ? newCreditAccount : newDebitAccount,
+      new_paid_to: paymentType === 'Receive' ? newDebitAccount : newCreditAccount
+    });
+    
+    setFormData(prev => ({
+      ...prev,
+      debit_account: newDebitAccount,
+      credit_account: newCreditAccount,
+      // Map to ERPNext fields based on business logic:
+      // Receive: paid_from = Piutang (newCreditAccount), paid_to = Bank (newDebitAccount)
+      // Pay: paid_from = Bank (newDebitAccount), paid_to = Hutang (newCreditAccount)
+      paid_from: paymentType === 'Receive' ? newCreditAccount : newDebitAccount,  // Source of funds
+      paid_to: paymentType === 'Receive' ? newDebitAccount : newCreditAccount      // Destination of funds
+    }));
+    
+    console.log('🔧 MANUAL TRIGGER - Accounts auto-selected and updated in formData');
+    
+    // Verify the update after a short delay
+    setTimeout(() => {
+      console.log('🔧 MANUAL TRIGGER - After formData update verification:', {
+        paid_from: formData.paid_from,
+        paid_to: formData.paid_to,
+        debit_account: formData.debit_account,
+        credit_account: formData.credit_account
+      });
+    }, 50);
+  }, [companyAccounts, selectedCompany]);
+
   // Auto-update debit and credit accounts when payment type or mode changes
   useEffect(() => {
-    if (!companyAccounts.available_accounts || !selectedCompany) return;
+    console.log('� AUTO-SELECTION USEEFFECT TRIGGERED!');
+    console.log('� Checking auto-selection conditions:', {
+      companyAccounts: companyAccounts,
+      available_accounts: companyAccounts.available_accounts,
+      selectedCompany: selectedCompany,
+      payment_type: formData.payment_type,
+      mode_of_payment: formData.mode_of_payment
+    });
+    
+    if (!companyAccounts || !selectedCompany) {
+      console.log('🔍 Auto-selection blocked - missing companyAccounts or selectedCompany');
+      return;
+    }
     
     console.log('🤖 Auto-updating accounts based on payment type and mode:', {
       paymentType: formData.payment_type,
@@ -161,36 +298,51 @@ export default function PaymentPage() {
     
     // Auto-select debit account
     let newDebitAccount = '';
+    console.log('🔍 Auto-selecting accounts:', {
+      payment_type: formData.payment_type,
+      mode_of_payment: formData.mode_of_payment,
+      companyAccounts: companyAccounts
+    });
+    
     if (formData.payment_type === 'Receive') {
       if (formData.mode_of_payment === 'Bank Transfer' || formData.mode_of_payment === 'Warkat') {
-        newDebitAccount = companyAccounts.default_bank_account || 'Bank Account';
+        newDebitAccount = companyAccounts.default_accounts?.bank || 'Bank Account';
       } else if (formData.mode_of_payment === 'Credit Card') {
-        newDebitAccount = companyAccounts.default_credit_card_account || 'Credit Card';
+        newDebitAccount = companyAccounts.default_accounts?.credit_card || 'Credit Card';
       } else {
-        newDebitAccount = companyAccounts.default_cash_account || 'Cash Account';
+        newDebitAccount = companyAccounts.default_accounts?.cash || 'Cash Account';
       }
     } else {
-      newDebitAccount = companyAccounts.default_payable_account || 'Accounts Payable';
+      newDebitAccount = companyAccounts.default_accounts?.payable || 'Accounts Payable';
     }
+    
+    console.log('🔍 Selected Debit Account:', newDebitAccount);
     
     // Auto-select credit account
     let newCreditAccount = '';
     if (formData.payment_type === 'Receive') {
-      newCreditAccount = companyAccounts.default_receivable_account || 'Accounts Receivable';
+      newCreditAccount = companyAccounts.default_accounts?.receivable || 'Accounts Receivable';
     } else {
       if (formData.mode_of_payment === 'Bank Transfer' || formData.mode_of_payment === 'Warkat') {
-        newCreditAccount = companyAccounts.default_bank_account || 'Bank Account';
+        newCreditAccount = companyAccounts.default_accounts?.bank || 'Bank Account';
       } else if (formData.mode_of_payment === 'Credit Card') {
-        newCreditAccount = companyAccounts.default_credit_card_account || 'Credit Card';
+        newCreditAccount = companyAccounts.default_accounts?.credit_card || 'Credit Card';
       } else {
-        newCreditAccount = companyAccounts.default_cash_account || 'Cash Account';
+        newCreditAccount = companyAccounts.default_accounts?.cash || 'Cash Account';
       }
     }
+    
+    console.log('🔍 Selected Credit Account:', newCreditAccount);
     
     setFormData(prev => ({
       ...prev,
       debit_account: newDebitAccount,
-      credit_account: newCreditAccount
+      credit_account: newCreditAccount,
+      // Map to ERPNext fields based on business logic:
+      // Receive: paid_from = Piutang (newCreditAccount), paid_to = Bank (newDebitAccount)
+      // Pay: paid_from = Bank (newDebitAccount), paid_to = Hutang (newCreditAccount)
+      paid_from: formData.payment_type === 'Receive' ? newCreditAccount : newDebitAccount,  // Source of funds
+      paid_to: formData.payment_type === 'Receive' ? newDebitAccount : newCreditAccount      // Destination of funds
     }));
     
     console.log('✅ Accounts auto-selected:', {
@@ -207,38 +359,42 @@ export default function PaymentPage() {
   }, [selectedCompany, fetchCompanyAccounts]);
 
   // Fetch customers and suppliers
-  const fetchParties = useCallback(async () => {
+  useEffect(() => {
     if (!selectedCompany) return;
     
-    try {
-      console.log('Fetching parties for company:', selectedCompany);
-      
-      // Fetch customers
-      const customerResponse = await fetch(`/api/customers?company=${selectedCompany}`);
-      const customerData = await customerResponse.json();
-      console.log('Customers response:', customerData);
-      if (customerData.success) {
-        const customerList = customerData.data?.map((c: any) => c.name) || [];
-        setCustomers(customerList);
-        console.log('Customers loaded:', customerList);
-      } else {
-        console.error('Failed to fetch customers:', customerData.message);
-      }
+    const fetchPartiesData = async () => {
+      try {
+        console.log('Fetching parties for company:', selectedCompany);
+        
+        // Fetch customers
+        const customerResponse = await fetch(`/api/customers?company=${selectedCompany}`);
+        const customerData = await customerResponse.json();
+        console.log('Customers response:', customerData);
+        if (customerData.success) {
+          const customerList = customerData.data?.map((c: { name: string }) => c.name) || [];
+          setCustomers(customerList);
+          console.log('Customers loaded:', customerList);
+        } else {
+          console.error('Failed to fetch customers:', customerData.message);
+        }
 
-      // Fetch suppliers
-      const supplierResponse = await fetch(`/api/suppliers?company=${selectedCompany}`);
-      const supplierData = await supplierResponse.json();
-      console.log('Suppliers response:', supplierData);
-      if (supplierData.success) {
-        const supplierList = supplierData.data?.map((s: any) => s.name) || [];
-        setSuppliers(supplierList);
-        console.log('Suppliers loaded:', supplierList);
-      } else {
-        console.error('Failed to fetch suppliers:', supplierData.message);
+        // Fetch suppliers
+        const supplierResponse = await fetch(`/api/suppliers?company=${selectedCompany}`);
+        const supplierData = await supplierResponse.json();
+        console.log('Suppliers response:', supplierData);
+        if (supplierData.success) {
+          const supplierList = supplierData.data?.map((s: { name: string }) => s.name) || [];
+          setSuppliers(supplierList);
+          console.log('Suppliers loaded:', supplierList);
+        } else {
+          console.error('Failed to fetch suppliers:', supplierData.message);
+        }
+      } catch (err) {
+        console.error('Error fetching parties:', err);
       }
-    } catch (err) {
-      console.error('Error fetching parties:', err);
-    }
+    };
+
+    fetchPartiesData();
   }, [selectedCompany]);
 
   // Handle customer selection from dialog
@@ -247,6 +403,9 @@ export default function PaymentPage() {
       ...prev, 
       party: customer.name
     }));
+    
+    // Set display name to show customer_name instead of code
+    setSelectedCustomerName(customer.customer_name || customer.name);
     
     // Auto-fetch outstanding invoices for customer
     fetchOutstandingInvoices(customer.name);
@@ -258,6 +417,9 @@ export default function PaymentPage() {
       ...prev, 
       party: supplier.name
     }));
+    
+    // Set display name to show supplier_name instead of code
+    setSelectedSupplierName(supplier.supplier_name || supplier.name);
     
     // Clear outstanding invoices for supplier (suppliers don't have invoices)
     setOutstandingInvoices([]);
@@ -293,8 +455,10 @@ export default function PaymentPage() {
     }
   }, [selectedCompany]);
 
-  const fetchPayments = useCallback(async () => {
+  const fetchPayments = async () => {
     setError('');
+    
+    console.log('🔍 Fetch Payments - Selected Company:', selectedCompany);
     
     if (!selectedCompany) {
       setError('No company selected. Please select a company first.');
@@ -303,22 +467,46 @@ export default function PaymentPage() {
     }
     
     try {
-      const params = new URLSearchParams({
-        company: selectedCompany,
-        limit_page_length: pageSize.toString(),
-        start: ((currentPage - 1) * pageSize).toString()
-      });
+      const params = new URLSearchParams();
+      params.append('company', selectedCompany);
+      params.append('limit_page_length', pageSize.toString());
+      params.append('start', ((currentPage - 1) * pageSize).toString());
       
-      const filters = [["company", "=", selectedCompany]];
+      const filters: any[][] = [["company", "=", selectedCompany]];
       if (dateFilter.from_date) filters.push(["posting_date", ">=", dateFilter.from_date]);
       if (dateFilter.to_date) filters.push(["posting_date", "<=", dateFilter.to_date]);
       
+      // Add payment type filter
+      if (paymentTypeFilter) {
+        filters.push(["payment_type", "=", paymentTypeFilter]);
+      }
+      
+      // Add search filter for payment name or party name
+      if (searchFilter.trim()) {
+        filters.push(["or", 
+          ["name", "like", `%${searchFilter.trim()}%`],
+          ["party_name", "like", `%${searchFilter.trim()}%`],
+          ["party", "like", `%${searchFilter.trim()}%`]
+        ]);
+      }
+      
       params.append('filters', JSON.stringify(filters));
       
+      console.log('Payment API URL:', `/api/payment?${params}`);
+
       const response = await fetch(`/api/payment?${params}`);
       const data = await response.json();
 
+      console.log('Fetch Payments Response:', {
+        status: response.status,
+        ok: response.ok,
+        data: data
+      });
+
       if (data.success) {
+        console.log('✅ API Response Success - Data Length:', data.data?.length || 0);
+        console.log('✅ API Response Success - Data Sample:', data.data?.[0]);
+        
         if (data.total_records !== undefined) {
           setTotalRecords(data.total_records);
           setTotalPages(Math.ceil(data.total_records / pageSize));
@@ -327,26 +515,27 @@ export default function PaymentPage() {
           setTotalPages(1);
         }
         
+        console.log('🔄 Before setPayments - Current payments:', payments.length);
         setPayments(data.data || []);
+        console.log('🔄 After setPayments - New payments:', (data.data || []).length);
         setError('');
+        console.log('✅ Payments loaded successfully:', data.data?.length || 0, 'items');
       } else {
+        console.error('❌ API Response Failed:', data);
         setError(data.message || 'Failed to fetch payments');
       }
     } catch (err) {
+      console.error('❌ Fetch payments error:', err);
       setError('Failed to fetch payments');
     } finally {
       setLoading(false);
     }
-  }, [selectedCompany, currentPage, pageSize, dateFilter]);
+  };
 
+  // Call fetchPayments when dependencies change
   useEffect(() => {
     fetchPayments();
-    fetchParties();
-  }, [fetchPayments, fetchParties]);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [dateFilter]);
+  }, [selectedCompany, currentPage, pageSize, dateFilter, searchFilter, paymentTypeFilter]);
 
   // Handle party change
   const handlePartyChange = (party: string) => {
@@ -357,6 +546,10 @@ export default function PaymentPage() {
       received_amount: 0,
       paid_amount: 0
     }));
+    
+    // Reset display names
+    setSelectedCustomerName('');
+    setSelectedSupplierName('');
     
     if (formData.party_type === 'Customer' && party) {
       fetchOutstandingInvoices(party);
@@ -376,8 +569,186 @@ export default function PaymentPage() {
       party: '',  
     }));
     
+    // Reset display names when switching party type
+    setSelectedCustomerName('');
+    setSelectedSupplierName('');
+    
     // Clear outstanding invoices when switching party type
     setOutstandingInvoices([]);
+    
+    // Trigger auto-selection when payment type changes
+    console.log('🔄 PAYMENT TYPE CHANGED - Triggering auto-selection');
+    setTimeout(() => {
+      if (companyAccounts && paymentType && formData.mode_of_payment) {
+        triggerAutoSelection(companyAccounts, paymentType, formData.mode_of_payment);
+      } else {
+        console.log('🔄 PAYMENT TYPE CHANGED - Missing data:', {
+          companyAccounts: !!companyAccounts,
+          paymentType: paymentType,
+          mode_of_payment: formData.mode_of_payment
+        });
+      }
+    }, 100);
+  };
+
+  // Handle edit payment
+  const handleEditPayment = async (payment: PaymentEntry) => {
+    console.log('Editing payment:', payment);
+    
+    try {
+      // Fetch full payment details from ERPNext
+      const response = await fetch(`/api/payment/details?name=${payment.name}`);
+      const data = await response.json();
+      
+      if (!data.success) {
+        setError('Failed to fetch payment details');
+        return;
+      }
+      
+      const paymentDetails = data.data;
+      console.log('Payment details:', paymentDetails);
+      
+      // Set form data for editing with complete information
+      setFormData({
+        payment_type: paymentDetails.payment_type as 'Receive' | 'Pay',
+        party_type: paymentDetails.party_type as 'Customer' | 'Supplier',
+        party: paymentDetails.party,
+        posting_date: paymentDetails.posting_date,
+        paid_amount: paymentDetails.paid_amount || 0,
+        received_amount: paymentDetails.received_amount || 0,
+        mode_of_payment: paymentDetails.mode_of_payment || 'Kas',
+        company: selectedCompany,
+        debit_account: paymentDetails.paid_from || '',
+        credit_account: paymentDetails.paid_to || '',
+        check_number: paymentDetails.reference_no || '',
+        check_date: paymentDetails.reference_date || '',
+        bank_reference: paymentDetails.reference_no || '',
+        selected_invoices: paymentDetails.references?.map((ref: { reference_name: string; allocated_amount: number }) => ({
+          invoice_name: ref.reference_name,
+          invoice_total: 0, // Will be fetched from ERPNext if needed
+          outstanding_amount: ref.allocated_amount || 0,
+          allocated_amount: ref.allocated_amount || 0
+        })) || [],
+        paid_from: paymentDetails.paid_from || '',
+        paid_to: paymentDetails.paid_to || '',
+      });
+      
+      // Set display names
+      if (paymentDetails.party_type === 'Customer') {
+        setSelectedCustomerName(paymentDetails.party_name || paymentDetails.party);
+        
+        // For edit payment, fetch actual invoice details for allocated invoices
+        const fetchInvoiceDetails = async (references: Array<{reference_name: string; allocated_amount: number}>) => {
+          if (!references || references.length === 0) return [];
+          
+          const invoicePromises = references.map(async (ref) => {
+            try {
+              // Fetch invoice details from ERPNext
+              const response = await fetch(`/api/invoice-details?invoice_name=${ref.reference_name}`);
+              const data = await response.json();
+              
+              if (data.success && data.data) {
+                const invoice = data.data;
+                return {
+                  name: ref.reference_name,
+                  invoice_name: ref.reference_name,
+                  invoice_total: invoice.grand_total || 0,
+                  outstanding_amount: invoice.outstanding_amount || 0,
+                  visual_outstanding: (invoice.outstanding_amount || 0) - (ref.allocated_amount || 0),
+                  allocated_amount: ref.allocated_amount || 0,
+                  grand_total: invoice.grand_total || 0,
+                  due_date: invoice.due_date || '',
+                  customer: invoice.customer || '',
+                  posting_date: invoice.posting_date || '',
+                  status: invoice.status || ''
+                };
+              } else {
+                // Fallback if API fails
+                return {
+                  name: ref.reference_name,
+                  invoice_name: ref.reference_name,
+                  invoice_total: 0,
+                  outstanding_amount: ref.allocated_amount || 0,
+                  visual_outstanding: 0,
+                  allocated_amount: ref.allocated_amount || 0,
+                  grand_total: 0,
+                  due_date: '',
+                  customer: '',
+                  posting_date: '',
+                  status: 'Unknown'
+                };
+              }
+            } catch (error) {
+              console.error(`Failed to fetch details for invoice ${ref.reference_name}:`, error);
+              // Fallback on error
+              return {
+                name: ref.reference_name,
+                invoice_name: ref.reference_name,
+                invoice_total: 0,
+                outstanding_amount: ref.allocated_amount || 0,
+                visual_outstanding: 0,
+                allocated_amount: ref.allocated_amount || 0,
+                grand_total: 0,
+                due_date: '',
+                customer: '',
+                posting_date: '',
+                status: 'Unknown'
+              };
+            }
+          });
+          
+          const results = await Promise.all(invoicePromises);
+          return results;
+        };
+
+        const allocatedInvoices = await fetchInvoiceDetails(paymentDetails.references || []);
+        setOutstandingInvoices(allocatedInvoices);
+      } else {
+        setSelectedSupplierName(paymentDetails.party_name || paymentDetails.party);
+        // Clear outstanding invoices for supplier
+        setOutstandingInvoices([]);
+      }
+      
+      // Set editing state
+      setEditingPayment(payment);
+      setEditingPaymentStatus(payment.status);
+      
+      // Show form
+      setShowForm(true);
+      
+    } catch (error: unknown) {
+      console.error('Error fetching payment details:', error);
+      const errorMessage = error instanceof Error ? error.message : 'An error occurred while fetching payment details';
+      setError(errorMessage);
+    }
+  };
+
+  // Handle submit payment
+  const handleSubmitPayment = async (paymentName: string) => {
+    try {
+      const response = await fetch(`/api/payment/${paymentName}/submit`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setSuccessMessage(`✅ Payment ${paymentName} berhasil di-submit!`);
+        fetchPayments(); // Refresh the list
+        
+        // Clear success message after 5 seconds
+        setTimeout(() => setSuccessMessage(''), 5000);
+      } else {
+        setError(data.message || 'Failed to submit payment');
+      }
+    } catch (error: unknown) {
+      console.error('Payment submit error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'An error occurred while submitting payment';
+      setError(errorMessage);
+    }
   };
 
   // Get filtered accounts for dropdowns
@@ -468,6 +839,26 @@ export default function PaymentPage() {
     return outstandingInvoices.reduce((sum, invoice) => sum + invoice.outstanding_amount, 0);
   }, [outstandingInvoices]);
 
+  // Calculate total allocation amount from selected invoices
+  const getTotalAllocationAmount = useCallback(() => {
+    return formData.selected_invoices.reduce((total, invoice) => {
+      return total + (invoice.allocated_amount || 0);
+    }, 0);
+  }, [formData.selected_invoices]);
+
+  // Auto-update received amount based on total allocation
+  useEffect(() => {
+    if (formData.payment_type === 'Receive') {
+      const totalAllocation = getTotalAllocationAmount();
+      if (totalAllocation > 0) {
+        setFormData(prev => ({
+          ...prev,
+          received_amount: totalAllocation
+        }));
+      }
+    }
+  }, [formData.selected_invoices, getTotalAllocationAmount, formData.payment_type]);
+
   // Calculate allocation preview (ERPNext FIFO logic)
   const calculateAllocationPreview = useCallback((paymentAmount: number, invoices: any[]) => {
     if (!invoices.length || paymentAmount <= 0) return { allocation: [], unallocated: paymentAmount };
@@ -514,15 +905,15 @@ export default function PaymentPage() {
       // Automatic debit account based on payment mode
       let debitAccount = '';
       if (formData.mode_of_payment === 'Bank Transfer' || formData.mode_of_payment === 'Warkat') {
-        debitAccount = companyAccounts.default_bank_account || 'Bank Account';
+        debitAccount = companyAccounts.default_accounts?.bank || 'Bank Account';
       } else if (formData.mode_of_payment === 'Credit Card') {
-        debitAccount = companyAccounts.default_credit_card_account || 'Credit Card';
+        debitAccount = companyAccounts.default_accounts?.credit_card || 'Credit Card';
       } else {
-        debitAccount = companyAccounts.default_cash_account || 'Cash Account';
+        debitAccount = companyAccounts.default_accounts?.cash || 'Cash Account';
       }
       
       // Automatic credit account
-      const creditAccount = companyAccounts.default_receivable_account || 'Accounts Receivable';
+      const creditAccount = companyAccounts.default_accounts?.receivable || 'Accounts Receivable';
       
       console.log('✅ Automatic Receive Payment Journal:', {
         debit: debitAccount,
@@ -553,16 +944,16 @@ export default function PaymentPage() {
     // For Pay Payment: Debit Expense, Credit Cash/Bank
     if (formData.payment_type === 'Pay') {
       // Automatic debit account
-      const debitAccount = companyAccounts.default_payable_account || 'Accounts Payable';
+      const debitAccount = companyAccounts.default_accounts?.payable || 'Accounts Payable';
       
       // Automatic credit account based on payment mode
       let creditAccount = '';
       if (formData.mode_of_payment === 'Bank Transfer' || formData.mode_of_payment === 'Warkat') {
-        creditAccount = companyAccounts.default_bank_account || 'Bank Account';
+        creditAccount = companyAccounts.default_accounts?.bank || 'Bank Account';
       } else if (formData.mode_of_payment === 'Credit Card') {
-        creditAccount = companyAccounts.default_credit_card_account || 'Credit Card';
+        creditAccount = companyAccounts.default_accounts?.credit_card || 'Credit Card';
       } else {
-        creditAccount = companyAccounts.default_cash_account || 'Cash Account';
+        creditAccount = companyAccounts.default_accounts?.cash || 'Cash Account';
       }
       
       console.log('✅ Automatic Pay Payment Journal:', {
@@ -602,6 +993,40 @@ export default function PaymentPage() {
   }, [formData.payment_type, formData.mode_of_payment, companyAccounts]);
 
   // Fetch outstanding invoices when customer is selected
+const getRealPaidFrom = (paymentType: string, paymentMode: string) => {
+    if (paymentType === 'Receive') {
+      return companyAccounts.default_receivable_account || 'Accounts Receivable';
+    } else {
+      if (paymentMode === 'Bank Transfer' || paymentMode === 'Warkat') {
+        return companyAccounts.default_payable_account || 'Accounts Payable';
+      } else if (paymentMode === 'Credit Card') {
+        return companyAccounts.default_payable_account || 'Accounts Payable';
+      } else {
+        return companyAccounts.default_payable_account || 'Accounts Payable';
+      }
+    }
+  };
+ 
+  // Get real paid to account based on payment type and mode
+  const getRealPaidTo = (paymentType: string, paymentMode: string) => {
+    if (paymentType === 'Receive') {
+      if (paymentMode === 'Bank Transfer' || paymentMode === 'Warkat') {
+        return companyAccounts.default_bank_account || companyAccounts.default_cash_account || 'Bank Account';
+      } else if (paymentMode === 'Credit Card') {
+        return companyAccounts.default_credit_card_account || companyAccounts.default_cash_account || 'Credit Card';
+      } else {
+        return companyAccounts.default_cash_account || 'Cash Account';
+      }
+    } else {
+      if (paymentMode === 'Bank Transfer' || paymentMode === 'Warkat') {
+        return companyAccounts.default_bank_account || companyAccounts.default_cash_account || 'Bank Account';
+      } else if (paymentMode === 'Credit Card') {
+        return companyAccounts.default_credit_card_account || companyAccounts.default_cash_account || 'Credit Card';
+      } else {
+        return companyAccounts.default_cash_account || 'Cash Account';
+      }
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -630,21 +1055,64 @@ export default function PaymentPage() {
         }
       }
 
-      // Build payment payload (simplified - ERPNext handles allocation)
+      // Build payment payload with only checked invoices
+      const checkedInvoices = formData.selected_invoices.filter(invoice => invoice.allocated_amount > 0);
+      
+      // Fallback: If paid_from and paid_to are still empty, trigger auto-selection manually
+      if (!formData.paid_from || !formData.paid_to || formData.paid_from === "Accounts Receivable" || formData.paid_to === "Cash Account") {
+        console.log('🚨 FALLBACK TRIGGER - paid_from/paid_to are empty or fallback, triggering auto-selection');
+        if (companyAccounts && formData.payment_type && formData.mode_of_payment) {
+          triggerAutoSelection(companyAccounts, formData.payment_type, formData.mode_of_payment);
+          
+          // Wait a moment for the update to take effect
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+      }
+        const realPaidFrom = getRealPaidFrom(formData.payment_type, formData.mode_of_payment);
+        const realPaidTo = getRealPaidTo(formData.payment_type, formData.mode_of_payment);
+        console.log('realPaidFrom',realPaidFrom);
+        console.log('realPaidTo',realPaidTo);
+// exitCode;
       const paymentPayload = {
         company: selectedCompany,
         payment_type: formData.payment_type,
+        type: formData.payment_type, // Add required type field
         party_type: formData.party_type,
         party: formData.party,
         posting_date: formData.posting_date,
-        paid_amount: formData.payment_type === 'Pay' ? formData.paid_amount : 0,
-        received_amount: formData.payment_type === 'Receive' ? formData.received_amount : 0,
-        mode_of_payment: formData.mode_of_payment
+        // ERPNext validation: For Receive payment, paid_amount must be > 0
+        paid_amount: formData.payment_type === 'Receive' ? formData.received_amount : formData.paid_amount,
+        received_amount: formData.payment_type === 'Receive' ? formData.received_amount : formData.paid_amount,
+        mode_of_payment: formData.mode_of_payment,
+        // Add ERPNext required fields
+        paid_from: realPaidFrom, //formData.paid_from || formData.debit_account,
+        paid_to: realPaidTo, //formData.paid_to || formData.credit_account,
+        // Add references only for checked invoices
+        references: checkedInvoices.map(invoice => ({
+          reference_doctype: formData.payment_type === 'Receive' ? "Sales Invoice" : "Purchase Invoice",  // Dynamic reference_doctype
+          reference_name: invoice.invoice_name,
+          allocated_amount: invoice.allocated_amount
+        })),
         // ERPNext will auto-allocate to outstanding invoices
       };
 
-      console.log('🚀 Submitting Payment:', paymentPayload);
+      console.log('🚀 === PAYMENT CREATION PAYLOAD ===');
+      console.log('📋 Form Data:', formData);
+      console.log('💰 Payment Amount:', paymentAmount);
+      console.log('📊 Total Outstanding:', totalOutstanding);
+      console.log('✅ Checked Invoices:', checkedInvoices);
+      console.log('� Company Accounts:', companyAccounts);
+      console.log('💳 Debit Account:', formData.debit_account);
+      console.log('💳 Credit Account:', formData.credit_account);
+      console.log('💳 Paid From:', formData.paid_from);
+      console.log('💳 Paid To:', formData.paid_to);
+      console.log('�� Final Payment Payload:', JSON.stringify(paymentPayload, null, 2));
+      console.log('🔗 API Endpoint: /api/payment');
+      console.log('📡 Request Method: POST');
+      console.log('=====================================');
 
+      console.log('🚀 Submitting Payment:', paymentPayload);
+// exitCode;
       const response = await fetch('/api/payment', {
         method: 'POST',
         headers: {
@@ -653,9 +1121,12 @@ export default function PaymentPage() {
         body: JSON.stringify(paymentPayload),
       });
 
-      const data = await response.json();
+      console.log('🔍 Response Status:', response.status);
+      console.log('🔍 Response Headers:', Object.fromEntries(response.headers.entries()));
 
-      if (data.success) {
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ Payment Entry created:', data);
         let successMessage = `✅ Payment Entry ${data.data?.name || 'created'} berhasil dibuat!\n\n💰 Total: Rp ${paymentAmount.toLocaleString('id-ID')}`;
         
         if (formData.party_type === 'Customer' && paymentAmount > totalOutstanding && totalOutstanding > 0) {
@@ -683,6 +1154,12 @@ export default function PaymentPage() {
   };
 
   const resetForm = () => {
+    console.log('🔄 RESET FORM - Initializing form with default values');
+    console.log('🔄 Current companyAccounts:', companyAccounts);
+    console.log('🔄 Current selectedCompany:', selectedCompany);
+    console.log('🔄 Current formData.paid_from:', formData.paid_from);
+    console.log('🔄 Current formData.paid_to:', formData.paid_to);
+    
     setFormData({
       payment_type: 'Receive',
       party_type: 'Customer',
@@ -690,7 +1167,7 @@ export default function PaymentPage() {
       posting_date: new Date().toISOString().split('T')[0],
       paid_amount: 0,
       received_amount: 0,
-      mode_of_payment: 'Cash',
+      mode_of_payment: 'Kas',
       company: selectedCompany,
       debit_account: '',
       credit_account: '',
@@ -698,10 +1175,20 @@ export default function PaymentPage() {
       check_date: '',
       bank_reference: '',
       selected_invoices: [],
+      paid_from: '',
+      paid_to: '',
     });
     setOutstandingInvoices([]);
+    setSelectedCustomerName('');
+    setSelectedSupplierName('');
     setEditingPayment(null);
     setEditingPaymentStatus('');
+    setError('');
+    setSuccessMessage('');
+    
+    console.log('🔄 RESET FORM - Form reset completed');
+    console.log('🔄 After reset - paid_from:', formData.paid_from);
+    console.log('🔄 After reset - paid_to:', formData.paid_to);
   };
 
   if (loading) {
@@ -714,8 +1201,24 @@ export default function PaymentPage() {
         <h1 className="text-3xl font-bold text-gray-900">Payment Management</h1>
         <button
           onClick={() => {
+            console.log('🚀 NEW PAYMENT BUTTON CLICKED - Opening form');
             resetForm();
             setShowForm(true);
+            console.log('🚀 NEW PAYMENT - Form should now be visible');
+            
+            // Trigger auto-selection manually after form is reset and visible
+            setTimeout(() => {
+              console.log('🔧 POST-RESET TRIGGER - Manually triggering auto-selection');
+              if (companyAccounts && formData.payment_type && formData.mode_of_payment) {
+                triggerAutoSelection(companyAccounts, formData.payment_type, formData.mode_of_payment);
+              } else {
+                console.log('🔧 POST-RESET TRIGGER - Missing data:', {
+                  companyAccounts: !!companyAccounts,
+                  payment_type: formData.payment_type,
+                  mode_of_payment: formData.mode_of_payment
+                });
+              }
+            }, 200);
           }}
           className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 flex items-center"
         >
@@ -762,33 +1265,71 @@ export default function PaymentPage() {
         </div>
       )}
 
-      {/* Date Filters */}
+      {/* Date and Search Filters */}
       <div className="bg-white shadow rounded-lg p-4 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">From Date</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+            <input
+              type="text"
+              className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              placeholder="Payment no. or customer name"
+              value={searchFilter}
+              onChange={(e) => {
+                setSearchFilter(e.target.value);
+                setCurrentPage(1); // Reset to first page when searching
+              }}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Tipe</label>
+            <select
+              className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              value={paymentTypeFilter}
+              onChange={(e) => {
+                setPaymentTypeFilter(e.target.value);
+                setCurrentPage(1); // Reset to first page when filtering
+              }}
+            >
+              <option value="">Semua</option>
+              <option value="Receive">Penerimaan</option>
+              <option value="Pay">Pembayaran</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Dari Tanggal</label>
             <input
               type="date"
               className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
               value={dateFilter.from_date}
-              onChange={(e) => setDateFilter({ ...dateFilter, from_date: e.target.value })}
+              onChange={(e) => {
+                setDateFilter({ ...dateFilter, from_date: e.target.value });
+                setCurrentPage(1); // Reset to first page when filtering
+              }}
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">To Date</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Sampai Tanggal</label>
             <input
               type="date"
               className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
               value={dateFilter.to_date}
-              onChange={(e) => setDateFilter({ ...dateFilter, to_date: e.target.value })}
+              onChange={(e) => {
+                setDateFilter({ ...dateFilter, to_date: e.target.value });
+                setCurrentPage(1); // Reset to first page when filtering
+              }}
             />
           </div>
           <div className="flex items-end">
             <button
-              onClick={() => setDateFilter({ from_date: '', to_date: '' })}
+              onClick={() => {
+                setDateFilter({ from_date: '', to_date: '' });
+                setSearchFilter('');
+                setPaymentTypeFilter('');
+              }}
               className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400"
             >
-              Clear Filter
+              Clear Filters
             </button>
           </div>
         </div>
@@ -838,7 +1379,7 @@ export default function PaymentPage() {
                   <div className="flex items-center space-x-2">
                     <input
                       type="text"
-                      value={formData.party}
+                      value={formData.party_type === 'Customer' ? selectedCustomerName : selectedSupplierName}
                       readOnly
                       placeholder={`Select ${formData.party_type}`}
                       className="mt-1 block flex-1 border border-gray-300 rounded-md shadow-sm py-2 px-3 bg-gray-50 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
@@ -891,6 +1432,20 @@ export default function PaymentPage() {
                       
                       console.log('🤖 Payment mode changed to:', newMode);
                       console.log('🤖 Accounts will be automatically selected in journal preview');
+                      
+                      // Trigger auto-selection when mode of payment changes
+                      console.log('🔄 MODE OF PAYMENT CHANGED - Triggering auto-selection');
+                      setTimeout(() => {
+                        if (companyAccounts && formData.payment_type && newMode) {
+                          triggerAutoSelection(companyAccounts, formData.payment_type, newMode);
+                        } else {
+                          console.log('🔄 MODE OF PAYMENT CHANGED - Missing data:', {
+                            companyAccounts: !!companyAccounts,
+                            payment_type: formData.payment_type,
+                            mode_of_payment: newMode
+                          });
+                        }
+                      }, 100);
                     }}
                   >
                     <option value="Cash">Cash</option>
@@ -1065,19 +1620,27 @@ export default function PaymentPage() {
                   ) : (
                     <>
                       {/* Helper text for checkbox functionality */}
-                      <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                      <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-md">
                         <div className="flex items-start">
                           <svg className="w-5 h-5 text-blue-600 mr-2 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
-                          <div className="text-xs text-blue-700">
+                          <div>
                             <p className="font-medium mb-1">📋 Invoice Selection Instructions:</p>
                             <ul className="ml-4 space-y-1">
                               <li>• Check the box next to invoices you want to pay</li>
                               <li>• Enter allocation amount for each selected invoice</li>
                               <li>• Leave allocation amount blank to use full outstanding amount</li>
                               <li>• Total payment will be calculated based on your selections</li>
+                              <li>• Received Amount will be auto-calculated from total allocations</li>
                             </ul>
+                            {getTotalAllocationAmount() > 0 && (
+                              <div className="mt-2 pt-2 border-t border-blue-300">
+                                <p className="text-sm font-medium text-blue-800">
+                                  Total Allocation Amount: Rp {getTotalAllocationAmount().toLocaleString('id-ID')}
+                                </p>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1127,11 +1690,11 @@ export default function PaymentPage() {
                                   </p>
                                 </div>
                                 <div className="text-right">
-                                  <p className="text-sm font-medium text-orange-600">
-                                    Outstanding: Rp {invoice.outstanding_amount.toLocaleString('id-ID')}
+                                  <p className="text-sm text-gray-600">
+                                    Outstanding: Rp {(editingPaymentStatus === 'Draft' ? (invoice.visual_outstanding ?? invoice.outstanding_amount) : invoice.outstanding_amount).toLocaleString('id-ID')}
                                   </p>
                                   <p className="text-xs text-gray-500">
-                                    {invoice.outstanding_amount > 0 ? 'Unpaid' : 'Paid'}
+                                    {(editingPaymentStatus === 'Draft' ? (invoice.visual_outstanding ?? invoice.outstanding_amount) : invoice.outstanding_amount) > 0 ? 'Unpaid' : 'Paid'}
                                   </p>
                                 </div>
                               </div>
@@ -1140,17 +1703,11 @@ export default function PaymentPage() {
                               {formData.selected_invoices.some(selected => selected.invoice_name === invoice.name) && (
                                 <div className="mt-2 pt-2 border-t border-gray-200">
                                   <label className="block text-xs font-medium text-gray-700 mb-1">
-                                    Allocation Amount (Max: Rp {invoice.outstanding_amount.toLocaleString('id-ID')})
+                                    Allocation Amount (Max: Rp {(editingPaymentStatus === 'Draft' ? (invoice.visual_outstanding ?? invoice.outstanding_amount) : invoice.outstanding_amount).toLocaleString('id-ID')})
                                   </label>
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    max={invoice.outstanding_amount}
-                                    step="0.01"
-                                    className="block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-xs focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                                    placeholder="Enter allocation amount"
-                                    onChange={(e) => {
-                                      const allocationAmount = parseFloat(e.target.value) || 0;
+                                  <CurrencyInput
+                                    value={formData.selected_invoices.find(selected => selected.invoice_name === invoice.name)?.allocated_amount || 0}
+                                    onChange={(allocationAmount) => {
                                       setFormData(prev => ({
                                         ...prev,
                                         selected_invoices: prev.selected_invoices.map(selected =>
@@ -1160,6 +1717,11 @@ export default function PaymentPage() {
                                         )
                                       }));
                                     }}
+                                    placeholder="Enter allocation amount"
+                                    className="block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-xs focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                                    min={0}
+                                    max={editingPaymentStatus === 'Draft' ? (invoice.visual_outstanding ?? invoice.outstanding_amount) : invoice.outstanding_amount}
+                                    step="1"
                                   />
                                 </div>
                               )}
@@ -1185,22 +1747,25 @@ export default function PaymentPage() {
                         </span>
                       )}
                     </label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      className={`mt-1 block w-full border rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm ${
+                    <CurrencyInput
+                      value={formData.received_amount}
+                      onChange={() => {}} // Read-only, no onChange
+                      placeholder="0"
+                      className={`mt-1 block w-full border rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-gray-100 cursor-not-allowed ${
                         formData.received_amount > getTotalOutstanding() && getTotalOutstanding() > 0
                           ? 'border-orange-300 bg-orange-50'
                           : 'border-gray-300'
                       }`}
-                      value={formData.received_amount}
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
-                        received_amount: parseFloat(e.target.value) || 0 
-                      }))}
+                      min={0}
+                      step="1"
                       required
+                      disabled={true} // Make it read-only
                     />
+                    {getTotalAllocationAmount() > 0 && (
+                      <p className="mt-1 text-xs text-gray-500">
+                        Auto-calculated from allocation amounts: Rp {getTotalAllocationAmount().toLocaleString('id-ID')}
+                      </p>
+                    )}
                     
                     {/* Overpayment Validation & Warning */}
                     {formData.received_amount > getTotalOutstanding() && getTotalOutstanding() > 0 && (
@@ -1244,13 +1809,13 @@ export default function PaymentPage() {
                 ) : (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Paid Amount</label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    <CurrencyInput
                       value={formData.paid_amount}
-                      onChange={(e) => setFormData(prev => ({ ...prev, paid_amount: parseFloat(e.target.value) || 0 }))}
+                      onChange={(value) => setFormData(prev => ({ ...prev, paid_amount: value }))}
+                      placeholder="0"
+                      className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      min={0}
+                      step="1"
                       required
                     />
                   </div>
@@ -1428,6 +1993,7 @@ export default function PaymentPage() {
             <li 
               key={payment.name}
               className="cursor-pointer hover:bg-gray-50 transition-colors"
+              onClick={() => handleEditPayment(payment)}
             >
               <div className="px-4 py-4 sm:px-6">
                 <div className="flex items-center justify-between">
@@ -1436,7 +2002,7 @@ export default function PaymentPage() {
                       {payment.name}
                     </p>
                     <p className="mt-1 text-sm text-gray-900">
-                      {payment.party_type}: {payment.party}
+                      {payment.party_type}: {payment.party_name || payment.party}
                     </p>
                   </div>
                   <div className="ml-4 flex-shrink-0">
@@ -1456,21 +2022,34 @@ export default function PaymentPage() {
                 <div className="mt-2 sm:flex sm:justify-between">
                   <div className="sm:flex">
                     <p className="flex items-center text-sm text-gray-500">
-                      Type: {payment.payment_type}
+                      Tipe: {payment.payment_type === 'Receive' ? 'Penerimaan' : 'Pembayaran'}
                     </p>
                     <p className="mt-2 sm:mt-0 sm:ml-6 flex items-center text-sm text-gray-500">
-                      Date: {payment.posting_date}
+                      Tanggal: {payment.posting_date}
                     </p>
                   </div>
-                  <div className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">
+                  <div className="mt-2 flex items-center justify-between sm:mt-0">
                     {payment.payment_type === 'Receive' ? (
                       <span className="text-green-600">
-                        Received: {payment.received_amount ? payment.received_amount.toLocaleString('id-ID') : '0'}
+                        Diterima: {payment.received_amount ? payment.received_amount.toLocaleString('id-ID') : '0'}
                       </span>
                     ) : (
                       <span className="text-red-600">
-                        Paid: {payment.paid_amount ? payment.paid_amount.toLocaleString('id-ID') : '0'}
+                        Dibayar: {payment.paid_amount ? payment.paid_amount.toLocaleString('id-ID') : '0'}
                       </span>
+                    )}
+                    
+                    {/* Submit button for Draft payments */}
+                    {payment.status === 'Draft' && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation(); // Prevent opening edit form
+                          handleSubmitPayment(payment.name);
+                        }}
+                        className="ml-4 px-3 py-1 bg-green-600 text-white text-xs font-medium rounded hover:bg-green-700 transition-colors"
+                      >
+                        Submit
+                      </button>
                     )}
                   </div>
                 </div>

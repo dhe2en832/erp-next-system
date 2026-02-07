@@ -29,6 +29,18 @@ interface DeliveryNoteItem {
   rate: number;
   amount: number;
   uom?: string;
+  so_detail?: string;
+  warehouse?: string;
+  stock_uom?: string;
+  delivered_qty?: number;
+}
+
+interface DeliveryNoteFormData {
+  customer: string;
+  customer_name: string;
+  posting_date: string;
+  sales_order: string;
+  items: DeliveryNoteItem[];
 }
 
 interface DeliveryNote {
@@ -55,12 +67,12 @@ export default function DeliveryNotePage() {
   const [editingDeliveryNote, setEditingDeliveryNote] = useState<DeliveryNote | null>(null);
   const [currentDeliveryNoteStatus, setCurrentDeliveryNoteStatus] = useState<string>('');
   const [selectedCompany, setSelectedCompany] = useState('');
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<DeliveryNoteFormData>({
     customer: '',
     customer_name: '',
     posting_date: new Date().toISOString().split('T')[0],
     sales_order: '',
-    items: [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0 }],
+    items: [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0, uom: 'Nos' }],
   });
   const [formLoading, setFormLoading] = useState(false);
   const [error, setError] = useState('');
@@ -380,7 +392,9 @@ export default function DeliveryNotePage() {
         headers: {
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({ name: deliveryNoteName }),
       });
+      console.log('response:', response);
 
       const result = await response.json();
       console.log('Submit Delivery Note Response:', result);
@@ -392,7 +406,8 @@ export default function DeliveryNotePage() {
         // Clear success message after 5 seconds
         setTimeout(() => setSuccessMessage(''), 5000);
       } else {
-        setError(`❌ Gagal submit Delivery Note: ${result.message}`);
+        // Display formatted error message from server
+        setError(result.message || 'Gagal submit Delivery Note');
       }
     } catch (error) {
       console.error('Error submitting delivery note:', error);
@@ -927,9 +942,9 @@ export default function DeliveryNotePage() {
                           <button
                             type="button"
                             onClick={() => handleRemoveItem(index)}
-                            disabled={editingDeliveryNote && currentDeliveryNoteStatus !== 'Draft'}
+                            disabled={!!editingDeliveryNote && currentDeliveryNoteStatus !== 'Draft'}
                             className={`text-sm px-3 py-1 rounded ${
-                              editingDeliveryNote && currentDeliveryNoteStatus !== 'Draft'
+                              !!editingDeliveryNote && currentDeliveryNoteStatus !== 'Draft'
                                 ? 'text-gray-400 cursor-not-allowed bg-gray-100'
                                 : 'text-red-600 hover:text-red-800 hover:bg-red-50'
                             }`}

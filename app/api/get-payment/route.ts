@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     console.log('Fetching payment details for:', paymentName);
 
     // Build ERPNext URL untuk mendapatkan detail payment
-    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Payment Entry/${paymentName}?fields=["name","payment_type","party_type","party","paid_amount","received_amount","status","posting_date"]`;
+    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Payment Entry/${paymentName}?fields=["name","payment_type","party_type","party","party_name","paid_amount","received_amount","status","posting_date","references"]`;
 
     console.log('Payment Details ERPNext URL:', erpNextUrl);
 

@@ -1,0 +1,12 @@
+RESTART YOUR NEXT.JS DEVELOPMENT SERVER!
+
+The API route file has been updated with clean code.
+The 417 "undefined: undefined" error should now be resolved.
+
+Steps:
+1. Stop your current Next.js dev server (Ctrl+C)
+2. Run: npm run dev
+3. Try submitting the delivery note again
+
+Expected result: You should now see the actual ERPNext error message
+instead of "undefined: undefined".

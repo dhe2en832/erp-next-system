@@ -14,16 +14,39 @@ export async function GET(request: NextRequest) {
 
     let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Customer?fields=["name","customer_name"]&limit_page_length=${limit}`;
     
-    // Build filters array
-    const filters = [];
+    // Build filters array - Use simple approach that works
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const filters: any[] = [];
+    
+    console.log('DEBUG - search param:', search);
+    console.log('DEBUG - search.trim():', search?.trim());
+    console.log('DEBUG - search condition:', search && search.trim());
+    
     if (search && search.trim()) {
       const searchTrim = search.trim();
-      // Simple filter approach - search by name only first
-      filters.push(["name", "like", `%${searchTrim}%`]);
+      console.log('DEBUG - Building search filter for:', searchTrim);
+      
+      // Simple search by customer_name first
+      filters.push(["customer_name", "like", `%${searchTrim}%`]);
+      
+      console.log('DEBUG - Filters after search:', filters);
     }
-    // Remove company filter temporarily as customer_group might not match company name
+    
+    // Add company filter if provided - TEMPORARILY DISABLED FOR TESTING
     // if (company) {
-    //   filters.push(["customer_group", "=", company]);
+    //   if (filters.length > 0) {
+    //     // Combine search and company filters with AND
+    //     const combinedFilter = [
+    //       "and",
+    //       ["customer_group", "=", company],
+    //       filters[0] // Get the search filter
+    //     ];
+    //     filters.length = 0; // Clear filters array
+    //     filters.push(combinedFilter);
+    //   } else {
+    //     // Only company filter
+    //     filters.push(["customer_group", "=", company]);
+    //   }
     // }
     
     if (filters.length > 0) {
@@ -32,6 +55,10 @@ export async function GET(request: NextRequest) {
 
     console.log('Customers ERPNext URL:', erpNextUrl);
     console.log('Request params:', { search, limit, company });
+    console.log('Search term value:', search);
+    console.log('Search term trimmed:', search?.trim());
+    console.log('Filters being applied:', filters);
+    console.log('Final URL:', erpNextUrl);
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',

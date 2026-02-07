@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 interface Supplier {
   name: string;
@@ -19,13 +19,7 @@ export default function SupplierDialog({ isOpen, onClose, onSelect, company }: S
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchSuppliers();
-    }
-  }, [isOpen, searchTerm, company]);
-
-  const fetchSuppliers = async () => {
+  const fetchSuppliers = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -45,13 +39,21 @@ export default function SupplierDialog({ isOpen, onClose, onSelect, company }: S
         setSuppliers(data.data || []);
       } else {
         console.error('Failed to fetch suppliers:', data.message);
+        setSuppliers([]);
       }
     } catch (error) {
       console.error('Error fetching suppliers:', error);
+      setSuppliers([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [searchTerm, company]);
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchSuppliers();
+    }
+  }, [isOpen, fetchSuppliers]);
 
   const handleSelect = (supplier: Supplier) => {
     onSelect(supplier);
