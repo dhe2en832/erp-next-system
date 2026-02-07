@@ -620,7 +620,9 @@ export default function PaymentPage() {
     console.log('🔄 PAYMENT TYPE CHANGED - Triggering auto-selection');
     setTimeout(() => {
       if (companyAccounts && paymentType && formData.mode_of_payment) {
-        triggerAutoSelection(companyAccounts, paymentType, formData.mode_of_payment);
+        // Don't call triggerAutoSelection here - let the main useEffect handle it
+        // This avoids conflicts between triggerAutoSelection and the main useEffect
+        console.log('🔄 PAYMENT TYPE CHANGED - Main useEffect will handle account updates');
       } else {
         console.log('🔄 PAYMENT TYPE CHANGED - Missing data:', {
           companyAccounts: !!companyAccounts,
@@ -909,11 +911,19 @@ export default function PaymentPage() {
       if (formData.payment_type === 'Pay') {
         // Debit: Expense/Purchase accounts (menambah expense) - same for all modes
         if (accountType === 'debit') {
-          return ['Expense', 'Purchase', 'Cost'].includes(account.account_type) ||
+          const hasPayableKeyword = ['Expense', 'Purchase', 'Cost', 'Payable'].includes(account.account_type) ||
             account.name.toLowerCase().includes('expense') ||
             account.name.toLowerCase().includes('purchase') ||
             account.name.toLowerCase().includes('biaya') ||
-            account.name.toLowerCase().includes('belanja');
+            account.name.toLowerCase().includes('belanja') ||
+            account.name.toLowerCase().includes('hutang') ||
+            account.name.toLowerCase().includes('payable');
+          
+          const hasExcludedKeyword = account.name.toLowerCase().includes('muka') ||
+            account.name.toLowerCase().includes('prepaid') ||
+            account.name.toLowerCase().includes('advance');
+          
+          return hasPayableKeyword && !hasExcludedKeyword;
         }
         // Credit: Cash/Bank accounts (mengeluarkan uang) - depends on payment mode
         if (accountType === 'credit') {
@@ -923,17 +933,20 @@ export default function PaymentPage() {
               account.name.toLowerCase().includes('bank') ||
               account.name.toLowerCase().includes('cek') ||
               account.name.toLowerCase().includes('warkat') ||
-              account.name.toLowerCase().includes('giro');
+              account.name.toLowerCase().includes('giro') ||
+              account.name.toLowerCase().includes('bac');
           } else if (formData.mode_of_payment === 'Bank Transfer') {
             // For Bank Transfer: show bank accounts
             return ['Bank', 'Asset'].includes(account.account_type) ||
-              account.name.toLowerCase().includes('bank');
+              account.name.toLowerCase().includes('bank') ||
+              account.name.toLowerCase().includes('bac');
           } else if (formData.mode_of_payment === 'Credit Card') {
             // For Credit Card: show credit card accounts
             return ['Bank', 'Asset'].includes(account.account_type) ||
               account.name.toLowerCase().includes('bank') ||
               account.name.toLowerCase().includes('credit') ||
-              account.name.toLowerCase().includes('card');
+              account.name.toLowerCase().includes('card') ||
+              account.name.toLowerCase().includes('bac');
           } else {
             // For Cash: show cash accounts
             return ['Cash', 'Asset'].includes(account.account_type) ||
@@ -964,7 +977,7 @@ export default function PaymentPage() {
     }, 0);
   }, [formData.selected_invoices]);
 
-  // Auto-update received amount based on total allocation
+  // Auto-update received/paid amount based on total allocation
   useEffect(() => {
     if (formData.payment_type === 'Receive') {
       const totalAllocation = getTotalAllocationAmount();
@@ -972,6 +985,14 @@ export default function PaymentPage() {
         setFormData(prev => ({
           ...prev,
           received_amount: totalAllocation
+        }));
+      }
+    } else if (formData.payment_type === 'Pay') {
+      const totalAllocation = getTotalAllocationAmount();
+      if (totalAllocation > 0) {
+        setFormData(prev => ({
+          ...prev,
+          paid_amount: totalAllocation
         }));
       }
     }
@@ -1668,7 +1689,9 @@ const getJournalPreview = useCallback((paymentAmount: number, allocation: any) =
                       console.log('🔄 MODE OF PAYMENT CHANGED - Triggering auto-selection');
                       setTimeout(() => {
                         if (companyAccounts && formData.payment_type && newMode) {
-                          triggerAutoSelection(companyAccounts, formData.payment_type, newMode);
+                          // Don't call triggerAutoSelection here - let the main useEffect handle it
+                          // This avoids conflicts between triggerAutoSelection and the main useEffect
+                          console.log('🔄 MODE OF PAYMENT CHANGED - Main useEffect will handle account updates');
                         } else {
                           console.log('🔄 MODE OF PAYMENT CHANGED - Missing data:', {
                             companyAccounts: !!companyAccounts,
