@@ -4,10 +4,11 @@ const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { name: string } }
+  { params }: { params: Promise<{ name: string }> }
 ) {
   try {
-    console.log(`=== GET PAYMENT ENTRY ${params.name} ===`);
+    const { name } = await params;
+    console.log(`=== GET PAYMENT ENTRY ${name} ===`);
     
     const cookies = request.cookies;
     const sid = cookies.get('sid')?.value;
@@ -35,7 +36,7 @@ export async function GET(
 
     // Fetch payment entry with all fields
     const response = await fetch(
-      `${ERPNEXT_API_URL}/api/resource/Payment Entry/${params.name}?fields=["*"]`,
+      `${ERPNEXT_API_URL}/api/resource/Payment Entry/${name}?fields=["*"]`,
       {
         method: 'GET',
         headers: headers,

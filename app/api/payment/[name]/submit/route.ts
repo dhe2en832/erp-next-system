@@ -4,10 +4,11 @@ const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { name: string } }
+  { params }: { params: Promise<{ name: string }> }
 ) {
   try {
-    console.log(`=== SUBMIT PAYMENT ENTRY ${params.name} ===`);
+    const { name } = await params;
+    console.log(`=== SUBMIT PAYMENT ENTRY ${name} ===`);
     
     const cookies = request.cookies;
     const sid = cookies.get('sid')?.value;
@@ -56,7 +57,7 @@ export async function POST(
     }
 
     // Submit payment entry using ERPNext submit method
-    const response = await fetch(`${ERPNEXT_API_URL}/api/resource/Payment Entry/${params.name}`, {
+    const response = await fetch(`${ERPNEXT_API_URL}/api/resource/Payment Entry/${name}`, {
       method: 'PUT',
       headers: headers,
       body: JSON.stringify({
@@ -73,7 +74,7 @@ export async function POST(
       return NextResponse.json({
         success: true,
         data: data.data,
-        message: `Payment Entry ${params.name} submitted successfully`
+        message: `Payment Entry ${name} submitted successfully`
       });
     } else {
       // Provide more detailed error information

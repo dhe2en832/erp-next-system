@@ -216,7 +216,7 @@ export default function PaymentPage() {
       companyAccounts: accounts
     });
 
-    
+
 
     if (!accounts || !paymentType || !paymentMode) {
       console.log('🔧 MANUAL TRIGGER - Missing required data');
@@ -287,6 +287,12 @@ export default function PaymentPage() {
 
   // Auto-update debit and credit accounts when payment type or mode changes
   useEffect(() => {
+    // Skip auto-selection during edit mode to preserve original accounts
+    if (isEditMode) {
+      console.log('🔍 Auto-selection blocked - edit mode active');
+      return;
+    }
+    
     if (!companyAccounts || !selectedCompany) {
       console.log('🔍 Auto-selection blocked - missing companyAccounts or selectedCompany');
       return;
@@ -344,7 +350,7 @@ export default function PaymentPage() {
         debit_account: newDebitAccount,
         credit_account: newCreditAccount
       });
-      
+
       return {
         ...prev,
         debit_account: newDebitAccount,
@@ -361,7 +367,7 @@ export default function PaymentPage() {
       debit: newDebitAccount,
       credit: newCreditAccount
     });
-  }, [formData.payment_type, formData.mode_of_payment, companyAccounts, selectedCompany]);
+  }, [formData.payment_type, formData.mode_of_payment, companyAccounts, selectedCompany, isEditMode]);
 
   // Fetch company accounts when company changes
   useEffect(() => {
@@ -670,8 +676,9 @@ export default function PaymentPage() {
         received_amount: paymentDetails.received_amount || 0,
         mode_of_payment: paymentDetails.mode_of_payment || 'Kas',
         company: selectedCompany,
-        debit_account: paymentDetails.paid_from || '',
-        credit_account: paymentDetails.paid_to || '',
+        // Correct account mapping based on payment type
+        debit_account: paymentDetails.payment_type === 'Receive' ? paymentDetails.paid_from : paymentDetails.paid_to,
+        credit_account: paymentDetails.payment_type === 'Receive' ? paymentDetails.paid_to : paymentDetails.paid_from,
         check_number: paymentDetails.reference_no || '',
         check_date: paymentDetails.reference_date || '',
         bank_reference: paymentDetails.reference_no || '',
@@ -926,11 +933,11 @@ export default function PaymentPage() {
             account.name.toLowerCase().includes('belanja') ||
             account.name.toLowerCase().includes('hutang') ||
             account.name.toLowerCase().includes('payable');
-          
+
           const hasExcludedKeyword = account.name.toLowerCase().includes('muka') ||
             account.name.toLowerCase().includes('prepaid') ||
             account.name.toLowerCase().includes('advance');
-          
+
           return hasPayableKeyword && !hasExcludedKeyword;
         }
         // Credit: Cash/Bank accounts (mengeluarkan uang) - depends on payment mode
@@ -1036,215 +1043,87 @@ export default function PaymentPage() {
     };
   }, []);
 
-  // Get journal entry preview - Fully Automatic
-  // const getJournalPreview = useCallback((paymentAmount: number, allocation: any) => {
-  //   const totalAllocated = allocation.totalAllocated || 0;
-  //   const unallocated = paymentAmount - totalAllocated;
 
-  //   console.log('🤖 Automatic Journal Preview:', {
-  //     paymentType: formData.payment_type,
-  //     paymentMode: formData.mode_of_payment,
-  //     companyAccounts: companyAccounts
-  //   });
+  const getJournalPreview = useCallback((paymentAmount: number, allocation: any) => {
+    const totalAllocated = allocation.totalAllocated || 0;
+    const unallocated = paymentAmount - totalAllocated;
 
-  //   // For Receive Payment: Debit Cash/Bank, Credit Receivable
-  //   if (formData.payment_type === 'Receive') {
-  //     // Automatic debit account based on payment mode
-  //     let debitAccount = '';
-  //     if (formData.mode_of_payment === 'Bank Transfer' || formData.mode_of_payment === 'Warkat') {
-  //       debitAccount = companyAccounts.default_accounts?.bank || 'Bank Account';
-  //     } else if (formData.mode_of_payment === 'Credit Card') {
-  //       debitAccount = companyAccounts.default_accounts?.credit_card || 'Credit Card';
-  //     } else {
-  //       debitAccount = companyAccounts.default_accounts?.cash || 'Cash Account';
-  //     }
+    // For Receive Payment: Debit Cash/Bank, Credit Receivable
+    if (formData.payment_type === 'Receive') {
+      // Automatic debit account based on payment mode
+      let debitAccount = '';
+      if (formData.mode_of_payment === 'Bank Transfer' || formData.mode_of_payment === 'Warkat') {
+        debitAccount = companyAccounts.default_accounts?.bank || 'Bank Account';
+      } else if (formData.mode_of_payment === 'Credit Card') {
+        debitAccount = companyAccounts.default_accounts?.credit_card || 'Credit Card';
+      } else {
+        debitAccount = companyAccounts.default_accounts?.cash || 'Cash Account';
+      }
 
-  //     // Automatic credit account
-  //     const creditAccount = companyAccounts.default_accounts?.receivable || 'Accounts Receivable';
+      // Automatic credit account
+      const creditAccount = companyAccounts.default_accounts?.receivable || 'Accounts Receivable';
 
-  //     console.log('✅ Automatic Receive Payment Journal:', {
-  //       debit: debitAccount,
-  //       credit: creditAccount,
-  //       amount: paymentAmount
-  //     });
-
-  //     return {
-  //       debit: {
-  //         account: debitAccount,
-  //         amount: paymentAmount
-  //       },
-  //       const baseCredits = [{
-  //         account: creditAccount,
-  //         amount: totalAllocated,
-  //         reference: 'Customer Invoice Payments'
-  //       }];
-
-  //       const additionalCredits = unallocated > 0 ? [{
-  //         account: companyAccounts.default_advance_account || 'Customer Advance',
-  //         amount: unallocated,
-  //         reference: 'Customer Overpayment'
-  //       }] : [];
-
-  //       return {
-  //         debit: {
-  //           account: debitAccount,
-  //           amount: paymentAmount
-  //         },
-  //         credits: baseCredits.concat(additionalCredits)
-  //       };
-  //     };
-  //   }
-
-  //   // For Pay Payment: Debit Expense, Credit Cash/Bank
-  //   if (formData.payment_type === 'Pay') {
-  //     // Automatic debit account
-  //     const debitAccount = companyAccounts.default_accounts?.payable || 'Accounts Payable';
-
-  //     // Automatic credit account based on payment mode
-  //     let creditAccount = '';
-  //     if (formData.mode_of_payment === 'Bank Transfer' || formData.mode_of_payment === 'Warkat') {
-  //       creditAccount = companyAccounts.default_accounts?.bank || 'Bank Account';
-  //     } else if (formData.mode_of_payment === 'Credit Card') {
-  //       creditAccount = companyAccounts.default_accounts?.credit_card || 'Credit Card';
-  //     } else {
-  //       creditAccount = companyAccounts.default_accounts?.cash || 'Cash Account';
-  //     }
-
-  //     console.log('✅ Automatic Pay Payment Journal:', {
-  //       debit: debitAccount,
-  //       credit: creditAccount,
-  //       amount: paymentAmount
-  //     });
-
-  //     return {
-  //       debit: {
-  //         account: debitAccount,
-  //         amount: paymentAmount
-  //       },
-  //       credits: [
-  //         {
-  //           account: creditAccount,
-  //           amount: totalAllocated,
-  //           reference: 'Supplier Bill Payments'
-  //         },
-  //         ...(unallocated > 0 ? [{
-  //           account: companyAccounts.default_advance_account || 'Supplier Advance',
-  //           amount: unallocated,
-  //           reference: 'Supplier Overpayment'
-  //         }] : [])
-  //       ]
-  //     };
-  //   }
-
-  //   // Fallback (should not reach here)
-  //   return {
-  //     debit: {
-  //       account: 'Unknown Account',
-  //       amount: paymentAmount
-  //     },
-  //     credits: []
-  //   };
-  // }, [formData.payment_type, formData.mode_of_payment, companyAccounts]);
-
-  // Get journal entry preview - Fully Automatic
-const getJournalPreview = useCallback((paymentAmount: number, allocation: any) => {
-  const totalAllocated = allocation.totalAllocated || 0;
-  const unallocated = paymentAmount - totalAllocated;
-
-  console.log('🤖 Automatic Journal Preview:', {
-    paymentType: formData.payment_type,
-    paymentMode: formData.mode_of_payment,
-    companyAccounts: companyAccounts
-  });
-
-  // For Receive Payment: Debit Cash/Bank, Credit Receivable
-  if (formData.payment_type === 'Receive') {
-    // Automatic debit account based on payment mode
-    let debitAccount = '';
-    if (formData.mode_of_payment === 'Bank Transfer' || formData.mode_of_payment === 'Warkat') {
-      debitAccount = companyAccounts.default_accounts?.bank || 'Bank Account';
-    } else if (formData.mode_of_payment === 'Credit Card') {
-      debitAccount = companyAccounts.default_accounts?.credit_card || 'Credit Card';
-    } else {
-      debitAccount = companyAccounts.default_accounts?.cash || 'Cash Account';
+      return {
+        debit: {
+          account: debitAccount,
+          amount: paymentAmount
+        },
+        credits: [
+          {
+            account: creditAccount,
+            amount: totalAllocated,
+            reference: 'Customer Invoice Payments'
+          },
+          ...(unallocated > 0 ? [{
+            account: companyAccounts.default_advance_account || 'Customer Advance',
+            amount: unallocated,
+            reference: 'Customer Overpayment'
+          }] : [])
+        ]
+      };
     }
 
-    // Automatic credit account
-    const creditAccount = companyAccounts.default_accounts?.receivable || 'Accounts Receivable';
+    // For Pay Payment: Debit Expense, Credit Cash/Bank
+    if (formData.payment_type === 'Pay') {
+      // Automatic debit account
+      const debitAccount = companyAccounts.default_accounts?.payable || 'Accounts Payable';
 
-    console.log('✅ Automatic Receive Payment Journal:', {
-      debit: debitAccount,
-      credit: creditAccount,
-      amount: paymentAmount
-    });
+      // Automatic credit account based on payment mode
+      let creditAccount = '';
+      if (formData.mode_of_payment === 'Bank Transfer' || formData.mode_of_payment === 'Warkat') {
+        creditAccount = companyAccounts.default_accounts?.bank || 'Bank Account';
+      } else if (formData.mode_of_payment === 'Credit Card') {
+        creditAccount = companyAccounts.default_accounts?.credit_card || 'Credit Card';
+      } else {
+        creditAccount = companyAccounts.default_accounts?.cash || 'Cash Account';
+      }
 
-    return {
-      debit: {
-        account: debitAccount,
-        amount: paymentAmount
-      },
-      credits: [
-        {
-          account: creditAccount,
-          amount: totalAllocated,
-          reference: 'Customer Invoice Payments'
+      return {
+        debit: {
+          account: debitAccount,
+          amount: paymentAmount
         },
-        ...(unallocated > 0 ? [{
-          account: companyAccounts.default_advance_account || 'Customer Advance',
-          amount: unallocated,
-          reference: 'Customer Overpayment'
-        }] : [])
-      ]
-    };
-  }
-
-  // For Pay Payment: Debit Expense, Credit Cash/Bank
-  if (formData.payment_type === 'Pay') {
-    // Automatic debit account
-    const debitAccount = companyAccounts.default_accounts?.payable || 'Accounts Payable';
-
-    // Automatic credit account based on payment mode
-    let creditAccount = '';
-    if (formData.mode_of_payment === 'Bank Transfer' || formData.mode_of_payment === 'Warkat') {
-      creditAccount = companyAccounts.default_accounts?.bank || 'Bank Account';
-    } else if (formData.mode_of_payment === 'Credit Card') {
-      creditAccount = companyAccounts.default_accounts?.credit_card || 'Credit Card';
-    } else {
-      creditAccount = companyAccounts.default_accounts?.cash || 'Cash Account';
+        credits: [
+          {
+            account: creditAccount,
+            amount: totalAllocated,
+            reference: 'Supplier Bill Payments'
+          },
+          ...(unallocated > 0 ? [{
+            account: companyAccounts.default_advance_account || 'Supplier Advance',
+            amount: unallocated,
+            reference: 'Supplier Overpayment'
+          }] : [])
+        ]
+      };
     }
 
-    console.log('✅ Automatic Pay Payment Journal:', {
-      debit: debitAccount,
-      credit: creditAccount,
-      amount: paymentAmount
-    });
-
+    // Default fallback
     return {
-      debit: {
-        account: debitAccount,
-        amount: paymentAmount
-      },
-      credits: [
-        {
-          account: creditAccount,
-          amount: totalAllocated,
-          reference: 'Supplier Bill Payments'
-        },
-        ...(unallocated > 0 ? [{
-          account: companyAccounts.default_advance_account || 'Supplier Advance',
-          amount: unallocated,
-          reference: 'Supplier Overpayment'
-        }] : [])
-      ]
+      debit: { account: '', amount: 0 },
+      credits: []
     };
-  }
-
-  // Default fallback
-  return {
-    debit: { account: '', amount: 0 },
-    credits: []
-  };
-}, [formData.payment_type, formData.mode_of_payment, companyAccounts]);
+  }, [formData.payment_type, formData.mode_of_payment, companyAccounts]);
 
   // Fetch outstanding invoices when customer is selected
   const getRealPaidFrom = (paymentType: string, paymentMode: string) => {
@@ -1314,7 +1193,7 @@ const getJournalPreview = useCallback((paymentAmount: number, allocation: any) =
 
       // Fallback: If paid_from and paid_to are still empty, trigger auto-selection manually
       if (!formData.paid_from || !formData.paid_to || formData.paid_from === "Accounts Receivable" || formData.paid_to === "Cash Account") {
-        
+
         if (companyAccounts && formData.payment_type && formData.mode_of_payment) {
           triggerAutoSelection(companyAccounts, formData.payment_type, formData.mode_of_payment);
 
@@ -1392,12 +1271,6 @@ const getJournalPreview = useCallback((paymentAmount: number, allocation: any) =
   };
 
   const resetForm = () => {
-    console.log('🔄 RESET FORM - Initializing form with default values');
-    console.log('🔄 Current companyAccounts:', companyAccounts);
-    console.log('🔄 Current selectedCompany:', selectedCompany);
-    console.log('🔄 Current formData.paid_from:', formData.paid_from);
-    console.log('🔄 Current formData.paid_to:', formData.paid_to);
-
     // Reset edit mode flags
     setIsEditMode(false);
     setEditingPaymentId('');
@@ -1429,10 +1302,6 @@ const getJournalPreview = useCallback((paymentAmount: number, allocation: any) =
     setEditingPaymentStatus('');
     setError('');
     setSuccessMessage('');
-
-    console.log('🔄 RESET FORM - Form reset completed');
-    console.log('🔄 After reset - paid_from:', formData.paid_from);
-    console.log('🔄 After reset - paid_to:', formData.paid_to);
   };
 
   if (loading) {
@@ -1445,12 +1314,9 @@ const getJournalPreview = useCallback((paymentAmount: number, allocation: any) =
         <h1 className="text-3xl font-bold text-gray-900">Payment Management</h1>
         <button
           onClick={() => {
-            console.log('🚀 NEW PAYMENT BUTTON CLICKED - Opening form');
             resetForm();
             setShowForm(true);
-            console.log('🚀 NEW PAYMENT - Form should now be visible');
-
-            // Trigger auto-selection manually after form is reset and visible
+              // Trigger auto-selection manually after form is reset and visible
             setTimeout(() => {
               console.log('🔧 POST-RESET TRIGGER - Manually triggering auto-selection');
               if (companyAccounts && formData.payment_type && formData.mode_of_payment) {
@@ -1775,7 +1641,6 @@ const getJournalPreview = useCallback((paymentAmount: number, allocation: any) =
                       console.log('💳 DEBUG - formData.credit_account after change:', selectedAccount);
                     }}
                   >
-                    {console.log('💳 DEBUG - Rendering credit dropdown, formData.credit_account:', formData.credit_account)}
                     {getFilteredAccounts('credit').map((account: CompanyAccount) => (
                       <option key={account.name} value={account.name}>
                         {account.name} ({account.account_type})
@@ -2156,8 +2021,8 @@ const getJournalPreview = useCallback((paymentAmount: number, allocation: any) =
                       onChange={() => { }} // Read-only, no onChange
                       placeholder="0"
                       className={`mt-1 block w-full border rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-gray-100 cursor-not-allowed ${formData.received_amount > getTotalOutstanding() && getTotalOutstanding() > 0
-                          ? 'border-orange-300 bg-orange-50'
-                          : 'border-gray-300'
+                        ? 'border-orange-300 bg-orange-50'
+                        : 'border-gray-300'
                         }`}
                       min={0}
                       step="1"
@@ -2257,8 +2122,8 @@ const getJournalPreview = useCallback((paymentAmount: number, allocation: any) =
                               <div className="text-blue-700">
                                 Rp {invoice.outstanding_amount.toLocaleString('id-ID')} →
                                 <span className={`font-medium ml-1 ${invoice.allocation_status === 'Paid' ? 'text-green-600' :
-                                    invoice.allocation_status === 'Partially Paid' ? 'text-orange-600' :
-                                      'text-gray-500'
+                                  invoice.allocation_status === 'Partially Paid' ? 'text-orange-600' :
+                                    'text-gray-500'
                                   }`}>
                                   {' '}Rp {invoice.allocated_amount.toLocaleString('id-ID')}
                                 </span>
@@ -2410,10 +2275,10 @@ const getJournalPreview = useCallback((paymentAmount: number, allocation: any) =
                   <div className="ml-4 flex-shrink-0">
                     <span
                       className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${payment.status === 'Submitted'
-                          ? 'bg-green-100 text-green-800'
-                          : payment.status === 'Draft'
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : 'bg-gray-100 text-gray-800'
+                        ? 'bg-green-100 text-green-800'
+                        : payment.status === 'Draft'
+                          ? 'bg-yellow-100 text-yellow-800'
+                          : 'bg-gray-100 text-gray-800'
                         }`}
                     >
                       {payment.status}
@@ -2445,6 +2310,7 @@ const getJournalPreview = useCallback((paymentAmount: number, allocation: any) =
                       <button
                         onClick={(e) => {
                           e.stopPropagation(); // Prevent opening edit form
+                          // console.log('payment ', payment);
                           handleSubmitPayment(payment.name);
                         }}
                         className="ml-4 px-3 py-1 bg-green-600 text-white text-xs font-medium rounded hover:bg-green-700 transition-colors"
