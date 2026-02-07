@@ -30,7 +30,9 @@ export default function SupplierDialog({ isOpen, onClose, onSelect, company }: S
         params.append('company', company);
       }
       
-      const response = await fetch(`/api/suppliers?${params.toString()}`);
+      const response = await fetch(`/api/suppliers?${params.toString()}`, {
+        credentials: 'include'
+      });
       const data = await response.json();
       
       console.log('Suppliers API Response:', data);

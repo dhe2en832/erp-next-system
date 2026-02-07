@@ -52,7 +52,9 @@ export default function CustomerDialog({ isOpen, onClose, onSelect, company }: C
       }
       
       console.log('🔍 Searching customers with term:', debouncedSearchTerm.trim());
-      const response = await fetch(`/api/customers?${params.toString()}`);
+      const response = await fetch(`/api/customers?${params.toString()}`, {
+        credentials: 'include'
+      });
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -81,7 +83,9 @@ export default function CustomerDialog({ isOpen, onClose, onSelect, company }: C
             if (company) {
               allParams.append('company', company);
             }
-            const allResponse = await fetch(`/api/customers?${allParams.toString()}&limit=100`);
+            const allResponse = await fetch(`/api/customers?${allParams.toString()}&limit=100`, {
+              credentials: 'include'
+            });
             if (allResponse.ok) {
               const allData = await allResponse.json();
               if (allData.success && allData.data) {

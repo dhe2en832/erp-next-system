@@ -12,34 +12,48 @@ export async function GET(request: NextRequest) {
     const cookies = request.cookies;
     const sid = cookies.get('sid')?.value;
 
-    if (!sid) {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    // Prioritize API Key authentication (like payment API)
+    const apiKey = process.env.ERP_API_KEY;
+    const apiSecret = process.env.ERP_API_SECRET;
+    
+    console.log('Suppliers API - API Key Available:', !!apiKey);
+    console.log('Suppliers API - API Secret Available:', !!apiSecret);
+    
+    if (apiKey && apiSecret) {
+      headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
+      console.log('Using API key authentication for suppliers');
+    } else if (sid) {
+      headers['Cookie'] = `sid=${sid}`;
+      console.log('Using session-based authentication for suppliers');
+    } else {
       return NextResponse.json(
-        { success: false, message: 'Unauthorized' },
+        { success: false, message: 'Unauthorized - No session or API key found' },
         { status: 401 }
       );
     }
 
-    // Build filters - Enable search with proper structure
+    // Build filters with simple structure (like customers API)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const filters: any[] = [];
     
-    if (search) {
-      // Search by both name and supplier_name for better user experience
-      filters.push([
-        "and",
-        ["supplier_type", "=", "Company"],
-        [
-          "or", 
-          ["name", "like", `%${search}%`],
-          ["supplier_name", "like", `%${search}%`]
-        ]
-      ]);
-    } else {
-      // If no search, just filter by supplier_type
-      filters.push(["supplier_type", "=", "Company"]);
+    // Always filter by supplier_type first
+    filters.push(["supplier_type", "=", "Company"]);
+    
+    if (search && search.trim()) {
+      // Add search condition - search by name first (simple approach)
+      const searchTrim = search.trim();
+      filters.push(["name", "like", `%${searchTrim}%`]);
     }
 
-    const filtersString = filters.length > 0 ? JSON.stringify(filters) : '[]';
+    console.log('Suppliers API - Search term:', search);
+    console.log('Suppliers API - Company filter:', company);
+    console.log('Suppliers API - Final filters:', filters);
+
+    const filtersString = JSON.stringify(filters);
 
     // Build ERPNext URL
     const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Supplier?fields=["name","supplier_name"]&filters=${encodeURIComponent(filtersString)}&order_by=supplier_name&limit_page_length=${limit}`;
@@ -50,21 +64,63 @@ export async function GET(request: NextRequest) {
       erpNextUrl,
       {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Cookie': `sid=${sid}`,
-        },
+        headers,
       }
     );
 
     const data = await response.json();
     console.log('Suppliers response:', data);
 
+    // If search is provided, also search by supplier_name and combine results
+    let finalData = data.data || [];
+    
+    if (search && search.trim() && response.ok) {
+      try {
+        console.log('Performing hybrid search - also searching by supplier_name');
+        
+        // Second API call to search by supplier_name
+        const supplierNameFilters = [
+          ["supplier_type", "=", "Company"],
+          ["supplier_name", "like", `%${search.trim()}%`]
+        ];
+        
+        const supplierNameFiltersString = JSON.stringify(supplierNameFilters);
+        const supplierNameUrl = `${ERPNEXT_API_URL}/api/resource/Supplier?fields=["name","supplier_name"]&filters=${encodeURIComponent(supplierNameFiltersString)}&order_by=supplier_name&limit_page_length=${limit}`;
+        
+        console.log('Supplier name search URL:', supplierNameUrl);
+        
+        const supplierNameResponse = await fetch(supplierNameUrl, {
+          method: 'GET',
+          headers,
+        });
+        
+        if (supplierNameResponse.ok) {
+          const supplierNameData = await supplierNameResponse.json();
+          console.log('Supplier name search response:', supplierNameData);
+          
+          // Combine and deduplicate results
+          const supplierNameResults = supplierNameData.data || [];
+          const combinedResults = [...finalData, ...supplierNameResults];
+          
+          // Remove duplicates based on name field
+          const uniqueResults = combinedResults.filter((item, index, self) =>
+            index === self.findIndex((t) => t.name === item.name)
+          );
+          
+          finalData = uniqueResults;
+          console.log('Combined unique results:', finalData.length);
+        }
+      } catch (error) {
+        console.error('Error in hybrid search:', error);
+        // Continue with original results if hybrid search fails
+      }
+    }
+
     if (response.ok) {
       return NextResponse.json({
         success: true,
-        data: data.data || [],
-        message: 'Suppliers fetched successfully'
+        data: finalData,
+        message: `Suppliers fetched successfully${search ? ' (hybrid search)' : ''}`
       });
     } else {
       return NextResponse.json(
