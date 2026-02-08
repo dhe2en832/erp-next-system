@@ -4,6 +4,8 @@ const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
 
 export async function GET(request: NextRequest) {
   try {
+    console.log('Suppliers API - ERPNext URL:', ERPNEXT_API_URL);
+    
     const { searchParams } = new URL(request.url);
     const company = searchParams.get('company');
     const search = searchParams.get('search');
@@ -22,6 +24,7 @@ export async function GET(request: NextRequest) {
     
     console.log('Suppliers API - API Key Available:', !!apiKey);
     console.log('Suppliers API - API Secret Available:', !!apiSecret);
+    console.log('Suppliers API - Session ID Available:', !!sid);
     
     if (apiKey && apiSecret) {
       headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
@@ -30,6 +33,7 @@ export async function GET(request: NextRequest) {
       headers['Cookie'] = `sid=${sid}`;
       console.log('Using session-based authentication for suppliers');
     } else {
+      console.log('No authentication found - returning 401');
       return NextResponse.json(
         { success: false, message: 'Unauthorized - No session or API key found' },
         { status: 401 }
@@ -55,7 +59,7 @@ export async function GET(request: NextRequest) {
 
     const filtersString = JSON.stringify(filters);
 
-    // Build ERPNext URL
+    // Build ERPNext URL sederhana - hanya ambil name dan supplier_name
     const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Supplier?fields=["name","supplier_name"]&filters=${encodeURIComponent(filtersString)}&order_by=supplier_name&limit_page_length=${limit}`;
 
     console.log('Suppliers ERPNext URL:', erpNextUrl);
@@ -68,8 +72,17 @@ export async function GET(request: NextRequest) {
       }
     );
 
+    console.log('Response status:', response.status);
+    console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+
     const data = await response.json();
     console.log('Suppliers response:', data);
+    console.log('First supplier data sample:', data.data && data.data.length > 0 ? data.data[0] : 'No data');
+    
+    // Log all available fields untuk debugging
+    if (data.data && data.data.length > 0) {
+      console.log('Available fields in supplier:', Object.keys(data.data[0]));
+    }
 
     // If search is provided, also search by supplier_name and combine results
     let finalData = data.data || [];

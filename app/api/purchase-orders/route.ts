@@ -116,13 +116,14 @@ export async function POST(request: NextRequest) {
   try {
     const purchaseOrderData = await request.json();
 
-    const cookies = request.cookies;
-    const sid = cookies.get('sid')?.value;
+    // Use API key authentication instead of session
+    const apiKey = process.env.ERP_API_KEY;
+    const apiSecret = process.env.ERP_API_SECRET;
 
-    if (!sid) {
+    if (!apiKey || !apiSecret) {
       return NextResponse.json(
-        { success: false, message: 'Unauthorized' },
-        { status: 401 }
+        { success: false, message: 'ERPNext API credentials not configured' },
+        { status: 500 }
       );
     }
 
@@ -130,7 +131,7 @@ export async function POST(request: NextRequest) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Cookie': `sid=${sid}`,
+        'Authorization': `token ${apiKey}:${apiSecret}`,
       },
       body: JSON.stringify(purchaseOrderData),
     });

@@ -71,6 +71,8 @@ interface PaymentFormData {
   check_number?: string;
   check_date?: string;
   bank_reference?: string;
+  reference_no?: string;
+  reference_date?: string;
   selected_invoices: Array<{
     invoice_name: string;
     invoice_total: number;
@@ -117,6 +119,8 @@ export default function PaymentPage() {
     check_number: '',
     check_date: '',
     bank_reference: '',
+    reference_no: '',
+    reference_date: '',
     selected_invoices: [],
     paid_from: '',
     paid_to: '',
@@ -212,17 +216,7 @@ export default function PaymentPage() {
       companyAccounts: accounts
     });
 
-    console.log('🔧 MANUAL TRIGGER - Company accounts structure:', {
-      has_default_accounts: !!accounts.default_accounts,
-      default_accounts: accounts.default_accounts,
-      direct_properties: {
-        default_bank_account: accounts.default_bank_account,
-        default_cash_account: accounts.default_cash_account,
-        default_receivable_account: accounts.default_receivable_account,
-        default_payable_account: accounts.default_payable_account,
-        default_credit_card_account: accounts.default_credit_card_account
-      }
-    });
+
 
     if (!accounts || !paymentType || !paymentMode) {
       console.log('🔧 MANUAL TRIGGER - Missing required data');
@@ -293,15 +287,12 @@ export default function PaymentPage() {
 
   // Auto-update debit and credit accounts when payment type or mode changes
   useEffect(() => {
-    console.log('� AUTO-SELECTION USEEFFECT TRIGGERED!');
-    console.log('� Checking auto-selection conditions:', {
-      companyAccounts: companyAccounts,
-      available_accounts: companyAccounts.available_accounts,
-      selectedCompany: selectedCompany,
-      payment_type: formData.payment_type,
-      mode_of_payment: formData.mode_of_payment
-    });
-
+    // Skip auto-selection during edit mode to preserve original accounts
+    if (isEditMode) {
+      console.log('🔍 Auto-selection blocked - edit mode active');
+      return;
+    }
+    
     if (!companyAccounts || !selectedCompany) {
       console.log('🔍 Auto-selection blocked - missing companyAccounts or selectedCompany');
       return;
@@ -350,22 +341,33 @@ export default function PaymentPage() {
 
     console.log('🔍 Selected Credit Account:', newCreditAccount);
 
-    setFormData(prev => ({
-      ...prev,
-      debit_account: newDebitAccount,
-      credit_account: newCreditAccount,
-      // Map to ERPNext fields based on business logic:
-      // Receive: paid_from = Piutang (newCreditAccount), paid_to = Bank (newDebitAccount)
-      // Pay: paid_from = Bank (newDebitAccount), paid_to = Hutang (newCreditAccount)
-      paid_from: formData.payment_type === 'Receive' ? newCreditAccount : newDebitAccount,  // Source of funds
-      paid_to: formData.payment_type === 'Receive' ? newDebitAccount : newCreditAccount      // Destination of funds
-    }));
+    // Force update with functional form to ensure consistency
+    setFormData(prev => {
+      console.log('🔧 FORCE UPDATE - Before:', {
+        debit_account: prev.debit_account,
+        credit_account: prev.credit_account
+      }, 'To:', {
+        debit_account: newDebitAccount,
+        credit_account: newCreditAccount
+      });
+
+      return {
+        ...prev,
+        debit_account: newDebitAccount,
+        credit_account: newCreditAccount,
+        // Map to ERPNext fields based on business logic:
+        // Receive: paid_from = Piutang (newCreditAccount), paid_to = Bank (newDebitAccount)
+        // Pay: paid_from = Bank (newDebitAccount), paid_to = Hutang (newCreditAccount)
+        paid_from: formData.payment_type === 'Receive' ? newCreditAccount : newDebitAccount,  // Source of funds
+        paid_to: formData.payment_type === 'Receive' ? newDebitAccount : newCreditAccount      // Destination of funds
+      };
+    });
 
     console.log('✅ Accounts auto-selected:', {
       debit: newDebitAccount,
       credit: newCreditAccount
     });
-  }, [formData.payment_type, formData.mode_of_payment, companyAccounts, selectedCompany]);
+  }, [formData.payment_type, formData.mode_of_payment, companyAccounts, selectedCompany, isEditMode]);
 
   // Fetch company accounts when company changes
   useEffect(() => {
@@ -630,7 +632,9 @@ export default function PaymentPage() {
     console.log('🔄 PAYMENT TYPE CHANGED - Triggering auto-selection');
     setTimeout(() => {
       if (companyAccounts && paymentType && formData.mode_of_payment) {
-        triggerAutoSelection(companyAccounts, paymentType, formData.mode_of_payment);
+        // Don't call triggerAutoSelection here - let the main useEffect handle it
+        // This avoids conflicts between triggerAutoSelection and the main useEffect
+        console.log('🔄 PAYMENT TYPE CHANGED - Main useEffect will handle account updates');
       } else {
         console.log('🔄 PAYMENT TYPE CHANGED - Missing data:', {
           companyAccounts: !!companyAccounts,
@@ -672,11 +676,14 @@ export default function PaymentPage() {
         received_amount: paymentDetails.received_amount || 0,
         mode_of_payment: paymentDetails.mode_of_payment || 'Kas',
         company: selectedCompany,
-        debit_account: paymentDetails.paid_from || '',
-        credit_account: paymentDetails.paid_to || '',
+        // Correct account mapping based on payment type
+        debit_account: paymentDetails.payment_type === 'Receive' ? paymentDetails.paid_from : paymentDetails.paid_to,
+        credit_account: paymentDetails.payment_type === 'Receive' ? paymentDetails.paid_to : paymentDetails.paid_from,
         check_number: paymentDetails.reference_no || '',
         check_date: paymentDetails.reference_date || '',
         bank_reference: paymentDetails.reference_no || '',
+        reference_no: paymentDetails.reference_no || '',
+        reference_date: paymentDetails.reference_date || '',
         selected_invoices: paymentDetails.references?.map((ref: { reference_name: string; allocated_amount: number }) => ({
           invoice_name: ref.reference_name,
           invoice_total: 0, // Will be fetched from ERPNext if needed
@@ -759,7 +766,76 @@ export default function PaymentPage() {
         setOutstandingInvoices(allocatedInvoices);
       } else {
         setSelectedSupplierName(paymentDetails.party_name || paymentDetails.party);
-        // Clear outstanding invoices for supplier
+
+        // For edit payment, fetch actual purchase invoice details for allocated invoices
+        const fetchPurchaseInvoiceDetails = async (references: Array<{ reference_name: string; allocated_amount: number }>) => {
+          if (!references || references.length === 0) return [];
+
+          const invoicePromises = references.map(async (ref) => {
+            try {
+              // Fetch purchase invoice details from ERPNext
+              const response = await fetch(`/api/purchase-invoice-details?invoice_name=${ref.reference_name}&company=${selectedCompany}`);
+              const data = await response.json();
+
+              if (data.success && data.data) {
+                const invoice = data.data;
+                return {
+                  name: ref.reference_name,
+                  invoice_name: ref.reference_name,
+                  invoice_total: invoice.grand_total || 0,
+                  outstanding_amount: invoice.outstanding_amount || 0,
+                  visual_outstanding: (invoice.outstanding_amount || 0) - (ref.allocated_amount || 0),
+                  allocated_amount: ref.allocated_amount || 0,
+                  grand_total: invoice.grand_total || 0,
+                  due_date: invoice.due_date || '',
+                  supplier: invoice.supplier || '',
+                  supplier_name: invoice.supplier_name || '',
+                  posting_date: invoice.posting_date || '',
+                  status: invoice.status || ''
+                };
+              } else {
+                // Fallback if API fails
+                return {
+                  name: ref.reference_name,
+                  invoice_name: ref.reference_name,
+                  invoice_total: 0,
+                  outstanding_amount: ref.allocated_amount || 0,
+                  visual_outstanding: 0,
+                  allocated_amount: ref.allocated_amount || 0,
+                  grand_total: 0,
+                  due_date: '',
+                  supplier: '',
+                  supplier_name: '',
+                  posting_date: '',
+                  status: 'Unknown'
+                };
+              }
+            } catch (error) {
+              console.error(`Failed to fetch details for purchase invoice ${ref.reference_name}:`, error);
+              // Fallback on error
+              return {
+                name: ref.reference_name,
+                invoice_name: ref.reference_name,
+                invoice_total: 0,
+                outstanding_amount: ref.allocated_amount || 0,
+                visual_outstanding: 0,
+                allocated_amount: ref.allocated_amount || 0,
+                grand_total: 0,
+                due_date: '',
+                supplier: '',
+                supplier_name: '',
+                posting_date: '',
+                status: 'Unknown'
+              };
+            }
+          });
+
+          const results = await Promise.all(invoicePromises);
+          return results;
+        };
+
+        const allocatedPurchaseInvoices = await fetchPurchaseInvoiceDetails(paymentDetails.references || []);
+        setOutstandingPurchaseInvoices(allocatedPurchaseInvoices);
         setOutstandingInvoices([]);
       }
 
@@ -850,11 +926,19 @@ export default function PaymentPage() {
       if (formData.payment_type === 'Pay') {
         // Debit: Expense/Purchase accounts (menambah expense) - same for all modes
         if (accountType === 'debit') {
-          return ['Expense', 'Purchase', 'Cost'].includes(account.account_type) ||
+          const hasPayableKeyword = ['Expense', 'Purchase', 'Cost', 'Payable'].includes(account.account_type) ||
             account.name.toLowerCase().includes('expense') ||
             account.name.toLowerCase().includes('purchase') ||
             account.name.toLowerCase().includes('biaya') ||
-            account.name.toLowerCase().includes('belanja');
+            account.name.toLowerCase().includes('belanja') ||
+            account.name.toLowerCase().includes('hutang') ||
+            account.name.toLowerCase().includes('payable');
+
+          const hasExcludedKeyword = account.name.toLowerCase().includes('muka') ||
+            account.name.toLowerCase().includes('prepaid') ||
+            account.name.toLowerCase().includes('advance');
+
+          return hasPayableKeyword && !hasExcludedKeyword;
         }
         // Credit: Cash/Bank accounts (mengeluarkan uang) - depends on payment mode
         if (accountType === 'credit') {
@@ -864,17 +948,20 @@ export default function PaymentPage() {
               account.name.toLowerCase().includes('bank') ||
               account.name.toLowerCase().includes('cek') ||
               account.name.toLowerCase().includes('warkat') ||
-              account.name.toLowerCase().includes('giro');
+              account.name.toLowerCase().includes('giro') ||
+              account.name.toLowerCase().includes('bac');
           } else if (formData.mode_of_payment === 'Bank Transfer') {
             // For Bank Transfer: show bank accounts
             return ['Bank', 'Asset'].includes(account.account_type) ||
-              account.name.toLowerCase().includes('bank');
+              account.name.toLowerCase().includes('bank') ||
+              account.name.toLowerCase().includes('bac');
           } else if (formData.mode_of_payment === 'Credit Card') {
             // For Credit Card: show credit card accounts
             return ['Bank', 'Asset'].includes(account.account_type) ||
               account.name.toLowerCase().includes('bank') ||
               account.name.toLowerCase().includes('credit') ||
-              account.name.toLowerCase().includes('card');
+              account.name.toLowerCase().includes('card') ||
+              account.name.toLowerCase().includes('bac');
           } else {
             // For Cash: show cash accounts
             return ['Cash', 'Asset'].includes(account.account_type) ||
@@ -905,7 +992,7 @@ export default function PaymentPage() {
     }, 0);
   }, [formData.selected_invoices]);
 
-  // Auto-update received amount based on total allocation
+  // Auto-update received/paid amount based on total allocation
   useEffect(() => {
     if (formData.payment_type === 'Receive') {
       const totalAllocation = getTotalAllocationAmount();
@@ -913,6 +1000,14 @@ export default function PaymentPage() {
         setFormData(prev => ({
           ...prev,
           received_amount: totalAllocation
+        }));
+      }
+    } else if (formData.payment_type === 'Pay') {
+      const totalAllocation = getTotalAllocationAmount();
+      if (totalAllocation > 0) {
+        setFormData(prev => ({
+          ...prev,
+          paid_amount: totalAllocation
         }));
       }
     }
@@ -948,16 +1043,10 @@ export default function PaymentPage() {
     };
   }, []);
 
-  // Get journal entry preview - Fully Automatic
+
   const getJournalPreview = useCallback((paymentAmount: number, allocation: any) => {
     const totalAllocated = allocation.totalAllocated || 0;
     const unallocated = paymentAmount - totalAllocated;
-
-    console.log('🤖 Automatic Journal Preview:', {
-      paymentType: formData.payment_type,
-      paymentMode: formData.mode_of_payment,
-      companyAccounts: companyAccounts
-    });
 
     // For Receive Payment: Debit Cash/Bank, Credit Receivable
     if (formData.payment_type === 'Receive') {
@@ -973,12 +1062,6 @@ export default function PaymentPage() {
 
       // Automatic credit account
       const creditAccount = companyAccounts.default_accounts?.receivable || 'Accounts Receivable';
-
-      console.log('✅ Automatic Receive Payment Journal:', {
-        debit: debitAccount,
-        credit: creditAccount,
-        amount: paymentAmount
-      });
 
       return {
         debit: {
@@ -1015,12 +1098,6 @@ export default function PaymentPage() {
         creditAccount = companyAccounts.default_accounts?.cash || 'Cash Account';
       }
 
-      console.log('✅ Automatic Pay Payment Journal:', {
-        debit: debitAccount,
-        credit: creditAccount,
-        amount: paymentAmount
-      });
-
       return {
         debit: {
           account: debitAccount,
@@ -1041,12 +1118,9 @@ export default function PaymentPage() {
       };
     }
 
-    // Fallback (should not reach here)
+    // Default fallback
     return {
-      debit: {
-        account: 'Unknown Account',
-        amount: paymentAmount
-      },
+      debit: { account: '', amount: 0 },
       credits: []
     };
   }, [formData.payment_type, formData.mode_of_payment, companyAccounts]);
@@ -1119,7 +1193,7 @@ export default function PaymentPage() {
 
       // Fallback: If paid_from and paid_to are still empty, trigger auto-selection manually
       if (!formData.paid_from || !formData.paid_to || formData.paid_from === "Accounts Receivable" || formData.paid_to === "Cash Account") {
-        console.log('🚨 FALLBACK TRIGGER - paid_from/paid_to are empty or fallback, triggering auto-selection');
+
         if (companyAccounts && formData.payment_type && formData.mode_of_payment) {
           triggerAutoSelection(companyAccounts, formData.payment_type, formData.mode_of_payment);
 
@@ -1129,8 +1203,7 @@ export default function PaymentPage() {
       }
       const realPaidFrom = getRealPaidFrom(formData.payment_type, formData.mode_of_payment);
       const realPaidTo = getRealPaidTo(formData.payment_type, formData.mode_of_payment);
-      console.log('realPaidFrom', realPaidFrom);
-      console.log('realPaidTo', realPaidTo);
+
       // exitCode;
       const paymentPayload = {
         company: selectedCompany,
@@ -1143,9 +1216,12 @@ export default function PaymentPage() {
         paid_amount: formData.payment_type === 'Receive' ? formData.received_amount : formData.paid_amount,
         received_amount: formData.payment_type === 'Receive' ? formData.received_amount : formData.paid_amount,
         mode_of_payment: formData.mode_of_payment,
+        // Add reference fields
+        reference_no: formData.reference_no,
+        reference_date: formData.reference_date,
         // Add ERPNext required fields
-        paid_from: realPaidFrom, //formData.paid_from || formData.debit_account,
-        paid_to: realPaidTo, //formData.paid_to || formData.credit_account,
+        paid_from: formData.payment_type === 'Receive' ? realPaidFrom : realPaidTo, //formData.paid_from || formData.debit_account,
+        paid_to: formData.payment_type === 'Receive' ? realPaidTo : realPaidFrom, //formData.paid_to || formData.credit_account,
         // Add references only for checked invoices
         references: checkedInvoices.map(invoice => ({
           reference_doctype: formData.payment_type === 'Receive' ? "Sales Invoice" : "Purchase Invoice",  // Dynamic reference_doctype
@@ -1155,22 +1231,6 @@ export default function PaymentPage() {
         // ERPNext will auto-allocate to outstanding invoices
       };
 
-      console.log('🚀 === PAYMENT CREATION PAYLOAD ===');
-      console.log('📋 Form Data:', formData);
-      console.log('💰 Payment Amount:', paymentAmount);
-      console.log('📊 Total Outstanding:', totalOutstanding);
-      console.log('✅ Checked Invoices:', checkedInvoices);
-      console.log('� Company Accounts:', companyAccounts);
-      console.log('💳 Debit Account:', formData.debit_account);
-      console.log('💳 Credit Account:', formData.credit_account);
-      console.log('💳 Paid From:', formData.paid_from);
-      console.log('💳 Paid To:', formData.paid_to);
-      console.log('�� Final Payment Payload:', JSON.stringify(paymentPayload, null, 2));
-      console.log('🔗 API Endpoint: /api/payment');
-      console.log('📡 Request Method: POST');
-      console.log('=====================================');
-
-      console.log('🚀 Submitting Payment:', paymentPayload);
       // exitCode;
       const response = await fetch('/api/payment', {
         method: 'POST',
@@ -1179,9 +1239,6 @@ export default function PaymentPage() {
         },
         body: JSON.stringify(paymentPayload),
       });
-
-      console.log('🔍 Response Status:', response.status);
-      console.log('🔍 Response Headers:', Object.fromEntries(response.headers.entries()));
 
       const data = await response.json();
       console.log('📊 Response Data:', data);
@@ -1202,7 +1259,6 @@ export default function PaymentPage() {
         resetForm();
         fetchPayments();
 
-        // Clear success message after 8 seconds
         setTimeout(() => setSuccessMessage(''), 8000);
       } else {
         setError(data.message || 'Failed to create payment');
@@ -1215,12 +1271,6 @@ export default function PaymentPage() {
   };
 
   const resetForm = () => {
-    console.log('🔄 RESET FORM - Initializing form with default values');
-    console.log('🔄 Current companyAccounts:', companyAccounts);
-    console.log('🔄 Current selectedCompany:', selectedCompany);
-    console.log('🔄 Current formData.paid_from:', formData.paid_from);
-    console.log('🔄 Current formData.paid_to:', formData.paid_to);
-
     // Reset edit mode flags
     setIsEditMode(false);
     setEditingPaymentId('');
@@ -1239,6 +1289,8 @@ export default function PaymentPage() {
       check_number: '',
       check_date: '',
       bank_reference: '',
+      reference_no: '',
+      reference_date: '',
       selected_invoices: [],
       paid_from: '',
       paid_to: '',
@@ -1250,10 +1302,6 @@ export default function PaymentPage() {
     setEditingPaymentStatus('');
     setError('');
     setSuccessMessage('');
-
-    console.log('🔄 RESET FORM - Form reset completed');
-    console.log('🔄 After reset - paid_from:', formData.paid_from);
-    console.log('🔄 After reset - paid_to:', formData.paid_to);
   };
 
   if (loading) {
@@ -1266,12 +1314,9 @@ export default function PaymentPage() {
         <h1 className="text-3xl font-bold text-gray-900">Payment Management</h1>
         <button
           onClick={() => {
-            console.log('🚀 NEW PAYMENT BUTTON CLICKED - Opening form');
             resetForm();
             setShowForm(true);
-            console.log('🚀 NEW PAYMENT - Form should now be visible');
-
-            // Trigger auto-selection manually after form is reset and visible
+              // Trigger auto-selection manually after form is reset and visible
             setTimeout(() => {
               console.log('🔧 POST-RESET TRIGGER - Manually triggering auto-selection');
               if (companyAccounts && formData.payment_type && formData.mode_of_payment) {
@@ -1502,7 +1547,9 @@ export default function PaymentPage() {
                       console.log('🔄 MODE OF PAYMENT CHANGED - Triggering auto-selection');
                       setTimeout(() => {
                         if (companyAccounts && formData.payment_type && newMode) {
-                          triggerAutoSelection(companyAccounts, formData.payment_type, newMode);
+                          // Don't call triggerAutoSelection here - let the main useEffect handle it
+                          // This avoids conflicts between triggerAutoSelection and the main useEffect
+                          console.log('🔄 MODE OF PAYMENT CHANGED - Main useEffect will handle account updates');
                         } else {
                           console.log('🔄 MODE OF PAYMENT CHANGED - Missing data:', {
                             companyAccounts: !!companyAccounts,
@@ -1521,6 +1568,30 @@ export default function PaymentPage() {
                 </div>
               </div>
 
+              {/* Reference Fields */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Reference No</label>
+                  <input
+                    type="text"
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    value={formData.reference_no}
+                    onChange={(e) => setFormData(prev => ({ ...prev, reference_no: e.target.value }))}
+                    placeholder="e.g., TRX-20260207-0001"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Reference Date</label>
+                  <input
+                    type="date"
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    value={formData.reference_date}
+                    onChange={(e) => setFormData(prev => ({ ...prev, reference_date: e.target.value }))}
+                  />
+                </div>
+              </div>
+
               {/* Account Selection - Dropdown dengan Auto-Selection */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div>
@@ -1532,20 +1603,15 @@ export default function PaymentPage() {
                   </label>
                   <select
                     className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                    value={formData.debit_account || (formData.payment_type === 'Receive' ?
-                      (formData.mode_of_payment === 'Bank Transfer' || formData.mode_of_payment === 'Warkat' ?
-                        companyAccounts.default_bank_account || 'Bank Account' :
-                        formData.mode_of_payment === 'Credit Card' ?
-                          companyAccounts.default_credit_card_account || 'Credit Card' :
-                          companyAccounts.default_cash_account || 'Cash Account') :
-                      companyAccounts.default_payable_account || 'Accounts Payable')
-                    }
+                    value={formData.debit_account}
                     onChange={(e) => {
                       const selectedAccount = e.target.value;
                       setFormData(prev => ({ ...prev, debit_account: selectedAccount }));
                       console.log('🏦 Debit account changed to:', selectedAccount);
+                      console.log('🏦 DEBUG - formData.debit_account after change:', selectedAccount);
                     }}
                   >
+                    {console.log('🏦 DEBUG - Rendering debit dropdown, formData.debit_account:', formData.debit_account)}
                     {getFilteredAccounts('debit').map((account: CompanyAccount) => (
                       <option key={account.name} value={account.name}>
                         {account.name} ({account.account_type})
@@ -1565,19 +1631,14 @@ export default function PaymentPage() {
                     </span>
                   </label>
                   <select
+                    key={`credit-account-${formData.credit_account}-${formData.mode_of_payment}`}
                     className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                    value={formData.credit_account || (formData.payment_type === 'Receive' ?
-                      companyAccounts.default_receivable_account || 'Accounts Receivable' :
-                      (formData.mode_of_payment === 'Bank Transfer' || formData.mode_of_payment === 'Warkat' ?
-                        companyAccounts.default_bank_account || 'Bank Account' :
-                        formData.mode_of_payment === 'Credit Card' ?
-                          companyAccounts.default_credit_card_account || 'Credit Card' :
-                          companyAccounts.default_cash_account || 'Cash Account'))
-                    }
+                    value={formData.credit_account}
                     onChange={(e) => {
                       const selectedAccount = e.target.value;
                       setFormData(prev => ({ ...prev, credit_account: selectedAccount }));
                       console.log('💳 Credit account changed to:', selectedAccount);
+                      console.log('💳 DEBUG - formData.credit_account after change:', selectedAccount);
                     }}
                   >
                     {getFilteredAccounts('credit').map((account: CompanyAccount) => (
@@ -1587,7 +1648,7 @@ export default function PaymentPage() {
                     ))}
                   </select>
                   <p className="text-xs text-green-600 mt-1">
-                    💡 Automatically selected based on payment type and mode
+                    💡 Automatically selected based on payment type and mode kanan
                   </p>
                 </div>
               </div>
@@ -1960,8 +2021,8 @@ export default function PaymentPage() {
                       onChange={() => { }} // Read-only, no onChange
                       placeholder="0"
                       className={`mt-1 block w-full border rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-gray-100 cursor-not-allowed ${formData.received_amount > getTotalOutstanding() && getTotalOutstanding() > 0
-                          ? 'border-orange-300 bg-orange-50'
-                          : 'border-gray-300'
+                        ? 'border-orange-300 bg-orange-50'
+                        : 'border-gray-300'
                         }`}
                       min={0}
                       step="1"
@@ -2061,8 +2122,8 @@ export default function PaymentPage() {
                               <div className="text-blue-700">
                                 Rp {invoice.outstanding_amount.toLocaleString('id-ID')} →
                                 <span className={`font-medium ml-1 ${invoice.allocation_status === 'Paid' ? 'text-green-600' :
-                                    invoice.allocation_status === 'Partially Paid' ? 'text-orange-600' :
-                                      'text-gray-500'
+                                  invoice.allocation_status === 'Partially Paid' ? 'text-orange-600' :
+                                    'text-gray-500'
                                   }`}>
                                   {' '}Rp {invoice.allocated_amount.toLocaleString('id-ID')}
                                 </span>
@@ -2155,7 +2216,7 @@ export default function PaymentPage() {
                         <div className="flex justify-between items-center text-sm">
                           <span className="font-medium text-gray-900">Total Credit:</span>
                           <span className="font-bold text-red-600">
-                            Rp {journal.credits.reduce((sum, credit) => sum + credit.amount, 0).toLocaleString('id-ID')}
+                            Rp {journal.credits.reduce((sum: number, credit) => sum + credit.amount, 0).toLocaleString('id-ID')}
                           </span>
                         </div>
                       </div>
@@ -2214,10 +2275,10 @@ export default function PaymentPage() {
                   <div className="ml-4 flex-shrink-0">
                     <span
                       className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${payment.status === 'Submitted'
-                          ? 'bg-green-100 text-green-800'
-                          : payment.status === 'Draft'
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : 'bg-gray-100 text-gray-800'
+                        ? 'bg-green-100 text-green-800'
+                        : payment.status === 'Draft'
+                          ? 'bg-yellow-100 text-yellow-800'
+                          : 'bg-gray-100 text-gray-800'
                         }`}
                     >
                       {payment.status}
@@ -2249,6 +2310,7 @@ export default function PaymentPage() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation(); // Prevent opening edit form
+                          // console.log('payment ', payment);
                           handleSubmitPayment(payment.name);
                         }}
                         className="ml-4 px-3 py-1 bg-green-600 text-white text-xs font-medium rounded hover:bg-green-700 transition-colors"
