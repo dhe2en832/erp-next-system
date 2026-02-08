@@ -62,6 +62,8 @@ export default function PurchaseOrderMain() {
   const [selectedCompany, setSelectedCompany] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [poId, setPoId] = useState('');
   
   // Form states
   const [supplier, setSupplier] = useState('');
@@ -152,11 +154,99 @@ export default function PurchaseOrderMain() {
       setSelectedCompany(savedCompany);
       fetchSuppliers(savedCompany);
       fetchItems(savedCompany);
-      // fetchTermsAndConditions(savedCompany);
-      // fetchTaxTemplates(savedCompany);
       fetchWarehouses(savedCompany);
+      
+      // Check if we're editing an existing PO
+      const urlParams = new URLSearchParams(window.location.search);
+      const poIdParam = urlParams.get('id');
+      
+      if (poIdParam) {
+        setIsEditMode(true);
+        setPoId(poIdParam);
+        fetchPOData(poIdParam, savedCompany);
+      }
     }
   }, []);
+
+  const fetchPOData = async (poId: string, company: string) => {
+    try {
+      setLoading(true);
+      const response = await fetch(`/api/purchase-orders/${poId}?company=${encodeURIComponent(company)}`);
+      const data = await response.json();
+      
+      if (data.success && data.data) {
+        const poData = data.data;
+        
+        // Fill form with PO data
+        setSupplier(poData.supplier);
+        setTransactionDate(poData.transaction_date);
+        setScheduleDate(poData.schedule_date);
+        setCurrency(poData.currency || 'IDR');
+        setWarehouse(poData.set_warehouse || '');
+        setRemarks(poData.custom_notes_po || '');
+        
+        // Fetch supplier details to get address
+        if (poData.supplier) {
+          try {
+            const supplierResponse = await fetch(`/api/supplier/${poData.supplier}`);
+            const supplierData = await supplierResponse.json();
+            
+            if (supplierData.success && supplierData.data) {
+              const supplierDetail = supplierData.data;
+              const address = formatAddress(supplierDetail.primary_address || '');
+              const contact = supplierDetail.contact_person || '';
+              
+              setContactPerson(contact);
+              setDeliveryLocation(address);
+              setShippingAddress(address);
+              setBillingAddress(address);
+              
+              console.log('Supplier info loaded for PO:', {
+                supplier: poData.supplier,
+                address: address,
+                contact: contact
+              });
+            }
+          } catch (supplierError) {
+            console.error('Error fetching supplier details for PO:', supplierError);
+            // Set empty address if supplier fetch fails
+            setContactPerson('');
+            setDeliveryLocation('');
+            setShippingAddress('');
+            setBillingAddress('');
+          }
+        }
+        
+        // Fill items
+        if (poData.items && poData.items.length > 0) {
+          const formattedItems = poData.items.map((item: any) => ({
+            item_code: item.item_code,
+            item_name: item.item_name || '',
+            description: item.description || '',
+            qty: item.qty,
+            rate: item.rate,
+            amount: item.amount || (item.qty * item.rate),
+            stock_uom: item.uom || '',
+            warehouse: item.warehouse || poData.set_warehouse || '',
+            scheduled_delivery_date: item.scheduled_delivery_date || poData.schedule_date,
+            available_stock: 0,
+            actual_stock: 0,
+            reserved_stock: 0
+          }));
+          setSelectedItems(formattedItems);
+        }
+        
+        console.log('PO data loaded successfully:', poData);
+      } else {
+        setError(data.message || 'Failed to load PO data');
+      }
+    } catch (err) {
+      console.error('Error fetching PO data:', err);
+      setError('Failed to load PO data');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Update warehouse di semua item saat warehouse header berubah
   useEffect(() => {
@@ -723,7 +813,7 @@ export default function PurchaseOrderMain() {
         currency: currency,
         conversion_rate: 1,
         set_warehouse: warehouse,
-        custom_notes_po: remarks || "",
+        custom_notes_po: remarks || "untuk nampung catatan di header",
         items: validItems.map(item => ({
           item_code: item.item_code,
           qty: item.qty,
@@ -735,8 +825,12 @@ export default function PurchaseOrderMain() {
 
       console.log('Sending PO data:', purchaseOrderData);
 
-      const response = await fetch('/api/purchase-orders', {
-        method: 'POST',
+      // Determine API endpoint and method based on edit mode
+      const apiUrl = isEditMode ? `/api/purchase-orders/${poId}` : '/api/purchase-orders';
+      const method = isEditMode ? 'PUT' : 'POST';
+
+      const response = await fetch(apiUrl, {
+        method: method,
         headers: {
           'Content-Type': 'application/json',
         },
@@ -744,32 +838,19 @@ export default function PurchaseOrderMain() {
       });
 
       const data = await response.json();
-      console.log('Save PO Response:', data);
-      console.log('Response status:', response.status);
-      console.log('Response ok:', response.ok);
 
       if (data.success) {
-        console.log('Setting success message');
-        setSuccess('Purchase Order berhasil dibuat!');
-        setRedirectCountdown(3); // Start countdown from 3
-        
-        // Create countdown interval
-        let countdown = 3;
-        const interval = setInterval(() => {
-          countdown--;
-          setRedirectCountdown(countdown);
-          if (countdown <= 0) {
-            clearInterval(interval);
-            router.push('/purchase-orders/poList');
-          }
-        }, 1000);
+        const successMessage = isEditMode ? 'Purchase Order berhasil diupdate!' : 'Purchase Order berhasil dibuat!';
+        setSuccess(successMessage);
+        setTimeout(() => {
+          router.push('/purchase-orders/poList');
+        }, 3000); // Start countdown from 3
       } else {
-        console.log('Setting error message:', data.message);
-        setError(data.message || 'Gagal membuat purchase order');
+        setError(data.message || `Gagal ${isEditMode ? 'mengupdate' : 'membuat'} purchase order`);
       }
     } catch (err) {
       console.error('PO creation error:', err);
-      setError('Gagal membuat purchase order');
+      setError(`Gagal ${isEditMode ? 'mengupdate' : 'membuat'} purchase order`);
     } finally {
       setLoading(false);
     }
@@ -786,8 +867,12 @@ export default function PurchaseOrderMain() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Buat Purchase Order</h1>
-              <p className="mt-1 text-sm text-gray-600">Buat purchase order baru</p>
+              <h1 className="text-3xl font-bold text-gray-900">
+                {isEditMode ? 'Update Purchase Order' : 'Buat Purchase Order'}
+              </h1>
+              <p className="mt-1 text-sm text-gray-600">
+                {isEditMode ? 'Update purchase order yang ada' : 'Buat purchase order baru'}
+              </p>
             </div>
             <button
               onClick={() => router.push('/purchase-orders/poList')}
@@ -1274,7 +1359,7 @@ export default function PurchaseOrderMain() {
                   Menyimpan...
                 </>
               ) : (
-                'Buat Purchase Order'
+                isEditMode ? 'Update Purchase Order' : 'Buat Purchase Order'
               )}
             </button>
           </div>

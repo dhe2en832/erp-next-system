@@ -200,6 +200,73 @@ export default function PurchaseOrderList() {
     return supplier ? supplier.supplier_name : supplierCode;
   };
 
+  // PO action handlers
+  const handleSubmitPO = async (poName: string) => {
+    try {
+      const response = await fetch(`/api/purchase-orders/${poName}/submit`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        // Refresh the list
+        fetchPurchaseOrders();
+      } else {
+        setError(data.message || 'Failed to submit PO');
+      }
+    } catch (err) {
+      setError('Failed to submit PO');
+    }
+  };
+
+  const handleReceivePO = async (poName: string) => {
+    try {
+      const response = await fetch(`/api/purchase-orders/${poName}/receive`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        // Refresh the list
+        fetchPurchaseOrders();
+      } else {
+        setError(data.message || 'Failed to receive PO');
+      }
+    } catch (err) {
+      setError('Failed to receive PO');
+    }
+  };
+
+  const handleCompletePO = async (poName: string) => {
+    try {
+      const response = await fetch(`/api/purchase-orders/${poName}/complete`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        // Refresh the list
+        fetchPurchaseOrders();
+      } else {
+        setError(data.message || 'Failed to complete PO');
+      }
+    } catch (err) {
+      setError('Failed to complete PO');
+    }
+  };
+
   if (loading) {
     return <LoadingSpinner message="Memuat Purchase Orders..." />;
   }
@@ -338,69 +405,102 @@ export default function PurchaseOrderList() {
               Purchase Orders ({purchaseOrders.length} pesanan)
             </h3>
           </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    No. Pesanan
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Supplier
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Tanggal Pesanan
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Tanggal Jadwal
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Total
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Aksi
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {purchaseOrders.map((order) => (
-                  <tr key={order.name} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {order.name}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {getSupplierName(order.supplier)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {order.transaction_date}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {order.schedule_date}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(order.status)}`}>
+          <ul className="divide-y divide-gray-200">
+            {purchaseOrders.map((order, index) => {
+              console.log(`Rendering PO ${index}:`, order);
+              return (
+              <li 
+                key={order.name}
+                onClick={() => {
+                  if (order.name) {
+                    // Route based on status
+                    if (order.status === 'Draft') {
+                      router.push(`/purchase-orders/poMain?id=${order.name}`);
+                    } else {
+                      router.push(`/purchase-orders/poView?id=${order.name}`);
+                    }
+                  }
+                }}
+                className="cursor-pointer hover:bg-gray-50 transition-colors"
+              >
+                <div className="px-4 py-4 sm:px-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-indigo-600 truncate">
+                        {order.name}
+                      </p>
+                      <p className="mt-1 text-sm text-gray-900">Supplier: {getSupplierName(order.supplier)}</p>
+                    </div>
+                    <div className="ml-4 flex-shrink-0">
+                      <span
+                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(order.status)}`}
+                      >
                         {order.status}
                       </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {order.currency} {order.grand_total.toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <button className="text-indigo-600 hover:text-indigo-900 mr-3">
-                        Lihat
-                      </button>
-                      <button className="text-green-600 hover:text-green-900">
-                        Edit
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    </div>
+                  </div>
+                  <div className="mt-2 sm:flex sm:justify-between">
+                    <div className="sm:flex">
+                      <p className="flex items-center text-sm text-gray-500">
+                        Transaction Date: {order.transaction_date}
+                      </p>
+                      <p className="mt-2 sm:mt-0 sm:ml-6 flex items-center text-sm text-gray-500">
+                        Schedule Date: {order.schedule_date}
+                      </p>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between sm:mt-0">
+                      <span className="font-medium text-sm text-gray-500">
+                        Total: {order.currency} {order.grand_total.toLocaleString('id-ID')}
+                      </span>
+                      
+                      {/* Action buttons based on status */}
+                      <div className="ml-4 flex space-x-2">
+                        {/* Submit button for Draft orders */}
+                        {order.status === 'Draft' && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSubmitPO(order.name);
+                            }}
+                            className="px-3 py-1 bg-green-600 text-white text-xs font-medium rounded hover:bg-green-700 transition-colors"
+                          >
+                            Submit
+                          </button>
+                        )}
+                        
+                        {/* Receive button for Submitted orders */}
+                        {order.status === 'Submitted' && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleReceivePO(order.name);
+                            }}
+                            className="px-3 py-1 bg-orange-600 text-white text-xs font-medium rounded hover:bg-orange-700 transition-colors"
+                          >
+                            Receive
+                          </button>
+                        )}
+                        
+                        {/* Complete button for To Receive orders */}
+                        {order.status === 'To Receive' && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCompletePO(order.name);
+                            }}
+                            className="px-3 py-1 bg-blue-600 text-white text-xs font-medium rounded hover:bg-blue-700 transition-colors"
+                          >
+                            Complete
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </li>
+              );
+            })}
+          </ul>
           {purchaseOrders.length === 0 && (
             <div className="text-center py-12">
               <p className="text-gray-500">Tidak ada purchase order ditemukan</p>
