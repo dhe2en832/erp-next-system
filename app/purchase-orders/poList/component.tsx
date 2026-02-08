@@ -30,11 +30,11 @@ export default function PurchaseOrderList() {
   const [selectedCompany, setSelectedCompany] = useState('');
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [documentNumber, setDocumentNumber] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [supplierFilter, setSupplierFilter] = useState('');
   const [dateFilter, setDateFilter] = useState({
-    from_date: '',
-    to_date: '',
+    from_date: new Date(Date.now() - 86400000).toISOString().split('T')[0], // Yesterday
+    to_date: new Date().toISOString().split('T')[0], // Today
   });
   
   // Pagination states
@@ -122,19 +122,20 @@ export default function PurchaseOrderList() {
       const params = new URLSearchParams({
         company: companyToUse,
         limit_page_length: pageSize.toString(),
-        start: ((currentPage - 1) * pageSize).toString()
+        start: ((currentPage - 1) * pageSize).toString(),
+        order_by: 'creation desc'  // Sort by creation date descending (newest first)
       });
       
       if (searchTerm) {
         params.append('search', searchTerm);
       }
       
-      if (statusFilter) {
-        params.append('status', statusFilter);
+      if (documentNumber) {
+        params.append('documentNumber', documentNumber);
       }
       
-      if (supplierFilter) {
-        params.append('supplier', supplierFilter);
+      if (statusFilter) {
+        params.append('status', statusFilter);
       }
       
       if (dateFilter.from_date) {
@@ -169,7 +170,7 @@ export default function PurchaseOrderList() {
     } finally {
       setLoading(false);
     }
-  }, [selectedCompany, currentPage, pageSize, searchTerm, statusFilter, supplierFilter, dateFilter.from_date, dateFilter.to_date]);
+  }, [selectedCompany, currentPage, pageSize, searchTerm, documentNumber, statusFilter, dateFilter.from_date, dateFilter.to_date]);
 
   useEffect(() => {
     fetchSuppliers();
@@ -182,7 +183,7 @@ export default function PurchaseOrderList() {
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, statusFilter, supplierFilter, dateFilter]);
+  }, [searchTerm, documentNumber, statusFilter, dateFilter]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -213,8 +214,8 @@ export default function PurchaseOrderList() {
       const data = await response.json();
       
       if (data.success) {
-        // Refresh the list
-        fetchPurchaseOrders();
+        // Redirect to poMain for this PO
+        router.push(`/purchase-orders/poMain?name=${poName}`);
       } else {
         setError(data.message || 'Failed to submit PO');
       }
@@ -235,8 +236,8 @@ export default function PurchaseOrderList() {
       const data = await response.json();
       
       if (data.success) {
-        // Refresh the list
-        fetchPurchaseOrders();
+        // Redirect to poMain for this PO
+        router.push(`/purchase-orders/poMain?name=${poName}`);
       } else {
         setError(data.message || 'Failed to receive PO');
       }
@@ -257,8 +258,8 @@ export default function PurchaseOrderList() {
       const data = await response.json();
       
       if (data.success) {
-        // Refresh the list
-        fetchPurchaseOrders();
+        // Redirect to poMain for this PO
+        router.push(`/purchase-orders/poMain?name=${poName}`);
       } else {
         setError(data.message || 'Failed to complete PO');
       }
@@ -300,14 +301,26 @@ export default function PurchaseOrderList() {
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Cari
+                Cari Supplier
               </label>
               <input
                 type="text"
                 className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                placeholder="Cari berdasarkan nama atau supplier..."
+                placeholder="Cari berdasarkan nama supplier..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                No. Dokumen
+              </label>
+              <input
+                type="text"
+                className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                placeholder="Cari nomor PO..."
+                value={documentNumber}
+                onChange={(e) => setDocumentNumber(e.target.value)}
               />
             </div>
             <div>
@@ -325,23 +338,6 @@ export default function PurchaseOrderList() {
                 <option value="To Receive">To Receive</option>
                 <option value="Completed">Completed</option>
                 <option value="Cancelled">Cancelled</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Supplier
-              </label>
-              <select
-                className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                value={supplierFilter}
-                onChange={(e) => setSupplierFilter(e.target.value)}
-              >
-                <option value="">Semua Supplier</option>
-                {suppliers.map((supplier) => (
-                  <option key={supplier.name} value={supplier.name}>
-                    {supplier.supplier_name}
-                  </option>
-                ))}
               </select>
             </div>
             <div>
@@ -371,9 +367,12 @@ export default function PurchaseOrderList() {
             <button
               onClick={() => {
                 setSearchTerm('');
+                setDocumentNumber('');
                 setStatusFilter('');
-                setSupplierFilter('');
-                setDateFilter({ from_date: '', to_date: '' });
+                setDateFilter({
+                  from_date: new Date(Date.now() - 86400000).toISOString().split('T')[0], // Reset to yesterday
+                  to_date: new Date().toISOString().split('T')[0], // Reset to today
+                });
               }}
               className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400"
             >
@@ -417,7 +416,7 @@ export default function PurchaseOrderList() {
                     if (order.status === 'Draft') {
                       router.push(`/purchase-orders/poMain?id=${order.name}`);
                     } else {
-                      router.push(`/purchase-orders/poView?id=${order.name}`);
+                      router.push(`/purchase-orders/poMain?name=${order.name}`);
                     }
                   }
                 }}

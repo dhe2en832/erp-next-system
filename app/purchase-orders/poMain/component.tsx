@@ -63,6 +63,7 @@ export default function PurchaseOrderMain() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isEditMode, setIsEditMode] = useState(false);
+  const [isViewMode, setIsViewMode] = useState(false);
   const [poId, setPoId] = useState('');
   
   // Form states
@@ -156,14 +157,16 @@ export default function PurchaseOrderMain() {
       fetchItems(savedCompany);
       fetchWarehouses(savedCompany);
       
-      // Check if we're editing an existing PO
+      // Check if we're editing or viewing an existing PO
       const urlParams = new URLSearchParams(window.location.search);
       const poIdParam = urlParams.get('id');
+      const poNameParam = urlParams.get('name');
+      const poIdentifier = poIdParam || poNameParam;
       
-      if (poIdParam) {
+      if (poIdentifier) {
         setIsEditMode(true);
-        setPoId(poIdParam);
-        fetchPOData(poIdParam, savedCompany);
+        setPoId(poIdentifier);
+        fetchPOData(poIdentifier, savedCompany);
       }
     }
   }, []);
@@ -176,6 +179,12 @@ export default function PurchaseOrderMain() {
       
       if (data.success && data.data) {
         const poData = data.data;
+        
+        // Check if PO status is non-Draft to set view mode
+        if (poData.status && poData.status !== 'Draft') {
+          setIsViewMode(true);
+          console.log('PO is in view mode (non-Draft status):', poData.status);
+        }
         
         // Fill form with PO data
         setSupplier(poData.supplier);
@@ -868,10 +877,10 @@ export default function PurchaseOrderMain() {
           <div className="flex justify-between items-center py-6">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">
-                {isEditMode ? 'Update Purchase Order' : 'Buat Purchase Order'}
+                {isViewMode ? 'View Purchase Order' : (isEditMode ? 'Update Purchase Order' : 'Buat Purchase Order')}
               </h1>
               <p className="mt-1 text-sm text-gray-600">
-                {isEditMode ? 'Update purchase order yang ada' : 'Buat purchase order baru'}
+                {isViewMode ? 'View purchase order (read-only mode)' : (isEditMode ? 'Update purchase order yang ada' : 'Buat purchase order baru')}
               </p>
             </div>
             <button
@@ -1347,7 +1356,7 @@ export default function PurchaseOrderMain() {
             </button>
             <button
               type="submit"
-              disabled={loading || selectedItems.length === 0}
+              disabled={loading || selectedItems.length === 0 || isViewMode}
               className="bg-indigo-600 text-white px-6 py-2 rounded-md hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center"
             >
               {loading ? (
@@ -1359,7 +1368,7 @@ export default function PurchaseOrderMain() {
                   Menyimpan...
                 </>
               ) : (
-                isEditMode ? 'Update Purchase Order' : 'Buat Purchase Order'
+                isViewMode ? 'View Mode - Read Only' : (isEditMode ? 'Update Purchase Order' : 'Buat Purchase Order')
               )}
             </button>
           </div>

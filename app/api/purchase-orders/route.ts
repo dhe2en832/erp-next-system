@@ -4,28 +4,41 @@ const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
 
 export async function GET(request: NextRequest) {
   try {
+    console.log('=== Purchase Orders API Called ===');
+    
     const { searchParams } = new URL(request.url);
     const company = searchParams.get('company');
+    const limitPageLength = searchParams.get('limit_page_length');
+    const start = searchParams.get('start');
     const search = searchParams.get('search');
+    const documentNumber = searchParams.get('documentNumber');
     const status = searchParams.get('status');
-    const supplier = searchParams.get('supplier');
     const fromDate = searchParams.get('from_date');
     const toDate = searchParams.get('to_date');
+    const orderBy = searchParams.get('order_by');
 
-    const cookies = request.cookies;
-    const sid = cookies.get('sid')?.value;
-
-    if (!sid) {
-      return NextResponse.json(
-        { success: false, message: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
+    console.log('Request params:', { company, search, documentNumber, status, fromDate, toDate, orderBy });
 
     if (!company) {
+      console.log('ERROR: Company is required');
       return NextResponse.json(
         { success: false, message: 'Company is required' },
         { status: 400 }
+      );
+    }
+
+    // Use API key authentication instead of session
+    const apiKey = process.env.ERP_API_KEY;
+    const apiSecret = process.env.ERP_API_SECRET;
+
+    console.log('API Key exists:', !!apiKey);
+    console.log('API Secret exists:', !!apiSecret);
+
+    if (!apiKey || !apiSecret) {
+      console.log('ERROR: ERPNext API credentials not configured');
+      return NextResponse.json(
+        { success: false, message: 'ERPNext API credentials not configured' },
+        { status: 500 }
       );
     }
 
@@ -33,15 +46,21 @@ export async function GET(request: NextRequest) {
     let filters = `[["company","=","${company}"]`;
     
     if (search) {
-      filters += `,["name","like","%${search}%"],["supplier","like","%${search}%"]`;
+      // Search by supplier name only (working)
+      console.log('Adding supplier search filter for:', search);
+      filters += `,["supplier_name","like","%${search}%"]`;
+      console.log('Supplier search filter added:', filters);
+    }
+    
+    if (documentNumber) {
+      // Search by PO number/document number
+      console.log('Adding document number filter for:', documentNumber);
+      filters += `,["name","like","%${documentNumber}%"]`;
+      console.log('Document number filter added:', filters);
     }
     
     if (status) {
       filters += `,["status","=","${status}"]`;
-    }
-    
-    if (supplier) {
-      filters += `,["supplier","=","${supplier}"]`;
     }
     
     if (fromDate) {
@@ -54,59 +73,68 @@ export async function GET(request: NextRequest) {
     
     filters += ']';
 
-    // Build ERPNext URL with dynamic pagination
+    console.log('Built filters:', filters);
+
+    // Build ERPNext URL with dynamic pagination and sorting
     const limit = searchParams.get('limit_page_length') || '20';
-    const start = searchParams.get('start') || '0';
+    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Purchase Order?fields=["name","supplier","transaction_date","schedule_date","status","grand_total","currency","total_qty"]&filters=${encodeURIComponent(filters)}&limit_page_length=${limit}&start=${start}`;
     
-    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Purchase Order?fields=["name","supplier","transaction_date","schedule_date","status","grand_total","currency","total_qty"]&filters=${encodeURIComponent(filters)}&order_by=transaction_date desc&limit_page_length=${limit}&start=${start}`;
+    if (orderBy) {
+      erpNextUrl += `&order_by=${orderBy}`;
+    } else {
+      erpNextUrl += '&order_by=creation desc';
+    }
 
     console.log('Purchase Orders ERPNext URL:', erpNextUrl);
 
+    console.log('Making fetch request to ERPNext...');
     const response = await fetch(
       erpNextUrl,
       {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          'Cookie': `sid=${sid}`,
+          'Authorization': `token ${apiKey}:${apiSecret}`,
         },
       }
     );
+
+    console.log('ERPNext Response status:', response.status);
+    console.log('ERPNext Response ok:', response.ok);
 
     const data = await response.json();
     console.log('Purchase Orders response:', data);
 
     if (response.ok) {
+      console.log('Processing successful response...');
+      
       // Add items_count from total_qty if available
-      const processedData = (data.data || []).map((order: { 
-        name: string; 
-        supplier: string; 
-        transaction_date: string; 
-        schedule_date: string; 
-        status: string; 
-        grand_total: number; 
-        currency: string; 
-        total_qty?: number; 
-      }) => ({
-        ...order,
-        items_count: order.total_qty || 0
-      }));
+      const processedData = (data.data || []).map((order: any) => {
+        console.log('Processing order:', order);
+        return {
+          ...order,
+          items_count: order.total_qty || 0
+        };
+      });
+
+      console.log('Processed data length:', processedData.length);
 
       return NextResponse.json({
         success: true,
         data: processedData,
-        total_records: data._server_messages?.total_records || processedData.length,
+        total_records: data.total_records || processedData.length,
       });
     } else {
+      console.log('ERPNext API Error:', data);
       return NextResponse.json(
         { success: false, message: data.exc || data.message || 'Failed to fetch purchase orders' },
         { status: response.status }
       );
     }
   } catch (error) {
-    console.error('Purchase Orders API error:', error);
+    console.error('Purchase Orders API Error:', error);
     return NextResponse.json(
-      { success: false, message: 'Internal server error' },
+      { success: false, message: 'Internal server error', error: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }
