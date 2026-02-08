@@ -8,10 +8,8 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const purchaseOrderData = await request.json();
 
     console.log('Completing PO:', id);
-    console.log('PO Data:', purchaseOrderData);
 
     // Use API key authentication
     const apiKey = process.env.ERP_API_KEY;
@@ -24,29 +22,58 @@ export async function POST(
       );
     }
 
-    // Call ERPNext complete method
-    const response = await fetch(`${ERPNEXT_API_URL}/api/resource/Purchase Order/${id}/complete`, {
+    const auth = `token ${apiKey}:${apiSecret}`;
+
+    // 1️⃣ GET latest document to avoid timestamp mismatch
+    console.log('Fetching latest document for:', id);
+    const getResponse = await fetch(`${ERPNEXT_API_URL}/api/resource/Purchase Order/${id}`, {
+      headers: { Authorization: auth },
+    });
+
+    if (!getResponse.ok) {
+      const errorText = await getResponse.text();
+      console.error('Failed to fetch latest document:', errorText);
+      return NextResponse.json(
+        { success: false, message: 'Failed to fetch latest document', erp_response: errorText },
+        { status: 500 }
+      );
+    }
+
+    const doc = (await getResponse.json()).data;
+    console.log('Latest document fetched, modified:', doc.modified);
+
+    // 2️⃣ SUBMIT with latest document including timestamp
+    console.log('Completing document with timestamp:', doc.modified);
+    const response = await fetch(`${ERPNEXT_API_URL}/api/method/frappe.client.submit`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `token ${apiKey}:${apiSecret}`,
+        'Authorization': auth,
       },
-      body: JSON.stringify({}),
+      body: JSON.stringify({
+        doc: {
+          doctype: 'Purchase Order',
+          name: doc.name,
+          modified: doc.modified,
+        },
+        action: 'complete',
+      }),
     });
 
-    const data = await response.json();
+    const text = await response.text();
+    console.log('ERPNext complete response:', text);
 
-    if (response.ok) {
-      return NextResponse.json({
-        success: true,
-        data: data.data,
-      });
-    } else {
+    if (!response.ok) {
       return NextResponse.json(
-        { success: false, message: data.exc || data.message || 'Failed to complete purchase order' },
-        { status: response.status }
+        { success: false, erp_status: response.status, erp_response: text },
+        { status: 500 }
       );
     }
+
+    return NextResponse.json({
+      success: true,
+      data: JSON.parse(text),
+    });
   } catch (error) {
     console.error('Purchase Order complete error:', error);
     return NextResponse.json(

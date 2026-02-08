@@ -243,6 +243,11 @@ export default function PurchaseOrderMain() {
             reserved_stock: 0
           }));
           setSelectedItems(formattedItems);
+          
+          // Check stock for each loaded item (for both edit and view modes)
+          formattedItems.forEach((item: any, index: number) => {
+            checkItemStock(item.item_code, index, item);
+          });
         }
         
         console.log('PO data loaded successfully:', poData);
@@ -535,7 +540,10 @@ export default function PurchaseOrderMain() {
   const checkItemStock = async (itemCode: string, itemIndex: number, currentItem: PurchaseOrderItem) => {
     console.log('Checking stock for item:', itemCode, 'at index:', itemIndex, 'company:', selectedCompany);
     console.log('Current item passed to stock check:', currentItem);
-    console.log('Using warehouse from header:', warehouse);
+    console.log('Using warehouse from item details:', currentItem.warehouse);
+    
+    // Use warehouse from item details
+    const itemWarehouse = currentItem.warehouse;
     
     try {
       const response = await fetch(`/api/stock-check?item_code=${itemCode}&company=${selectedCompany}`);
@@ -544,16 +552,16 @@ export default function PurchaseOrderMain() {
       console.log('Stock check response:', data);
       
       if (!data.error && data.length > 0) {
-        // Find stock info untuk warehouse yang dipilih di header
-        const selectedWarehouseStock = data.find((stock: any) => stock.warehouse === warehouse);
+        // Find stock info untuk warehouse dari item details
+        const selectedWarehouseStock = data.find((stock: any) => stock.warehouse === itemWarehouse);
         
         console.log('Selected warehouse stock:', selectedWarehouseStock);
         
         if (selectedWarehouseStock) {
-          // Update item dengan stock info dari warehouse yang dipilih
+          // Update item dengan stock info dari warehouse item
           const updatedItem = {
             ...currentItem,
-            warehouse: warehouse, // Gunakan warehouse dari header
+            warehouse: itemWarehouse, // Gunakan warehouse dari item details
             available_stock: selectedWarehouseStock.available,
             actual_stock: selectedWarehouseStock.actual,
             reserved_stock: selectedWarehouseStock.reserved,
@@ -570,11 +578,11 @@ export default function PurchaseOrderMain() {
           
           console.log('Selected items updated with warehouse stock');
         } else {
-          console.log('No stock data found for selected warehouse:', warehouse);
+          console.log('No stock data found for item warehouse:', itemWarehouse);
           // Jika warehouse tidak ditemukan di stock data, set stock ke 0
           const updatedItem = {
             ...currentItem,
-            warehouse: warehouse,
+            warehouse: itemWarehouse,
             available_stock: 0,
             actual_stock: 0,
             reserved_stock: 0,
@@ -591,7 +599,7 @@ export default function PurchaseOrderMain() {
         // Set stock ke 0 jika tidak ada data
         const updatedItem = {
           ...currentItem,
-          warehouse: warehouse,
+          warehouse: itemWarehouse,
           available_stock: 0,
           actual_stock: 0,
           reserved_stock: 0,
@@ -608,7 +616,7 @@ export default function PurchaseOrderMain() {
       // Set stock ke 0 jika error
       const updatedItem = {
         ...currentItem,
-        warehouse: warehouse,
+        warehouse: itemWarehouse,
         available_stock: 0,
         actual_stock: 0,
         reserved_stock: 0,
