@@ -4,12 +4,12 @@ const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ name: string }> }
 ) {
   try {
-    const { id } = await params;
-
-    console.log('Submitting PO:', id);
+    const { name } = await params;
+    
+    console.log('Submitting Purchase Receipt:', name);
 
     // Use API key authentication
     const apiKey = process.env.ERP_API_KEY;
@@ -27,10 +27,10 @@ export async function POST(
       'Authorization': `token ${apiKey}:${apiSecret}`,
     };
 
-    console.log('Using REST API PUT method to submit PO:', id);
+    console.log('Using REST API PUT method to submit Purchase Receipt:', name);
 
-    // Use REST API update method (like Sales Order) - more reliable
-    const response = await fetch(`${ERPNEXT_API_URL}/api/resource/Purchase Order/${encodeURIComponent(id)}`, {
+    // Use REST API update method - most reliable approach
+    const response = await fetch(`${ERPNEXT_API_URL}/api/resource/Purchase Receipt/${encodeURIComponent(name)}`, {
       method: 'PUT',
       headers,
       body: JSON.stringify({
@@ -39,8 +39,8 @@ export async function POST(
     });
 
     const responseText = await response.text();
-    console.log('Submit PO ERPNext Response Status:', response.status);
-    console.log('Submit PO ERPNext Response Text:', responseText);
+    console.log('Submit Purchase Receipt ERPNext Response Status:', response.status);
+    console.log('Submit Purchase Receipt ERPNext Response Text:', responseText);
 
     let data;
     try {
@@ -56,20 +56,21 @@ export async function POST(
 
     if (response.ok) {
       // ERPNext REST API returns different structure
-      const orderData = data.docs?.[0] || data.doc || data.data || data;
+      const receiptData = data.docs?.[0] || data.doc || data.data || data;
       
-      console.log('PO submitted successfully:', orderData);
+      console.log('Purchase Receipt submitted successfully:', receiptData);
       
       return NextResponse.json({
         success: true,
-        data: orderData,
-        message: 'Purchase Order submitted successfully'
+        data: receiptData,
+        message: 'Purchase Receipt berhasil di submit'
       });
     } else {
-      let errorMessage = 'Failed to submit Purchase Order';
+      let errorMessage = 'Failed to submit Purchase Receipt';
       
       console.log('Full Error Response:', data);
       
+      // Comprehensive error parsing
       if (data.exc) {
         try {
           const excData = JSON.parse(data.exc);
@@ -77,7 +78,7 @@ export async function POST(
           errorMessage = `${excData.exc_type}: ${excData.message}`;
         } catch (e) {
           console.log('Failed to parse exception, using raw data');
-          errorMessage = data.message || data.exc || 'Failed to submit Purchase Order';
+          errorMessage = data.message || data.exc || 'Failed to submit Purchase Receipt';
         }
       } else if (data.message) {
         errorMessage = data.message;
@@ -98,7 +99,7 @@ export async function POST(
         errorMessage = `Unknown error occurred. Response: ${JSON.stringify(data)}`;
       }
       
-      console.error('Submit PO Error Details:', {
+      console.error('Submit Purchase Receipt Error Details:', {
         status: response.status,
         data: data,
         errorMessage: errorMessage
@@ -110,7 +111,7 @@ export async function POST(
       );
     }
   } catch (error) {
-    console.error('Purchase Order submit error:', error);
+    console.error('Purchase Receipt submit error:', error);
     return NextResponse.json(
       { success: false, message: 'Internal server error' },
       { status: 500 }

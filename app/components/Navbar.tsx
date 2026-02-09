@@ -166,6 +166,7 @@ export default function Navbar() {
       icon: '📦',
       items: [
         { name: 'Purchase Orders', href: '/purchase-orders' },
+        { name: 'Purchase Receipts', href: '/purchase-receipts' },
         { name: 'Purchase Invoices', href: '/purchase-invoice' }
       ]
     },

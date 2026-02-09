@@ -4,14 +4,14 @@ const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ name: string }> }
 ) {
   try {
-    const { id } = await params;
+    const { name } = await params;
     const { searchParams } = new URL(request.url);
     const company = searchParams.get('company');
 
-    console.log('PO Name:', id);
+    console.log('PO Name:', name);
     console.log('Company:', company);
 
     if (!company) {
@@ -21,7 +21,7 @@ export async function GET(
       );
     }
 
-    // Use API key authentication instead of session
+    // Use API key authentication
     const apiKey = process.env.ERP_API_KEY;
     const apiSecret = process.env.ERP_API_SECRET;
 
@@ -33,7 +33,7 @@ export async function GET(
     }
 
     // Build ERPNext URL to get specific PO
-    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Purchase Order/${id}?fields=["*"]`;
+    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Purchase Order/${name}?fields=["*"]`;
 
     console.log('Fetch PO ERPNext URL:', erpNextUrl);
 
@@ -73,16 +73,16 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ name: string }> }
 ) {
   try {
-    const { id } = await params;
+    const { name } = await params;
     const purchaseOrderData = await request.json();
 
-    console.log('Updating PO:', id);
+    console.log('Updating PO:', name);
     console.log('PO Data:', purchaseOrderData);
 
-    // Use API key authentication instead of session
+    // Use API key authentication
     const apiKey = process.env.ERP_API_KEY;
     const apiSecret = process.env.ERP_API_SECRET;
 
@@ -93,7 +93,7 @@ export async function PUT(
       );
     }
 
-    const response = await fetch(`${ERPNEXT_API_URL}/api/resource/Purchase Order/${id}`, {
+    const response = await fetch(`${ERPNEXT_API_URL}/api/resource/Purchase Order/${name}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
