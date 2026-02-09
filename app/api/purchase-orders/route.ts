@@ -62,6 +62,10 @@ export async function GET(request: NextRequest) {
         filters.push(["docstatus", "=", "1"]);
         filters.push(["status", "=", status]);
       }
+    } else {
+      // Default filter: show submitted POs with less than 100% received
+      filters.push(["docstatus", "=", "1"]);
+      filters.push(["per_received", "<", 100]);
     }
     // If no status filter, don't add docstatus filter - show all statuses
 
@@ -76,7 +80,7 @@ export async function GET(request: NextRequest) {
 
     const fields = [
       "name", "supplier", "supplier_name", "transaction_date",
-      "status", "grand_total", "currency", "docstatus"
+      "status", "grand_total", "currency", "docstatus", "per_received"
     ];
 
     const params = new URLSearchParams({

@@ -61,7 +61,6 @@ interface PurchaseReceiptItem {
   qty: number;
   received_qty: number;
   rejected_qty: number;
-  accepted_qty: number;
   uom: string;
   rate: number;
   amount: number;
@@ -120,7 +119,6 @@ export default function PurchaseReceiptMain() {
       qty: 1,
       received_qty: 0,
       rejected_qty: 0,
-      accepted_qty: 0,
       uom: '',
       rate: 0,
       amount: 0,
@@ -237,19 +235,18 @@ export default function PurchaseReceiptMain() {
           console.log('Original received_qty:', item.received_qty);
           console.log('Original rejected_qty:', item.rejected_qty);
           
-          // ERPNext logic: received_qty = accepted_qty + rejected_qty
-          // So: accepted_qty = received_qty - rejected_qty
-          const calculatedAcceptedQty = (item.received_qty || 0) - (item.rejected_qty || 0);
+          // ERPNext logic: received_qty = received_qty + rejected_qty
+          // So: received_qty = received_qty - rejected_qty
+          const calculatedReceivedQty = (item.received_qty || 0) - (item.rejected_qty || 0);
           
           const processedItem = {
             ...item,
-            // Calculate accepted_qty from received_qty and rejected_qty
-            accepted_qty: calculatedAcceptedQty > 0 ? calculatedAcceptedQty : 0,
+            // Calculate received_qty from received_qty and rejected_qty
+            received_qty: calculatedReceivedQty > 0 ? calculatedReceivedQty : 0,
             rejected_qty: item.rejected_qty || 0,
-            received_qty: item.received_qty || 0,
           };
           
-          console.log('Calculated accepted_qty:', calculatedAcceptedQty);
+          console.log('Calculated received_qty:', calculatedReceivedQty);
           console.log('Processed item:', processedItem);
           return processedItem;
         });
@@ -313,7 +310,6 @@ export default function PurchaseReceiptMain() {
           qty: item.qty,
           received_qty: 0, // Default to 0 for new receipt
           rejected_qty: 0, // Default to 0
-          accepted_qty: 0, //item.qty, // Full qty accepted by default
           uom: item.uom,
           rate: item.rate,
           amount: item.qty * item.rate, // Calculate amount
@@ -399,24 +395,24 @@ export default function PurchaseReceiptMain() {
       // Skip validation for empty items
       if (!item.item_code) continue;
 
-      // Check if accepted_qty is 0 or empty
-      if (!item.accepted_qty || item.accepted_qty <= 0) {
-        setValidationMessage(`Accepted Qty untuk item ${item.item_name} harus lebih dari 0`);
+      // Check if received_qty is 0 or empty
+      if (!item.received_qty || item.received_qty <= 0) {
+        setValidationMessage(`Received Qty untuk item ${item.item_name} harus lebih dari 0`);
         setShowValidationAlert(true);
         return false;
       }
 
-      // Check if total (accepted_qty + rejected_qty) exceeds original qty
-      const totalQty = (item.accepted_qty || 0) + (item.rejected_qty || 0);
+      // Check if total (received_qty + rejected_qty) exceeds original qty
+      const totalQty = (item.received_qty || 0) + (item.rejected_qty || 0);
       if (totalQty > item.qty) {
-        setValidationMessage(`Total Accepted Qty (${item.accepted_qty}) + Rejected Qty (${item.rejected_qty}) untuk item ${item.item_name} melebihi Qty PO (${item.qty})`);
+        setValidationMessage(`Total Received Qty (${item.received_qty}) + Rejected Qty (${item.rejected_qty}) untuk item ${item.item_name} melebihi Qty PO (${item.qty})`);
         setShowValidationAlert(true);
         return false;
       }
 
       // Check if individual quantities exceed original qty
-      if (item.accepted_qty > item.qty) {
-        setValidationMessage(`Accepted Qty (${item.accepted_qty}) untuk item ${item.item_name} melebihi Qty PO (${item.qty})`);
+      if (item.received_qty > item.qty) {
+        setValidationMessage(`Received Qty (${item.received_qty}) untuk item ${item.item_name} melebihi Qty PO (${item.qty})`);
         setShowValidationAlert(true);
         return false;
       }
@@ -426,9 +422,75 @@ export default function PurchaseReceiptMain() {
         setShowValidationAlert(true);
         return false;
       }
+
+      // Check if rejected qty is filled but rejection warehouse is not selected
+      if (item.rejected_qty && item.rejected_qty > 0) {
+        // if (!rejectionWarehouse) {
+        //   setValidationMessage(`Gudang penolakan harus dipilih karena ada rejected qty untuk item ${item.item_name}`);
+        //   setShowValidationAlert(true);
+        //   return false;
+        // }
+
+        // Check if rejection warehouse is same as receiving warehouse
+        if (rejectionWarehouse === receivingWarehouse) {
+          setValidationMessage(`Gudang penolakan tidak boleh sama dengan gudang penerimaan untuk item ${item.item_name}`);
+          setShowValidationAlert(true);
+          return false;
+        }
+      }
     }
 
     return true;
+  };
+
+  // Function to parse ERPNext errors into user-friendly messages
+  const parseERPNextError = (errorMessage: string): string => {
+    if (!errorMessage) return 'Terjadi kesalahan yang tidak diketahui';
+    
+    // Remove traceback and technical details
+    const cleanMessage = errorMessage.replace(/Traceback[\s\S]*?ValidationError:\s*/g, '');
+    
+    // Common ERPNext error patterns
+    const errorPatterns = [
+      {
+        pattern: /Gudang Penolakan wajib diisi untuk Item yang ditolak (.+)/i,
+        message: 'Gudang penolakan harus dipilih karena ada barang yang ditolak'
+      },
+      {
+        pattern: /Received Qty must be equal to Accepted \+ Rejected Qty for Item (.+)/i,
+        message: 'Jumlah diterima harus sama dengan jumlah diterima + jumlah ditolak'
+      },
+      {
+        pattern: /Row #\d+:\s*(.+)/i,
+        message: (match: string) => `Kesalahan pada baris: ${match}`
+      },
+      {
+        pattern: /(.+) is required/i,
+        message: (match: string) => `${match} harus diisi`
+      },
+      {
+        pattern: /(.+) cannot be (.+)/i,
+        message: (match: string) => `${match} tidak boleh ${match.split(' cannot be ')[1]}`
+      },
+      {
+        pattern: /(.+) must be (.+)/i,
+        message: (match: string) => `${match} harus ${match.split(' must be ')[1]}`
+      }
+    ];
+    
+    // Try to match known patterns
+    for (const { pattern, message } of errorPatterns) {
+      const match = cleanMessage.match(pattern);
+      if (match) {
+        if (typeof message === 'function') {
+          return message(match[1] || match[0]);
+        }
+        return message;
+      }
+    }
+    
+    // If no pattern matches, return cleaned message
+    return cleanMessage || 'Terjadi kesalahan saat menyimpan data';
   };
 
   const saveDoc = async (e: React.FormEvent) => {
@@ -437,10 +499,10 @@ export default function PurchaseReceiptMain() {
     if (!validateForm()) return;
 
     // Filter out empty items
-    const validItems = selectedItems.filter(item => item.item_code && item.accepted_qty > 0);
+    const validItems = selectedItems.filter(item => item.item_code && item.received_qty > 0);
     
     if (validItems.length === 0) {
-      setError('Silakan tambahkan minimal satu item yang valid dengan accepted qty > 0');
+      setError('Silakan tambahkan minimal satu item yang valid dengan received qty > 0');
       return;
     }
 
@@ -459,24 +521,47 @@ export default function PurchaseReceiptMain() {
         conversion_rate: 1,
         remarks: remarks || "",
         set_warehouse: receivingWarehouse,
-        items: validItems.map(item => ({
-          item_code: item.item_code,
-          item_name: item.item_name,
-          description: item.description,
-          qty: item.qty,
-          received_qty: item.accepted_qty, // Use accepted_qty as received_qty
-          rejected_qty: item.rejected_qty,
-          accepted_qty: item.accepted_qty,
-          uom: item.uom,
-          rate: item.rate,
-          amount: item.amount,
-          warehouse: item.warehouse || receivingWarehouse,
-          purchase_order: item.purchase_order,
-          purchase_order_item: item.purchase_order_item,
-          schedule_date: item.schedule_date,
-        }))
+        // Add rejected_warehouse if any items have rejected_qty
+        ...(validItems.some(item => item.rejected_qty > 0) && {
+          rejected_warehouse: rejectionWarehouse
+        }),
+        items: validItems.map(item => {
+          const uiReceivedQty = item.received_qty || 0; // What user entered in "Received Qty" field
+          const uiRejectedQty = item.rejected_qty || 0; // What user entered in "Rejected Qty" field
+          const erpnextReceivedQty = uiReceivedQty + uiRejectedQty; // ERPNext: total received = accepted + rejected
+          
+          console.log(`=== PAYLOAD CALCULATION FOR ${item.item_code} ===`);
+          console.log(`UI "Accepted Qty" field: ${uiReceivedQty} (what user entered)`);
+          console.log(`UI "Rejected Qty" field: ${uiRejectedQty} (what user entered)`);
+          console.log(`ERPNext received_qty (total): ${uiReceivedQty} + ${uiRejectedQty} = ${erpnextReceivedQty}`);
+          console.log(`✅ This is CORRECT - ERPNext received_qty = accepted + rejected`);
+          
+          return {
+            item_code: item.item_code,
+            item_name: item.item_name,
+            description: item.description,
+            //qty: item.qty,
+            received_qty: erpnextReceivedQty, // ERPNext: received_qty = accepted + rejected
+            rejected_qty: item.rejected_qty,
+            accepted_qty: uiReceivedQty, // ERPNext needs accepted_qty field
+            uom: item.uom,
+            rate: item.rate,
+            amount: item.amount,
+            warehouse: item.warehouse || receivingWarehouse,
+            purchase_order: item.purchase_order,
+            purchase_order_item: item.purchase_order_item,
+            schedule_date: item.schedule_date,
+            // Add rejected_warehouse at item level if needed
+            ...(item.rejected_qty > 0 && {
+              rejected_warehouse: rejectionWarehouse
+            })
+          };
+        })
       };
 
+      console.log('=== FINAL PAYLOAD DEBUG ===');
+      console.log('Valid Items:', validItems);
+      console.log('Receipt Data Items:', receiptData.items);
       console.log('Sending Purchase Receipt data:', receiptData);
 
       // Determine API endpoint and method based on edit mode
@@ -504,7 +589,10 @@ export default function PurchaseReceiptMain() {
           router.push('/purchase-receipts/prList');
         }, 3000); // Start countdown from 3
       } else {
-        setError(data.message || `Gagal ${isEditMode ? 'mengupdate' : 'membuat'} purchase receipt`);
+        // Parse ERPNext error into user-friendly message
+        const userFriendlyError = parseERPNextError(data.message);
+        setValidationMessage(userFriendlyError);
+        setShowValidationAlert(true);
       }
     } catch (err) {
       console.error('Purchase Receipt creation error:', err);
@@ -514,16 +602,23 @@ export default function PurchaseReceiptMain() {
     }
   };
 
-  const updateItemQty = (index: number, field: 'received_qty' | 'rejected_qty' | 'accepted_qty', value: number) => {
+  const updateItemQty = (index: number, field: 'received_qty' | 'rejected_qty', value: number) => {
+    console.log(`Updating ${field} for item ${index} to ${value}`);
     const newItems = [...selectedItems];
+    const oldValue = newItems[index][field];
     newItems[index][field] = value;
+    
+    console.log(`${field} changed from ${oldValue} to ${value}`);
 
-    // Only recalculate amount if accepted_qty is being updated
-    if (field === 'accepted_qty') {
-      newItems[index].amount = value * newItems[index].rate;
+    // Only recalculate amount if received_qty is being updated
+    if (field === 'received_qty') {
+      const newAmount = value * newItems[index].rate;
+      newItems[index].amount = newAmount;
+      console.log(`Amount recalculated to ${newAmount}`);
     }
 
     setSelectedItems(newItems);
+    console.log('SelectedItems updated:', newItems);
   };
 
   const removeItem = (index: number) => {
@@ -542,7 +637,7 @@ export default function PurchaseReceiptMain() {
         return;
       }
 
-      const response = await fetch(`/api/purchase-orders?company=${encodeURIComponent(selectedCompany)}&status=Draft`);
+      const response = await fetch(`/api/purchase-orders?company=${encodeURIComponent(selectedCompany)}`);
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -572,7 +667,6 @@ export default function PurchaseReceiptMain() {
       qty: 1,
       received_qty: 0,
       rejected_qty: 0,
-      accepted_qty: 0,
       uom: '',
       rate: 0,
       amount: 0,
@@ -863,11 +957,11 @@ export default function PurchaseReceiptMain() {
                         type="text"
                         required
                         className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-1 text-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 text-center"
-                        value={item.accepted_qty ? item.accepted_qty.toLocaleString('id-ID') : '0'}
+                        value={item.received_qty ? item.received_qty.toLocaleString('id-ID') : '0'}
                         onChange={(e) => {
                           const value = e.target.value.replace(/\./g, '');
                           const newQty = value === '' ? 0 : (parseFloat(value) || 0);
-                          updateItemQty(index, 'accepted_qty', newQty);
+                          updateItemQty(index, 'received_qty', newQty);
                         }}
                         disabled={isViewMode}
                       />
@@ -974,7 +1068,7 @@ export default function PurchaseReceiptMain() {
                       <div className="text-right">
                         <div className="text-gray-600">Total Quantity:</div>
                         <div className="font-semibold text-gray-900">
-                          {selectedItems.reduce((sum, item) => sum + (item.accepted_qty || 0), 0).toLocaleString('id-ID')}
+                          {selectedItems.reduce((sum, item) => sum + (item.received_qty || 0), 0).toLocaleString('id-ID')}
                         </div>
                       </div>
                       <div className="text-right">
