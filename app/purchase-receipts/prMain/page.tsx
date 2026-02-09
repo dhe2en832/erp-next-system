@@ -215,13 +215,55 @@ export default function PurchaseReceiptMain() {
 
       if (data.success) {
         const receipt = data.data;
+        console.log('Purchase Receipt data received:', receipt);
+        
         setSupplier(receipt.supplier);
         setSupplierName(receipt.supplier_name);
         setPostingDate(receipt.posting_date);
         setPurchaseOrder(receipt.purchase_order);
         setCurrency(receipt.currency);
         setRemarks(receipt.remarks || '');
-        setSelectedItems(receipt.items || []);
+        
+        // Set receiving warehouse from set_warehouse or items
+        if (receipt.set_warehouse) {
+          setReceivingWarehouse(receipt.set_warehouse);
+        } else if (receipt.items && receipt.items.length > 0 && receipt.items[0].warehouse) {
+          setReceivingWarehouse(receipt.items[0].warehouse);
+        }
+        
+        // Process items to ensure all fields are properly set
+        const processedItems = (receipt.items || []).map(item => {
+          console.log('Processing item:', item);
+          console.log('Original received_qty:', item.received_qty);
+          console.log('Original rejected_qty:', item.rejected_qty);
+          
+          // ERPNext logic: received_qty = accepted_qty + rejected_qty
+          // So: accepted_qty = received_qty - rejected_qty
+          const calculatedAcceptedQty = (item.received_qty || 0) - (item.rejected_qty || 0);
+          
+          const processedItem = {
+            ...item,
+            // Calculate accepted_qty from received_qty and rejected_qty
+            accepted_qty: calculatedAcceptedQty > 0 ? calculatedAcceptedQty : 0,
+            rejected_qty: item.rejected_qty || 0,
+            received_qty: item.received_qty || 0,
+          };
+          
+          console.log('Calculated accepted_qty:', calculatedAcceptedQty);
+          console.log('Processed item:', processedItem);
+          return processedItem;
+        });
+        
+        setSelectedItems(processedItems);
+        
+        // If no PO in header, get from first item
+        if (!receipt.purchase_order && receipt.items && receipt.items.length > 0) {
+          const firstPO = receipt.items[0].purchase_order;
+          if (firstPO) {
+            setPurchaseOrder(firstPO);
+            console.log('PO number set from first item:', firstPO);
+          }
+        }
       } else {
         setError(data.message || 'Gagal mengambil data Purchase Receipt');
       }
