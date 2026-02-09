@@ -42,95 +42,91 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Build filters
-    let filters = `[["company","=","${company}"]`;
-    
-    if (search) {
-      // Search by supplier name only (working)
-      console.log('Adding supplier search filter for:', search);
-      filters += `,["supplier_name","like","%${search}%"]`;
-      console.log('Supplier search filter added:', filters);
-    }
-    
-    if (documentNumber) {
-      // Search by PO number/document number
-      console.log('Adding document number filter for:', documentNumber);
-      filters += `,["name","like","%${documentNumber}%"]`;
-      console.log('Document number filter added:', filters);
-    }
-    
+    // Build ERPNext API URL
+    let filters = [
+      ["company", "=", company]
+    ];
+
+    // Add docstatus filter based on status parameter
     if (status) {
-      filters += `,["status","=","${status}"]`;
-    }
-    
-    if (fromDate) {
-      filters += `,["transaction_date",">=","${fromDate}"]`;
-    }
-    
-    if (toDate) {
-      filters += `,["transaction_date","<=","${toDate}"]`;
-    }
-    
-    filters += ']';
-
-    console.log('Built filters:', filters);
-
-    // Build ERPNext URL with dynamic pagination and sorting
-    const limit = searchParams.get('limit_page_length') || '20';
-    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Purchase Order?fields=["name","supplier","transaction_date","schedule_date","status","grand_total","currency","total_qty"]&filters=${encodeURIComponent(filters)}&limit_page_length=${limit}&start=${start}`;
-    
-    if (orderBy) {
-      erpNextUrl += `&order_by=${orderBy}`;
-    } else {
-      erpNextUrl += '&order_by=creation desc';
-    }
-
-    console.log('Purchase Orders ERPNext URL:', erpNextUrl);
-
-    console.log('Making fetch request to ERPNext...');
-    const response = await fetch(
-      erpNextUrl,
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `token ${apiKey}:${apiSecret}`,
-        },
+      if (status === 'Draft') {
+        filters.push(["docstatus", "=", "0"]);
+      } else if (status === 'To Receive') {
+        // Handle different possible status names in ERPNext
+        filters.push(["docstatus", "=", "1"]);
+        // ERPNext commonly uses "To Receive and Bill"
+        filters.push(["status", "=", "To Receive and Bill"]);
+      } else {
+        // For other statuses (Submitted, Completed, Cancelled, etc.), docstatus = 1
+        // and we need to filter by workflow status
+        filters.push(["docstatus", "=", "1"]);
+        filters.push(["status", "=", status]);
       }
-    );
+    }
+    // If no status filter, don't add docstatus filter - show all statuses
 
-    console.log('ERPNext Response status:', response.status);
-    console.log('ERPNext Response ok:', response.ok);
+    // Add additional filters if provided
+    if (documentNumber) {
+      filters.push(["name", "like", `%${documentNumber}%`]);
+    }
 
-    const data = await response.json();
-    console.log('Purchase Orders response:', data);
+    if (fromDate && toDate) {
+      filters.push(["transaction_date", "between", [fromDate, toDate]]);
+    }
 
-    if (response.ok) {
-      console.log('Processing successful response...');
-      
-      // Add items_count from total_qty if available
-      const processedData = (data.data || []).map((order: any) => {
-        console.log('Processing order:', order);
-        return {
-          ...order,
-          items_count: order.total_qty || 0
-        };
-      });
+    const fields = [
+      "name", "supplier", "supplier_name", "transaction_date",
+      "status", "grand_total", "currency", "docstatus"
+    ];
 
-      console.log('Processed data length:', processedData.length);
+    const params = new URLSearchParams({
+      fields: JSON.stringify(fields),
+      filters: JSON.stringify(filters),
+      limit_page_length: limitPageLength || '20',
+      ...(start && { start }),
+      ...(orderBy && { order_by: orderBy })
+    });
 
-      return NextResponse.json({
-        success: true,
-        data: processedData,
-        total_records: data.total_records || processedData.length,
-      });
-    } else {
-      console.log('ERPNext API Error:', data);
+    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Purchase Order?${params}`;
+
+    console.log('ERPNext PO URL:', erpNextUrl);
+
+    const response = await fetch(erpNextUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `token ${apiKey}:${apiSecret}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('ERPNext API error:', response.status, errorText);
       return NextResponse.json(
-        { success: false, message: data.exc || data.message || 'Failed to fetch purchase orders' },
-        { status: response.status }
+        { success: false, message: 'Failed to fetch from ERPNext' },
+        { status: 500 }
       );
     }
+
+    const data = await response.json();
+    console.log('ERPNext response data count:', data.data?.length || 0);
+
+    // Transform data to match frontend interface
+    const transformedData = (data.data || []).map((po: any) => ({
+      name: po.name,
+      supplier: po.supplier,
+      supplier_name: po.supplier_name,
+      transaction_date: po.transaction_date,
+      status: po.status,
+      grand_total: po.grand_total || 0,
+      currency: po.currency || 'IDR'
+    }));
+
+    return NextResponse.json({
+      success: true,
+      data: transformedData,
+      message: 'Purchase Orders fetched successfully'
+    });
   } catch (error) {
     console.error('Purchase Orders API Error:', error);
     return NextResponse.json(

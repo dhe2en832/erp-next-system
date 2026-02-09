@@ -26,21 +26,20 @@ interface PurchaseOrder {
   currency: string;
 }
 
-interface PurchaseOrderItem {
+// ERPNext API response item structure
+interface ERPNextPOItem {
   item_code: string;
   item_name: string;
   description: string;
   qty: number;
-  received_qty: number;
-  rejected_qty: number;
-  accepted_qty: number; // readonly, follows PO qty
   uom: string;
+  stock_uom: string;
+  conversion_factor: number;
   rate: number;
-  amount: number;
   warehouse: string;
   purchase_order: string;
   purchase_order_item: string;
-  remaining_qty: number;
+  schedule_date: string;
 }
 
 interface PurchaseReceipt {
@@ -69,6 +68,7 @@ interface PurchaseReceiptItem {
   warehouse: string;
   purchase_order?: string;
   purchase_order_item?: string;
+  schedule_date?: string;
   remaining_qty?: number;
   available_stock?: number;
   actual_stock?: number;
@@ -90,6 +90,18 @@ export default function PurchaseReceiptMain() {
   const [supplierName, setSupplierName] = useState('');
   const [postingDate, setPostingDate] = useState(new Date().toISOString().split('T')[0]);
   const [purchaseOrder, setPurchaseOrder] = useState('');
+  const handlePOSelect = (po: PurchaseOrder) => {
+    fetchPOItems(po.name);
+    setShowPODialog(false);
+    setPoSearchCode('');
+    setPoSearchSupplier('');
+  };
+
+  const closePODialog = () => {
+    setShowPODialog(false);
+    setPoSearchCode('');
+    setPoSearchSupplier('');
+  };
   const [purchaseOrderName, setPurchaseOrderName] = useState('');
   const [currency, setCurrency] = useState('IDR');
   const [remarks, setRemarks] = useState('');
@@ -99,7 +111,7 @@ export default function PurchaseReceiptMain() {
   // Items states
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
-  const [warehouses, setWarehouses] = useState<{name: string; warehouse_name: string}[]>([]);
+  const [warehouses, setWarehouses] = useState<{ name: string; warehouse_name: string }[]>([]);
   const [selectedItems, setSelectedItems] = useState<PurchaseReceiptItem[]>([
     {
       item_code: '',
@@ -113,17 +125,28 @@ export default function PurchaseReceiptMain() {
       rate: 0,
       amount: 0,
       warehouse: '',
-      available_stock: 0,
-      actual_stock: 0,
-      reserved_stock: 0
+      purchase_order: '',
+      purchase_order_item: '',
+      schedule_date: '',
     }
   ]);
   const [showPODialog, setShowPODialog] = useState(false);
-  const [rateInputValues, setRateInputValues] = useState<{[key: number]: string}>({});
+  const [rateInputValues, setRateInputValues] = useState<{ [key: number]: string }>({});
   const [showValidationAlert, setShowValidationAlert] = useState(false);
   const [validationMessage, setValidationMessage] = useState('');
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  
+  // PO Dialog Search States
+  const [poSearchCode, setPoSearchCode] = useState('');
+  const [poSearchSupplier, setPoSearchSupplier] = useState('');
+
+  // Filter purchase orders based on search criteria
+  const filteredPurchaseOrders = purchaseOrders.filter(po => {
+    const matchesCode = po.name.toLowerCase().includes(poSearchCode.toLowerCase());
+    const matchesSupplier = po.supplier_name.toLowerCase().includes(poSearchSupplier.toLowerCase());
+    return matchesCode && matchesSupplier;
+  });
 
   useEffect(() => {
     // Get company from localStorage
@@ -151,18 +174,20 @@ export default function PurchaseReceiptMain() {
     const id = urlParams.get('id');
     const name = urlParams.get('name');
 
-    if (id) {
-      // Edit mode
-      setIsEditMode(true);
-      setPrId(id);
-      fetchPurchaseReceipt(id);
-    } else if (name) {
-      // View mode
-      setIsViewMode(true);
-      setPrId(name);
-      fetchPurchaseReceipt(name);
+    if (selectedCompany && (id || name)) {
+      if (id) {
+        // Edit mode
+        setIsEditMode(true);
+        setPrId(id);
+        fetchPurchaseReceipt(id);
+      } else if (name) {
+        // View mode
+        setIsViewMode(true);
+        setPrId(name);
+        fetchPurchaseReceipt(name);
+      }
     }
-  }, []);
+  }, [selectedCompany]);
 
   const fetchSuppliers = async () => {
     if (!selectedCompany) return;
@@ -179,21 +204,6 @@ export default function PurchaseReceiptMain() {
     }
   };
 
-  const fetchPurchaseOrders = async () => {
-    if (!selectedCompany) return;
-
-    try {
-      // Only fetch submitted POs that can be received
-      const response = await fetch(`/api/purchase-orders?company=${encodeURIComponent(selectedCompany)}&status=Submitted&limit_page_length=100`);
-      const data = await response.json();
-
-      if (data.success) {
-        setPurchaseOrders(data.data || []);
-      }
-    } catch (err) {
-      console.error('Error fetching purchase orders:', err);
-    }
-  };
 
   const fetchPurchaseReceipt = async (id: string) => {
     setLoading(true);
@@ -228,31 +238,50 @@ export default function PurchaseReceiptMain() {
     setError('');
 
     try {
-      const response = await fetch(`/api/purchase-orders/${poName}/items?company=${encodeURIComponent(selectedCompany)}`);
+      // Call Next.js API proxy route
+      const response = await fetch(`/api/purchase-receipts/fetch-po-detail?po=${encodeURIComponent(poName)}`);
       const data = await response.json();
 
-      if (data.success) {
-        const poData = data.data;
-        setSupplier(poData.purchase_order.supplier);
-        setSupplierName(poData.purchase_order.supplier_name);
-        setPurchaseOrder(poData.purchase_order.name);
-        setPurchaseOrderName(poData.purchase_order.name);
+      if (data.message && data.message.success) {
+        const poData = data.message.data;
+        console.log('PO data received:', poData);
+        
+        // Set form fields from PO data
+        setSupplier(poData.supplier);
+        setSupplierName(poData.supplier_name);
+        setPurchaseOrder(poData.name);
+        setPurchaseOrderName(poData.name);
         setCurrency('IDR'); // Default currency
 
+        // Set receiving warehouse from PO if available
+        if (poData.warehouse) {
+          setReceivingWarehouse(poData.warehouse);
+        }
+
+        // Set remarks from PO custom notes if available
+        if (poData.custom_notes_po) {
+          setRemarks(poData.custom_notes_po);
+        }
+
         // Convert PO items to PR items
-        const prItems = poData.items.map((item: PurchaseOrderItem) => ({
+        const prItems = poData.items.map((item: ERPNextPOItem) => ({
           item_code: item.item_code,
           item_name: item.item_name,
-          description: item.description,
+          description: item.description, // Use description from PO response
           qty: item.qty,
-          received_qty: item.received_qty || 0,
-          rejected_qty: 0,
-          accepted_qty: item.accepted_qty, // readonly from PO
+          received_qty: 0, // Default to 0 for new receipt
+          rejected_qty: 0, // Default to 0
+          accepted_qty: 0, //item.qty, // Full qty accepted by default
           uom: item.uom,
           rate: item.rate,
-          amount: item.amount,
+          amount: item.qty * item.rate, // Calculate amount
           warehouse: item.warehouse,
+          purchase_order: item.purchase_order,
+          purchase_order_item: item.purchase_order_item,
+          schedule_date: item.schedule_date,
         }));
+
+        console.log('PR items mapped:', prItems);
 
         setSelectedItems(prItems);
         setShowPODialog(false);
@@ -275,17 +304,17 @@ export default function PurchaseReceiptMain() {
       }
 
       const response = await fetch(`/api/erpnext/warehouse?company=${encodeURIComponent(selectedCompany)}`);
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       const data = await response.json();
       console.log('data warehosue ', data)
       if (data.error) {
         throw new Error(data.error);
       }
-      
+
       if (data.data && Array.isArray(data.data)) {
         setWarehouses(data.data);
         console.log('Warehouses fetched successfully:', data.data.length);
@@ -323,10 +352,35 @@ export default function PurchaseReceiptMain() {
       return false;
     }
 
-    // Check if any received qty exceeds accepted qty
+    // Validate each item
     for (const item of selectedItems) {
-      if (item.received_qty > item.accepted_qty) {
-        setValidationMessage(`Quantity received untuk item ${item.item_name} melebihi quantity yang diizinkan (${item.accepted_qty})`);
+      // Skip validation for empty items
+      if (!item.item_code) continue;
+
+      // Check if accepted_qty is 0 or empty
+      if (!item.accepted_qty || item.accepted_qty <= 0) {
+        setValidationMessage(`Accepted Qty untuk item ${item.item_name} harus lebih dari 0`);
+        setShowValidationAlert(true);
+        return false;
+      }
+
+      // Check if total (accepted_qty + rejected_qty) exceeds original qty
+      const totalQty = (item.accepted_qty || 0) + (item.rejected_qty || 0);
+      if (totalQty > item.qty) {
+        setValidationMessage(`Total Accepted Qty (${item.accepted_qty}) + Rejected Qty (${item.rejected_qty}) untuk item ${item.item_name} melebihi Qty PO (${item.qty})`);
+        setShowValidationAlert(true);
+        return false;
+      }
+
+      // Check if individual quantities exceed original qty
+      if (item.accepted_qty > item.qty) {
+        setValidationMessage(`Accepted Qty (${item.accepted_qty}) untuk item ${item.item_name} melebihi Qty PO (${item.qty})`);
+        setShowValidationAlert(true);
+        return false;
+      }
+
+      if (item.rejected_qty > item.qty) {
+        setValidationMessage(`Rejected Qty (${item.rejected_qty}) untuk item ${item.item_name} melebihi Qty PO (${item.qty})`);
         setShowValidationAlert(true);
         return false;
       }
@@ -335,79 +389,97 @@ export default function PurchaseReceiptMain() {
     return true;
   };
 
-  const saveDoc = async () => {
+  const saveDoc = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
     if (!validateForm()) return;
+
+    // Filter out empty items
+    const validItems = selectedItems.filter(item => item.item_code && item.accepted_qty > 0);
+    
+    if (validItems.length === 0) {
+      setError('Silakan tambahkan minimal satu item yang valid dengan accepted qty > 0');
+      return;
+    }
 
     setLoading(true);
     setError('');
+    setSuccess('');
 
     try {
+      // ERPNext compliant payload for Purchase Receipt
       const receiptData = {
         supplier: supplier,
+        company: selectedCompany,
         posting_date: postingDate,
         purchase_order: purchaseOrder,
         currency: currency,
-        remarks: remarks,
-        items: selectedItems.map(item => ({
+        conversion_rate: 1,
+        remarks: remarks || "",
+        set_warehouse: receivingWarehouse,
+        items: validItems.map(item => ({
           item_code: item.item_code,
           item_name: item.item_name,
           description: item.description,
           qty: item.qty,
-          received_qty: item.received_qty,
+          received_qty: item.accepted_qty, // Use accepted_qty as received_qty
           rejected_qty: item.rejected_qty,
           accepted_qty: item.accepted_qty,
           uom: item.uom,
           rate: item.rate,
           amount: item.amount,
-          warehouse: item.warehouse,
-        })),
+          warehouse: item.warehouse || receivingWarehouse,
+          purchase_order: item.purchase_order,
+          purchase_order_item: item.purchase_order_item,
+          schedule_date: item.schedule_date,
+        }))
       };
 
-      let response;
-      if (isEditMode) {
-        // Update existing
-        response = await fetch(`/api/purchase-receipts/${prId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(receiptData),
-        });
-      } else {
-        // Create new
-        response = await fetch('/api/purchase-receipts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(receiptData),
-        });
-      }
+      console.log('Sending Purchase Receipt data:', receiptData);
+
+      // Determine API endpoint and method based on edit mode
+      const apiUrl = isEditMode ? `/api/purchase-receipts/${prId}` : '/api/purchase-receipts';
+      const method = isEditMode ? 'PUT' : 'POST';
+
+      const response = await fetch(apiUrl, {
+        method: method,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(receiptData),
+      });
 
       const data = await response.json();
 
       if (data.success) {
-        setSuccess(isEditMode ? 'Purchase Receipt berhasil diupdate!' : 'Purchase Receipt berhasil dibuat!');
-        setSuccessMessage(isEditMode ? 'Purchase Receipt berhasil diupdate!' : 'Purchase Receipt berhasil dibuat!');
+        const successMessage = isEditMode ? 'Purchase Receipt berhasil diupdate!' : 'Purchase Receipt berhasil dibuat!';
+        setSuccess(successMessage);
+        setSuccessMessage(successMessage);
         setShowSuccessDialog(true);
-
-        // Redirect after 2 seconds
+        
+        // Start countdown for redirect
         setTimeout(() => {
-          router.push('/purchase-receipts');
-        }, 2000);
+          router.push('/purchase-receipts/prList');
+        }, 3000); // Start countdown from 3
       } else {
-        setError(data.message || 'Gagal menyimpan Purchase Receipt');
+        setError(data.message || `Gagal ${isEditMode ? 'mengupdate' : 'membuat'} purchase receipt`);
       }
     } catch (err) {
-      console.error('Error saving purchase receipt:', err);
-      setError('Terjadi kesalahan saat menyimpan');
+      console.error('Purchase Receipt creation error:', err);
+      setError(`Gagal ${isEditMode ? 'mengupdate' : 'membuat'} purchase receipt`);
     } finally {
       setLoading(false);
     }
   };
 
-  const updateItemQty = (index: number, field: 'received_qty' | 'rejected_qty', value: number) => {
+  const updateItemQty = (index: number, field: 'received_qty' | 'rejected_qty' | 'accepted_qty', value: number) => {
     const newItems = [...selectedItems];
     newItems[index][field] = value;
 
-    // Recalculate amount based on received_qty
-    newItems[index].amount = newItems[index].received_qty * newItems[index].rate;
+    // Only recalculate amount if accepted_qty is being updated
+    if (field === 'accepted_qty') {
+      newItems[index].amount = value * newItems[index].rate;
+    }
 
     setSelectedItems(newItems);
   };
@@ -421,8 +493,32 @@ export default function PurchaseReceiptMain() {
     return selectedItems.reduce((total, item) => total + item.amount, 0);
   };
 
-  const handlePOSelect = (po: PurchaseOrder) => {
-    fetchPOItems(po.name);
+  const fetchPurchaseOrders = async () => {
+    try {
+      if (!selectedCompany) {
+        console.warn('No company selected, skipping PO fetch');
+        return;
+      }
+
+      const response = await fetch(`/api/purchase-orders?company=${encodeURIComponent(selectedCompany)}&status=Draft`);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (data.success && Array.isArray(data.data)) {
+        setPurchaseOrders(data.data);
+        console.log('Purchase Orders fetched successfully:', data.data.length);
+      } else {
+        console.warn('No purchase orders data received');
+        setPurchaseOrders([]);
+      }
+    } catch (err) {
+      console.error('Error fetching purchase orders:', err);
+      setPurchaseOrders([]);
+    }
   };
 
   const handleAddItem = () => {
@@ -439,6 +535,9 @@ export default function PurchaseReceiptMain() {
       rate: 0,
       amount: 0,
       warehouse: '',
+      purchase_order: '',
+      purchase_order_item: '',
+      schedule_date: '',
     };
     setSelectedItems([...selectedItems, newItem]);
   };
@@ -539,7 +638,7 @@ export default function PurchaseReceiptMain() {
           <div className="bg-white shadow rounded-lg p-6">
             <h2 className="text-lg font-medium text-gray-900 mb-4">Informasi Dasar</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-               <div>
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Tanggal Transaksi *
                 </label>
@@ -613,7 +712,7 @@ export default function PurchaseReceiptMain() {
                   ))}
                 </select>
               </div>
-             
+
               {/* Mata Uang - Hidden */}
               <div className="hidden">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -647,7 +746,7 @@ export default function PurchaseReceiptMain() {
 
           {/* Items */}
           <div className="bg-white shadow rounded-lg p-6">
-            <div className="mb-4">
+            <div className="hidden">
               <div className="flex justify-between items-center mb-2">
                 <h4 className="text-md font-medium text-gray-900">Items</h4>
                 <button
@@ -662,6 +761,7 @@ export default function PurchaseReceiptMain() {
 
             {/* Items List */}
             <div className="space-y-2">
+              {console.log('Rendering selectedItems:', selectedItems)}
               {selectedItems.map((item, index) => (
                 <div key={index} className="border border-gray-200 rounded-md p-4 mb-2">
                   <div className="grid grid-cols-12 gap-2">
@@ -674,21 +774,12 @@ export default function PurchaseReceiptMain() {
                           type="text"
                           required
                           readOnly
-                          className="block w-full border border-gray-300 rounded-l-md shadow-sm py-1 px-2 text-sm bg-gray-50"
+                          className="block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm bg-gray-50"
                           value={item.item_code || ''}
                         />
-                        <button
-                          type="button"
-                          onClick={() => openItemDialog(index)}
-                          className="px-2 py-1 border border-l-0 border-gray-300 rounded-r-md bg-gray-50 text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
-                        >
-                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                          </svg>
-                        </button>
                       </div>
                     </div>
-                    <div className="col-span-5">
+                    <div className="col-span-3">
                       <label className="block text-xs font-medium text-gray-700">
                         Nama Item <span className="text-red-500">*</span>
                       </label>
@@ -697,37 +788,29 @@ export default function PurchaseReceiptMain() {
                           type="text"
                           required
                           readOnly
-                          className="block w-full border border-gray-300 rounded-l-md shadow-sm py-1 px-2 text-sm bg-gray-50"
+                          className="block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm bg-gray-50"
                           value={item.item_name || ''}
                         />
-                        <button
-                          type="button"
-                          onClick={() => openItemDialog(index)}
-                          className="px-2 py-1 border border-l-0 border-gray-300 rounded-r-md bg-gray-50 text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
-                        >
-                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                          </svg>
-                        </button>
                       </div>
                     </div>
-                                        <div className="col-span-1">
+                    <div className="col-span-1">
                       <label className="block text-xs font-medium text-gray-700">
-                        Qty <span className="text-red-500">*</span>
+                        Qty PO
                       </label>
                       <input
                         type="text"
-                        required
-                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 text-center"
+                        readOnly
+                        // required
+                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-1 text-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 text-center"
                         value={item.qty ? item.qty.toLocaleString('id-ID') : '1'}
-                        onChange={(e) => {
-                          const value = e.target.value.replace(/\./g, '');
-                          const newQty = value === '' ? 1 : (parseFloat(value) || 1);
-                          const newItems = [...selectedItems];
-                          newItems[index].qty = newQty;
-                          newItems[index].amount = newQty * newItems[index].rate;
-                          setSelectedItems(newItems);
-                        }}
+                      // onChange={(e) => {
+                      //   const value = e.target.value.replace(/\./g, '');
+                      //   const newQty = value === '' ? 1 : (parseFloat(value) || 1);
+                      //   const newItems = [...selectedItems];
+                      //   newItems[index].qty = newQty;
+                      //   newItems[index].amount = newQty * newItems[index].rate;
+                      //   setSelectedItems(newItems);
+                      // }}
                       />
                     </div>
                     <div className="col-span-1">
@@ -736,9 +819,15 @@ export default function PurchaseReceiptMain() {
                       </label>
                       <input
                         type="text"
-                        readOnly
-                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm bg-gray-50 text-center"
+                        required
+                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-1 text-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 text-center"
                         value={item.accepted_qty ? item.accepted_qty.toLocaleString('id-ID') : '0'}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/\./g, '');
+                          const newQty = value === '' ? 0 : (parseFloat(value) || 0);
+                          updateItemQty(index, 'accepted_qty', newQty);
+                        }}
+                        disabled={isViewMode}
                       />
                     </div>
                     <div className="col-span-1">
@@ -747,7 +836,7 @@ export default function PurchaseReceiptMain() {
                       </label>
                       <input
                         type="text"
-                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 text-center"
+                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-1 text-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 text-center"
                         value={item.rejected_qty ? item.rejected_qty.toLocaleString('id-ID') : '0'}
                         onChange={(e) => {
                           const value = e.target.value.replace(/\./g, '');
@@ -765,11 +854,11 @@ export default function PurchaseReceiptMain() {
                         type="text"
                         readOnly
                         className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm bg-gray-50"
-                        value={item.stock_uom || ''}
+                        value={item.uom || ''}
                         placeholder="Auto"
                       />
                     </div>
-                    <div className="col-span-1">
+                    <div className="col-span-2">
                       <label className="block text-xs font-medium text-gray-700">
                         Rate
                       </label>
@@ -780,11 +869,11 @@ export default function PurchaseReceiptMain() {
                         onChange={(e) => {
                           const inputValue = e.target.value;
                           setRateInputValues(prev => ({ ...prev, [index]: inputValue }));
-                          
+
                           let value = inputValue.replace(/[^\d,]/g, '');
                           value = value.replace(',', '.');
                           const newRate = parseFloat(value) || 0;
-                          
+
                           const newItems = [...selectedItems];
                           newItems[index].rate = newRate;
                           newItems[index].amount = newItems[index].qty * newRate;
@@ -802,7 +891,7 @@ export default function PurchaseReceiptMain() {
                           const newRate = parseFloat(e.target.value.replace(',', '.')) || 0;
                           const formattedValue = newRate.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                           setRateInputValues(prev => ({ ...prev, [index]: formattedValue }));
-                          
+
                           const newItems = [...selectedItems];
                           newItems[index].rate = newRate;
                           newItems[index].amount = newItems[index].qty * newRate;
@@ -813,7 +902,7 @@ export default function PurchaseReceiptMain() {
                     </div>
                     <div className="col-span-2">
                       <label className="block text-xs font-medium text-gray-700">
-                        Jumlah (IDR)
+                        Jumlah
                       </label>
                       <input
                         type="text"
@@ -834,16 +923,16 @@ export default function PurchaseReceiptMain() {
                   )}
                 </div>
               ))}
-              
+
               {/* Totals Section - langsung di dalam item container */}
-              {selectedItems.some(item => item.item_code) && (
+              {selectedItems.some(item => item.item_code && item.qty > 0) && (
                 <div className="border-t border-gray-200 pt-4">
                   <div className="flex justify-end">
                     <div className="grid grid-cols-2 gap-8 text-sm">
                       <div className="text-right">
                         <div className="text-gray-600">Total Quantity:</div>
                         <div className="font-semibold text-gray-900">
-                          {selectedItems.reduce((sum, item) => sum + item.accepted_qty, 0).toLocaleString('id-ID')}
+                          {selectedItems.reduce((sum, item) => sum + (item.accepted_qty || 0), 0).toLocaleString('id-ID')}
                         </div>
                       </div>
                       <div className="text-right">
@@ -856,8 +945,8 @@ export default function PurchaseReceiptMain() {
                   </div>
                 </div>
               )}
+            </div>
           </div>
-        </div>
 
           {/* Action Buttons */}
           <div className="flex justify-end space-x-4">
@@ -871,7 +960,7 @@ export default function PurchaseReceiptMain() {
             {!isViewMode && (
               <button
                 type="submit"
-                disabled={loading || selectedItems.length === 0}
+                disabled={loading || !selectedItems.some(item => item.item_code)}
                 className="bg-indigo-600 text-white px-6 py-2 rounded-md hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center"
               >
                 {loading ? (
@@ -926,18 +1015,39 @@ export default function PurchaseReceiptMain() {
                 </svg>
               </button>
             </div>
-            
+
             <div className="mb-4">
-              <input
-                type="text"
-                placeholder="Cari Purchase Order..."
-                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-              />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Kode Purchase Order
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Cari kode PO..."
+                    value={poSearchCode}
+                    onChange={(e) => setPoSearchCode(e.target.value)}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Nama Supplier
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Cari supplier..."
+                    value={poSearchSupplier}
+                    onChange={(e) => setPoSearchSupplier(e.target.value)}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
+              </div>
             </div>
 
             <div className="space-y-2 max-h-96 overflow-y-auto">
-              {purchaseOrders.length > 0 ? (
-                purchaseOrders.map((po) => (
+              {filteredPurchaseOrders.length > 0 ? (
+                filteredPurchaseOrders.map((po) => (
                   <div
                     key={po.name}
                     onClick={() => handlePOSelect(po)}
@@ -962,8 +1072,18 @@ export default function PurchaseReceiptMain() {
                 ))
               ) : (
                 <div className="text-center py-8 text-gray-500">
-                  <p>Tidak ada Purchase Order yang tersedia</p>
-                  <p className="text-sm mt-2">Pastikan company sudah dipilih dan ada PO yang aktif</p>
+                  <p>
+                    {poSearchCode || poSearchSupplier 
+                      ? 'Tidak ada Purchase Order yang cocok dengan filter' 
+                      : 'Tidak ada Purchase Order yang tersedia'
+                    }
+                  </p>
+                  <p className="text-sm mt-2">
+                    {poSearchCode || poSearchSupplier 
+                      ? 'Coba ubah filter pencarian' 
+                      : 'Pastikan company sudah dipilih dan ada PO yang aktif'
+                    }
+                  </p>
                 </div>
               )}
             </div>
@@ -971,7 +1091,7 @@ export default function PurchaseReceiptMain() {
             <div className="mt-4 flex justify-end">
               <button
                 type="button"
-                onClick={() => setShowPODialog(false)}
+                onClick={closePODialog}
                 className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400"
               >
                 Batal

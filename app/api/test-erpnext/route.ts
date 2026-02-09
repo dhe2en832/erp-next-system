@@ -1,76 +1,111 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+export async function GET() {
+  console.log('=== ERPNext Connection Test ===');
 
-export async function GET(request: NextRequest) {
   try {
-    const cookies = request.cookies;
-    const sid = cookies.get('sid')?.value;
+    const erpNextUrl = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+    const apiKey = process.env.ERP_API_KEY;
+    const apiSecret = process.env.ERP_API_SECRET;
 
-    if (!sid) {
-      return NextResponse.json(
-        { success: false, message: 'Unauthorized' },
-        { status: 401 }
-      );
+    console.log('Environment check:');
+    console.log('- ERPNEXT_API_URL:', erpNextUrl);
+    console.log('- ERP_API_KEY exists:', !!apiKey);
+    console.log('- ERP_API_SECRET exists:', !!apiSecret);
+
+    if (!apiKey || !apiSecret) {
+      return NextResponse.json({
+        success: false,
+        message: 'API credentials not configured',
+        details: { apiKey: !!apiKey, apiSecret: !!apiSecret }
+      });
     }
 
-    // Test 1: Simple request tanpa filters
-    console.log('Testing simple request...');
-    const simpleResponse = await fetch(`${ERPNEXT_API_URL}/api/resource/Delivery Note?fields=["name","customer","posting_date","status","grand_total"]&limit=5`, {
+    // Test basic connection - use correct ERPNext endpoint
+    const testUrl = `${erpNextUrl}/api/resource/User?fields=["name"]&limit_page_length=1`;
+    console.log('Testing connection URL:', testUrl);
+
+    const response = await fetch(testUrl, {
       method: 'GET',
       headers: {
-        'Content-Type': 'application/json',
-        'Cookie': `sid=${sid}`,
+        'Authorization': `token ${apiKey}:${apiSecret}`,
+        'Content-Type': 'application/json'
       },
     });
 
-    const simpleData = await simpleResponse.json();
-    console.log('Simple response status:', simpleResponse.status);
-    console.log('Simple response data:', simpleData);
+    console.log('Response status:', response.status);
+    console.log('Response ok:', response.ok);
 
-    // Test 2: Request dengan filters yang sederhana
-    console.log('Testing with simple filters...');
-    const filterResponse = await fetch(`${ERPNEXT_API_URL}/api/resource/Delivery Note?filters=[["status","=","Draft"]]&limit=5`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Cookie': `sid=${sid}`,
-      },
-    });
+    if (response.ok) {
+      const data = await response.json();
+      console.log('ERPNext version:', data.message);
 
-    const filterData = await filterResponse.json();
-    console.log('Filter response status:', filterResponse.status);
-    console.log('Filter response data:', filterData);
+      // Test PO query
+      const poTestUrl = `${erpNextUrl}/api/resource/Purchase Order?fields=["name","supplier","status"]&limit_page_length=1`;
+      console.log('Testing PO query:', poTestUrl);
 
-    // Test 3: Request dengan company filter yang di-encode manual
-    console.log('Testing with company filter...');
-    const companyFilter = '[["company","=","Batasku (Demo)"]]';
-    const companyResponse = await fetch(`${ERPNEXT_API_URL}/api/resource/Delivery Note?filters=${encodeURIComponent(companyFilter)}&limit=5`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Cookie': `sid=${sid}`,
-      },
-    });
+      const poResponse = await fetch(poTestUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `token ${apiKey}:${apiSecret}`,
+          'Content-Type': 'application/json'
+        },
+      });
 
-    const companyData = await companyResponse.json();
-    console.log('Company response status:', companyResponse.status);
-    console.log('Company response data:', companyData);
+      console.log('PO Response status:', poResponse.status);
+
+      // Test the specific PO from user's data
+      const specificPoUrl = `${erpNextUrl}/api/resource/Purchase Order/PUR-ORD-2026-00005`;
+      console.log('Testing specific PO:', specificPoUrl);
+
+      const specificResponse = await fetch(specificPoUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `token ${apiKey}:${apiSecret}`,
+          'Content-Type': 'application/json'
+        },
+      });
+
+      console.log('Specific PO Response status:', specificResponse.status);
+
+      let poData = null;
+      if (specificResponse.ok) {
+        poData = await specificResponse.json();
+        console.log('Specific PO data exists:', !!poData.data);
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: 'ERPNext connection successful',
+        data: {
+          version: data.message,
+          poQueryStatus: poResponse.status,
+          poQueryOk: poResponse.ok,
+          specificPoStatus: specificResponse.status,
+          specificPoExists: !!poData?.data
+        }
+      });
+    } else {
+      const errorText = await response.text();
+      console.error('Connection failed:', errorText);
+
+      return NextResponse.json({
+        success: false,
+        message: 'ERPNext connection failed',
+        details: {
+          status: response.status,
+          error: errorText
+        }
+      });
+    }
+
+  } catch (error) {
+    console.error('Test error:', error);
 
     return NextResponse.json({
-      success: true,
-      tests: {
-        simple: { status: simpleResponse.status, data: simpleData },
-        filter: { status: filterResponse.status, data: filterData },
-        company: { status: companyResponse.status, data: companyData }
-      }
+      success: false,
+      message: 'Test failed',
+      error: error instanceof Error ? error.message : 'Unknown error'
     });
-
-  } catch (error: any) {
-    console.error('Test API error:', error);
-    return NextResponse.json(
-      { success: false, message: 'Internal server error', error: error.toString() },
-      { status: 500 }
-    );
   }
 }
