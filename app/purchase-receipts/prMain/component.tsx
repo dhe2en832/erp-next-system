@@ -897,7 +897,7 @@ export default function PurchaseReceiptMain() {
 
             {/* Items List */}
             <div className="space-y-2">
-              {console.log('Rendering selectedItems:', selectedItems)}
+              
               {selectedItems.map((item, index) => (
                 <div key={index} className="border border-gray-200 rounded-md p-4 mb-2">
                   <div className="grid grid-cols-12 gap-2">

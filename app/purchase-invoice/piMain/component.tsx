@@ -150,11 +150,11 @@ export default function PurchaseInvoiceMain() {
     setError('');
 
     try {
-      const response = await fetch(`/api/purchase-invoice?id=${encodeURIComponent(id)}&company=${encodeURIComponent(selectedCompany)}`);
+      const response = await fetch(`/api/method/fetch_pi_detail?pi=${encodeURIComponent(id)}`);
       const data = await response.json();
 
-      if (data.success) {
-        const invoice = data.data;
+      if (data.message && data.message.success) {
+        const invoice = data.message.data;
         console.log('Purchase Invoice data received:', invoice);
         
         // Set form data from fetched invoice
@@ -164,7 +164,7 @@ export default function PurchaseInvoiceMain() {
         setFormData({
           supplier: invoice.supplier,
           supplier_name: invoice.supplier_name,
-          supplier_address_display: invoice.supplier_address_display || '',
+          supplier_address_display: invoice.address_display || '',
           posting_date: invoice.posting_date,
           due_date: invoice.due_date,
           company: invoice.company,
@@ -178,20 +178,24 @@ export default function PurchaseInvoiceMain() {
             uom: item.uom,
             warehouse: item.warehouse,
             purchase_receipt: item.purchase_receipt,
-            purchase_receipt_item: item.purchase_receipt_item,
+            purchase_receipt_item: item.pr_detail,
             purchase_order: item.purchase_order,
             purchase_order_item: item.purchase_order_item,
           })),
-          custom_notes_pr: invoice.custom_notes_pr || ''
+          custom_notes_pr: invoice.custom_note_pi || ''
         });
         
         console.log('Form data set successfully');
       } else {
         // Handle permission error specifically
-        if (data.message && data.message.includes('izin')) {
-          setError('Permission Error: ' + data.message);
+        if (data.message && data.message.message && data.message.message.includes('izin')) {
+          setError('Permission Error: ' + data.message.message);
+          // Auto-redirect to list after 3 seconds for permission errors
+          setTimeout(() => {
+            router.push('/purchase-invoice/piList');
+          }, 3000);
         } else {
-          setError(data.message || 'Gagal mengambil data Purchase Invoice');
+          setError(data.message?.message || 'Gagal mengambil data Purchase Invoice');
         }
       }
     } catch (error) {
@@ -199,7 +203,11 @@ export default function PurchaseInvoiceMain() {
       
       // Check if it's a permission error
       if (error instanceof Error && error.message.includes('PermissionError')) {
-        setError('Permission Error: Anda tidak memiliki izin untuk mengakses Purchase Invoice ini. Silakan hubungi administrator untuk mendapatkan akses.');
+        setError('Permission Error: Anda tidak memiliki izin untuk mengakses Purchase Invoice ini. Silakan hubungi administrator untuk mendapatkan akses. Anda akan dialihkan ke halaman daftar dalam 3 detik.');
+        // Auto-redirect to list after 3 seconds for permission errors
+        setTimeout(() => {
+          router.push('/purchase-invoice/piList');
+        }, 3000);
       } else {
         setError('Terjadi kesalahan saat mengambil data Purchase Invoice');
       }
@@ -313,6 +321,42 @@ export default function PurchaseInvoiceMain() {
   // Calculate total amount
   const calculateTotal = () => {
     return formData.items.reduce((total, item) => total + item.amount, 0);
+  };
+
+  // Handle cancel button
+  const handleCancel = () => {
+    // console.log('CANCEL BUTTON CLICKED!!!');
+    // alert('Cancel button clicked!'); // Debug alert
+    
+    // // Debug mode detection
+    // console.log('isEditMode:', isEditMode);
+    // console.log('isViewMode:', isViewMode);
+    // alert(`isEditMode: ${isEditMode}, isViewMode: ${isViewMode}`);
+    
+    if (isEditMode || isViewMode) {
+      // Go back to list using Next.js router
+      console.log('NAVIGATING TO LIST PAGE...');
+      alert('Navigating to list page...');
+      router.push('/purchase-invoice/piList');
+    } else {
+      // Reset form for create mode
+      // console.log('RESETTING FORM...');
+      // alert('Resetting form...');
+      setFormData({
+        supplier: '',
+        supplier_name: '',
+        supplier_address_display: '',
+        posting_date: new Date().toISOString().split('T')[0],
+        due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        company: selectedCompany,
+        currency: 'IDR',
+        items: []
+      });
+      setError('');
+      router.push('/purchase-invoice/piList');
+      // console.log('FORM RESET COMPLETE');
+      // alert('Form reset complete');
+    }
   };
 
   // Parse ERPNext error into user-friendly message
@@ -491,7 +535,18 @@ export default function PurchaseInvoiceMain() {
       {error && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-            {error}
+            <div className="flex items-center justify-between">
+              <div>{error}</div>
+              {(error.includes('Permission Error') || error.includes('izin')) && (
+                <button
+                  type="button"
+                  onClick={() => router.push('/purchase-invoice/piList')}
+                  className="ml-4 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 text-sm"
+                >
+                  Kembali ke Daftar
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -838,7 +893,16 @@ export default function PurchaseInvoiceMain() {
             </div>
 
             {/* Tombol Submit */}
-            <div className="flex justify-end">
+            <div className="flex justify-end space-x-3">
+              <button
+                type="button"
+                onClick={handleCancel}
+                disabled={formLoading}
+                className="bg-gray-600 text-white px-6 py-2 rounded-md hover:bg-gray-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                title={formLoading ? "Form sedang diproses..." : "Batalkan operasi"}
+              >
+                {formLoading ? 'Processing...' : 'Batal'}
+              </button>
               <button
                 type="submit"
                 disabled={formLoading || !formData.supplier || isViewMode}
