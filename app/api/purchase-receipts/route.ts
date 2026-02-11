@@ -28,19 +28,33 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Use API key authentication
-    const apiKey = process.env.ERP_API_KEY;
-    const apiSecret = process.env.ERP_API_SECRET;
+    // Try session authentication first
+    const sessionCookie = request.headers.get('cookie') || '';
+    
+    let erpNextResponse: Response;
+    let headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
 
-    console.log('API Key exists:', !!apiKey);
-    console.log('API Secret exists:', !!apiSecret);
+    // Check if we have session cookie
+    if (sessionCookie) {
+      console.log('Using session authentication');
+      headers['Cookie'] = sessionCookie;
+    } else {
+      // Fallback to API key authentication
+      console.log('Using API key authentication');
+      const apiKey = process.env.ERP_API_KEY;
+      const apiSecret = process.env.ERP_API_SECRET;
 
-    if (!apiKey || !apiSecret) {
-      console.log('ERROR: ERPNext API credentials not configured');
-      return NextResponse.json(
-        { success: false, message: 'ERPNext API credentials not configured' },
-        { status: 500 }
-      );
+      if (!apiKey || !apiSecret) {
+        console.log('ERROR: No authentication available');
+        return NextResponse.json(
+          { success: false, message: 'No authentication available - please login first' },
+          { status: 401 }
+        );
+      }
+
+      headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
     }
 
     // Build filters
@@ -93,24 +107,21 @@ export async function GET(request: NextRequest) {
     console.log('Purchase Receipts ERPNext URL:', erpNextUrl);
 
     console.log('Making fetch request to ERPNext...');
-    const response = await fetch(
+    erpNextResponse = await fetch(
       erpNextUrl,
       {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `token ${apiKey}:${apiSecret}`,
-        },
+        headers,
       }
     );
 
-    console.log('ERPNext Response status:', response.status);
-    console.log('ERPNext Response ok:', response.ok);
+    console.log('ERPNext Response status:', erpNextResponse.status);
+    console.log('ERPNext Response ok:', erpNextResponse.ok);
 
-    const data = await response.json();
+    const data = await erpNextResponse.json();
     console.log('Purchase Receipts response:', data);
 
-    if (response.ok) {
+    if (erpNextResponse.ok) {
       console.log('Processing successful response...');
       
       return NextResponse.json({
@@ -122,7 +133,7 @@ export async function GET(request: NextRequest) {
       console.log('ERPNext API Error:', data);
       return NextResponse.json(
         { success: false, message: data.exc || data.message || 'Failed to fetch purchase receipts' },
-        { status: response.status }
+        { status: erpNextResponse.status }
       );
     }
   } catch (error) {
