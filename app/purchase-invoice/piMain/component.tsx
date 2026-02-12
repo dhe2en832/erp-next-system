@@ -335,8 +335,8 @@ export default function PurchaseInvoiceMain() {
     
     if (isEditMode || isViewMode) {
       // Go back to list using Next.js router
-      console.log('NAVIGATING TO LIST PAGE...');
-      alert('Navigating to list page...');
+      // console.log('NAVIGATING TO LIST PAGE...');
+      // alert('Navigating to list page...');
       router.push('/purchase-invoice/piList');
     } else {
       // Reset form for create mode
@@ -364,26 +364,24 @@ export default function PurchaseInvoiceMain() {
     if (!errorMessage) return 'Terjadi kesalahan yang tidak diketahui';
     
     // Common ERPNext error patterns
+    if (errorMessage.includes('PermissionError') || errorMessage.includes('frappe.exceptions.PermissionError')) {
+      return 'Permission Error: Anda tidak memiliki izin untuk mengakses atau mengubah Purchase Invoice. Silakan hubungi administrator sistem.';
+    }
+    
     if (errorMessage.includes('mandatory')) {
       return 'Field wajib belum diisi. Silakan periksa kembali data yang dimasukkan.';
     }
+    
     if (errorMessage.includes('exists')) {
       return 'Data sudah ada. Gunakan nomor dokumen yang berbeda.';
     }
-    if (errorMessage.includes('permission')) {
-      return 'Anda tidak memiliki izin untuk melakukan operasi ini.';
+    
+    if (errorMessage.includes('not found')) {
+      return 'Data tidak ditemukan. Silakan periksa kembali data yang dimasukkan.';
     }
-    if (errorMessage.includes('currency')) {
-      return 'Terjadi kesalahan pada konfigurasi mata uang.';
-    }
-    if (errorMessage.includes('supplier')) {
-      return 'Supplier tidak valid atau tidak ditemukan.';
-    }
-    if (errorMessage.includes('item')) {
-      return 'Item tidak valid atau stok tidak mencukupi.';
-    }
-    if (errorMessage.includes('warehouse')) {
-      return 'Gudang tidak valid atau tidak ditemukan.';
+    
+    if (errorMessage.includes('check_permission')) {
+      return 'Permission Error: Anda tidak memiliki izin untuk melakukan operasi ini. Silakan hubungi administrator sistem.';
     }
     
     // Extract the main error message from ERPNext responses
@@ -489,7 +487,18 @@ export default function PurchaseInvoiceMain() {
       }
     } catch (error) {
       console.error('Error submitting Purchase Invoice:', error);
-      setError(`Gagal ${isEditMode ? 'mengupdate' : 'membuat'} Purchase Invoice`);
+      
+      // Check for permission error specifically
+      if (error instanceof Error && (
+        error.message.includes('PermissionError') || 
+        error.message.includes('frappe.exceptions.PermissionError') ||
+        error.message.includes('check_permission')
+      )) {
+        setValidationMessage('Permission Error: Anda tidak memiliki izin untuk membuat Purchase Invoice. Silakan hubungi administrator sistem untuk mendapatkan akses ke menu Purchase Invoice.');
+        setShowValidationAlert(true);
+      } else {
+        setError(`Gagal ${isEditMode ? 'mengupdate' : 'membuat'} Purchase Invoice`);
+      }
     } finally {
       setFormLoading(false);
     }
@@ -638,14 +647,15 @@ export default function PurchaseInvoiceMain() {
               </div>
               <div className="mt-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Catatan dari Purchase Receipt
+                  Catatan
                 </label>
                 <textarea
                   value={formData.custom_notes_pr || ''}
-                  readOnly
+                  onChange={(e) => setFormData(prev => ({ ...prev, custom_notes_pr: e.target.value }))}
+                  disabled={isViewMode}
                   rows={2}
-                  placeholder="Catatan dari Purchase Receipt akan ditampilkan di sini"
-                  className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 bg-gray-50 resize-none"
+                  placeholder="Tambahkan catatan untuk Purchase Invoice ini"
+                  className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 resize-none"
                 />
               </div>
             </div>

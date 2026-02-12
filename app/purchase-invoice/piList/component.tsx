@@ -17,18 +17,60 @@ interface PurchaseInvoice {
   currency: string;
 }
 
+interface Supplier {
+  name: string;
+  supplier_name: string;
+}
+
 export default function PurchaseInvoiceList() {
   const router = useRouter();
   const [purchaseInvoices, setPurchaseInvoices] = useState<PurchaseInvoice[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedCompany, setSelectedCompany] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [documentNumber, setDocumentNumber] = useState(''); // Tambahkan document number filter
   const [supplierFilter, setSupplierFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  
+  // Helper function to format date as DD-MM-YYYY
+  const formatDate = (date: Date): string => {
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}-${month}-${year}`;
+  };
+  
+  // Helper function to parse DD-MM-YYYY to Date
+  const parseDate = (dateString: string): Date => {
+    const [day, month, year] = dateString.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  };
+  
+  // Helper function to validate DD-MM-YYYY format
+  const isValidDateFormat = (dateString: string): boolean => {
+    const regex = /^\d{2}-\d{2}-\d{4}$/;
+    if (!regex.test(dateString)) return false;
+    
+    const [day, month, year] = dateString.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+    return (
+      date.getFullYear() === year &&
+      date.getMonth() === month - 1 &&
+      date.getDate() === day
+    );
+  };
+  
+  // Helper function to convert DD-MM-YYYY to YYYY-MM-DD for API
+  const convertToApiFormat = (dateString: string): string => {
+    const [day, month, year] = dateString.split('-');
+    return `${year}-${month}-${day}`;
+  };
+  
   const [dateFilter, setDateFilter] = useState({
-    from_date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days ago
-    to_date: new Date().toISOString().split('T')[0], // Today
+    from_date: formatDate(new Date(Date.now() - 86400000)), // Yesterday in DD-MM-YYYY
+    to_date: formatDate(new Date()), // Today in DD-MM-YYYY
   });
 
   // Pagination states
@@ -57,6 +99,30 @@ export default function PurchaseInvoiceList() {
     }
     setLoading(false);
   }, []);
+
+  const fetchSuppliers = useCallback(async () => {
+    let companyToUse = selectedCompany;
+    
+    if (!companyToUse) {
+      const storedCompany = localStorage.getItem('selected_company');
+      if (storedCompany) {
+        companyToUse = storedCompany;
+      }
+    }
+    
+    if (!companyToUse) return;
+
+    try {
+      const response = await fetch(`/api/suppliers?company=${encodeURIComponent(companyToUse)}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setSuppliers(data.data || []);
+      }
+    } catch (err) {
+      console.error('Error fetching suppliers:', err);
+    }
+  }, [selectedCompany]);
 
   // Fetch purchase invoices
   const fetchPurchaseInvoices = useCallback(async () => {
@@ -89,17 +155,22 @@ export default function PurchaseInvoiceList() {
       if (searchTerm) {
         params.append('search', searchTerm);
       }
+      if (documentNumber) { // Tambahkan document number filter
+        params.append('documentNumber', documentNumber);
+      }
       if (supplierFilter) {
         params.append('supplier', supplierFilter);
       }
       if (statusFilter) {
         params.append('status', statusFilter);
       }
-      if (dateFilter.from_date) {
-        params.append('from_date', dateFilter.from_date);
+      if (dateFilter.from_date && isValidDateFormat(dateFilter.from_date)) {
+        // Convert DD-MM-YYYY to YYYY-MM-DD for API
+        params.append('from_date', convertToApiFormat(dateFilter.from_date));
       }
-      if (dateFilter.to_date) {
-        params.append('to_date', dateFilter.to_date);
+      if (dateFilter.to_date && isValidDateFormat(dateFilter.to_date)) {
+        // Convert DD-MM-YYYY to YYYY-MM-DD for API
+        params.append('to_date', convertToApiFormat(dateFilter.to_date));
       }
 
       const response = await fetch(`/api/purchase-invoice?${params}`, {
@@ -121,13 +192,14 @@ export default function PurchaseInvoiceList() {
     } finally {
       setLoading(false);
     }
-  }, [selectedCompany, currentPage, pageSize, searchTerm, supplierFilter, statusFilter, dateFilter]);
+  }, [selectedCompany, currentPage, pageSize, searchTerm, documentNumber, supplierFilter, statusFilter, dateFilter]);
 
   useEffect(() => {
     if (selectedCompany) {
       fetchPurchaseInvoices();
+      fetchSuppliers();
     }
-  }, [fetchPurchaseInvoices]);
+  }, [fetchPurchaseInvoices, fetchSuppliers]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -209,26 +281,26 @@ export default function PurchaseInvoiceList() {
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Cari Supplier/No. Invoice
+                Cari Supplier
               </label>
               <input
                 type="text"
                 className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                placeholder="Cari berdasarkan nama supplier atau nomor..."
+                placeholder="Cari berdasarkan nama supplier..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Supplier
+                No. Dokumen
               </label>
               <input
                 type="text"
                 className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                placeholder="Filter supplier..."
-                value={supplierFilter}
-                onChange={(e) => setSupplierFilter(e.target.value)}
+                placeholder="Cari nomor PI..."
+                value={documentNumber}
+                onChange={(e) => setDocumentNumber(e.target.value)}
               />
             </div>
             <div>
@@ -253,10 +325,29 @@ export default function PurchaseInvoiceList() {
                 Dari Tanggal
               </label>
               <input
-                type="date"
+                type="text"
                 className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                placeholder="DD-MM-YYYY"
                 value={dateFilter.from_date}
-                onChange={(e) => setDateFilter(prev => ({ ...prev, from_date: e.target.value }))}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  // Only allow numbers and dashes, format as DD-MM-YYYY
+                  const formattedValue = value
+                    .replace(/[^\d-]/g, '')
+                    .replace(/(\d{2})(\d)/, '$1-$2')
+                    .replace(/(\d{2}-\d{2})(\d)/, '$1-$2')
+                    .slice(0, 10);
+                  setDateFilter(prev => ({ ...prev, from_date: formattedValue }));
+                }}
+                onBlur={(e) => {
+                  const value = e.target.value;
+                  if (value && !isValidDateFormat(value)) {
+                    setError('Format tanggal harus DD-MM-YYYY (contoh: 12-02-2026)');
+                    setDateFilter(prev => ({ ...prev, from_date: '' }));
+                  } else {
+                    setError('');
+                  }
+                }}
               />
             </div>
             <div>
@@ -264,10 +355,29 @@ export default function PurchaseInvoiceList() {
                 Sampai Tanggal
               </label>
               <input
-                type="date"
+                type="text"
                 className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                placeholder="DD-MM-YYYY"
                 value={dateFilter.to_date}
-                onChange={(e) => setDateFilter(prev => ({ ...prev, to_date: e.target.value }))}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  // Only allow numbers and dashes, format as DD-MM-YYYY
+                  const formattedValue = value
+                    .replace(/[^\d-]/g, '')
+                    .replace(/(\d{2})(\d)/, '$1-$2')
+                    .replace(/(\d{2}-\d{2})(\d)/, '$1-$2')
+                    .slice(0, 10);
+                  setDateFilter(prev => ({ ...prev, to_date: formattedValue }));
+                }}
+                onBlur={(e) => {
+                  const value = e.target.value;
+                  if (value && !isValidDateFormat(value)) {
+                    setError('Format tanggal harus DD-MM-YYYY (contoh: 12-02-2026)');
+                    setDateFilter(prev => ({ ...prev, to_date: '' }));
+                  } else {
+                    setError('');
+                  }
+                }}
               />
             </div>
           </div>
@@ -275,11 +385,11 @@ export default function PurchaseInvoiceList() {
             <button
               onClick={() => {
                 setSearchTerm('');
-                setSupplierFilter('');
+                setDocumentNumber('');
                 setStatusFilter('');
                 setDateFilter({
-                  from_date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-                  to_date: new Date().toISOString().split('T')[0],
+                  from_date: formatDate(new Date(Date.now() - 86400000)), // Reset to yesterday in DD-MM-YYYY
+                  to_date: formatDate(new Date()), // Reset to today in DD-MM-YYYY
                 });
                 setCurrentPage(1);
               }}

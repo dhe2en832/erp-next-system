@@ -43,6 +43,7 @@ export async function GET(request: NextRequest) {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
+            'Cookie': `sid=${sid}`,
           },
           credentials: 'include',
         }
@@ -71,6 +72,7 @@ export async function GET(request: NextRequest) {
             method: 'GET',
             headers: {
               'Content-Type': 'application/json',
+              'Cookie': `sid=${sid}`,
             },
             credentials: 'include',
           }
@@ -100,6 +102,7 @@ export async function GET(request: NextRequest) {
                 method: 'GET',
                 headers: {
                   'Content-Type': 'application/json',
+                  'Cookie': `sid=${sid}`,
                 },
                 credentials: 'include',
               }
@@ -325,6 +328,7 @@ export async function PUT(request: NextRequest) {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
+        'Cookie': `sid=${sid}`,
       },
       credentials: 'include',
       body: JSON.stringify(invoiceData),
@@ -430,6 +434,7 @@ export async function POST(request: NextRequest) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Cookie': `sid=${sid}`,
       },
       credentials: 'include',
       body: JSON.stringify(invoiceData),
