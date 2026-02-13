@@ -180,7 +180,7 @@ export default function PurchaseReceiptList() {
         setTotalRecords(data.total_records || 0);
         setTotalPages(Math.ceil((data.total_records || 0) / pageSize));
       } else {
-        setError(data.message || 'Gagal mengambil data Purchase Receipt');
+        setError(data.message || 'Gagal mengambil data penerimaan barang');
       }
     } catch (err) {
       console.error('Error fetching purchase receipts:', err);
@@ -216,7 +216,7 @@ export default function PurchaseReceiptList() {
       const data = await response.json();
       
       if (data.success) {
-        setSuccessMessage(`Purchase Receipt ${prName} berhasil di submit!`);
+        setSuccessMessage(`Penerimaan Barang ${prName} berhasil diajukan!`);
         setShowSuccessDialog(true);
         
         // Redirect after 2 seconds
@@ -224,10 +224,10 @@ export default function PurchaseReceiptList() {
           router.push(`/purchase-receipts/prMain?name=${prName}`);
         }, 2000);
       } else {
-        setError(data.message || 'Failed to submit Purchase Receipt');
+        setError(data.message || 'Gagal mengajukan Penerimaan Barang');
       }
     } catch (err) {
-      setError('Failed to submit Purchase Receipt');
+      setError('Gagal mengajukan Penerimaan Barang');
     } finally {
       setActionLoading(false);
     }
@@ -261,11 +261,13 @@ export default function PurchaseReceiptList() {
       case 'Draft':
         return 'Draft';
       case 'Submitted':
-        return 'Submitted';
+        return 'Diajukan';
       case 'Completed':
-        return 'Completed';
+        return 'Selesai';
       case 'Cancelled':
-        return 'Cancelled';
+        return 'Dibatalkan';
+      case 'To Bill':
+        return 'Belum Ditagih';
       default:
         return status;
     }
@@ -278,8 +280,8 @@ export default function PurchaseReceiptList() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Purchase Receipt</h1>
-              <p className="mt-1 text-sm text-gray-600">Penerimaan Barang dari Purchase Order</p>
+              <h1 className="text-3xl font-bold text-gray-900">Penerimaan Barang</h1>
+              <p className="mt-1 text-sm text-gray-600">Penerimaan barang dari pesanan pembelian</p>
             </div>
             <button
               onClick={() => router.push('/purchase-receipts/prMain')}
@@ -288,7 +290,7 @@ export default function PurchaseReceiptList() {
               <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
-              Buat Purchase Receipt
+              Buat Penerimaan Barang
             </button>
           </div>
         </div>
@@ -309,12 +311,12 @@ export default function PurchaseReceiptList() {
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Cari Supplier
+                Cari Pemasok
               </label>
               <input
                 type="text"
                 className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                placeholder="Cari berdasarkan nama supplier..."
+                placeholder="Cari nama pemasok..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -326,7 +328,7 @@ export default function PurchaseReceiptList() {
               <input
                 type="text"
                 className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                placeholder="Cari nomor PR..."
+                placeholder="Cari nomor penerimaan..."
                 value={documentNumber}
                 onChange={(e) => setDocumentNumber(e.target.value)}
               />
@@ -342,10 +344,10 @@ export default function PurchaseReceiptList() {
               >
                 <option value="">Semua Status</option>
                 <option value="Draft">Draft</option>
-                <option value="Submitted">Submitted</option>
-                <option value="To Bill">To Bill</option>
-                <option value="Completed">Completed</option>
-                <option value="Cancelled">Cancelled</option>
+                <option value="Submitted">Diajukan</option>
+                <option value="To Bill">Belum Ditagih</option>
+                <option value="Completed">Selesai</option>
+                <option value="Cancelled">Dibatalkan</option>
               </select>
             </div>
             <div>
@@ -407,18 +409,18 @@ export default function PurchaseReceiptList() {
           <div className="bg-white shadow overflow-hidden sm:rounded-md">
             <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
               <h3 className="text-sm font-medium text-gray-900">
-                Purchase Receipts (0 penerimaan)
+                Penerimaan Barang (0 penerimaan)
               </h3>
             </div>
             <div className="px-4 py-8 text-center">
-              <p className="text-gray-500">Tidak ada Purchase Receipt ditemukan</p>
+              <p className="text-gray-500">Tidak ada penerimaan barang ditemukan</p>
             </div>
           </div>
         ) : (
           <div className="bg-white shadow overflow-hidden sm:rounded-md">
             <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
               <h3 className="text-sm font-medium text-gray-900">
-                Purchase Receipts ({purchaseReceipts.length} penerimaan)
+                Penerimaan Barang ({purchaseReceipts.length} penerimaan)
               </h3>
             </div>
             <ul className="divide-y divide-gray-200">
@@ -445,7 +447,7 @@ export default function PurchaseReceiptList() {
                         <p className="text-sm font-medium text-indigo-600 truncate">
                           {receipt.name}
                         </p>
-                        <p className="mt-1 text-sm text-gray-900">Supplier: {receipt.supplier_name || receipt.supplier}</p>
+                        <p className="mt-1 text-sm text-gray-900">Pemasok: {receipt.supplier_name || receipt.supplier}</p>
                       </div>
                       <div className="ml-4 flex-shrink-0">
                         <span
@@ -458,7 +460,7 @@ export default function PurchaseReceiptList() {
                     <div className="mt-2 sm:flex sm:justify-between">
                       <div className="sm:flex">
                         <p className="flex items-center text-sm text-gray-500">
-                          Posting Date: {formatDate(receipt.posting_date)}
+                          Tanggal: {formatDate(receipt.posting_date)}
                         </p>
                       </div>
                       <div className="mt-2 flex items-center justify-between sm:mt-0">
@@ -484,10 +486,10 @@ export default function PurchaseReceiptList() {
                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                   </svg>
-                                  Submitting...
+                                  Mengajukan...
                                 </>
                               ) : (
-                                'Submit'
+                                'Ajukan'
                               )}
                             </button>
                           )}

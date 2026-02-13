@@ -114,7 +114,7 @@ export default function PurchaseOrderList() {
     }
     
     if (!companyToUse) {
-      setError('No company selected. Please select a company first.');
+      setError('Perusahaan belum dipilih. Silakan pilih perusahaan terlebih dahulu.');
       setLoading(false);
       return;
     }
@@ -174,10 +174,10 @@ export default function PurchaseOrderList() {
         
         setError('');
       } else {
-        setError(data.message || 'Failed to fetch purchase orders');
+        setError(data.message || 'Gagal memuat pesanan pembelian');
       }
     } catch (err) {
-      setError('Failed to fetch purchase orders');
+      setError('Gagal memuat pesanan pembelian');
     } finally {
       setLoading(false);
     }
@@ -228,7 +228,7 @@ export default function PurchaseOrderList() {
       const data = await response.json();
       
       if (data.success) {
-        setSuccessMessage(`Purchase Order ${poName} berhasil di submit!`);
+        setSuccessMessage(`Pesanan Pembelian ${poName} berhasil diajukan!`);
         setShowSuccessDialog(true);
         
         // Redirect to poMain after showing success dialog
@@ -236,10 +236,10 @@ export default function PurchaseOrderList() {
           router.push(`/purchase-orders/poMain?name=${poName}`);
         }, 2000);
       } else {
-        setError(data.message || 'Failed to submit PO');
+        setError(data.message || 'Gagal mengajukan PO');
       }
     } catch (err) {
-      setError('Failed to submit PO');
+      setError('Gagal mengajukan PO');
     } finally {
       setActionLoading(false);
     }
@@ -290,7 +290,7 @@ export default function PurchaseOrderList() {
   };
 
   if (loading) {
-    return <LoadingSpinner message="Memuat Purchase Orders..." />;
+    return <LoadingSpinner message="Memuat Pesanan Pembelian..." />;
   }
 
   return (
@@ -300,8 +300,8 @@ export default function PurchaseOrderList() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Purchase Orders</h1>
-              <p className="mt-1 text-sm text-gray-600">Kelola purchase orders dan procurement</p>
+              <h1 className="text-3xl font-bold text-gray-900">Pesanan Pembelian</h1>
+              <p className="mt-1 text-sm text-gray-600">Kelola pesanan pembelian dan pengadaan</p>
             </div>
             <button 
               onClick={() => router.push('/purchase-orders/poMain')}
@@ -310,7 +310,7 @@ export default function PurchaseOrderList() {
               <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
-              Buat Purchase Order
+              Buat Pesanan Pembelian
             </button>
           </div>
         </div>
@@ -322,12 +322,12 @@ export default function PurchaseOrderList() {
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Cari Supplier
+                Cari Pemasok
               </label>
               <input
                 type="text"
                 className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                placeholder="Cari berdasarkan nama supplier..."
+                placeholder="Cari nama pemasok..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -339,7 +339,7 @@ export default function PurchaseOrderList() {
               <input
                 type="text"
                 className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                placeholder="Cari nomor PO..."
+                placeholder="Cari nomor pesanan..."
                 value={documentNumber}
                 onChange={(e) => setDocumentNumber(e.target.value)}
               />
@@ -355,10 +355,10 @@ export default function PurchaseOrderList() {
               >
                 <option value="">Semua Status</option>
                 <option value="Draft">Draft</option>
-                <option value="Submitted">Submitted</option>
-                <option value="To Receive">To Receive</option>
-                <option value="Completed">Completed</option>
-                <option value="Cancelled">Cancelled</option>
+                <option value="Submitted">Diajukan</option>
+                <option value="To Receive">Belum Diterima</option>
+                <option value="Completed">Selesai</option>
+                <option value="Cancelled">Dibatalkan</option>
               </select>
             </div>
             <div>
@@ -425,7 +425,7 @@ export default function PurchaseOrderList() {
         <div className="bg-white shadow overflow-hidden sm:rounded-md">
           <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
             <h3 className="text-sm font-medium text-gray-900">
-              Purchase Orders ({purchaseOrders.length} pesanan)
+              Pesanan Pembelian ({purchaseOrders.length} pesanan)
             </h3>
           </div>
           <ul className="divide-y divide-gray-200">
@@ -452,7 +452,7 @@ export default function PurchaseOrderList() {
                       <p className="text-sm font-medium text-indigo-600 truncate">
                         {order.name}
                       </p>
-                      <p className="mt-1 text-sm text-gray-900">Supplier: {getSupplierName(order.supplier)}</p>
+                      <p className="mt-1 text-sm text-gray-900">Pemasok: {getSupplierName(order.supplier)}</p>
                     </div>
                     <div className="ml-4 flex-shrink-0">
                       <span
@@ -465,10 +465,10 @@ export default function PurchaseOrderList() {
                   <div className="mt-2 sm:flex sm:justify-between">
                     <div className="sm:flex">
                       <p className="flex items-center text-sm text-gray-500">
-                        Transaction Date: {formatDate(order.transaction_date)}
+                        Tgl Transaksi: {formatDate(order.transaction_date)}
                       </p>
                       <p className="mt-2 sm:mt-0 sm:ml-6 flex items-center text-sm text-gray-500">
-                        Schedule Date: {formatDate(order.schedule_date)}
+                        Tgl Jadwal: {formatDate(order.schedule_date)}
                       </p>
                     </div>
                     <div className="mt-2 flex items-center justify-between sm:mt-0">
@@ -494,10 +494,10 @@ export default function PurchaseOrderList() {
                                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                 </svg>
-                                Submitting...
+                                Mengajukan...
                               </>
                             ) : (
-                              'Submit'
+                              'Ajukan'
                             )}
                           </button>
                         )}
@@ -511,7 +511,7 @@ export default function PurchaseOrderList() {
                             }}
                             className="px-3 py-1 bg-orange-600 text-white text-xs font-medium rounded hover:bg-orange-700 transition-colors"
                           >
-                            Receive
+                            Terima
                           </button>
                         )}
                         
@@ -524,7 +524,7 @@ export default function PurchaseOrderList() {
                             }}
                             className="px-3 py-1 bg-blue-600 text-white text-xs font-medium rounded hover:bg-blue-700 transition-colors"
                           >
-                            Complete
+                            Selesaikan
                           </button>
                         )}
                       </div>
@@ -537,7 +537,7 @@ export default function PurchaseOrderList() {
           </ul>
           {purchaseOrders.length === 0 && (
             <div className="text-center py-12">
-              <p className="text-gray-500">Tidak ada purchase order ditemukan</p>
+              <p className="text-gray-500">Tidak ada pesanan pembelian ditemukan</p>
             </div>
           )}
           
