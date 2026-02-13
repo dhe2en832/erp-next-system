@@ -252,11 +252,11 @@ export default function PurchaseOrderMain() {
         
         console.log('PO data loaded successfully:', poData);
       } else {
-        setError(data.message || 'Failed to load PO data');
+        setError(data.message || 'Gagal memuat data PO');
       }
     } catch (err) {
       console.error('Error fetching PO data:', err);
-      setError('Failed to load PO data');
+      setError('Gagal memuat data PO');
     } finally {
       setLoading(false);
     }
@@ -711,7 +711,7 @@ export default function PurchaseOrderMain() {
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
         <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-96 overflow-hidden">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-medium text-gray-900">Pilih Supplier</h3>
+            <h3 className="text-lg font-medium text-gray-900">Pilih Pemasok</h3>
             <button
               onClick={() => {
                 setShowSupplierDialog(false);
@@ -730,7 +730,7 @@ export default function PurchaseOrderMain() {
             <input
               type="text"
               className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              placeholder="Cari supplier..."
+              placeholder="Cari pemasok..."
               value={supplierSearchTerm}
               onChange={(e) => setSupplierSearchTerm(e.target.value)}
               autoFocus
@@ -758,7 +758,7 @@ export default function PurchaseOrderMain() {
               </div>
             ) : (
               <div className="text-center py-8">
-                <p className="text-gray-500">Tidak ada supplier ditemukan</p>
+                <p className="text-gray-500">Tidak ada pemasok ditemukan</p>
               </div>
             )}
           </div>
@@ -783,14 +783,14 @@ export default function PurchaseOrderMain() {
   const openItemDialog = (index: number) => {
     // Validasi warehouse header
     if (!warehouse) {
-      setValidationMessage('Silakan pilih warehouse default terlebih dahulu');
+      setValidationMessage('Silakan pilih gudang default terlebih dahulu');
       setShowValidationAlert(true);
       return;
     }
     
     // Validasi supplier
     if (!supplier) {
-      setValidationMessage('Silakan pilih supplier terlebih dahulu');
+      setValidationMessage('Silakan pilih pemasok terlebih dahulu');
       setShowValidationAlert(true);
       return;
     }
@@ -804,7 +804,7 @@ export default function PurchaseOrderMain() {
     e.preventDefault();
     
     if (!supplier || selectedItems.length === 0) {
-      setError('Silakan pilih supplier dan tambahkan minimal satu item');
+      setError('Silakan pilih pemasok dan tambahkan minimal satu barang');
       return;
     }
 
@@ -812,7 +812,7 @@ export default function PurchaseOrderMain() {
     const validItems = selectedItems.filter(item => item.item_code && item.qty > 0);
     
     if (validItems.length === 0) {
-      setError('Silakan tambahkan minimal satu item yang valid');
+      setError('Silakan tambahkan minimal satu barang yang valid');
       return;
     }
 
@@ -857,17 +857,17 @@ export default function PurchaseOrderMain() {
       const data = await response.json();
 
       if (data.success) {
-        const successMessage = isEditMode ? 'Purchase Order berhasil diupdate!' : 'Purchase Order berhasil dibuat!';
+        const successMessage = isEditMode ? 'Pesanan Pembelian berhasil diperbarui!' : 'Pesanan Pembelian berhasil dibuat!';
         setSuccess(successMessage);
         setTimeout(() => {
           router.push('/purchase-orders/poList');
         }, 3000); // Start countdown from 3
       } else {
-        setError(data.message || `Gagal ${isEditMode ? 'mengupdate' : 'membuat'} purchase order`);
+        setError(data.message || `Gagal ${isEditMode ? 'memperbarui' : 'membuat'} pesanan pembelian`);
       }
     } catch (err) {
       console.error('PO creation error:', err);
-      setError(`Gagal ${isEditMode ? 'mengupdate' : 'membuat'} purchase order`);
+      setError(`Gagal ${isEditMode ? 'memperbarui' : 'membuat'} pesanan pembelian`);
     } finally {
       setLoading(false);
     }
@@ -885,10 +885,10 @@ export default function PurchaseOrderMain() {
           <div className="flex justify-between items-center py-6">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">
-                {isViewMode ? 'View Purchase Order' : (isEditMode ? 'Update Purchase Order' : 'Buat Purchase Order')}
+                {isViewMode ? 'Lihat Pesanan Pembelian' : (isEditMode ? 'Perbarui Pesanan Pembelian' : 'Buat Pesanan Pembelian')}
               </h1>
               <p className="mt-1 text-sm text-gray-600">
-                {isViewMode ? 'View purchase order (read-only mode)' : (isEditMode ? 'Update purchase order yang ada' : 'Buat purchase order baru')}
+                {isViewMode ? 'Lihat pesanan pembelian (hanya baca)' : (isEditMode ? 'Perbarui pesanan pembelian yang ada' : 'Buat pesanan pembelian baru')}
               </p>
             </div>
             <button
@@ -927,7 +927,7 @@ export default function PurchaseOrderMain() {
               <div className="mb-4">
                 <p className="text-sm text-gray-600">{success}</p>
                 <p className="text-sm text-gray-600 mt-2">
-                  Purchase Order telah berhasil dibuat dan akan segera dialihkan ke daftar PO.
+                  Pesanan Pembelian telah berhasil disimpan dan akan segera dialihkan ke daftar.
                 </p>
                 {redirectCountdown > 0 && (
                   <div className="mt-3 flex items-center justify-between">
@@ -959,14 +959,14 @@ export default function PurchaseOrderMain() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Supplier *
+                  Pemasok *
                 </label>
                 <div className="flex space-x-2">
                   <input
                     type="text"
                     className="block flex-1 border border-gray-300 rounded-md shadow-sm py-2 px-3 bg-gray-50 sm:text-sm"
                     value={supplier ? suppliers.find(s => s.name === supplier)?.supplier_name || '' : ''}
-                    placeholder="Pilih supplier..."
+                    placeholder="Pilih pemasok..."
                     readOnly
                   />
                   <button
@@ -1049,7 +1049,7 @@ export default function PurchaseOrderMain() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Set Warehouse (Default)
+                  Gudang Default
                 </label>
                 <select
                   className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
@@ -1100,14 +1100,14 @@ export default function PurchaseOrderMain() {
             <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Alamat Supplier
+                  Alamat Pemasok
                 </label>
                 <textarea
                   className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                   rows={3}
                   value={shippingAddress}
                   onChange={(e) => setShippingAddress(e.target.value)}
-                  placeholder="Alamat supplier..."
+                  placeholder="Alamat pemasok..."
                 />
               </div>
               <div>
@@ -1129,13 +1129,13 @@ export default function PurchaseOrderMain() {
           <div className="bg-white shadow rounded-lg p-6">
             <div className="mb-4">
               <div className="flex justify-between items-center mb-2">
-                <h4 className="text-md font-medium text-gray-900">Items</h4>
+                <h4 className="text-md font-medium text-gray-900">Barang</h4>
                 <button
                   type="button"
                   onClick={handleAddItem}
                   className="bg-green-600 text-white hover:bg-green-700 px-3 py-1 rounded-md text-sm"
                 >
-                  Add Item
+                  Tambah Barang
                 </button>
               </div>
             </div>
@@ -1152,7 +1152,7 @@ export default function PurchaseOrderMain() {
                   <div className="grid grid-cols-12 gap-2">
                       <div className="col-span-1">
                         <label className="block text-xs font-medium text-gray-700">
-                          Kode Item <span className="text-red-500">*</span>
+                          Kode Barang <span className="text-red-500">*</span>
                         </label>
                         <div className="flex mt-1">
                           <input
@@ -1175,7 +1175,7 @@ export default function PurchaseOrderMain() {
                       </div>
                       <div className="col-span-4">
                         <label className="block text-xs font-medium text-gray-700">
-                          Nama Item <span className="text-red-500">*</span>
+                          Nama Barang <span className="text-red-500">*</span>
                         </label>
                         <div className="flex mt-1">
                           <input
@@ -1198,37 +1198,37 @@ export default function PurchaseOrderMain() {
                       </div>
                       <div className="col-span-2">
                         <label className="block text-xs font-medium text-gray-700">
-                          Warehouse
+                          Gudang
                         </label>
                         <input
                           type="text"
                           readOnly
                           className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm bg-gray-50"
                           value={item.warehouse || ''}
-                          placeholder="Auto-select"
+                          placeholder="Otomatis"
                         />
                         {item.warehouse && (
                           <div className="mt-1 p-1 bg-blue-50 border border-blue-200 rounded text-xs">
                             <div className="flex items-center justify-between">
                               <span className="text-blue-700">
-                                Avail: <span className="font-semibold">{item.available_stock || 0}</span>
+                                Tersedia: <span className="font-semibold">{item.available_stock || 0}</span>
                               </span>
                               <span className="text-gray-600">
                                 A:{item.actual_stock || 0} R:{item.reserved_stock || 0}
                               </span>
                             </div>
                             {(item.available_stock || 0) <= 0 && (
-                              <div className="text-xs text-orange-600">⚠️ Out of stock</div>
+                              <div className="text-xs text-orange-600">⚠️ Stok habis</div>
                             )}
                             {(item.available_stock || 0) > 0 && (item.available_stock || 0) < 10 && (
-                              <div className="text-xs text-yellow-600">⚠️ Low stock ({item.available_stock || 0})</div>
+                              <div className="text-xs text-yellow-600">⚠️ Stok rendah ({item.available_stock || 0})</div>
                             )}
                           </div>
                         )}
                       </div>
                       <div className="col-span-1">
                         <label className="block text-xs font-medium text-gray-700">
-                          Qty <span className="text-red-500">*</span>
+                          Jml <span className="text-red-500">*</span>
                         </label>
                         <input
                           type="text"
@@ -1254,12 +1254,12 @@ export default function PurchaseOrderMain() {
                           readOnly
                           className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm bg-gray-50"
                           value={item.stock_uom || ''}
-                          placeholder="Auto"
+                          placeholder="Otomatis"
                         />
                       </div>
                       <div className="col-span-1">
                         <label className="block text-xs font-medium text-gray-700">
-                          Rate
+                          Harga
                         </label>
                         <input
                           type="text"
@@ -1323,7 +1323,7 @@ export default function PurchaseOrderMain() {
                       onClick={() => removeItem(index)}
                       className="mt-2 text-sm text-red-600 hover:text-red-800"
                     >
-                      Remove
+                      Hapus
                     </button>
                   )}
                 </div>
@@ -1335,13 +1335,13 @@ export default function PurchaseOrderMain() {
                   <div className="flex justify-end">
                     <div className="grid grid-cols-2 gap-8 text-sm">
                       <div className="text-right">
-                        <div className="text-gray-600">Total Quantity:</div>
+                        <div className="text-gray-600">Total Kuantitas:</div>
                         <div className="font-semibold text-gray-900">
                           {selectedItems.reduce((sum, item) => sum + item.qty, 0).toLocaleString('id-ID')}
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-gray-600">Total Amount:</div>
+                        <div className="text-gray-600">Total Jumlah:</div>
                         <div className="font-semibold text-lg text-gray-900">
                           {currency} {selectedItems.reduce((sum, item) => sum + item.amount, 0).toLocaleString('id-ID')}
                         </div>
@@ -1376,7 +1376,7 @@ export default function PurchaseOrderMain() {
                   Menyimpan...
                 </>
               ) : (
-                isViewMode ? 'View Mode - Read Only' : (isEditMode ? 'Update Purchase Order' : 'Buat Purchase Order')
+                isViewMode ? 'Mode Lihat - Hanya Baca' : (isEditMode ? 'Perbarui Pesanan' : 'Simpan Pesanan')
               )}
             </button>
           </div>

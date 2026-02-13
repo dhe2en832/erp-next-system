@@ -696,15 +696,15 @@ export default function PurchaseReceiptMain() {
             <div>
               <h1 className="text-3xl font-bold text-gray-900">
                 {isViewMode
-                  ? 'View Purchase Receipt'
+                  ? 'Lihat Penerimaan Barang'
                   : isEditMode
-                    ? 'Edit Purchase Receipt'
-                    : 'Purchase Receipt Baru'}
+                    ? 'Edit Penerimaan Barang'
+                    : 'Penerimaan Barang Baru'}
               </h1>
               <p className="mt-1 text-sm text-gray-600">
                 {isViewMode
-                  ? 'Lihat detail Purchase Receipt'
-                  : 'Buat atau edit Purchase Receipt dari Purchase Order'}
+                  ? 'Lihat detail penerimaan barang'
+                  : 'Buat atau edit penerimaan barang dari pesanan pembelian'}
               </p>
             </div>
             <button
@@ -752,7 +752,7 @@ export default function PurchaseReceiptMain() {
             <div className="mb-4">
               <p className="text-sm text-gray-600">{success}</p>
               <p className="text-sm text-gray-600 mt-2">
-                Purchase Receipt telah berhasil dibuat dan akan segera dialihkan ke daftar.
+                Penerimaan Barang telah berhasil disimpan dan akan segera dialihkan ke daftar.
               </p>
             </div>
             <div className="flex justify-end">
@@ -760,7 +760,7 @@ export default function PurchaseReceiptMain() {
                 onClick={() => router.push('/purchase-receipts/prList')}
                 className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
               >
-                Ke Daftar Purchase Receipt
+                Ke Daftar Penerimaan Barang
               </button>
             </div>
           </div>
@@ -789,14 +789,14 @@ export default function PurchaseReceiptMain() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Purchase Order *
+                  Pesanan Pembelian *
                 </label>
                 <div className="flex space-x-2">
                   <input
                     type="text"
                     className="block flex-1 border border-gray-300 rounded-md shadow-sm py-2 px-3 bg-gray-50 sm:text-sm"
                     value={purchaseOrderName || purchaseOrder}
-                    placeholder="Pilih Purchase Order"
+                    placeholder="Pilih Pesanan Pembelian"
                     readOnly
                   />
                   <button
@@ -903,7 +903,7 @@ export default function PurchaseReceiptMain() {
                   <div className="grid grid-cols-12 gap-2">
                     <div className="col-span-1">
                       <label className="block text-xs font-medium text-gray-700">
-                        Kode Item <span className="text-red-500">*</span>
+                        Kode Barang <span className="text-red-500">*</span>
                       </label>
                       <div className="flex mt-1">
                         <input
@@ -917,7 +917,7 @@ export default function PurchaseReceiptMain() {
                     </div>
                     <div className="col-span-3">
                       <label className="block text-xs font-medium text-gray-700">
-                        Nama Item <span className="text-red-500">*</span>
+                        Nama Barang <span className="text-red-500">*</span>
                       </label>
                       <div className="flex mt-1">
                         <input
@@ -931,7 +931,7 @@ export default function PurchaseReceiptMain() {
                     </div>
                     <div className="col-span-1">
                       <label className="block text-xs font-medium text-gray-700">
-                        Qty PO
+                        Jml PO
                       </label>
                       <input
                         type="text"
@@ -951,7 +951,7 @@ export default function PurchaseReceiptMain() {
                     </div>
                     <div className="col-span-1">
                       <label className="block text-xs font-medium text-gray-700">
-                        Accepted Qty
+                        Jml Diterima
                       </label>
                       <input
                         type="text"
@@ -968,7 +968,7 @@ export default function PurchaseReceiptMain() {
                     </div>
                     <div className="col-span-1">
                       <label className="block text-xs font-medium text-gray-700">
-                        Rejected Qty
+                        Jml Ditolak
                       </label>
                       <input
                         type="text"
@@ -996,7 +996,7 @@ export default function PurchaseReceiptMain() {
                     </div>
                     <div className="col-span-2">
                       <label className="block text-xs font-medium text-gray-700">
-                        Rate
+                        Harga
                       </label>
                       <input
                         type="text"
@@ -1054,7 +1054,7 @@ export default function PurchaseReceiptMain() {
                       onClick={() => removeItem(index)}
                       className="mt-2 text-sm text-red-600 hover:text-red-800"
                     >
-                      Remove
+                      Hapus
                     </button>
                   )}
                 </div>
@@ -1066,13 +1066,13 @@ export default function PurchaseReceiptMain() {
                   <div className="flex justify-end">
                     <div className="grid grid-cols-2 gap-8 text-sm">
                       <div className="text-right">
-                        <div className="text-gray-600">Total Quantity:</div>
+                        <div className="text-gray-600">Total Kuantitas:</div>
                         <div className="font-semibold text-gray-900">
                           {selectedItems.reduce((sum, item) => sum + (item.received_qty || 0), 0).toLocaleString('id-ID')}
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-gray-600">Total Amount:</div>
+                        <div className="text-gray-600">Total Jumlah:</div>
                         <div className="font-semibold text-lg text-gray-900">
                           {currency} {selectedItems.reduce((sum, item) => sum + item.amount, 0).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </div>
@@ -1125,9 +1125,9 @@ export default function PurchaseReceiptMain() {
                     Menyimpan...
                   </>
                 ) : isEditMode ? (
-                  'Update Purchase Receipt'
+                  'Perbarui Penerimaan'
                 ) : (
-                  'Buat Purchase Receipt'
+                  'Simpan Penerimaan'
                 )}
               </button>
             )}
@@ -1140,7 +1140,7 @@ export default function PurchaseReceiptMain() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium text-gray-900">Pilih Purchase Order</h3>
+              <h3 className="text-lg font-medium text-gray-900">Pilih Pesanan Pembelian</h3>
               <button
                 type="button"
                 onClick={() => setShowPODialog(false)}
@@ -1156,7 +1156,7 @@ export default function PurchaseReceiptMain() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Kode Purchase Order
+                    Kode Pesanan Pembelian
                   </label>
                   <input
                     type="text"
@@ -1168,11 +1168,11 @@ export default function PurchaseReceiptMain() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Nama Supplier
+                    Nama Pemasok
                   </label>
                   <input
                     type="text"
-                    placeholder="Cari supplier..."
+                    placeholder="Cari pemasok..."
                     value={poSearchSupplier}
                     onChange={(e) => setPoSearchSupplier(e.target.value)}
                     className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
@@ -1210,14 +1210,14 @@ export default function PurchaseReceiptMain() {
                 <div className="text-center py-8 text-gray-500">
                   <p>
                     {poSearchCode || poSearchSupplier 
-                      ? 'Tidak ada Purchase Order yang cocok dengan filter' 
-                      : 'Tidak ada Purchase Order yang tersedia'
+                      ? 'Tidak ada pesanan pembelian yang cocok dengan filter' 
+                      : 'Tidak ada pesanan pembelian yang tersedia'
                     }
                   </p>
                   <p className="text-sm mt-2">
                     {poSearchCode || poSearchSupplier 
                       ? 'Coba ubah filter pencarian' 
-                      : 'Pastikan company sudah dipilih dan ada PO yang aktif'
+                      : 'Pastikan perusahaan sudah dipilih dan ada PO yang aktif'
                     }
                   </p>
                 </div>

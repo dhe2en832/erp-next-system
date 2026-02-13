@@ -586,17 +586,17 @@ export default function PurchaseInvoiceMain() {
             <div>
               <h1 className="text-3xl font-bold text-gray-900">
                 {isViewMode
-                  ? 'View Purchase Invoice'
+                  ? 'Lihat Faktur Pembelian'
                   : isEditMode
-                    ? 'Edit Purchase Invoice'
-                    : 'Purchase Invoice Baru'}
+                    ? 'Edit Faktur Pembelian'
+                    : 'Faktur Pembelian Baru'}
               </h1>
               <p className="mt-1 text-sm text-gray-600">
                 {isViewMode
-                  ? 'Lihat detail Purchase Invoice'
+                  ? 'Lihat detail faktur pembelian'
                   : isEditMode
-                    ? 'Edit Purchase Invoice yang ada'
-                    : 'Buat Purchase Invoice dari Purchase Receipt'}
+                    ? 'Edit faktur pembelian yang ada'
+                    : 'Buat faktur pembelian dari penerimaan barang'}
               </p>
             </div>
             <button
@@ -643,11 +643,11 @@ export default function PurchaseInvoiceMain() {
           <form onSubmit={handleSubmit} className="p-6">
             {/* Informasi Supplier dan Pemilihan PR */}
             <div className="mb-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Informasi Supplier</h3>
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Informasi Pemasok</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Nama Supplier
+                    Nama Pemasok
                   </label>
                   <div className="flex space-x-2">
                     <input
@@ -677,13 +677,13 @@ export default function PurchaseInvoiceMain() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Alamat Supplier
+                    Alamat Pemasok
                   </label>
                   <textarea
                     value={formData.supplier_address_display || ''}
                     readOnly
                     rows={2}
-                    placeholder="Alamat supplier akan ditampilkan di sini"
+                    placeholder="Alamat pemasok akan ditampilkan di sini"
                     className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 bg-gray-50 resize-none"
                   />
                 </div>
@@ -723,7 +723,7 @@ export default function PurchaseInvoiceMain() {
                   onChange={(e) => setFormData(prev => ({ ...prev, custom_notes_pi: e.target.value }))}
                   disabled={isViewMode}
                   rows={2}
-                  placeholder="Tambahkan catatan untuk Purchase Invoice ini"
+                  placeholder="Tambahkan catatan untuk faktur pembelian ini"
                   className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 resize-none"
                 />
               </div>
@@ -731,7 +731,7 @@ export default function PurchaseInvoiceMain() {
 
             {/* Detail Item */}
             <div className="mb-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Detail Item</h3>
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Detail Barang</h3>
 
               {/* Items List - Follow purchase receipt pattern */}
               <div className="space-y-2">
@@ -742,7 +742,7 @@ export default function PurchaseInvoiceMain() {
                     <div className="grid grid-cols-12 gap-2">
                       <div className="col-span-1">
                         <label className="block text-xs font-medium text-gray-700">
-                          Kode Item
+                          Kode Barang
                         </label>
                         <div className="flex mt-1">
                           <input
@@ -756,7 +756,7 @@ export default function PurchaseInvoiceMain() {
                       </div>
                       <div className="col-span-3">
                         <label className="block text-xs font-medium text-gray-700">
-                          Nama Item
+                          Nama Barang
                         </label>
                         <div className="flex mt-1">
                           <input
@@ -777,7 +777,7 @@ export default function PurchaseInvoiceMain() {
                           readOnly
                           className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm bg-gray-50"
                           value=""
-                          placeholder="Auto-select"
+                          placeholder="Otomatis"
                         />
                       </div>
                       <div className="col-span-1">
@@ -805,7 +805,7 @@ export default function PurchaseInvoiceMain() {
                       </div>
                       <div className="col-span-2">
                         <label className="block text-xs font-medium text-gray-700">
-                          Rate
+                          Harga
                         </label>
                         <input
                           type="text"
@@ -827,7 +827,7 @@ export default function PurchaseInvoiceMain() {
                       </div>
                     </div>
                     <div className="mt-3 text-center text-sm text-gray-500">
-                      Pilih Purchase Receipt terlebih dahulu untuk mengisi item
+                      Pilih Penerimaan Barang terlebih dahulu untuk mengisi barang
                     </div>
                   </div>
                 ) : (
@@ -845,7 +845,7 @@ export default function PurchaseInvoiceMain() {
                             <div className="grid grid-cols-12 gap-2">
                               <div className="col-span-1">
                                 <label className="block text-xs font-medium text-gray-700">
-                                  Kode Item
+                                  Kode Barang
                                 </label>
                                 <div className="flex mt-1">
                                   <input
@@ -858,7 +858,7 @@ export default function PurchaseInvoiceMain() {
                               </div>
                               <div className="col-span-3">
                                 <label className="block text-xs font-medium text-gray-700">
-                                  Nama Item
+                                  Nama Barang
                                 </label>
                                 <div className="flex mt-1">
                                   <input
@@ -878,7 +878,7 @@ export default function PurchaseInvoiceMain() {
                                   readOnly
                                   className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm bg-gray-50"
                                   value={item.warehouse || ''}
-                                  placeholder="Auto-select"
+                                  placeholder="Otomatis"
                                 />
                               </div>
                               <div className="col-span-1">
@@ -906,7 +906,7 @@ export default function PurchaseInvoiceMain() {
                               </div>
                               <div className="col-span-2">
                                 <label className="block text-xs font-medium text-gray-700">
-                                  Rate
+                                  Harga
                                 </label>
                                 <input
                                   type="text"
@@ -953,13 +953,13 @@ export default function PurchaseInvoiceMain() {
                     <div className="flex justify-end">
                       <div className="grid grid-cols-2 gap-8 text-sm">
                         <div className="text-right">
-                          <div className="text-gray-600">Total Quantity:</div>
+                          <div className="text-gray-600">Total Kuantitas:</div>
                           <div className="font-semibold text-gray-900">
                             {formData.items.reduce((sum, item) => sum + (item.qty || 0), 0).toLocaleString('id-ID')}
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="text-gray-600">Total Amount:</div>
+                          <div className="text-gray-600">Total Jumlah:</div>
                           <div className="font-semibold text-gray-900">
                             {calculateTotal().toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}
                           </div>
@@ -980,7 +980,7 @@ export default function PurchaseInvoiceMain() {
                 className="bg-gray-600 text-white px-6 py-2 rounded-md hover:bg-gray-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
                 title={formLoading ? "Form sedang diproses..." : "Batalkan operasi"}
               >
-                {formLoading ? 'Processing...' : 'Batal'}
+                {formLoading ? 'Memproses...' : 'Batal'}
               </button>
               <button
                 type="submit"
@@ -1013,9 +1013,9 @@ export default function PurchaseInvoiceMain() {
                     Menyimpan...
                   </>
                 ) : isEditMode ? (
-                  'Update Purchase Invoice'
+                  'Perbarui Faktur'
                 ) : (
-                  'Buat Purchase Invoice'
+                  'Simpan Faktur'
                 )}
               </button>
             </div>
@@ -1029,7 +1029,7 @@ export default function PurchaseInvoiceMain() {
           <div className="relative top-20 mx-auto p-5 border w-11/12 max-w-4xl shadow-lg rounded-md bg-white">
             <div className="px-6 py-4 border-b border-gray-200">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-medium text-gray-900">Pilih Purchase Receipt</h3>
+                <h3 className="text-lg font-medium text-gray-900">Pilih Penerimaan Barang</h3>
                 <button
                   type="button"
                   onClick={() => setShowPurchaseReceiptDialog(false)}
@@ -1046,12 +1046,12 @@ export default function PurchaseInvoiceMain() {
               {/* Search Filter */}
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Cari Purchase Receipt
+                  Cari Penerimaan Barang
                 </label>
                 <input
                   type="text"
                   className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  placeholder="Cari berdasarkan nama supplier atau nomor PR..."
+                  placeholder="Cari nama pemasok atau nomor penerimaan..."
                   value={prSearchTerm}
                   onChange={(e) => setPrSearchTerm(e.target.value)}
                 />
@@ -1060,7 +1060,7 @@ export default function PurchaseInvoiceMain() {
               {purchaseReceiptsLoading ? (
                 <div className="text-center py-4">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
-                  <p className="mt-2 text-sm text-gray-600">Memuat Purchase Receipts...</p>
+                  <p className="mt-2 text-sm text-gray-600">Memuat Penerimaan Barang...</p>
                 </div>
               ) : purchaseReceiptsError ? (
                 <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
@@ -1068,7 +1068,7 @@ export default function PurchaseInvoiceMain() {
                 </div>
               ) : purchaseReceipts.length === 0 ? (
                 <div className="text-center py-4">
-                  <p className="text-gray-500">Tidak ada Purchase Receipt tersedia</p>
+                  <p className="text-gray-500">Tidak ada penerimaan barang tersedia</p>
                 </div>
               ) : (
                 <div className="space-y-2 max-h-96 overflow-y-auto">
@@ -1093,7 +1093,7 @@ export default function PurchaseInvoiceMain() {
                         <div className="flex items-center justify-between">
                           <div>
                             <p className="text-sm font-medium text-indigo-600">{receipt.name}</p>
-                            <p className="mt-1 text-sm text-gray-900">Supplier: {receipt.supplier_name}</p>
+                            <p className="mt-1 text-sm text-gray-900">Pemasok: {receipt.supplier_name}</p>
                             <div className="mt-1 flex items-center space-x-4 text-xs text-gray-500">
                               <span>Tanggal: {receipt.posting_date}</span>
                               <span>Tagihan: {receipt.per_billed}%</span>
