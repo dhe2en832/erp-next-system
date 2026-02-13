@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Build ERPNext URL
-    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Sales Order?fields=["name","customer","customer_name","transaction_date","grand_total","status","docstatus","delivery_date"]&limit_page_length=${limit}&start=${start}`;
+    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Sales Order?fields=["name","customer","customer_name","transaction_date","grand_total","status","docstatus","delivery_date","custom_notes_so"]&limit_page_length=${limit}&start=${start}`;
     
     if (filtersArray.length > 0) {
       erpNextUrl += `&filters=${encodeURIComponent(JSON.stringify(filtersArray))}`;

@@ -54,6 +54,7 @@ interface DeliveryNote {
   grand_total: number;
   sales_order?: string;
   items?: DeliveryNoteItem[];
+  custom_notes_dn?: string;
 }
 
 export default function DeliveryNotePage() {
@@ -755,6 +756,9 @@ export default function DeliveryNotePage() {
                           </button>
                         )}
                       </div>
+                    {deliveryNote.custom_notes_dn && (
+                      <p className="mt-1 text-xs text-gray-400 truncate">Catatan: {deliveryNote.custom_notes_dn}</p>
+                    )}
                     </div>
                   </div>
                 </li>

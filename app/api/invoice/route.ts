@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Build URL with filters
-    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Sales Invoice?fields=["name","customer","customer_name","posting_date","due_date","grand_total","outstanding_amount","paid_amount","status","items","custom_total_komisi_sales"]&limit_page_length=${limit}&start=${start}&order_by=posting_date desc`;
+    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Sales Invoice?fields=["name","customer","customer_name","posting_date","due_date","grand_total","outstanding_amount","paid_amount","status","items","custom_total_komisi_sales","custom_notes_si"]&limit_page_length=${limit}&start=${start}&order_by=posting_date desc`;
     
     if (filtersArray.length > 0) {
       erpNextUrl += `&filters=${encodeURIComponent(JSON.stringify(filtersArray))}`;

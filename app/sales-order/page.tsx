@@ -19,6 +19,7 @@ interface SalesOrder {
   status: string;
   delivery_date: string;
   creation?: string; // Tambahkan creation field
+  custom_notes_so?: string;
 }
 
 interface SalesTeamMember {
@@ -1440,6 +1441,9 @@ export default function SalesOrderPage() {
                       </>
                     )}
                   </div>
+                {order.custom_notes_so && (
+                  <p className="mt-1 text-xs text-gray-400 truncate">Catatan: {order.custom_notes_so}</p>
+                )}
                 </div>
               </div>
             </li>

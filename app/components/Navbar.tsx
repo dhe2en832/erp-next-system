@@ -136,63 +136,63 @@ export default function Navbar() {
       name: 'Akunting',
       icon: '💰',
       items: [
-        { name: 'Chart of Accounts', href: '/chart-of-accounts' },
-        { name: 'GL Entry', href: '/gl-entry' },
-        { name: 'Financial Reports', href: '/financial-reports' },
-        { name: 'Journal Entries', href: '/journal' }
+        { name: 'Bagan Akun', href: '/chart-of-accounts' },
+        { name: 'Jurnal Umum', href: '/gl-entry' },
+        { name: 'Laporan Keuangan', href: '/financial-reports' },
+        { name: 'Entri Jurnal', href: '/journal' }
       ]
     },
     {
       name: 'Penjualan',
       icon: '🛒',
       items: [
-        { name: 'Sales Orders', href: '/sales-order' },
-        { name: 'Delivery Notes', href: '/delivery-note' },
-        { name: 'Sales Invoices', href: '/invoice' },
-        { name: 'Commission Dashboard', href: '/commission' }
+        { name: 'Pesanan Penjualan', href: '/sales-order' },
+        { name: 'Surat Jalan', href: '/delivery-note' },
+        { name: 'Faktur Penjualan', href: '/invoice' },
+        { name: 'Dashboard Komisi', href: '/commission' }
       ]
     },
     {
       name: 'Keuangan',
       icon: '💳',
       items: [
-        { name: 'Payments', href: '/payment' },
-        { name: 'Payment Terms', href: '/payment-terms' },
-        { name: 'Payment Reconciliation', href: '/payment-reconciliation' }
+        { name: 'Pembayaran', href: '/payment' },
+        { name: 'Termin Pembayaran', href: '/payment-terms' },
+        { name: 'Rekonsiliasi Pembayaran', href: '/payment-reconciliation' }
       ]
     },
     {
       name: 'Pembelian',
       icon: '📦',
       items: [
-        { name: 'Purchase Orders', href: '/purchase-orders' },
-        { name: 'Purchase Receipts', href: '/purchase-receipts' },
-        { name: 'Purchase Invoices', href: '/purchase-invoice' }
+        { name: 'Pesanan Pembelian', href: '/purchase-orders' },
+        { name: 'Penerimaan Barang', href: '/purchase-receipts' },
+        { name: 'Faktur Pembelian', href: '/purchase-invoice' }
       ]
     },
     {
       name: 'Persediaan',
       icon: '📋',
       items: [
-        { name: 'Items', href: '/items' },
-        { name: 'Stock Management', href: '/stock-management' }
+        { name: 'Barang', href: '/items' },
+        { name: 'Manajemen Stok', href: '/stock-management' }
       ]
     },
     {
       name: 'Gudang',
       icon: '🏭',
       items: [
-        { name: 'Warehouses', href: '/warehouse' },
-        { name: 'Stock Entry', href: '/stock-entry' },
-        { name: 'Stock Reconciliation', href: '/stock-reconciliation' }
+        { name: 'Gudang', href: '/warehouse' },
+        { name: 'Entri Stok', href: '/stock-entry' },
+        { name: 'Rekonsiliasi Stok', href: '/stock-reconciliation' }
       ]
     },
     {
       name: 'Master Data',
       icon: '🗂️',
       items: [
-        { name: 'Customers', href: '/customers' },
-        { name: 'Suppliers', href: '/suppliers' }
+        { name: 'Pelanggan', href: '/customers' },
+        { name: 'Pemasok', href: '/suppliers' }
       ]
     }
   ];
@@ -233,12 +233,12 @@ export default function Navbar() {
                 <div className="flex items-center space-x-3">
                   <div className="text-right">
                     <p className="text-sm font-medium text-gray-900">{selectedCompany.company_name}</p>
-                    <p className="text-xs text-gray-500">Current Company</p>
+                    <p className="text-xs text-gray-500">Perusahaan Aktif</p>
                   </div>
                   <button
                     onClick={handleSwitchCompany}
                     className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                    title="Switch Company"
+                    title="Ganti Perusahaan"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
