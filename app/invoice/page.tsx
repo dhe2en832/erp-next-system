@@ -20,6 +20,7 @@ interface Invoice {
   delivery_note: string;
   items?: InvoiceItem[];
   custom_total_komisi_sales?: number; // Add custom total komisi sales field
+  custom_notes_si?: string;
 }
 
 interface InvoiceItem {
@@ -1871,6 +1872,9 @@ export default function InvoicePage() {
                       </button>
                     )}
                   </div>
+                {invoice.custom_notes_si && (
+                  <p className="mt-1 text-xs text-gray-400 truncate">Catatan: {invoice.custom_notes_si}</p>
+                )}
                 </div>
               </div>
             </li>

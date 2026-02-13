@@ -46,7 +46,12 @@ export default function BrowserStyleDatePicker({
 
   const handleIconClick = () => {
     // Trigger the browser date picker
-    dateInputRef.current?.showPicker?.();
+    try {
+      dateInputRef.current?.showPicker?.();
+    } catch {
+      // Fallback: showPicker may fail in cross-origin iframes
+      dateInputRef.current?.focus();
+    }
     if (!dateInputRef.current?.showPicker) {
       // Fallback for browsers that don't support showPicker
       dateInputRef.current?.focus();
