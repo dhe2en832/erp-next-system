@@ -67,7 +67,7 @@ export default function LoginPage() {
             localStorage.setItem('selected_company', data.companies[0].name);
             router.push('/dashboard');
           } else {
-            setError('Failed to set company');
+            setError('Gagal mengatur perusahaan');
           }
         } else {
           // Fallback to dashboard
@@ -75,10 +75,10 @@ export default function LoginPage() {
           router.push('/dashboard');
         }
       } else {
-        setError(data.message || 'Login failed');
+        setError(data.message || 'Login gagal');
       }
     } catch (err) {
-      setError('An error occurred. Please try again.');
+      setError('Terjadi kesalahan. Silakan coba lagi.');
     } finally {
       setLoading(false);
     }
@@ -90,7 +90,7 @@ export default function LoginPage() {
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Redirecting...</p>
+          <p className="text-gray-600">Mengalihkan...</p>
         </div>
       </div>
     );
@@ -101,7 +101,7 @@ export default function LoginPage() {
       <div className="max-w-md w-full space-y-8">
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Sign in to ERP System
+            Masuk ke Sistem ERP
           </h2>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
@@ -117,7 +117,7 @@ export default function LoginPage() {
                 autoComplete="username"
                 required
                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                placeholder="Username or Email"
+                placeholder="Nama Pengguna atau Email"
                 value={loginId}
                 onChange={(e) => setLoginId(e.target.value)}
               />
@@ -133,7 +133,7 @@ export default function LoginPage() {
                 autoComplete="current-password"
                 required
                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                placeholder="Password"
+                placeholder="Kata Sandi"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
@@ -150,7 +150,7 @@ export default function LoginPage() {
               disabled={loading}
               className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
             >
-              {loading ? 'Signing in...' : 'Sign in'}
+              {loading ? 'Memproses...' : 'Masuk'}
             </button>
           </div>
         </form>

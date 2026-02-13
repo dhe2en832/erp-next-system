@@ -35,10 +35,10 @@ export default function SelectCompanyPage() {
         setCompanies(data.companies || []);
       } catch (error) {
         console.error('Error parsing login data:', error);
-        setError('Invalid login data');
+        setError('Data login tidak valid');
       }
     } else {
-      setError('No login data found. Please login again.');
+      setError('Data login tidak ditemukan. Silakan login kembali.');
     }
     setLoading(false);
   }, []);
@@ -66,7 +66,7 @@ export default function SelectCompanyPage() {
       window.location.href = redirectUrl;
     } catch (error) {
       console.error('Error selecting company:', error);
-      setError('Failed to select company. Please try again.');
+      setError('Gagal memilih perusahaan. Silakan coba lagi.');
     } finally {
       setSettingCompany(false);
     }
@@ -77,7 +77,7 @@ export default function SelectCompanyPage() {
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading companies...</p>
+          <p className="text-gray-600">Memuat perusahaan...</p>
         </div>
       </div>
     );
@@ -88,15 +88,15 @@ export default function SelectCompanyPage() {
       <div className="max-w-md w-full space-y-8">
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Select Company
+            Pilih Perusahaan
           </h2>
           {loginData?.full_name && (
             <p className="mt-2 text-center text-sm text-gray-600">
-              Welcome, {loginData.full_name}!
+              Selamat datang, {loginData.full_name}!
             </p>
           )}
           <p className="mt-2 text-center text-sm text-gray-600">
-            Please select a company to continue
+            Silakan pilih perusahaan untuk melanjutkan
           </p>
         </div>
 
@@ -109,12 +109,12 @@ export default function SelectCompanyPage() {
         <div className="space-y-3">
           {companies.length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-gray-500">No companies found</p>
+              <p className="text-gray-500">Tidak ada perusahaan ditemukan</p>
               <button
                 onClick={() => router.push('/login')}
                 className="mt-4 bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
               >
-                Back to Login
+                Kembali ke Login
               </button>
             </div>
           ) : (
@@ -159,7 +159,7 @@ export default function SelectCompanyPage() {
               onClick={() => router.push('/login')}
               className="text-indigo-600 hover:text-indigo-800 text-sm"
             >
-              Back to Login
+              Kembali ke Login
             </button>
           </div>
         )}

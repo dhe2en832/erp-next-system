@@ -82,7 +82,7 @@ export default function FinancialReportsPage() {
     }
     
     if (!companyToUse) {
-      setError('No company selected. Please select a company first.');
+      setError('Perusahaan belum dipilih. Silakan pilih perusahaan terlebih dahulu.');
       setLoading(false);
       return;
     }
@@ -141,7 +141,7 @@ export default function FinancialReportsPage() {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD',
+      currency: 'IDR',
     }).format(amount);
   };
 
@@ -172,7 +172,7 @@ export default function FinancialReportsPage() {
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <div className="text-lg">Loading Financial Reports...</div>
+        <div className="text-lg">Memuat Laporan Keuangan...</div>
       </div>
     );
   }
@@ -180,14 +180,14 @@ export default function FinancialReportsPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Financial Reports</h1>
+        <h1 className="text-3xl font-bold text-gray-900">Laporan Keuangan</h1>
       </div>
 
       <div className="bg-white shadow rounded-lg p-4 mb-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              From Date
+              Dari Tanggal
             </label>
             <input
               type="date"
@@ -198,7 +198,7 @@ export default function FinancialReportsPage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              To Date
+              Sampai Tanggal
             </label>
             <input
               type="date"
@@ -212,7 +212,7 @@ export default function FinancialReportsPage() {
               onClick={() => setDateFilter({ from_date: '', to_date: '' })}
               className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400"
             >
-              Clear Filters
+              Hapus Filter
             </button>
           </div>
         </div>
@@ -235,7 +235,7 @@ export default function FinancialReportsPage() {
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              Trial Balance
+              Neraca Saldo
             </button>
             <button
               onClick={() => setActiveTab('balance-sheet')}
@@ -245,7 +245,7 @@ export default function FinancialReportsPage() {
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              Balance Sheet
+              Neraca
             </button>
             <button
               onClick={() => setActiveTab('profit-loss')}
@@ -255,7 +255,7 @@ export default function FinancialReportsPage() {
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              Profit & Loss
+              Laba Rugi
             </button>
           </nav>
         </div>
@@ -263,22 +263,22 @@ export default function FinancialReportsPage() {
         <div className="p-6">
           {activeTab === 'trial-balance' && (
             <div>
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Trial Balance</h2>
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Neraca Saldo</h2>
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Account
+                        Akun
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Account Name
+                        Nama Akun
                       </th>
                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Debit
                       </th>
                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Credit
+                        Kredit
                       </th>
                     </tr>
                   </thead>
@@ -302,7 +302,7 @@ export default function FinancialReportsPage() {
                     {trialBalance.length > 0 && (
                       <tr className="bg-gray-50 font-semibold">
                         <td colSpan={2} className="px-6 py-4 text-sm text-gray-900">
-                          Totals
+                          Total
                         </td>
                         <td className="px-6 py-4 text-sm text-right text-gray-900">
                           {formatCurrency(calculateTotals(trialBalance).debit)}
@@ -320,7 +320,7 @@ export default function FinancialReportsPage() {
 
           {activeTab === 'balance-sheet' && (
             <div>
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Balance Sheet</h2>
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Neraca</h2>
               {Object.entries(groupByParent(balanceSheet)).map(([parent, entries]) => (
                 <div key={parent} className="mb-6">
                   <h3 className="text-lg font-medium text-gray-900 mb-3">{parent}</h3>
@@ -357,7 +357,7 @@ export default function FinancialReportsPage() {
 
           {activeTab === 'profit-loss' && (
             <div>
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Profit & Loss Statement</h2>
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Laporan Laba Rugi</h2>
               {Object.entries(groupByParent(profitLoss)).map(([parent, entries]) => (
                 <div key={parent} className="mb-6">
                   <h3 className="text-lg font-medium text-gray-900 mb-3">{parent}</h3>
