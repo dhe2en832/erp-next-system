@@ -90,6 +90,7 @@ export default function SalesInvoiceMain() {
     grand_total: 0,
     outstanding_amount: 0,
     custom_total_komisi_sales: 0,
+    custom_notes_si: '',
   });
 
   // Get company on mount
@@ -156,6 +157,7 @@ export default function SalesInvoiceMain() {
           company: selectedCompany,
           items: invoiceItems,
           custom_total_komisi_sales: totalKomisiSales,
+          custom_notes_si: invoice.custom_notes_si || '',
         });
         setEditingInvoice(name);
         setEditingInvoiceStatus(invoice.docstatus === 1 ? 'Submitted' : invoice.status || 'Draft');
@@ -301,6 +303,7 @@ export default function SalesInvoiceMain() {
           taxes_and_charges: completeDnData.taxes_and_charges || '',
           base_total: 0, base_net_total: 0, base_grand_total: 0,
           total: 0, net_total: 0, grand_total: 0, outstanding_amount: 0,
+          custom_notes_si: '',
         });
         setShowDeliveryNoteDialog(false);
         setError('');
@@ -352,6 +355,7 @@ export default function SalesInvoiceMain() {
         status: 'Draft',
         docstatus: 0,
         custom_total_komisi_sales: formData.custom_total_komisi_sales,
+        custom_notes_si: formData.custom_notes_si || '',
       };
 
       const response = await fetch('/api/invoice', {
@@ -581,6 +585,18 @@ export default function SalesInvoiceMain() {
                   </div>
                 </div>
               </div>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Catatan</label>
+              <textarea
+                className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                rows={3}
+                value={formData.custom_notes_si || ''}
+                onChange={(e) => setFormData({ ...formData, custom_notes_si: e.target.value })}
+                placeholder="Tambahkan catatan untuk faktur penjualan ini..."
+                disabled={isReadOnly}
+              />
             </div>
 
             <div className="flex justify-end space-x-3 mt-6">

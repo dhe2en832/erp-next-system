@@ -133,23 +133,21 @@ export default function Navbar() {
       ]
     },
     {
-      name: 'Akunting',
-      icon: '💰',
-      items: [
-        { name: 'Bagan Akun', href: '/chart-of-accounts' },
-        { name: 'Jurnal Umum', href: '/gl-entry' },
-        { name: 'Laporan Keuangan', href: '/financial-reports' },
-        { name: 'Entri Jurnal', href: '/journal' }
-      ]
-    },
-    {
       name: 'Penjualan',
-      icon: '🛒',
+      icon: '�',
       items: [
         { name: 'Pesanan Penjualan', href: '/sales-order' },
         { name: 'Surat Jalan', href: '/delivery-note' },
-        { name: 'Faktur Penjualan', href: '/invoice' },
-        { name: 'Dashboard Komisi', href: '/commission' }
+        { name: 'Faktur Penjualan', href: '/invoice' }
+      ]
+    },
+    {
+      name: 'Pembelian',
+      icon: '�',
+      items: [
+        { name: 'Pesanan Pembelian', href: '/purchase-orders' },
+        { name: 'Penerimaan Barang', href: '/purchase-receipts' },
+        { name: 'Faktur Pembelian', href: '/purchase-invoice' }
       ]
     },
     {
@@ -162,12 +160,12 @@ export default function Navbar() {
       ]
     },
     {
-      name: 'Pembelian',
-      icon: '📦',
+      name: 'Akunting',
+      icon: '�',
       items: [
-        { name: 'Pesanan Pembelian', href: '/purchase-orders' },
-        { name: 'Penerimaan Barang', href: '/purchase-receipts' },
-        { name: 'Faktur Pembelian', href: '/purchase-invoice' }
+        { name: 'Bagan Akun', href: '/chart-of-accounts' },
+        { name: 'Jurnal Umum', href: '/gl-entry' },
+        { name: 'Entri Jurnal', href: '/journal' }
       ]
     },
     {
@@ -185,6 +183,16 @@ export default function Navbar() {
         { name: 'Gudang', href: '/warehouse' },
         { name: 'Entri Stok', href: '/stock-entry' },
         { name: 'Rekonsiliasi Stok', href: '/stock-reconciliation' }
+      ]
+    },
+    {
+      name: 'Laporan',
+      icon: '📈',
+      items: [
+        { name: '— Penjualan —', href: '#' },
+        { name: 'Dashboard Komisi', href: '/commission' },
+        { name: '— Keuangan —', href: '#' },
+        { name: 'Laporan Keuangan', href: '/financial-reports' },
       ]
     },
     {
@@ -293,41 +301,38 @@ export default function Navbar() {
       {/* Sticky Navigation */}
       <nav className="sticky top-0 z-40 bg-white border-b border-gray-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between py-3">
-            {/* Left side - Main Navigation */}
-            <div className="flex items-center space-x-1">
-              {menuCategories.slice(0, 5).map((category) => (
+          <div className="flex items-center justify-between py-2">
+            {/* Desktop Navigation - hidden on mobile */}
+            <div className="hidden md:flex items-center space-x-1 flex-wrap">
+              {menuCategories.map((category, catIdx) => (
                 <div key={category.name} className="relative dropdown-container">
                   {category.items.length === 1 ? (
-                    // Single item menu
                     <a
                       href={category.items[0].href}
-                      className={`inline-flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                      className={`inline-flex items-center px-2.5 py-1.5 text-sm font-medium rounded-lg transition-colors ${
                         isActive(category.items[0].href)
                           ? 'bg-indigo-100 text-indigo-700'
                           : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                       }`}
                     >
-                      <span className="mr-2">{category.icon}</span>
-                      <span className="hidden sm:inline">{category.items[0].name}</span>
-                      <span className="sm:hidden">{category.items[0].name.substring(0, 3)}</span>
+                      <span className="mr-1.5">{category.icon}</span>
+                      <span className="hidden lg:inline">{category.items[0].name}</span>
+                      <span className="lg:hidden">{category.icon}</span>
                     </a>
                   ) : (
-                    // Dropdown menu
                     <div>
                       <button
                         onClick={() => setActiveDropdown(activeDropdown === category.name ? null : category.name)}
-                        className={`inline-flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                        className={`inline-flex items-center px-2.5 py-1.5 text-sm font-medium rounded-lg transition-colors ${
                           category.items.some(item => isActive(item.href))
                             ? 'bg-indigo-100 text-indigo-700'
                             : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                         }`}
                       >
-                        <span className="mr-2">{category.icon}</span>
-                        <span className="hidden sm:inline">{category.name}</span>
-                        <span className="sm:hidden">{category.name.substring(0, 3)}</span>
+                        <span className="mr-1.5">{category.icon}</span>
+                        <span className="hidden lg:inline">{category.name}</span>
                         <svg
-                          className={`ml-1 h-4 w-4 transition-transform ${
+                          className={`ml-1 h-3.5 w-3.5 transition-transform ${
                             activeDropdown === category.name ? 'transform rotate-180' : ''
                           }`}
                           fill="none"
@@ -339,20 +344,26 @@ export default function Navbar() {
                       </button>
                       
                       {activeDropdown === category.name && (
-                        <div className="absolute left-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
+                        <div className={`absolute ${catIdx >= menuCategories.length - 3 ? 'right-0' : 'left-0'} mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50`}>
                           <div className="py-1">
                             {category.items.map((item) => (
-                              <a
-                                key={item.name}
-                                href={item.href}
-                                className={`block px-4 py-2 text-sm transition-colors ${
-                                  isActive(item.href)
-                                    ? 'bg-indigo-50 text-indigo-700'
-                                    : 'text-gray-700 hover:bg-gray-100'
-                                }`}
-                              >
-                                {item.name}
-                              </a>
+                              item.href === '#' ? (
+                                <div key={item.name} className="px-4 py-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wider border-t border-gray-100 first:border-t-0 mt-1 first:mt-0">
+                                  {item.name.replace(/—/g, '').trim()}
+                                </div>
+                              ) : (
+                                <a
+                                  key={item.name}
+                                  href={item.href}
+                                  className={`block px-4 py-2 text-sm transition-colors ${
+                                    isActive(item.href)
+                                      ? 'bg-indigo-50 text-indigo-700'
+                                      : 'text-gray-700 hover:bg-gray-100'
+                                  }`}
+                                >
+                                  {item.name}
+                                </a>
+                              )
                             ))}
                           </div>
                         </div>
@@ -363,119 +374,24 @@ export default function Navbar() {
               ))}
             </div>
 
-            {/* Right side - More menu for overflow */}
-            <div className="flex items-center space-x-1">
-              {menuCategories.slice(5).map((category) => (
-                <div key={category.name} className="relative dropdown-container">
-                  {category.items.length === 1 ? (
-                    <a
-                      href={category.items[0].href}
-                      className={`inline-flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-                        isActive(category.items[0].href)
-                          ? 'bg-indigo-100 text-indigo-700'
-                          : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                      }`}
-                    >
-                      <span className="mr-2">{category.icon}</span>
-                      <span className="hidden lg:inline">{category.items[0].name}</span>
-                      <span className="lg:hidden">{category.items[0].name.substring(0, 3)}</span>
-                    </a>
-                  ) : (
-                    <div>
-                      <button
-                        onClick={() => setActiveDropdown(activeDropdown === category.name ? null : category.name)}
-                        className={`inline-flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-                          category.items.some(item => isActive(item.href))
-                            ? 'bg-indigo-100 text-indigo-700'
-                            : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                        }`}
-                      >
-                        <span className="mr-2">{category.icon}</span>
-                        <span className="hidden lg:inline">{category.name}</span>
-                        <span className="lg:hidden">{category.name.substring(0, 3)}</span>
-                        <svg
-                          className={`ml-1 h-4 w-4 transition-transform ${
-                            activeDropdown === category.name ? 'transform rotate-180' : ''
-                          }`}
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </button>
-                      
-                      {activeDropdown === category.name && (
-                        <div className="absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
-                          <div className="py-1">
-                            {category.items.map((item) => (
-                              <a
-                                key={item.name}
-                                href={item.href}
-                                className={`block px-4 py-2 text-sm transition-colors ${
-                                  isActive(item.href)
-                                    ? 'bg-indigo-50 text-indigo-700'
-                                    : 'text-gray-700 hover:bg-gray-100'
-                                }`}
-                              >
-                                {item.name}
-                              </a>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
-
-              {/* More menu dropdown for smaller screens */}
-              <div className="relative dropdown-container lg:hidden">
-                <button
-                  onClick={() => setActiveDropdown(activeDropdown === 'more' ? null : 'more')}
-                  className={`inline-flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-                    activeDropdown === 'more' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                  }`}
-                >
-                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                  </svg>
-                </button>
-                
-                {activeDropdown === 'more' && (
-                  <div className="absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
-                    <div className="py-1">
-                      {menuCategories.slice(5).map((category) => (
-                        <div key={category.name} className="border-b border-gray-100 last:border-b-0">
-                          <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                            {category.icon} {category.name}
-                          </div>
-                          {category.items.map((item) => (
-                            <a
-                              key={item.name}
-                              href={item.href}
-                              className={`block px-4 py-2 text-sm transition-colors ${
-                                isActive(item.href)
-                                  ? 'bg-indigo-50 text-indigo-700'
-                                  : 'text-gray-700 hover:bg-gray-100'
-                              }`}
-                            >
-                              {item.name}
-                            </a>
-                          ))}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
+            {/* Mobile hamburger - shown on mobile only */}
+            <div className="md:hidden flex items-center w-full justify-between">
+              <span className="text-sm font-medium text-gray-700">Menu</span>
+              <button
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                className="mobile-menu-button inline-flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
             </div>
           </div>
         </div>
       </nav>
 
-      {/* Mobile Menu Button */}
-      <div className="sm:hidden fixed bottom-4 right-4 z-50">
+      {/* Mobile Menu Button - floating */}
+      <div className="md:hidden fixed bottom-4 right-4 z-50">
         <button
           onClick={() => setIsMenuOpen(!isMenuOpen)}
           className="mobile-menu-button bg-indigo-600 text-white p-3 rounded-full shadow-lg hover:bg-indigo-700 transition-colors"
@@ -486,9 +402,9 @@ export default function Navbar() {
         </button>
       </div>
 
-      {/* Mobile Menu */}
+      {/* Mobile Menu - slide-in drawer */}
       {isMenuOpen && (
-        <div className="fixed inset-0 z-50 sm:hidden">
+        <div className="fixed inset-0 z-50 md:hidden">
           <div className="fixed inset-0 bg-black bg-opacity-50" onClick={() => setIsMenuOpen(false)} />
           <div className="fixed right-0 top-0 h-full w-80 bg-white shadow-xl overflow-y-auto">
             <div className="p-4">
@@ -505,27 +421,33 @@ export default function Navbar() {
               </div>
               
               {menuCategories.map((category) => (
-                <div key={category.name} className="mb-6">
-                  <div className="flex items-center mb-3">
+                <div key={category.name} className="mb-5">
+                  <div className="flex items-center mb-2">
                     <span className="mr-2">{category.icon}</span>
                     <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">
                       {category.name}
                     </h3>
                   </div>
-                  <div className="space-y-1">
+                  <div className="space-y-0.5">
                     {category.items.map((item) => (
-                      <a
-                        key={item.name}
-                        href={item.href}
-                        onClick={() => setIsMenuOpen(false)}
-                        className={`block pl-8 pr-4 py-2 text-sm rounded-lg transition-colors ${
-                          isActive(item.href)
-                            ? 'bg-indigo-50 text-indigo-700'
-                            : 'text-gray-600 hover:bg-gray-100'
-                        }`}
-                      >
-                        {item.name}
-                      </a>
+                      item.href === '#' ? (
+                        <div key={item.name} className="pl-8 pr-4 py-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                          {item.name.replace(/—/g, '').trim()}
+                        </div>
+                      ) : (
+                        <a
+                          key={item.name}
+                          href={item.href}
+                          onClick={() => setIsMenuOpen(false)}
+                          className={`block pl-8 pr-4 py-2 text-sm rounded-lg transition-colors ${
+                            isActive(item.href)
+                              ? 'bg-indigo-50 text-indigo-700 font-medium'
+                              : 'text-gray-600 hover:bg-gray-100'
+                          }`}
+                        >
+                          {item.name}
+                        </a>
+                      )
                     ))}
                   </div>
                 </div>

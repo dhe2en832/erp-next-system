@@ -45,6 +45,7 @@ export default function SalesOrderMain() {
     transaction_date: '',
     delivery_date: '',
     sales_person: '',
+    custom_notes_so: '',
     items: [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0, warehouse: '', stock_uom: '', available_stock: 0, actual_stock: 0, reserved_stock: 0 }],
   });
 
@@ -154,6 +155,7 @@ export default function SalesOrderMain() {
           transaction_date: formatDate(order.transaction_date),
           delivery_date: formatDate(order.delivery_date),
           sales_person: salesPersonValue,
+          custom_notes_so: order.custom_notes_so || '',
           items: mappedItems,
         });
       } else {
@@ -255,6 +257,7 @@ export default function SalesOrderMain() {
       transaction_date: today,
       delivery_date: today,
       sales_person: '',
+      custom_notes_so: '',
       items: [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0, warehouse: '', stock_uom: '', available_stock: 0, actual_stock: 0, reserved_stock: 0 }],
     });
     setSalesTeam([]);
@@ -445,6 +448,7 @@ export default function SalesOrderMain() {
           warehouse: item.warehouse,
         })),
         
+        custom_notes_so: formData.custom_notes_so || '',
         total: validItems.reduce((sum, item) => sum + item.amount, 0),
         grand_total: validItems.reduce((sum, item) => sum + item.amount, 0),
       };
@@ -835,6 +839,18 @@ export default function SalesOrderMain() {
                   </div>
                 </div>
               </div>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Catatan</label>
+              <textarea
+                className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                rows={3}
+                value={formData.custom_notes_so || ''}
+                onChange={(e) => setFormData({ ...formData, custom_notes_so: e.target.value })}
+                placeholder="Tambahkan catatan untuk pesanan penjualan ini..."
+                disabled={isReadOnly}
+              />
             </div>
 
             <div className="flex justify-end space-x-3 mt-6">

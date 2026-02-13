@@ -42,6 +42,7 @@ interface DeliveryNoteFormData {
   customer_name: string;
   posting_date: string;
   sales_order: string;
+  custom_notes_dn: string;
   items: DeliveryNoteItem[];
 }
 
@@ -63,6 +64,7 @@ export default function DeliveryNoteMain() {
     customer_name: '',
     posting_date: formatDate(new Date()),
     sales_order: '',
+    custom_notes_dn: '',
     items: [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0, uom: 'Nos' }],
   });
 
@@ -111,6 +113,7 @@ export default function DeliveryNoteMain() {
           customer_name: dn.customer_name,
           posting_date: formatDate(dn.posting_date),
           sales_order: salesOrderValue,
+          custom_notes_dn: dn.custom_notes_dn || '',
           items: dn.items || [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0 }],
         });
       } else {
@@ -144,6 +147,7 @@ export default function DeliveryNoteMain() {
           customer_name: order.customer_name,
           posting_date: new Date().toISOString().split('T')[0],
           sales_order: salesOrderName,
+          custom_notes_dn: '',
           items: order.items || [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0 }],
         });
       }
@@ -181,6 +185,7 @@ export default function DeliveryNoteMain() {
         ...(formData.sales_order && {
           remarks: `Based on Sales Order: ${formData.sales_order}`
         }),
+        custom_notes_dn: formData.custom_notes_dn || '',
         items: formData.items.map((item) => ({
           item_code: item.item_code,
           item_name: item.item_name,
@@ -229,6 +234,7 @@ export default function DeliveryNoteMain() {
       customer_name: '',
       posting_date: new Date().toISOString().split('T')[0],
       sales_order: '',
+      custom_notes_dn: '',
       items: [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0, uom: 'Nos' }],
     });
     setError('');
@@ -261,6 +267,7 @@ export default function DeliveryNoteMain() {
           customer_name: order.customer_name,
           posting_date: new Date().toISOString().split('T')[0],
           sales_order: order.name,
+          custom_notes_dn: '',
           items: deliveryNoteItems,
         });
       } else {
@@ -484,6 +491,18 @@ export default function DeliveryNoteMain() {
                   <input type="text" readOnly className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 text-sm bg-white text-right font-semibold" value={formData.items.reduce((total, item) => total + (item.amount || 0), 0).toLocaleString('id-ID')} />
                 </div>
               </div>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Catatan</label>
+              <textarea
+                className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                rows={3}
+                value={formData.custom_notes_dn || ''}
+                onChange={(e) => setFormData({ ...formData, custom_notes_dn: e.target.value })}
+                placeholder="Tambahkan catatan untuk surat jalan ini..."
+                disabled={isReadOnly}
+              />
             </div>
 
             <div className="flex justify-end space-x-3 mt-6">
