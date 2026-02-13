@@ -8,6 +8,13 @@ export async function GET(request: NextRequest) {
     
     const { searchParams } = new URL(request.url);
     const company = searchParams.get('company');
+    const search = searchParams.get('search');
+    const documentNumber = searchParams.get('documentNumber');
+    const status = searchParams.get('status');
+    const fromDate = searchParams.get('from_date');
+    const toDate = searchParams.get('to_date');
+    const limit = searchParams.get('limit') || '100';
+    const start = searchParams.get('start') || '0';
     
     const cookies = request.cookies;
     const sid = cookies.get('sid')?.value;
@@ -19,8 +26,44 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Simple URL dengan items field dan custom fields
-    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Sales Invoice?fields=["name","customer","customer_name","posting_date","due_date","grand_total","outstanding_amount","paid_amount","status","items","custom_total_komisi_sales"]&limit_page_length=100&order_by=posting_date desc`;
+    // Build filters
+    let filtersArray = [];
+    
+    // Always add company filter if provided
+    if (company) {
+      filtersArray.push(["company", "=", company]);
+    }
+    
+    // Add search filter
+    if (search) {
+      filtersArray.push(["customer_name", "like", `%${search}%`]);
+    }
+    
+    // Add document number filter
+    if (documentNumber) {
+      filtersArray.push(["name", "like", `%${documentNumber}%`]);
+    }
+    
+    // Add status filter
+    if (status) {
+      filtersArray.push(["status", "=", status]);
+    }
+    
+    // Add date filters
+    if (fromDate) {
+      filtersArray.push(["posting_date", ">=", fromDate]);
+    }
+    
+    if (toDate) {
+      filtersArray.push(["posting_date", "<=", toDate]);
+    }
+
+    // Build URL with filters
+    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Sales Invoice?fields=["name","customer","customer_name","posting_date","due_date","grand_total","outstanding_amount","paid_amount","status","items","custom_total_komisi_sales"]&limit_page_length=${limit}&start=${start}&order_by=posting_date desc`;
+    
+    if (filtersArray.length > 0) {
+      erpNextUrl += `&filters=${encodeURIComponent(JSON.stringify(filtersArray))}`;
+    }
     
     console.log('Invoice ERPNext URL:', erpNextUrl);
 

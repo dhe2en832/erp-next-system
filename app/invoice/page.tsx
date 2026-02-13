@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Pagination from '../components/Pagination';
+import { formatDate, parseDate } from '../../utils/format';
+import BrowserStyleDatePicker from '../../components/BrowserStyleDatePicker';
 
 interface Invoice {
   name: string;
@@ -50,10 +52,12 @@ export default function InvoicePage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [dateFilter, setDateFilter] = useState({
-    from_date: '',
-    to_date: '',
+    from_date: formatDate(new Date(Date.now() - 86400000)), // Yesterday in DD/MM/YYYY
+    to_date: formatDate(new Date()), // Today in DD/MM/YYYY
   });
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [documentNumberFilter, setDocumentNumberFilter] = useState('');
   const [selectedCompany, setSelectedCompany] = useState('');
 
   // Environment variables
@@ -63,8 +67,8 @@ export default function InvoicePage() {
   const [formData, setFormData] = useState({
     customer: '',
     customer_name: '',
-    posting_date: new Date().toISOString().split('T')[0],
-    due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // +30 days
+    posting_date: formatDate(new Date()),
+    due_date: formatDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)), // +30 days
     // ❌ HAPUS delivery_note dari header
     items: [{
       item_code: '',
@@ -203,12 +207,42 @@ export default function InvoicePage() {
     try {
       // Use proper invoice API (bukan invoice-simple)
       console.log('📋 Fetching invoices with complete data...');
-      const params = new URLSearchParams({
-        company: companyToUse,
-        // Add pagination parameters
-        limit_page_length: pageSize.toString(),
-        start: ((currentPage - 1) * pageSize).toString()
-      });
+      const params = new URLSearchParams();
+      
+      // Add pagination parameters
+      params.append('limit_page_length', pageSize.toString());
+      params.append('start', ((currentPage - 1) * pageSize).toString());
+      
+      // Add filter parameters
+      if (companyToUse) {
+        params.append('company', companyToUse);
+      }
+      
+      if (searchTerm) {
+        params.append('search', searchTerm);
+      }
+      
+      if (documentNumberFilter) {
+        params.append('documentNumber', documentNumberFilter);
+      }
+      
+      if (statusFilter) {
+        params.append('status', statusFilter);
+      }
+      
+      if (dateFilter.from_date) {
+        const parsedDate = parseDate(dateFilter.from_date);
+        if (parsedDate) {
+          params.append('from_date', parsedDate);
+        }
+      }
+      
+      if (dateFilter.to_date) {
+        const parsedDate = parseDate(dateFilter.to_date);
+        if (parsedDate) {
+          params.append('to_date', parsedDate);
+        }
+      }
 
       const response = await fetch(`/api/invoice?${params}`);
       const data = await response.json();
@@ -256,16 +290,16 @@ export default function InvoicePage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedCompany, currentPage, pageSize]);
+  }, [selectedCompany, currentPage, pageSize, dateFilter, searchTerm, statusFilter, documentNumberFilter]);
 
   useEffect(() => {
     fetchInvoices();
-  }, [dateFilter, searchTerm, fetchInvoices]); // Add searchTerm dependency
+  }, [dateFilter, searchTerm, statusFilter, documentNumberFilter, fetchInvoices]); // Add all filter dependencies
 
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [dateFilter, searchTerm]);
+  }, [dateFilter, searchTerm, statusFilter, documentNumberFilter]);
 
   // NEW FUNCTION: Fetch complete invoice header and details
   const fetchCompleteInvoices = useCallback(async () => {
@@ -1074,8 +1108,8 @@ export default function InvoicePage() {
         // ERPNext mandatory fields
         company: selectedCompany,
         customer: formData.customer,
-        posting_date: formData.posting_date,
-        due_date: formData.due_date,
+        posting_date: parseDate(formData.posting_date),
+        due_date: parseDate(formData.due_date),
         // ❌ HAPUS delivery_note dari header
         // delivery_note: formData.delivery_note || undefined,
 
@@ -1285,11 +1319,11 @@ export default function InvoicePage() {
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Search
+              Cari Customer
             </label>
             <input
               type="text"
-              placeholder="Search invoice..."
+              placeholder="Search by customer..."
               className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -1297,31 +1331,65 @@ export default function InvoicePage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              From Date
+              No. Dokumen
             </label>
             <input
-              type="date"
+              type="text"
+              placeholder="Search invoice..."
               className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              value={dateFilter.from_date}
-              onChange={(e) => setDateFilter({ ...dateFilter, from_date: e.target.value })}
+              value={documentNumberFilter}
+              onChange={(e) => setDocumentNumberFilter(e.target.value)}
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              To Date
+              Status
             </label>
-            <input
-              type="date"
+            <select
               className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="">Semua Status</option>
+              <option value="Draft">Draft</option>
+              <option value="Submitted">Submitted</option>
+              <option value="Unpaid">Unpaid</option>
+              <option value="Paid">Paid</option>
+              <option value="Cancelled">Cancelled</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Dari Tanggal
+            </label>
+            <BrowserStyleDatePicker
+              value={dateFilter.from_date}
+              onChange={(value: string) => setDateFilter({ ...dateFilter, from_date: value })}
+              className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              placeholder="DD/MM/YYYY"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Sampai Tanggal
+            </label>
+            <BrowserStyleDatePicker
               value={dateFilter.to_date}
-              onChange={(e) => setDateFilter({ ...dateFilter, to_date: e.target.value })}
+              onChange={(value: string) => setDateFilter({ ...dateFilter, to_date: value })}
+              className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              placeholder="DD/MM/YYYY"
             />
           </div>
           <div className="flex items-end">
             <button
               onClick={() => {
-                setDateFilter({ from_date: '', to_date: '' });
+                setDateFilter({ 
+                  from_date: formatDate(new Date(Date.now() - 86400000)), // Reset to yesterday
+                  to_date: formatDate(new Date()), // Reset to today
+                });
                 setSearchTerm('');
+                setStatusFilter('');
+                setDocumentNumberFilter('');
               }}
               className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400"
             >
@@ -1414,28 +1482,26 @@ export default function InvoicePage() {
                   <label className="block text-sm font-medium text-gray-700">
                     Posting Date
                   </label>
-                  <input
-                    type="date"
-                    required
-                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  <BrowserStyleDatePicker
                     value={formData.posting_date}
-                    onChange={(e) =>
-                      setFormData({ ...formData, posting_date: e.target.value })
+                    onChange={(value: string) =>
+                      setFormData({ ...formData, posting_date: value })
                     }
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    placeholder="DD/MM/YYYY"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
                     Due Date
                   </label>
-                  <input
-                    type="date"
-                    required
-                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  <BrowserStyleDatePicker
                     value={formData.due_date}
-                    onChange={(e) =>
-                      setFormData({ ...formData, due_date: e.target.value })
+                    onChange={(value: string) =>
+                      setFormData({ ...formData, due_date: value })
                     }
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    placeholder="DD/MM/YYYY"
                   />
                 </div>
                 <div>
