@@ -7,6 +7,8 @@ import ItemDialog from '../components/ItemDialog';
 import SalesPersonDialog from '../components/SalesPersonDialog';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Pagination from '../components/Pagination';
+import { formatDate, parseDate } from '../../utils/format';
+import BrowserStyleDatePicker from '../../components/BrowserStyleDatePicker';
 
 interface SalesOrder {
   name: string;
@@ -42,10 +44,12 @@ export default function SalesOrderPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [dateFilter, setDateFilter] = useState({
-    from_date: '',
-    to_date: '',
+    from_date: formatDate(new Date(Date.now() - 86400000)), // Yesterday in DD/MM/YYYY
+    to_date: formatDate(new Date()), // Today in DD/MM/YYYY
   });
   const [nameFilter, setNameFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [documentNumberFilter, setDocumentNumberFilter] = useState('');
   const [editingOrder, setEditingOrder] = useState<SalesOrder | null>(null);
   const [currentOrderStatus, setCurrentOrderStatus] = useState<string>('');
   const [selectedCompany, setSelectedCompany] = useState('');
@@ -96,12 +100,12 @@ export default function SalesOrderPage() {
 
   useEffect(() => {
     fetchOrders();
-  }, [dateFilter, nameFilter, currentPage]); // Add currentPage dependency
+  }, [dateFilter, nameFilter, statusFilter, documentNumberFilter, currentPage]); // Add all filter dependencies
 
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [dateFilter, nameFilter]);
+  }, [dateFilter, nameFilter, statusFilter, documentNumberFilter]);
 
   // Set default dates saat component mount
   useEffect(() => {
@@ -172,36 +176,40 @@ export default function SalesOrderPage() {
     try {
       const params = new URLSearchParams();
       
-      // Build filters array for ERPNext - use companyToUse instead of selectedCompany
-      const filters = [["company", "=", companyToUse]];
-      
-      // Default filter untuk hari ini jika tidak ada filter tanggal yang diset
-      const today = new Date().toISOString().split('T')[0];
-      if (dateFilter.from_date) {
-        filters.push(["transaction_date", ">=", dateFilter.from_date]);
-      } else {
-        // Default: filter dari 30 hari ke belakang untuk lebih user-friendly
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        filters.push(["transaction_date", ">=", thirtyDaysAgo.toISOString().split('T')[0]]);
-      }
-      
-      if (dateFilter.to_date) {
-        filters.push(["transaction_date", "<=", dateFilter.to_date]);
-      } else {
-        // Default: filter sampai 7 hari ke depan
-        const sevenDaysAhead = new Date();
-        sevenDaysAhead.setDate(sevenDaysAhead.getDate() + 7);
-        filters.push(["transaction_date", "<=", sevenDaysAhead.toISOString().split('T')[0]]);
-      }
-      
-      if (nameFilter) filters.push(["name", "like", "%" + nameFilter + "%"]);
-      
-      params.append('filters', JSON.stringify(filters));
-      
       // Add pagination parameters
       params.append('limit_page_length', pageSize.toString());
       params.append('start', ((currentPage - 1) * pageSize).toString());
+      
+      // Add filter parameters
+      if (companyToUse) {
+        params.append('company', companyToUse);
+      }
+      
+      if (nameFilter) {
+        params.append('search', nameFilter);
+      }
+      
+      if (documentNumberFilter) {
+        params.append('documentNumber', documentNumberFilter);
+      }
+      
+      if (statusFilter) {
+        params.append('status', statusFilter);
+      }
+      
+      if (dateFilter.from_date) {
+        const parsedDate = parseDate(dateFilter.from_date);
+        if (parsedDate) {
+          params.append('from_date', parsedDate);
+        }
+      }
+      
+      if (dateFilter.to_date) {
+        const parsedDate = parseDate(dateFilter.to_date);
+        if (parsedDate) {
+          params.append('to_date', parsedDate);
+        }
+      }
       
       // params.append('order_by', 'creation desc'); // Comment out dulu jika ada error
       
@@ -327,8 +335,8 @@ export default function SalesOrderPage() {
         setFormData({
           customer: order.customer || '',
           customer_name: order.customer_name || '',
-          transaction_date: order.transaction_date || '',
-          delivery_date: order.delivery_date || '',
+          transaction_date: formatDate(order.transaction_date),
+          delivery_date: formatDate(order.delivery_date),
           sales_person: salesPersonValue,
           items: mappedItems,
         });
@@ -472,21 +480,13 @@ export default function SalesOrderPage() {
   };
 
   const resetForm = () => {
-    // Gunakan timezone lokal untuk mendapatkan tanggal yang benar
-    const today = new Date();
-    const offset = today.getTimezoneOffset();
-    const localDate = new Date(today.getTime() - (offset * 60 * 1000));
-    const todayString = localDate.toISOString().split('T')[0];
-    
-    console.log('Reset form with today:', todayString);
-    console.log('Current system date:', today.toISOString());
-    console.log('Timezone offset:', offset, 'minutes');
+    const today = formatDate(new Date());
     
     setFormData({
       customer: '',
       customer_name: '',
-      transaction_date: todayString,
-      delivery_date: todayString,
+      transaction_date: today,
+      delivery_date: today,
       sales_person: '',
       items: [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0, warehouse: '', stock_uom: '', available_stock: 0, actual_stock: 0, reserved_stock: 0 }],
     });
@@ -711,8 +711,8 @@ export default function SalesOrderPage() {
         doctype: "Sales Order",
         company: selectedCompany,
         customer: formData.customer,
-        transaction_date: formData.transaction_date,
-        delivery_date: formData.delivery_date,
+        transaction_date: parseDate(formData.transaction_date),
+        delivery_date: parseDate(formData.delivery_date),
         order_type: "Sales",
         currency: "IDR",
         status: "Draft",
@@ -911,7 +911,7 @@ export default function SalesOrderPage() {
       </div>
 
       <div className="bg-white shadow rounded-lg p-4 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Search Name
@@ -926,31 +926,65 @@ export default function SalesOrderPage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              From Date
+              No. Dokumen
             </label>
             <input
-              type="date"
+              type="text"
               className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              value={dateFilter.from_date}
-              onChange={(e) => setDateFilter({ ...dateFilter, from_date: e.target.value })}
+              placeholder="Cari nomor SO..."
+              value={documentNumberFilter}
+              onChange={(e) => setDocumentNumberFilter(e.target.value)}
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              To Date
+              Status
             </label>
-            <input
-              type="date"
+            <select
               className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="">Semua Status</option>
+              <option value="Draft">Draft</option>
+              <option value="Submitted">Submitted</option>
+              <option value="To Deliver">To Deliver</option>
+              <option value="Completed">Completed</option>
+              <option value="Cancelled">Cancelled</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Dari Tanggal
+            </label>
+            <BrowserStyleDatePicker
+              value={dateFilter.from_date}
+              onChange={(value: string) => setDateFilter({ ...dateFilter, from_date: value })}
+              className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              placeholder="DD/MM/YYYY"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Sampai Tanggal
+            </label>
+            <BrowserStyleDatePicker
               value={dateFilter.to_date}
-              onChange={(e) => setDateFilter({ ...dateFilter, to_date: e.target.value })}
+              onChange={(value: string) => setDateFilter({ ...dateFilter, to_date: value })}
+              className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              placeholder="DD/MM/YYYY"
             />
           </div>
           <div className="flex items-end">
             <button
               onClick={() => {
-                setDateFilter({ from_date: '', to_date: '' });
+                setDateFilter({ 
+                from_date: formatDate(new Date(Date.now() - 86400000)), // Reset to yesterday
+                to_date: formatDate(new Date()), // Reset to today
+              });
                 setNameFilter('');
+                setStatusFilter('');
+                setDocumentNumberFilter('');
               }}
               className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400"
             >
@@ -1008,36 +1042,32 @@ export default function SalesOrderPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
-                    Transaction Date
+                    Transaction Date <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="date"
-                    required
+                  <BrowserStyleDatePicker
+                    value={formData.transaction_date}
+                    onChange={(value: string) =>
+                      setFormData({ ...formData, transaction_date: value })
+                    }
                     className={`mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm ${
                       currentOrderStatus !== 'Draft' && currentOrderStatus !== '' ? 'bg-gray-100 cursor-not-allowed' : ''
                     }`}
-                    value={formData.transaction_date}
-                    onChange={(e) =>
-                      setFormData({ ...formData, transaction_date: e.target.value })
-                    }
-                    disabled={currentOrderStatus !== 'Draft' && currentOrderStatus !== ''}
+                    placeholder="DD/MM/YYYY"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
                     Delivery Date <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="date"
-                    required
+                  <BrowserStyleDatePicker
+                    value={formData.delivery_date}
+                    onChange={(value: string) =>
+                      setFormData({ ...formData, delivery_date: value })
+                    }
                     className={`mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm ${
                       currentOrderStatus !== 'Draft' && currentOrderStatus !== '' ? 'bg-gray-100 cursor-not-allowed' : ''
                     }`}
-                    value={formData.delivery_date}
-                    onChange={(e) =>
-                      setFormData({ ...formData, delivery_date: e.target.value })
-                    }
-                    disabled={currentOrderStatus !== 'Draft' && currentOrderStatus !== ''}
+                    placeholder="DD/MM/YYYY"
                   />
                 </div>
                 <div>

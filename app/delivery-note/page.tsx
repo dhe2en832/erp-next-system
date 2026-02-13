@@ -5,6 +5,8 @@ import SalesOrderDialog from '../components/SalesOrderDialog';
 import CustomerDialog from '../components/CustomerDialog';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Pagination from '../components/Pagination';
+import { formatDate, parseDate } from '../../utils/format';
+import BrowserStyleDatePicker from '../../components/BrowserStyleDatePicker';
 
 interface SalesOrder {
   name: string;
@@ -59,18 +61,19 @@ export default function DeliveryNotePage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [dateFilter, setDateFilter] = useState({
-    from_date: '',
-    to_date: '',
+    from_date: formatDate(new Date(Date.now() - 86400000)), // Yesterday in DD/MM/YYYY
+    to_date: formatDate(new Date()), // Today in DD/MM/YYYY
   });
   const [nameFilter, setNameFilter] = useState('');
   const [customerFilter, setCustomerFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [editingDeliveryNote, setEditingDeliveryNote] = useState<DeliveryNote | null>(null);
   const [currentDeliveryNoteStatus, setCurrentDeliveryNoteStatus] = useState<string>('');
   const [selectedCompany, setSelectedCompany] = useState('');
   const [formData, setFormData] = useState<DeliveryNoteFormData>({
     customer: '',
     customer_name: '',
-    posting_date: new Date().toISOString().split('T')[0],
+    posting_date: formatDate(new Date()),
     sales_order: '',
     items: [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0, uom: 'Nos' }],
   });
@@ -79,7 +82,7 @@ export default function DeliveryNotePage() {
   const [showSalesOrderDialog, setShowSalesOrderDialog] = useState(false);
   const [showCustomerDialog, setShowCustomerDialog] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
-  
+
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -89,7 +92,7 @@ export default function DeliveryNotePage() {
   useEffect(() => {
     // Try to get company from localStorage first, then from cookie
     let savedCompany = localStorage.getItem('selected_company');
-    
+
     if (!savedCompany) {
       // Fallback to cookie if localStorage is empty
       const cookies = document.cookie.split(';');
@@ -102,7 +105,7 @@ export default function DeliveryNotePage() {
         }
       }
     }
-    
+
     if (savedCompany) {
       setSelectedCompany(savedCompany);
     }
@@ -111,10 +114,10 @@ export default function DeliveryNotePage() {
   const fetchDeliveryNotes = useCallback(async () => {
     // Clear previous error when starting to fetch
     setError('');
-    
+
     // Check for company selection with better logic
     let companyToUse = selectedCompany;
-    
+
     // If no company in state, try to get it fresh
     if (!companyToUse) {
       const storedCompany = localStorage.getItem('selected_company');
@@ -131,57 +134,66 @@ export default function DeliveryNotePage() {
         }
       }
     }
-    
+
     if (!companyToUse) {
       setError('No company selected. Please select a company first.');
       setLoading(false);
       return;
     }
-    
+
     // Update state if we found company from storage
     if (!selectedCompany && companyToUse) {
       setSelectedCompany(companyToUse);
     }
-    
+
     try {
-      // Build filters for company
-      const filters = [["company", "=", companyToUse]];
-      const filtersJson = JSON.stringify(filters);
-      
-      let url = `/api/delivery-note?filters=${encodeURIComponent(filtersJson)}`;
+      // Build URL with parameters
+      const params = new URLSearchParams();
       
       // Add pagination parameters
-      url += `&limit_page_length=${pageSize}&start=${((currentPage - 1) * pageSize)}`;
+      params.append('limit_page_length', pageSize.toString());
+      params.append('start', ((currentPage - 1) * pageSize).toString());
       
-      // Add date filters if provided
+      // Add filter parameters
+      if (customerFilter) {
+        params.append('search', customerFilter);
+      }
+      
+      if (nameFilter) {
+        params.append('documentNumber', nameFilter);
+      }
+      
+      if (statusFilter) {
+        params.append('status', statusFilter);
+      }
+      
       if (dateFilter.from_date) {
-        url += `&from_date=${dateFilter.from_date}`;
+        const parsedDate = parseDate(dateFilter.from_date);
+        if (parsedDate) {
+          params.append('from_date', parsedDate);
+        }
       }
+      
       if (dateFilter.to_date) {
-        url += `&to_date=${dateFilter.to_date}`;
+        const parsedDate = parseDate(dateFilter.to_date);
+        if (parsedDate) {
+          params.append('to_date', parsedDate);
+        }
       }
       
-      const response = await fetch(url);
+      // Add company filter
+      params.append('filters', JSON.stringify([["company", "=", companyToUse]]));
+      
+      const response = await fetch(`/api/delivery-note?${params.toString()}`);
       const data = await response.json();
-      
+
       console.log('Delivery Notes Response:', data);
-      
+
       if (data.success) {
-        // Filter by name and customer if filters are provided
-        let filteredData = data.data || [];
-        if (nameFilter) {
-          filteredData = filteredData.filter((dn: DeliveryNote) => 
-            dn.name.toLowerCase().includes(nameFilter.toLowerCase())
-          );
-        }
-        if (customerFilter) {
-          filteredData = filteredData.filter((dn: DeliveryNote) => 
-            dn.customer.toLowerCase().includes(customerFilter.toLowerCase())
-          );
-        }
-        
+        // Data is already filtered by API, no need to filter again
+        const filteredData = data.data || [];
         setDeliveryNotes(filteredData);
-        
+
         // Update pagination info from API response
         if (data.total_records !== undefined) {
           setTotalRecords(data.total_records);
@@ -192,7 +204,7 @@ export default function DeliveryNotePage() {
           setTotalRecords(filteredData.length);
           setTotalPages(1);
         }
-        
+
         setError('');
       } else {
         setError(data.message || 'Failed to fetch delivery notes');
@@ -203,7 +215,7 @@ export default function DeliveryNotePage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedCompany, dateFilter, nameFilter, customerFilter, currentPage, pageSize]);
+  }, [selectedCompany, dateFilter, nameFilter, customerFilter, statusFilter, currentPage, pageSize]);
 
   useEffect(() => {
     fetchDeliveryNotes();
@@ -212,7 +224,7 @@ export default function DeliveryNotePage() {
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [dateFilter, nameFilter, customerFilter]);
+  }, [dateFilter, nameFilter, customerFilter, statusFilter]);
 
   const handleSalesOrderChange = async (salesOrderName: string) => {
     if (!salesOrderName) {
@@ -225,11 +237,11 @@ export default function DeliveryNotePage() {
       });
       return;
     }
-    
+
     try {
       const response = await fetch(`/api/sales-order/${salesOrderName}`);
       const data = await response.json();
-      
+
       if (data.success) {
         const order = data.data;
         setFormData({
@@ -251,16 +263,16 @@ export default function DeliveryNotePage() {
       console.error('Invalid delivery note name:', deliveryNoteName);
       return;
     }
-    
+
     try {
       const response = await fetch("/api/delivery-note/" + deliveryNoteName);
       const data = await response.json();
-      
+
       if (data.success) {
         const deliveryNote = data.data;
         setEditingDeliveryNote(deliveryNote);
         setCurrentDeliveryNoteStatus(deliveryNoteStatus || deliveryNote.status || '');
-        
+
         // Extract sales_order from items if available
         let salesOrderValue = '';
         if (deliveryNote.items && deliveryNote.items.length > 0) {
@@ -268,11 +280,11 @@ export default function DeliveryNotePage() {
           salesOrderValue = firstItem.against_sales_order || '';
           console.log('Sales Order extracted from items:', salesOrderValue);
         }
-        
+
         setFormData({
           customer: deliveryNote.customer,
           customer_name: deliveryNote.customer_name,
-          posting_date: deliveryNote.posting_date,
+          posting_date: formatDate(deliveryNote.posting_date),
           sales_order: salesOrderValue, // Extract from items
           items: deliveryNote.items || [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0 }],
         });
@@ -320,11 +332,11 @@ export default function DeliveryNotePage() {
       const deliveryNotePayload = {
         company: selectedCompany,
         customer: formData.customer,
-        posting_date: formData.posting_date,
+        posting_date: parseDate(formData.posting_date),
         // Field tambahan yang penting untuk ERPNext
         naming_series: 'DN-.YYYY.-', // Standard naming series
         // Reference ke Sales Order melalui remarks (ERPNext standard)
-        ...(formData.sales_order && { 
+        ...(formData.sales_order && {
           remarks: `Based on Sales Order: ${formData.sales_order}`
         }),
         // Items dengan structure yang benar (termasuk SO reference)
@@ -349,9 +361,9 @@ export default function DeliveryNotePage() {
           // cost_center - akan di-auto fill oleh ERPNext
         }))
       };
-      
+
       console.log('Delivery Note Payload:', JSON.stringify(deliveryNotePayload, null, 2));
-      
+
       const response = await fetch('/api/delivery-note', {
         method: 'POST',
         headers: {
@@ -364,11 +376,11 @@ export default function DeliveryNotePage() {
 
       if (data.success) {
         setSuccessMessage(`✅ Delivery Note berhasil disimpan!\n\n📄 Nomor: ${data.data?.name || 'DN Baru'}\n👤 Customer: ${formData.customer}\n📅 Tanggal: ${formData.posting_date}\n💰 Total: ${formData.items.reduce((sum, item) => sum + item.amount, 0).toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}\n\n🎯 Next Steps:\n• Klik tombol "Submit" untuk mengubah status menjadi "Submitted"\n• Setelah submit, stock akan berkurang dari gudang`);
-        
+
         setShowForm(false);
         resetForm(); // Gunakan resetForm function
         fetchDeliveryNotes();
-        
+
         // Clear success message after 5 seconds
         setTimeout(() => setSuccessMessage(''), 5000);
       } else {
@@ -386,7 +398,7 @@ export default function DeliveryNotePage() {
   const handleSubmitDeliveryNote = async (deliveryNoteName: string) => {
     try {
       console.log('Submitting Delivery Note:', deliveryNoteName);
-      
+
       const response = await fetch(`/api/delivery-note/${deliveryNoteName}/submit`, {
         method: 'POST',
         headers: {
@@ -402,7 +414,7 @@ export default function DeliveryNotePage() {
       if (result.success) {
         setSuccessMessage(`✅ Delivery Note ${deliveryNoteName} berhasil di-submit!\n\n📦 Status: Draft → Submitted\n📉 Stock Impact:\n• Stock telah berkurang dari gudang\n• Barang telah keluar (delivered)\n\n🔔 Next Steps:\n• Buat Sales Invoice untuk jurnal akuntansi\n• Customer dapat menerima barang sesuai DN`);
         fetchDeliveryNotes(); // Refresh list
-        
+
         // Clear success message after 5 seconds
         setTimeout(() => setSuccessMessage(''), 5000);
       } else {
@@ -434,18 +446,18 @@ export default function DeliveryNotePage() {
   const handleSalesOrderSelect = async (salesOrder: SalesOrder) => {
     try {
       console.log('Selected sales order:', salesOrder);
-      
+
       // Reset form sebelum mengisi data baru
       resetForm();
-      
+
       // Fetch detailed sales order data including items
       const response = await fetch(`/api/sales-order/${salesOrder.name}`);
       const data = await response.json();
-      
+
       if (data.success) {
         const order = data.data;
         console.log('Sales order details:', order);
-        
+
         // Map sales order items to delivery note items dengan field lengkap
         const deliveryNoteItems = order.items ? order.items.map((item: any) => ({
           item_code: item.item_code,
@@ -458,9 +470,9 @@ export default function DeliveryNotePage() {
           warehouse: item.warehouse || 'Stores - EN',
           delivered_qty: item.qty // Default delivered qty = ordered qty
         })) : [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0, uom: 'Nos' }];
-        
+
         console.log('Mapped delivery note items:', deliveryNoteItems);
-        
+
         // Set form dengan data dari sales order
         setFormData({
           customer: order.customer,
@@ -489,8 +501,8 @@ export default function DeliveryNotePage() {
 
   // Handle customer selection
   const handleCustomerSelect = (customer: { name: string; customer_name: string }) => {
-    setFormData(prev => ({ 
-      ...prev, 
+    setFormData(prev => ({
+      ...prev,
       customer: customer.name,
       customer_name: customer.customer_name
     }));
@@ -585,166 +597,185 @@ export default function DeliveryNotePage() {
           </div>
         </div>
 
-          {/* Filters */}
-          <div className="bg-white shadow rounded-lg p-4 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Search Name
-            </label>
-            <input
-              type="text"
-              className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              placeholder="Search by name..."
-              value={nameFilter}
-              onChange={(e) => setNameFilter(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Search Customer
-            </label>
-            <input
-              type="text"
-              className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              placeholder="Search by customer..."
-              value={customerFilter}
-              onChange={(e) => setCustomerFilter(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              From Date
-            </label>
-            <input
-              type="date"
-              className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              value={dateFilter.from_date}
-              onChange={(e) => setDateFilter({ ...dateFilter, from_date: e.target.value })}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              To Date
-            </label>
-            <input
-              type="date"
-              className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              value={dateFilter.to_date}
-              onChange={(e) => setDateFilter({ ...dateFilter, to_date: e.target.value })}
-            />
-          </div>
-          <div className="flex items-end">
-            <button
-              onClick={() => {
-                setDateFilter({ from_date: '', to_date: '' });
-                setNameFilter('');
-                setCustomerFilter('');
-              }}
-              className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400"
-            >
-              Clear Filters
-            </button>
+        {/* Filters */}
+        <div className="bg-white shadow rounded-lg p-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Cari Customer
+              </label>
+              <input
+                type="text"
+                className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                placeholder="Search by customer..."
+                value={customerFilter}
+                onChange={(e) => setCustomerFilter(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                No. Dokumen
+              </label>
+              <input
+                type="text"
+                className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                placeholder="Search by name..."
+                value={nameFilter}
+                onChange={(e) => setNameFilter(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Status
+              </label>
+              <select
+                className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+              >
+                <option value="">Semua Status</option>
+                <option value="Draft">Draft</option>
+                <option value="Submitted">Submitted</option>
+                <option value="Completed">Completed</option>
+                <option value="Cancelled">Cancelled</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Dari Tanggal
+              </label>
+              <BrowserStyleDatePicker
+                value={dateFilter.from_date}
+                onChange={(value: string) => setDateFilter({ ...dateFilter, from_date: value })}
+                className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                placeholder="DD/MM/YYYY"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Sampai Tanggal
+              </label>
+              <BrowserStyleDatePicker
+                value={dateFilter.to_date}
+                onChange={(value: string) => setDateFilter({ ...dateFilter, to_date: value })}
+                className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                placeholder="DD/MM/YYYY"
+              />
+            </div>
+            <div className="flex items-end">
+              <button
+                onClick={() => {
+                  setDateFilter({ 
+                    from_date: formatDate(new Date(Date.now() - 86400000)), // Reset to yesterday
+                    to_date: formatDate(new Date()), // Reset to today
+                  });
+                  setNameFilter('');
+                  setCustomerFilter('');
+                  setStatusFilter('');
+                }}
+                className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400"
+              >
+                Clear Filters
+              </button>
+            </div>
           </div>
         </div>
-      </div>
 
-          {/* Error Message */}
-          {error && (
-            <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-md">
-              <div className="flex">
-                <div className="text-sm text-red-700">{error}</div>
-              </div>
+        {/* Error Message */}
+        {error && (
+          <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-md">
+            <div className="flex">
+              <div className="text-sm text-red-700">{error}</div>
+            </div>
+          </div>
+        )}
+
+        {/* Delivery Notes List */}
+        <div className="bg-white shadow overflow-hidden sm:rounded-md">
+          <ul className="divide-y divide-gray-200">
+            {deliveryNotes.map((deliveryNote, index) => {
+              console.log(`Rendering delivery note ${index}:`, deliveryNote);
+              return (
+                <li
+                  key={deliveryNote.name}
+                  onClick={() => {
+                    if (deliveryNote.name) {
+                      fetchDeliveryNoteDetails(deliveryNote.name, deliveryNote.status);
+                    }
+                  }}
+                  className="cursor-pointer hover:bg-gray-50 transition-colors"
+                >
+                  <div className="px-4 py-4 sm:px-6">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-indigo-600 truncate">
+                          {deliveryNote.name}
+                        </p>
+                        <p className="mt-1 text-sm text-gray-900">Customer: {deliveryNote.customer_name}</p>
+                      </div>
+                      <div className="ml-4 flex-shrink-0">
+                        <span
+                          className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${deliveryNote.status === 'Submitted'
+                            ? 'bg-green-100 text-green-800'
+                            : deliveryNote.status === 'Draft'
+                              ? 'bg-yellow-100 text-yellow-800'
+                              : deliveryNote.status === 'Completed'
+                                ? 'bg-blue-100 text-blue-800'
+                                : 'bg-gray-100 text-gray-800'
+                            }`}
+                        >
+                          {deliveryNote.status}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="mt-2 sm:flex sm:justify-between">
+                      <div className="sm:flex">
+                        <p className="flex items-center text-sm text-gray-500">
+                          Posting Date: {deliveryNote.posting_date}
+                        </p>
+                        {deliveryNote.sales_order && (
+                          <p className="mt-2 sm:mt-0 sm:ml-6 flex items-center text-sm text-gray-500">
+                            SO: {deliveryNote.sales_order}
+                          </p>
+                        )}
+                      </div>
+                      <div className="mt-2 flex items-center justify-between sm:mt-0">
+                        <span className="font-medium text-sm text-gray-500">Total: Rp {deliveryNote.grand_total ? deliveryNote.grand_total.toLocaleString('id-ID') : '0'}</span>
+
+                        {/* Submit button for Draft delivery notes */}
+                        {deliveryNote.status === 'Draft' && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation(); // Prevent opening delivery note details
+                              handleSubmitDeliveryNote(deliveryNote.name);
+                            }}
+                            className="ml-4 px-3 py-1 bg-green-600 text-white text-xs font-medium rounded hover:bg-green-700 transition-colors"
+                          >
+                            Submit
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+          {deliveryNotes.length === 0 && (
+            <div className="text-center py-12">
+              <p className="text-gray-500">No delivery notes found</p>
             </div>
           )}
 
-          {/* Delivery Notes List */}
-          <div className="bg-white shadow overflow-hidden sm:rounded-md">
-        <ul className="divide-y divide-gray-200">
-          {deliveryNotes.map((deliveryNote, index) => {
-            console.log(`Rendering delivery note ${index}:`, deliveryNote);
-            return (
-            <li 
-              key={deliveryNote.name}
-              onClick={() => {
-                if (deliveryNote.name) {
-                  fetchDeliveryNoteDetails(deliveryNote.name, deliveryNote.status);
-                }
-              }}
-              className="cursor-pointer hover:bg-gray-50 transition-colors"
-            >
-              <div className="px-4 py-4 sm:px-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-indigo-600 truncate">
-                      {deliveryNote.name}
-                    </p>
-                    <p className="mt-1 text-sm text-gray-900">Customer: {deliveryNote.customer_name}</p>
-                  </div>
-                  <div className="ml-4 flex-shrink-0">
-                    <span
-                      className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        deliveryNote.status === 'Submitted'
-                          ? 'bg-green-100 text-green-800'
-                          : deliveryNote.status === 'Draft'
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : deliveryNote.status === 'Completed'
-                          ? 'bg-blue-100 text-blue-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}
-                    >
-                      {deliveryNote.status}
-                    </span>
-                  </div>
-                </div>
-                <div className="mt-2 sm:flex sm:justify-between">
-                  <div className="sm:flex">
-                    <p className="flex items-center text-sm text-gray-500">
-                      Posting Date: {deliveryNote.posting_date}
-                    </p>
-                    {deliveryNote.sales_order && (
-                      <p className="mt-2 sm:mt-0 sm:ml-6 flex items-center text-sm text-gray-500">
-                        SO: {deliveryNote.sales_order}
-                      </p>
-                    )}
-                  </div>
-                  <div className="mt-2 flex items-center justify-between sm:mt-0">
-                    <span className="font-medium text-sm text-gray-500">Total: Rp {deliveryNote.grand_total ? deliveryNote.grand_total.toLocaleString('id-ID') : '0'}</span>
-                    
-                    {/* Submit button for Draft delivery notes */}
-                    {deliveryNote.status === 'Draft' && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation(); // Prevent opening delivery note details
-                          handleSubmitDeliveryNote(deliveryNote.name);
-                        }}
-                        className="ml-4 px-3 py-1 bg-green-600 text-white text-xs font-medium rounded hover:bg-green-700 transition-colors"
-                      >
-                        Submit
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </li>
-            );
-          })}
-        </ul>
-        {deliveryNotes.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-gray-500">No delivery notes found</p>
-          </div>
-        )}
-        
-        {/* Pagination Controls */}
-        <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          totalRecords={totalRecords}
-          pageSize={pageSize}
-          onPageChange={setCurrentPage}
-        />
-      </div>
+          {/* Pagination Controls */}
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalRecords={totalRecords}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+          />
+        </div>
 
         {/* Form Modal */}
         {showForm && (
@@ -839,12 +870,11 @@ export default function DeliveryNotePage() {
                     <label className="block text-sm font-medium text-gray-700">
                       Posting Date
                     </label>
-                    <input
-                      type="date"
+                    <BrowserStyleDatePicker
                       value={formData.posting_date}
-                      onChange={(e) => setFormData({ ...formData, posting_date: e.target.value })}
+                      onChange={(value: string) => setFormData({ ...formData, posting_date: value })}
                       className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                      required
+                      placeholder="DD/MM/YYYY"
                     />
                   </div>
                 </div>
@@ -855,7 +885,7 @@ export default function DeliveryNotePage() {
                     <h4 className="text-md font-medium text-gray-900">Items</h4>
                     {/* Always hide Add Item button */}
                   </div>
-                  
+
                   {formData.items.map((item, index) => (
                     <div key={index} className="border border-gray-200 rounded-lg p-4 mb-4">
                       <div className="grid grid-cols-2 lg:grid-cols-6 gap-6">
@@ -943,11 +973,10 @@ export default function DeliveryNotePage() {
                             type="button"
                             onClick={() => handleRemoveItem(index)}
                             disabled={!!editingDeliveryNote && currentDeliveryNoteStatus !== 'Draft'}
-                            className={`text-sm px-3 py-1 rounded ${
-                              !!editingDeliveryNote && currentDeliveryNoteStatus !== 'Draft'
-                                ? 'text-gray-400 cursor-not-allowed bg-gray-100'
-                                : 'text-red-600 hover:text-red-800 hover:bg-red-50'
-                            }`}
+                            className={`text-sm px-3 py-1 rounded ${!!editingDeliveryNote && currentDeliveryNoteStatus !== 'Draft'
+                              ? 'text-gray-400 cursor-not-allowed bg-gray-100'
+                              : 'text-red-600 hover:text-red-800 hover:bg-red-50'
+                              }`}
                           >
                             Remove
                           </button>
@@ -1000,18 +1029,17 @@ export default function DeliveryNotePage() {
                   <button
                     type="submit"
                     disabled={formLoading || currentDeliveryNoteStatus === 'Completed'}
-                    className={`${
-                      currentDeliveryNoteStatus === 'Completed'
-                        ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                        : 'bg-indigo-600 text-white hover:bg-indigo-700'
-                    } px-4 py-2 rounded-md disabled:opacity-50`}
+                    className={`${currentDeliveryNoteStatus === 'Completed'
+                      ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                      : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                      } px-4 py-2 rounded-md disabled:opacity-50`}
                   >
-                    {formLoading 
-                      ? 'Creating...' 
-                      : currentDeliveryNoteStatus === 'Completed' 
-                        ? 'Delivery Note Completed - Cannot Edit' 
-                        : editingDeliveryNote 
-                          ? 'Update Delivery Note' 
+                    {formLoading
+                      ? 'Creating...'
+                      : currentDeliveryNoteStatus === 'Completed'
+                        ? 'Delivery Note Completed - Cannot Edit'
+                        : editingDeliveryNote
+                          ? 'Update Delivery Note'
                           : 'Create Delivery Note'
                     }
                   </button>

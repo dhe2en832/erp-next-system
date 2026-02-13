@@ -9,6 +9,11 @@ export async function GET(request: NextRequest) {
     const limit = searchParams.get('limit') || '20';
     const start = searchParams.get('start') || '0';
     const orderBy = searchParams.get('order_by');
+    const search = searchParams.get('search');
+    const documentNumber = searchParams.get('documentNumber');
+    const status = searchParams.get('status');
+    const fromDate = searchParams.get('from_date');
+    const toDate = searchParams.get('to_date');
 
     const cookies = request.cookies;
     const sid = cookies.get('sid')?.value;
@@ -34,11 +39,47 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Build filters
+    let filtersArray = [];
+    
+    // Parse existing filters if provided
+    if (filters) {
+      try {
+        filtersArray = JSON.parse(filters);
+      } catch (e) {
+        console.error('Error parsing filters:', e);
+      }
+    }
+    
+    // Add search filter
+    if (search) {
+      filtersArray.push(["customer_name", "like", `%${search}%`]);
+    }
+    
+    // Add document number filter
+    if (documentNumber) {
+      filtersArray.push(["name", "like", `%${documentNumber}%`]);
+    }
+    
+    // Add status filter
+    if (status) {
+      filtersArray.push(["status", "=", status]);
+    }
+    
+    // Add date filters
+    if (fromDate) {
+      filtersArray.push(["posting_date", ">=", fromDate]);
+    }
+    
+    if (toDate) {
+      filtersArray.push(["posting_date", "<=", toDate]);
+    }
+
     // Build ERPNext URL
     let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Delivery Note?fields=["name","customer","customer_name","posting_date","status","grand_total"]&limit_page_length=${limit}&start=${start}`;
     
-    if (filters) {
-      erpNextUrl += `&filters=${filters}`;
+    if (filtersArray.length > 0) {
+      erpNextUrl += `&filters=${encodeURIComponent(JSON.stringify(filtersArray))}`;
     }
     
     if (orderBy) {

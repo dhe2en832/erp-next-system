@@ -9,15 +9,68 @@ export async function GET(request: NextRequest) {
     const limit = searchParams.get('limit') || '20';
     const start = searchParams.get('start') || '0';
     const orderBy = searchParams.get('order_by');
+    const search = searchParams.get('search');
+    const documentNumber = searchParams.get('documentNumber');
+    const status = searchParams.get('status');
+    const fromDate = searchParams.get('from_date');
+    const toDate = searchParams.get('to_date');
 
     const cookies = request.cookies;
     const sid = cookies.get('sid')?.value;
 
+    // Build filters
+    let filtersArray = [];
+    
+    // Always add company filter if company is provided
+    const company = searchParams.get('company');
+    if (company) {
+      filtersArray.push(["company", "=", company]);
+    }
+    
+    // Parse existing filters if provided
+    if (filters) {
+      try {
+        const parsedFilters = JSON.parse(filters);
+        // Merge with existing filters, but don't duplicate company filter
+        parsedFilters.forEach((filter: any) => {
+          if (filter[0] !== 'company') {
+            filtersArray.push(filter);
+          }
+        });
+      } catch (e) {
+        console.error('Error parsing filters:', e);
+      }
+    }
+    
+    // Add search filter
+    if (search) {
+      filtersArray.push(["customer_name", "like", `%${search}%`]);
+    }
+    
+    // Add document number filter
+    if (documentNumber) {
+      filtersArray.push(["name", "like", `%${documentNumber}%`]);
+    }
+    
+    // Add status filter
+    if (status) {
+      filtersArray.push(["status", "=", status]);
+    }
+    
+    // Add date filters
+    if (fromDate) {
+      filtersArray.push(["transaction_date", ">=", fromDate]);
+    }
+    
+    if (toDate) {
+      filtersArray.push(["transaction_date", "<=", toDate]);
+    }
+
     // Build ERPNext URL
     let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Sales Order?fields=["name","customer","customer_name","transaction_date","grand_total","status","docstatus","delivery_date"]&limit_page_length=${limit}&start=${start}`;
     
-    if (filters) {
-      erpNextUrl += `&filters=${filters}`;
+    if (filtersArray.length > 0) {
+      erpNextUrl += `&filters=${encodeURIComponent(JSON.stringify(filtersArray))}`;
     }
     
     if (orderBy) {
