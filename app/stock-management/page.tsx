@@ -220,20 +220,20 @@ export default function StockManagementPage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Manajemen Stok</h1>
-        <div className="space-x-2">
-          <button className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Manajemen Stok</h1>
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <button className="w-full sm:w-auto bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 min-h-[44px]">
             Entri Stok
           </button>
-          <button className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">
+          <button className="w-full sm:w-auto bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 min-h-[44px]">
             Rekonsiliasi Stok
           </button>
         </div>
       </div>
 
       <div className="bg-white shadow rounded-lg p-4 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Cari Barang
