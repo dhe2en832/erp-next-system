@@ -114,7 +114,7 @@ export default function SalesInvoiceList() {
         if (parsedDate) params.append('to_date', parsedDate);
       }
 
-      const response = await fetch(`/api/invoice?${params}`);
+      const response = await fetch(`/api/sales/invoices?${params}`);
       const data = await response.json();
 
       if (data.success) {
@@ -149,7 +149,7 @@ export default function SalesInvoiceList() {
   const handleSubmitSalesInvoice = async (invoiceName: string) => {
     try {
       setSubmittingInvoice(invoiceName);
-      const response = await fetch(`/api/invoice/${invoiceName}/submit`, {
+      const response = await fetch(`/api/sales/invoices/${invoiceName}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });

@@ -53,7 +53,7 @@ export default function StockReconciliationList() {
         ...(dateFilter.from_date && { from_date: dateFilter.from_date }),
         ...(dateFilter.to_date && { to_date: dateFilter.to_date })
       });
-      const response = await fetch(`/api/stock-reconciliation?${params}`);
+      const response = await fetch(`/api/inventory/reconciliation?${params}`);
       const data = await response.json();
       if (data.success) {
         setReconciliations(data.data || []);
@@ -70,7 +70,7 @@ export default function StockReconciliationList() {
   const fetchWarehouses = useCallback(async () => {
     if (!selectedCompany) return;
     try {
-      const response = await fetch(`/api/warehouses?company=${selectedCompany}`);
+      const response = await fetch(`/api/inventory/warehouses?company=${selectedCompany}`);
       const data = await response.json();
       if (data.success) setWarehouses(data.data || []);
     } catch (err) {

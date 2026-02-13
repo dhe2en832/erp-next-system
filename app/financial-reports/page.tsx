@@ -92,7 +92,7 @@ export default function FinancialReportsPage() {
     }
     
     try {
-      let url = `/api/financial-reports?company=${encodeURIComponent(companyToUse)}&report=${activeTab}`;
+      let url = `/api/finance/reports?company=${encodeURIComponent(companyToUse)}&report=${activeTab}`;
       
       if (dateFilter.from_date) {
         url += `&from_date=${encodeURIComponent(dateFilter.from_date)}`;

@@ -108,7 +108,7 @@ export default function PurchaseInvoiceList() {
     if (!companyToUse) return;
 
     try {
-      const response = await fetch(`/api/suppliers?company=${encodeURIComponent(companyToUse)}`);
+      const response = await fetch(`/api/purchase/suppliers?company=${encodeURIComponent(companyToUse)}`);
       const data = await response.json();
       
       if (data.success) {
@@ -172,7 +172,7 @@ export default function PurchaseInvoiceList() {
         }
       }
 
-      const response = await fetch(`/api/purchase-invoice?${params}`, {
+      const response = await fetch(`/api/purchase/invoices?${params}`, {
         credentials: 'include',
       });
 
@@ -257,7 +257,7 @@ export default function PurchaseInvoiceList() {
     setError('');
     
     try {
-      const response = await fetch(`/api/purchase-invoice/${piName}/submit`, {
+      const response = await fetch(`/api/purchase/invoices/${piName}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

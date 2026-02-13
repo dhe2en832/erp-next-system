@@ -87,7 +87,7 @@ export default function PurchaseReceiptList() {
     if (!companyToUse) return;
 
     try {
-      const response = await fetch(`/api/suppliers?company=${encodeURIComponent(companyToUse)}`);
+      const response = await fetch(`/api/purchase/suppliers?company=${encodeURIComponent(companyToUse)}`);
       const data = await response.json();
       
       if (data.success) {
@@ -112,7 +112,7 @@ export default function PurchaseReceiptList() {
 
     try {
       // Only fetch submitted POs that can be received
-      const response = await fetch(`/api/purchase-orders?company=${encodeURIComponent(companyToUse)}&status=Submitted&limit_page_length=100`);
+      const response = await fetch(`/api/purchase/orders?company=${encodeURIComponent(companyToUse)}&status=Submitted&limit_page_length=100`);
       const data = await response.json();
       
       if (data.success) {
@@ -172,7 +172,7 @@ export default function PurchaseReceiptList() {
         }
       }
 
-      const response = await fetch(`/api/purchase-receipts?${params}`);
+      const response = await fetch(`/api/purchase/receipts?${params}`);
       const data = await response.json();
       
       if (data.success) {
@@ -208,7 +208,7 @@ export default function PurchaseReceiptList() {
     setError('');
     
     try {
-      const response = await fetch(`/api/purchase-receipts/${prName}/submit`, {
+      const response = await fetch(`/api/purchase/receipts/${prName}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });

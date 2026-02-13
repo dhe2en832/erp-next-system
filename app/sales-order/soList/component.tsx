@@ -134,7 +134,7 @@ export default function SalesOrderList() {
         }
       }
       
-      const response = await fetch("/api/sales-order?" + params.toString());
+      const response = await fetch("/api/sales/orders?" + params.toString());
       const result = await response.json();
 
       if (result.success) {
@@ -176,7 +176,7 @@ export default function SalesOrderList() {
     try {
       console.log('Submitting Sales Order:', orderName);
       
-      const response = await fetch(`/api/sales-order/${orderName}/submit`, {
+      const response = await fetch(`/api/sales/orders/${orderName}/submit`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -200,7 +200,7 @@ export default function SalesOrderList() {
   // Create Delivery Note dari Sales Order
   const handleCreateDeliveryNote = async (orderName: string) => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/delivery-note/from-sales-order/${orderName}`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/sales/delivery-notes/from-sales-order/${orderName}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -225,7 +225,7 @@ export default function SalesOrderList() {
   // Create Sales Invoice dari Sales Order
   const handleCreateSalesInvoice = async (orderName: string) => {
     try {
-      const response = await fetch(`/api/sales-invoice/from-sales-order/${orderName}`, {
+      const response = await fetch(`/api/sales/invoices/from-sales-order/${orderName}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -101,7 +101,7 @@ export default function PaymentList({ onEdit, onCreate, selectedCompany }: Payme
 
       params.append('filters', JSON.stringify([["company", "=", selectedCompany]]));
 
-      const response = await fetch(`/api/payment?${params.toString()}`);
+      const response = await fetch(`/api/finance/payments?${params.toString()}`);
       const data = await response.json();
 
       if (data.success) {
@@ -134,7 +134,7 @@ export default function PaymentList({ onEdit, onCreate, selectedCompany }: Payme
   // Handle submit payment
   const handleSubmitPayment = async (paymentName: string) => {
     try {
-      const response = await fetch(`/api/payment/${paymentName}/submit`, {
+      const response = await fetch(`/api/finance/payments/${paymentName}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });

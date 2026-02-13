@@ -81,7 +81,7 @@ export default function PurchaseOrderList() {
     if (!companyToUse) return;
 
     try {
-      const response = await fetch(`/api/suppliers?company=${encodeURIComponent(companyToUse)}`);
+      const response = await fetch(`/api/purchase/suppliers?company=${encodeURIComponent(companyToUse)}`);
       const data = await response.json();
       
       if (data.success) {
@@ -157,7 +157,7 @@ export default function PurchaseOrderList() {
         }
       }
       
-      const response = await fetch(`/api/purchase-orders?${params}`);
+      const response = await fetch(`/api/purchase/orders?${params}`);
       const data = await response.json();
 
       if (data.success) {
@@ -218,7 +218,7 @@ export default function PurchaseOrderList() {
     setError('');
     
     try {
-      const response = await fetch(`/api/purchase-orders/${poName}/submit`, {
+      const response = await fetch(`/api/purchase/orders/${poName}/submit`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -247,7 +247,7 @@ export default function PurchaseOrderList() {
 
   const handleReceivePO = async (poName: string) => {
     try {
-      const response = await fetch(`/api/purchase-orders/${poName}/receive`, {
+      const response = await fetch(`/api/purchase/orders/${poName}/receive`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -269,7 +269,7 @@ export default function PurchaseOrderList() {
 
   const handleCompletePO = async (poName: string) => {
     try {
-      const response = await fetch(`/api/purchase-orders/${poName}/complete`, {
+      const response = await fetch(`/api/purchase/orders/${poName}/complete`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -92,7 +92,7 @@ export default function DeliveryNoteList() {
       }
       params.append('filters', JSON.stringify([["company", "=", companyToUse]]));
 
-      const response = await fetch(`/api/delivery-note?${params.toString()}`);
+      const response = await fetch(`/api/sales/delivery-notes?${params.toString()}`);
       const data = await response.json();
 
       if (data.success) {
@@ -128,7 +128,7 @@ export default function DeliveryNoteList() {
   // Submit Delivery Note
   const handleSubmitDeliveryNote = async (deliveryNoteName: string) => {
     try {
-      const response = await fetch(`/api/delivery-note/${deliveryNoteName}/submit`, {
+      const response = await fetch(`/api/sales/delivery-notes/${deliveryNoteName}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: deliveryNoteName }),

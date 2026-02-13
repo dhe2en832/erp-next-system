@@ -55,7 +55,7 @@ export default function StockEntryList() {
         ...(dateFilter.to_date && { to_date: dateFilter.to_date })
       });
 
-      const response = await fetch(`/api/stock-entry?${params}`);
+      const response = await fetch(`/api/inventory/stock-entry?${params}`);
       const data = await response.json();
 
       if (data.success) {
@@ -73,7 +73,7 @@ export default function StockEntryList() {
   const fetchWarehouses = useCallback(async () => {
     if (!selectedCompany) return;
     try {
-      const response = await fetch(`/api/warehouses?company=${selectedCompany}`);
+      const response = await fetch(`/api/inventory/warehouses?company=${selectedCompany}`);
       const data = await response.json();
       if (data.success) setWarehouses(data.data || []);
     } catch (err) {

@@ -111,7 +111,7 @@ export default function COADashboardModern() {
     setSelectedAccount(account);
     setModalOpen(true);
     try {
-      const res = await fetch('/api/coa?account=' + account);
+      const res = await fetch('/api/finance/accounts?account=' + account);
       const data = await res.json();
       setJournal(data || []);
     } catch (err) {
@@ -245,7 +245,7 @@ export default function COADashboardModern() {
 
   const fetchCOA = useCallback(async () => {
     try {
-      const res = await fetch('/api/coa');
+      const res = await fetch('/api/finance/accounts');
       const data = await res.json();
       if (data.success) {
         setAccounts(buildTree(data.accounts));
