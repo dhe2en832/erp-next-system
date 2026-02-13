@@ -30,28 +30,36 @@ interface PurchaseReceiptDetail {
 interface PurchaseReceiptItem {
   item_code: string;
   item_name: string;
-  qty: number;
+  qty: number; // Original PR qty
+  received_qty?: number;
+  rejected_qty?: number;
+  accepted_qty?: number;
+  billed_qty?: number;
+  outstanding_qty?: number; // Available for billing
   uom: string;
   rate: number;
   warehouse: string;
   purchase_receipt: string;
-  purchase_receipt_item: string;
+  purchase_receipt_item: string; // API field name
   purchase_order: string;
-  purchase_order_item: string;
+  purchase_order_item: string; // API field name
 }
 
 interface PurchaseInvoiceItem {
   item_code: string;
   item_name: string;
+  description?: string;
   qty: number;
-  rate: number;
   amount: number;
   uom: string;
+  rate: number;
   warehouse: string;
   purchase_receipt: string;
-  purchase_receipt_item: string;
+  purchase_receipt_item: string; // ERPNext field name
   purchase_order: string;
-  purchase_order_item: string;
+  purchase_order_item: string; // ERPNext field name
+  received_qty?: number; // Add quantity fields
+  rejected_qty?: number;
 }
 
 interface PurchaseInvoiceFormData {
@@ -63,7 +71,7 @@ interface PurchaseInvoiceFormData {
   company: string;
   currency: string;
   items: PurchaseInvoiceItem[];
-  custom_notes_pr?: string;
+  custom_notes_pi?: string;
 }
 
 export default function PurchaseInvoiceMain() {
@@ -104,7 +112,7 @@ export default function PurchaseInvoiceMain() {
   // Get company from localStorage/cookie and check for edit mode
   useEffect(() => {
     let savedCompany = localStorage.getItem('selected_company');
-    
+
     if (!savedCompany) {
       const cookies = document.cookie.split(';');
       const companyCookie = cookies.find(cookie => cookie.trim().startsWith('selected_company='));
@@ -115,7 +123,7 @@ export default function PurchaseInvoiceMain() {
         }
       }
     }
-    
+
     if (savedCompany) {
       setSelectedCompany(savedCompany);
       setFormData(prev => ({ ...prev, company: savedCompany }));
@@ -156,11 +164,11 @@ export default function PurchaseInvoiceMain() {
       if (data.message && data.message.success) {
         const invoice = data.message.data;
         console.log('Purchase Invoice data received:', invoice);
-        
+
         // Set form data from fetched invoice
         console.log('Setting form data with invoice:', invoice);
         console.log('Invoice items:', invoice.items);
-        
+
         setFormData({
           supplier: invoice.supplier,
           supplier_name: invoice.supplier_name,
@@ -178,13 +186,13 @@ export default function PurchaseInvoiceMain() {
             uom: item.uom,
             warehouse: item.warehouse,
             purchase_receipt: item.purchase_receipt,
-            purchase_receipt_item: item.pr_detail,
+            pr_detail: item.pr_detail, // Database field name (already correct)
             purchase_order: item.purchase_order,
-            purchase_order_item: item.purchase_order_item,
+            po_detail: item.po_detail, // Database field name (already correct)
           })),
-          custom_notes_pr: invoice.custom_note_pi || ''
+          custom_notes_pi: invoice.custom_notes_pi || ''
         });
-        
+
         console.log('Form data set successfully');
       } else {
         // Handle permission error specifically
@@ -200,7 +208,7 @@ export default function PurchaseInvoiceMain() {
       }
     } catch (error) {
       console.error('Error fetching Purchase Invoice:', error);
-      
+
       // Check if it's a permission error
       if (error instanceof Error && error.message.includes('PermissionError')) {
         setError('Permission Error: Anda tidak memiliki izin untuk mengakses Purchase Invoice ini. Silakan hubungi administrator untuk mendapatkan akses. Anda akan dialihkan ke halaman daftar dalam 3 detik.');
@@ -239,6 +247,17 @@ export default function PurchaseInvoiceMain() {
       if (data.message?.success) {
         const receipts = data.message.data || [];
         console.log('Available Purchase Receipts:', receipts);
+        console.log('PR Search Term:', prSearchTerm);
+
+        const filteredReceipts = receipts.filter((receipt: PurchaseReceipt) =>
+          prSearchTerm === '' ||
+          receipt.name.toLowerCase().includes(prSearchTerm.toLowerCase()) ||
+          receipt.supplier_name.toLowerCase().includes(prSearchTerm.toLowerCase())
+        );
+
+        console.log('Filtered Purchase Receipts:', filteredReceipts);
+        console.log('Filtered count:', filteredReceipts.length);
+
         setPurchaseReceipts(receipts);
       } else {
         setPurchaseReceiptsError(data.message?.message || 'Gagal mengambil data Purchase Receipt');
@@ -288,24 +307,37 @@ export default function PurchaseInvoiceMain() {
           due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
           company: prData.company,
           currency: prData.currency,
-          custom_notes_pr: prData.custom_notes_pr,
+          custom_notes_pi: prData.custom_notes_pr,
           items: prData.items.map(item => ({
             item_code: item.item_code,
             item_name: item.item_name,
-            qty: item.qty,
-            rate: item.rate,
-            amount: item.qty * item.rate,
+            qty: item.outstanding_qty || item.qty, // Use outstanding_qty or fallback to original qty
+            amount: (item.outstanding_qty || item.qty) * item.rate, // Calculate based on qty used
             uom: item.uom,
+            rate: item.rate, // Add missing rate field
             warehouse: item.warehouse,
             purchase_receipt: item.purchase_receipt,
-            purchase_receipt_item: item.purchase_receipt_item,
+            purchase_receipt_item: item.purchase_receipt_item, // ERPNext field name
             purchase_order: item.purchase_order,
-            purchase_order_item: item.purchase_order_item
+            purchase_order_item: item.purchase_order_item, // ERPNext field name
+            // Add quantity fields from PR data
+            received_qty: item.received_qty || 0,
+            rejected_qty: item.rejected_qty || 0,
           }))
         };
 
         console.log('Mapped Form Data:', mappedFormData);
         console.log('Items in mapped data:', mappedFormData.items);
+        console.log('Sample item fields:', mappedFormData.items[0] ? {
+          purchase_receipt_item: mappedFormData.items[0].purchase_receipt_item,
+          purchase_order_item: mappedFormData.items[0].purchase_order_item,
+          received_qty: mappedFormData.items[0].received_qty,  // Add this
+          rejected_qty: mappedFormData.items[0].rejected_qty   // Add this
+        } : 'No items');
+        console.log('PR Data items sample:', prData.items[0] ? {
+          received_qty: prData.items[0].received_qty,
+          rejected_qty: prData.items[0].rejected_qty
+        } : 'No PR items');
         setFormData(mappedFormData);
         setShowPurchaseReceiptDialog(false);
         setError('');
@@ -327,12 +359,12 @@ export default function PurchaseInvoiceMain() {
   const handleCancel = () => {
     // console.log('CANCEL BUTTON CLICKED!!!');
     // alert('Cancel button clicked!'); // Debug alert
-    
+
     // // Debug mode detection
     // console.log('isEditMode:', isEditMode);
     // console.log('isViewMode:', isViewMode);
     // alert(`isEditMode: ${isEditMode}, isViewMode: ${isViewMode}`);
-    
+
     if (isEditMode || isViewMode) {
       // Go back to list using Next.js router
       // console.log('NAVIGATING TO LIST PAGE...');
@@ -362,28 +394,28 @@ export default function PurchaseInvoiceMain() {
   // Parse ERPNext error into user-friendly message
   const parseERPNextError = (errorMessage: string): string => {
     if (!errorMessage) return 'Terjadi kesalahan yang tidak diketahui';
-    
+
     // Common ERPNext error patterns
     if (errorMessage.includes('PermissionError') || errorMessage.includes('frappe.exceptions.PermissionError')) {
       return 'Permission Error: Anda tidak memiliki izin untuk mengakses atau mengubah Purchase Invoice. Silakan hubungi administrator sistem.';
     }
-    
+
     if (errorMessage.includes('mandatory')) {
       return 'Field wajib belum diisi. Silakan periksa kembali data yang dimasukkan.';
     }
-    
+
     if (errorMessage.includes('exists')) {
       return 'Data sudah ada. Gunakan nomor dokumen yang berbeda.';
     }
-    
+
     if (errorMessage.includes('not found')) {
       return 'Data tidak ditemukan. Silakan periksa kembali data yang dimasukkan.';
     }
-    
+
     if (errorMessage.includes('check_permission')) {
       return 'Permission Error: Anda tidak memiliki izin untuk melakukan operasi ini. Silakan hubungi administrator sistem.';
     }
-    
+
     // Extract the main error message from ERPNext responses
     const cleanMessage = errorMessage.split('\n')[0].trim();
     return cleanMessage || 'Terjadi kesalahan saat menyimpan data';
@@ -416,7 +448,7 @@ export default function PurchaseInvoiceMain() {
 
     // Filter out empty items
     const validItems = formData.items.filter(item => item.item_code && item.qty > 0);
-    
+
     if (validItems.length === 0) {
       setError('Silakan tambahkan minimal satu item yang valid dengan qty > 0');
       setFormLoading(false);
@@ -425,83 +457,120 @@ export default function PurchaseInvoiceMain() {
 
     try {
       // ERPNext compliant payload for Purchase Invoice
-      const invoiceData = {
+      let invoiceData = {
+        doctype: "Purchase Invoice",
         supplier: formData.supplier,
         company: selectedCompany,
         posting_date: formData.posting_date,
         due_date: formData.due_date,
         currency: formData.currency,
         conversion_rate: 1,
-        remarks: formData.custom_notes_pr || "",
+        remarks: formData.custom_notes_pi || "",
+        custom_notes_pi: formData.custom_notes_pi || "",
         items: validItems.map(item => ({
+          doctype: "Purchase Invoice Item",
           item_code: item.item_code,
           item_name: item.item_name,
           description: item.item_name,
-          qty: item.qty,
+          qty: item.qty, // Outstanding qty (accepted - billed)
           uom: item.uom,
           rate: item.rate,
           amount: item.amount,
           warehouse: item.warehouse,
           purchase_receipt: item.purchase_receipt,
-          purchase_receipt_item: item.purchase_receipt_item,
+          purchase_receipt_item: item.purchase_receipt_item, // Use field from interface
           purchase_order: item.purchase_order,
-          purchase_order_item: item.purchase_order_item,
+          purchase_order_item: item.purchase_order_item, // Use field from interface
+          // Add quantity fields for custom API
+          received_qty: item.received_qty || 0,
+          rejected_qty: item.rejected_qty || 0,
         }))
       };
 
       console.log('=== FINAL PAYLOAD DEBUG ===');
       console.log('Valid Items:', validItems);
-      console.log('Invoice Data Items:', invoiceData.items);
+      console.log('Sample valid item:', validItems[0] ? {
+        purchase_receipt_item: validItems[0].purchase_receipt_item,
+        purchase_order_item: validItems[0].purchase_order_item,
+        purchase_receipt: validItems[0].purchase_receipt,
+        purchase_order: validItems[0].purchase_order,
+        received_qty: validItems[0].received_qty,  // Add this
+        rejected_qty: validItems[0].rejected_qty   // Add this
+      } : 'No valid items');
+      console.log('Invoice Data Items:', JSON.stringify(invoiceData.items, null, 2));
       console.log('Sending Purchase Invoice data:', invoiceData);
 
-      // Determine API endpoint and method based on edit mode
-      const apiUrl = isEditMode ? `/api/purchase-invoice?id=${encodeURIComponent(invoiceId)}` : '/api/purchase-invoice';
-      const method = isEditMode ? 'PUT' : 'POST';
-
-      const response = await fetch(apiUrl, {
-        method: method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify(invoiceData),
-      });
-
-      const data = await response.json();
-      console.log('Submit Response:', data);
-
-      if (data.success) {
-        const successMessage = isEditMode ? 'Purchase Invoice berhasil diupdate!' : 'Purchase Invoice berhasil dibuat!';
-        setSuccessMessage(successMessage);
-        setShowSuccessDialog(true);
-        
-        // Start countdown for redirect
-        setTimeout(() => {
-          router.push('/purchase-invoice/piList');
-        }, 3000);
-      } else {
-        // Parse ERPNext error into user-friendly message
-        const userFriendlyError = parseERPNextError(data.message);
-        setValidationMessage(userFriendlyError);
-        setShowValidationAlert(true);
-      }
-    } catch (error) {
-      console.error('Error submitting Purchase Invoice:', error);
+      let isSuccess = false;  // Track success state - declare outside try block
       
-      // Check for permission error specifically
-      if (error instanceof Error && (
-        error.message.includes('PermissionError') || 
-        error.message.includes('frappe.exceptions.PermissionError') ||
-        error.message.includes('check_permission')
-      )) {
-        setValidationMessage('Permission Error: Anda tidak memiliki izin untuk membuat Purchase Invoice. Silakan hubungi administrator sistem untuk mendapatkan akses ke menu Purchase Invoice.');
-        setShowValidationAlert(true);
-      } else {
-        setError(`Gagal ${isEditMode ? 'mengupdate' : 'membuat'} Purchase Invoice`);
+      try {
+        // Use different API for create vs update
+        const apiUrl = isEditMode ? `/api/purchase-invoice?id=${invoiceId}` : '/api/purchase-invoice';
+        const method = isEditMode ? 'PUT' : 'POST';
+        
+        console.log(`${isEditMode ? 'Updating' : 'Creating'} Purchase Invoice with ${method} ${apiUrl}`);
+        
+        // For update, don't include doctype in payload
+        if (isEditMode) {
+          const { doctype, ...updateData } = invoiceData;
+          invoiceData = updateData as any; // Type assertion for update payload
+        }
+
+        const response = await fetch(apiUrl, {
+          method: method,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify(invoiceData),
+        });
+
+        const data = await response.json();
+        console.log('Submit Response:', data);
+        
+        if (data.success) {
+          isSuccess = true;
+          const successMessage = isEditMode ? 'Purchase Invoice berhasil diupdate!' : 'Purchase Invoice berhasil dibuat!';
+          setSuccessMessage(successMessage);
+          setShowSuccessDialog(true);
+          
+          // Keep form loading = true to prevent multiple submissions
+          // Redirect after 3 seconds
+          setTimeout(() => {
+            router.push('/purchase-invoice/piList');
+          }, 3000);
+        } else {
+          // Parse ERPNext error into user-friendly message
+          const userFriendlyError = parseERPNextError(data.message);
+          setValidationMessage(userFriendlyError);
+          setShowValidationAlert(true);
+        }
+      } catch (error) {
+        console.error('Error submitting Purchase Invoice:', error);
+
+        // Check for permission error specifically
+        if (error instanceof Error && (
+          error.message.includes('PermissionError') ||
+          error.message.includes('frappe.exceptions.PermissionError') ||
+          error.message.includes('check_permission')
+        )) {
+          setValidationMessage('Permission Error: Anda tidak memiliki izin untuk membuat Purchase Invoice. Silakan hubungi administrator sistem untuk mendapatkan akses ke menu Purchase Invoice.');
+          setShowValidationAlert(true);
+        } else {
+          setError(`Gagal ${isEditMode ? 'mengupdate' : 'membuat'} Purchase Invoice`);
+        }
+      } finally {
+        // Only set form loading to false if there was an error
+        // On success, keep loading true until redirect
+        if (!isSuccess) {
+          setFormLoading(false);
+        }
       }
-    } finally {
+    } catch (error) {  // <-- BARIS INI YANG DITAMBAHKAN (closing brace untuk outer try + catch block)
+      console.error('Error in handleSubmit:', error);
+      setError(`Gagal ${isEditMode ? 'mengupdate' : 'membuat'} Purchase Invoice`);
       setFormLoading(false);
     }
+
   };
 
   if (loading) {
@@ -650,8 +719,8 @@ export default function PurchaseInvoiceMain() {
                   Catatan
                 </label>
                 <textarea
-                  value={formData.custom_notes_pr || ''}
-                  onChange={(e) => setFormData(prev => ({ ...prev, custom_notes_pr: e.target.value }))}
+                  value={formData.custom_notes_pi || ''}
+                  onChange={(e) => setFormData(prev => ({ ...prev, custom_notes_pi: e.target.value }))}
                   disabled={isViewMode}
                   rows={2}
                   placeholder="Tambahkan catatan untuk Purchase Invoice ini"
@@ -663,7 +732,7 @@ export default function PurchaseInvoiceMain() {
             {/* Detail Item */}
             <div className="mb-6">
               <h3 className="text-lg font-medium text-gray-900 mb-4">Detail Item</h3>
-              
+
               {/* Items List - Follow purchase receipt pattern */}
               <div className="space-y-2">
                 {/* Always show at least one empty row in create mode */}
@@ -770,7 +839,7 @@ export default function PurchaseInvoiceMain() {
                         if (!item.item_code && !item.item_name) {
                           return null;
                         }
-                        
+
                         return (
                           <div key={index} className="border border-gray-200 rounded-md p-4 mb-2">
                             <div className="grid grid-cols-12 gap-2">
@@ -877,7 +946,7 @@ export default function PurchaseInvoiceMain() {
                     )}
                   </>
                 )}
-                
+
                 {/* Totals Section - hanya muncul jika ada items */}
                 {formData.items.some(item => item.item_code || item.item_name) && (
                   <div className="border-t border-gray-200 pt-4 mt-4">
@@ -1004,37 +1073,43 @@ export default function PurchaseInvoiceMain() {
               ) : (
                 <div className="space-y-2 max-h-96 overflow-y-auto">
                   {purchaseReceipts
-                    .filter(receipt => 
-                      prSearchTerm === '' || 
-                      receipt.name.toLowerCase().includes(prSearchTerm.toLowerCase()) ||
-                      receipt.supplier_name.toLowerCase().includes(prSearchTerm.toLowerCase())
-                    )
+                    .filter(receipt => {
+                      const matches = prSearchTerm === '' ||
+                        receipt.name.toLowerCase().includes(prSearchTerm.toLowerCase()) ||
+                        receipt.supplier_name.toLowerCase().includes(prSearchTerm.toLowerCase());
+
+                      if (!matches) {
+                        console.log('Filtered out receipt:', receipt.name, '-', receipt.supplier_name, 'Search term:', prSearchTerm);
+                      }
+
+                      return matches;
+                    })
                     .map((receipt) => (
-                    <div
-                      key={receipt.name}
-                      onClick={() => handleSelectPurchaseReceipt(receipt.name)}
-                      className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 cursor-pointer transition-colors"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-indigo-600">{receipt.name}</p>
-                          <p className="mt-1 text-sm text-gray-900">Supplier: {receipt.supplier_name}</p>
-                          <div className="mt-1 flex items-center space-x-4 text-xs text-gray-500">
-                            <span>Tanggal: {receipt.posting_date}</span>
-                            <span>Tagihan: {receipt.per_billed}%</span>
+                      <div
+                        key={receipt.name}
+                        onClick={() => handleSelectPurchaseReceipt(receipt.name)}
+                        className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 cursor-pointer transition-colors"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium text-indigo-600">{receipt.name}</p>
+                            <p className="mt-1 text-sm text-gray-900">Supplier: {receipt.supplier_name}</p>
+                            <div className="mt-1 flex items-center space-x-4 text-xs text-gray-500">
+                              <span>Tanggal: {receipt.posting_date}</span>
+                              <span>Tagihan: {receipt.per_billed}%</span>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-medium text-gray-900">
+                              {receipt.grand_total.toLocaleString('id-ID', {
+                                style: 'currency',
+                                currency: 'IDR'
+                              })}
+                            </p>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <p className="text-sm font-medium text-gray-900">
-                            {receipt.grand_total.toLocaleString('id-ID', {
-                              style: 'currency',
-                              currency: 'IDR'
-                            })}
-                          </p>
-                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
                 </div>
               )}
             </div>

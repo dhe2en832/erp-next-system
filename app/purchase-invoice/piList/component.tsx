@@ -27,6 +27,9 @@ export default function PurchaseInvoiceList() {
   const [purchaseInvoices, setPurchaseInvoices] = useState<PurchaseInvoice[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
   const [error, setError] = useState('');
   const [selectedCompany, setSelectedCompany] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -69,8 +72,8 @@ export default function PurchaseInvoiceList() {
   };
   
   const [dateFilter, setDateFilter] = useState({
-    from_date: formatDate(new Date(Date.now() - 86400000)), // Yesterday in DD-MM-YYYY
-    to_date: formatDate(new Date()), // Today in DD-MM-YYYY
+    from_date: new Date(Date.now() - 86400000).toISOString().split('T')[0], // Yesterday in YYYY-MM-DD
+    to_date: new Date().toISOString().split('T')[0], // Today in YYYY-MM-DD
   });
 
   // Pagination states
@@ -164,13 +167,13 @@ export default function PurchaseInvoiceList() {
       if (statusFilter) {
         params.append('status', statusFilter);
       }
-      if (dateFilter.from_date && isValidDateFormat(dateFilter.from_date)) {
-        // Convert DD-MM-YYYY to YYYY-MM-DD for API
-        params.append('from_date', convertToApiFormat(dateFilter.from_date));
+      if (dateFilter.from_date) {
+        // Already in YYYY-MM-DD format for API
+        params.append('from_date', dateFilter.from_date);
       }
-      if (dateFilter.to_date && isValidDateFormat(dateFilter.to_date)) {
-        // Convert DD-MM-YYYY to YYYY-MM-DD for API
-        params.append('to_date', convertToApiFormat(dateFilter.to_date));
+      if (dateFilter.to_date) {
+        // Already in YYYY-MM-DD format for API
+        params.append('to_date', dateFilter.to_date);
       }
 
       const response = await fetch(`/api/purchase-invoice?${params}`, {
@@ -240,6 +243,41 @@ export default function PurchaseInvoiceList() {
       router.push(`/purchase-invoice/piMain?id=${invoice.name}`);
     } else {
       router.push(`/purchase-invoice/piMain?name=${invoice.name}`);
+    }
+  };
+
+  const handleSubmit = async (piName: string) => {
+    console.log('Submit button clicked for PI:', piName);
+    setActionLoading(true);
+    setError('');
+    
+    try {
+      const response = await fetch(`/api/purchase-invoice/${piName}/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setSuccessMessage(`Purchase Invoice ${piName} berhasil di submit!`);
+        setShowSuccessDialog(true);
+        
+        // Refresh the list
+        fetchPurchaseInvoices();
+        
+        // Hide dialog after 3 seconds
+        setTimeout(() => {
+          setShowSuccessDialog(false);
+        }, 3000);
+      } else {
+        setError(data.message || 'Failed to submit Purchase Invoice');
+      }
+    } catch (err) {
+      setError('Failed to submit Purchase Invoice');
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -325,29 +363,10 @@ export default function PurchaseInvoiceList() {
                 Dari Tanggal
               </label>
               <input
-                type="text"
+                type="date"
                 className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                placeholder="DD-MM-YYYY"
                 value={dateFilter.from_date}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  // Only allow numbers and dashes, format as DD-MM-YYYY
-                  const formattedValue = value
-                    .replace(/[^\d-]/g, '')
-                    .replace(/(\d{2})(\d)/, '$1-$2')
-                    .replace(/(\d{2}-\d{2})(\d)/, '$1-$2')
-                    .slice(0, 10);
-                  setDateFilter(prev => ({ ...prev, from_date: formattedValue }));
-                }}
-                onBlur={(e) => {
-                  const value = e.target.value;
-                  if (value && !isValidDateFormat(value)) {
-                    setError('Format tanggal harus DD-MM-YYYY (contoh: 12-02-2026)');
-                    setDateFilter(prev => ({ ...prev, from_date: '' }));
-                  } else {
-                    setError('');
-                  }
-                }}
+                onChange={(e) => setDateFilter(prev => ({ ...prev, from_date: e.target.value }))}
               />
             </div>
             <div>
@@ -355,29 +374,10 @@ export default function PurchaseInvoiceList() {
                 Sampai Tanggal
               </label>
               <input
-                type="text"
+                type="date"
                 className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                placeholder="DD-MM-YYYY"
                 value={dateFilter.to_date}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  // Only allow numbers and dashes, format as DD-MM-YYYY
-                  const formattedValue = value
-                    .replace(/[^\d-]/g, '')
-                    .replace(/(\d{2})(\d)/, '$1-$2')
-                    .replace(/(\d{2}-\d{2})(\d)/, '$1-$2')
-                    .slice(0, 10);
-                  setDateFilter(prev => ({ ...prev, to_date: formattedValue }));
-                }}
-                onBlur={(e) => {
-                  const value = e.target.value;
-                  if (value && !isValidDateFormat(value)) {
-                    setError('Format tanggal harus DD-MM-YYYY (contoh: 12-02-2026)');
-                    setDateFilter(prev => ({ ...prev, to_date: '' }));
-                  } else {
-                    setError('');
-                  }
-                }}
+                onChange={(e) => setDateFilter(prev => ({ ...prev, to_date: e.target.value }))}
               />
             </div>
           </div>
@@ -388,8 +388,8 @@ export default function PurchaseInvoiceList() {
                 setDocumentNumber('');
                 setStatusFilter('');
                 setDateFilter({
-                  from_date: formatDate(new Date(Date.now() - 86400000)), // Reset to yesterday in DD-MM-YYYY
-                  to_date: formatDate(new Date()), // Reset to today in DD-MM-YYYY
+                  from_date: new Date(Date.now() - 86400000).toISOString().split('T')[0], // Reset to yesterday in YYYY-MM-DD
+                  to_date: new Date().toISOString().split('T')[0], // Reset to today in YYYY-MM-DD
                 });
                 setCurrentPage(1);
               }}
@@ -475,6 +475,34 @@ export default function PurchaseInvoiceList() {
                             Outstanding: {invoice.currency} {invoice.outstanding_amount.toLocaleString('id-ID')}
                           </span>
                         )}
+
+                         {/* Action buttons based on status */}
+                        <div className="ml-4 flex space-x-2">
+                          {/* Submit button for Draft invoices */}
+                          {invoice.status === 'Draft' && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                console.log('Button clicked, invoice.name:', invoice.name);
+                                handleSubmit(invoice.name);
+                              }}
+                              disabled={actionLoading}
+                              className="px-3 py-1 bg-green-600 text-white text-xs font-medium rounded hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center"
+                            >
+                              {actionLoading ? (
+                                <>
+                                  <svg className="animate-spin -ml-1 mr-2 h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                  </svg>
+                                  Submitting...
+                                </>
+                              ) : (
+                                'Submit'
+                              )}
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -493,6 +521,35 @@ export default function PurchaseInvoiceList() {
           onPageChange={setCurrentPage}
         />
       </div>
+      
+      {/* Success Dialog */}
+      {showSuccessDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center mb-4">
+              <div className="flex-shrink-0">
+                <svg className="h-6 w-6 text-green-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-lg font-medium text-gray-900">Sukses!</h3>
+              </div>
+            </div>
+            <div className="text-sm text-gray-600">
+              {successMessage}
+            </div>
+            <div className="mt-4 flex justify-end">
+              <button
+                onClick={() => setShowSuccessDialog(false)}
+                className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

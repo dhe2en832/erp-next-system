@@ -30,6 +30,7 @@ export async function GET(request: NextRequest) {
     // Try ERPNext custom method first
     try {
       const erpNextUrl = `${ERPNEXT_API_URL}/api/method/fetch_pr_list_for_pi?company=${encodeURIComponent(company)}`;
+      console.log('Trying custom method:', erpNextUrl);
       
       const response = await fetch(erpNextUrl, {
         method: 'GET',
@@ -45,23 +46,42 @@ export async function GET(request: NextRequest) {
       if (response.ok) {
         const data = await response.json();
         console.log('ERPNext Custom Method Response:', data);
-        return NextResponse.json(data);
+        console.log('Custom method returned items:', data.message?.data?.length || 0);
+        
+        // Add debug info to response
+        const debuggedData = {
+          ...data,
+          debug: {
+            method: 'custom',
+            source: 'fetch_pr_list_for_pi',
+            items_count: data.message?.data?.length || 0,
+            erpNext_url: erpNextUrl
+          }
+        };
+        
+        return NextResponse.json(debuggedData);
+      } else {
+        const errorData = await response.text();
+        console.log('Custom method failed:', errorData);
       }
     } catch (customMethodError) {
-      console.log('Custom method not available, using standard API...');
+      console.log('Custom method not available, using standard API...', customMethodError);
     }
 
     // Fallback to standard ERPNext API
     console.log('Using standard ERPNext API for Purchase Receipts...');
     
-    // Get submitted Purchase Receipts
+    // Get submitted Purchase Receipts that can be billed
     const filters = JSON.stringify([
       ["company", "=", company],
       ["docstatus", "=", 1], // Submitted
-      ["status", "in", ["Submitted", "Completed"]]
+      ["status", "in", ["Submitted", "Completed", "To Bill"]]
     ]);
     
-    const standardUrl = `${ERPNEXT_API_URL}/api/resource/Purchase Receipt?fields=["name","supplier","supplier_name","posting_date","company","grand_total"]&filters=${encodeURIComponent(filters)}&order_by=posting_date desc&limit_page_length=100`;
+    const standardUrl = `${ERPNEXT_API_URL}/api/resource/Purchase Receipt?fields=["name","supplier","supplier_name","posting_date","company","grand_total","per_billed"]&filters=${encodeURIComponent(filters)}&order_by=posting_date desc&limit_page_length=100`;
+    
+    console.log('Standard API URL:', standardUrl);
+    console.log('Filters being used:', filters);
     
     const response = await fetch(standardUrl, {
       method: 'GET',
@@ -85,6 +105,7 @@ export async function GET(request: NextRequest) {
 
     const data = await response.json();
     console.log('Standard API Response:', data);
+    console.log('Standard API returned items:', data.data?.length || 0);
 
     // Transform to expected format
     const transformedData = {
@@ -97,12 +118,27 @@ export async function GET(request: NextRequest) {
           posting_date: pr.posting_date,
           company: pr.company,
           grand_total: pr.grand_total,
-          per_billed: 0 // Default to 0 since not available in standard API
+          per_billed: pr.per_billed || 0 // Use actual value or default to 0
         }))
       }
     };
 
-    return NextResponse.json(transformedData);
+    console.log('Transformed data items:', transformedData.message.data.length);
+    console.log('Final transformed data:', JSON.stringify(transformedData, null, 2));
+
+    // Add debug info to response
+    const debuggedData = {
+      ...transformedData,
+      debug: {
+        method: 'standard',
+        source: 'standard_api',
+        items_count: transformedData.message.data.length,
+        erpNext_url: standardUrl,
+        filters: filters
+      }
+    };
+
+    return NextResponse.json(debuggedData);
 
   } catch (error) {
     console.error('PR List API Error:', error);

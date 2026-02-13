@@ -98,18 +98,31 @@ export async function GET(
           company: data.data.company,
           currency: data.data.currency || 'IDR',
           custom_notes_pr: '', // Not available in standard API
-          items: (data.data.items || []).map((item: any) => ({
-            item_code: item.item_code,
-            item_name: item.item_name,
-            qty: item.qty,
-            uom: item.uom || 'Nos',
-            rate: item.rate,
-            warehouse: item.warehouse || 'Stores - EN',
-            purchase_receipt: data.data.name,
-            purchase_receipt_item: item.name,
-            purchase_order: item.purchase_order || '',
-            purchase_order_item: item.purchase_order_item || ''
-          }))
+          items: (data.data.items || []).map((item: any) => {
+            console.log('Mapping PR item:', {
+              name: item.name,
+              purchase_order: item.purchase_order,
+              purchase_order_item: item.purchase_order_item
+            });
+            
+            return {
+              item_code: item.item_code,
+              item_name: item.item_name,
+              qty: item.qty, // Original PR qty
+              received_qty: item.received_qty || item.qty, // Actual received quantity
+              rejected_qty: item.rejected_qty || 0, // Actual rejected quantity
+              accepted_qty: (item.received_qty || item.qty) - (item.rejected_qty || 0), // Calculated accepted
+              billed_qty: item.billed_qty || 0, // Already billed quantity
+              outstanding_qty: (item.received_qty || item.qty) - (item.rejected_qty || 0) - (item.billed_qty || 0), // Available for billing
+              uom: item.uom || 'Nos',
+              rate: item.rate,
+              warehouse: item.warehouse || 'Stores - EN',
+              purchase_receipt: data.data.name,
+              purchase_receipt_item: item.name, // This should be the PR item name
+              purchase_order: item.purchase_order || '',
+              purchase_order_item: item.purchase_order_item || ''
+            };
+          })
         }
       }
     };
