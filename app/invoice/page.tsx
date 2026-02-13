@@ -1941,7 +1941,7 @@ export default function InvoicePage() {
               ) : (
                 <div className="bg-white shadow overflow-hidden sm:rounded-md">
                   <ul className="divide-y divide-gray-200 max-h-96 overflow-y-auto">
-                    {deliveryNotes.map((dn: { name: string; customer: string; customer_name?: string; status: string }) => (
+                    {deliveryNotes.map((dn: { name: string; customer: string; customer_name?: string; status: string; grand_total?: number; posting_date?: string }) => (
                       <li
                         key={dn.name}
                         onClick={() => handleSelectDeliveryNote(dn.name)}
@@ -1975,11 +1975,12 @@ export default function InvoicePage() {
                               <p className="flex items-center text-sm text-gray-500">
                                 Date: {dn.posting_date}
                               </p>
+                              {/* Sales order field not available in list view
                               {dn.sales_order && (
                                 <p className="mt-2 sm:mt-0 sm:ml-6 flex items-center text-sm text-gray-500">
                                   SO: {dn.sales_order}
                                 </p>
-                              )}
+                              )} */}
                             </div>
                             <div className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">
                               <span className="font-medium">Total: Rp {dn.grand_total ? dn.grand_total.toLocaleString('id-ID') : '0'}</span>

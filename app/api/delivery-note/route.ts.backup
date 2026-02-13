@@ -45,19 +45,21 @@ export async function GET(request: NextRequest) {
     }
 
     // Build filters
-    let filtersArray: any[] = [];
+    let filtersString = '';
     
     // Parse existing filters if provided
     if (filters) {
       try {
         // Handle URL-encoded filters
         const decodedFilters = decodeURIComponent(filters);
-        filtersArray = JSON.parse(decodedFilters);
+        const parsedFilters = JSON.parse(decodedFilters);
+        filtersString = JSON.stringify(parsedFilters);
       } catch (e) {
         console.error('Error parsing filters:', e);
         // Try parsing directly if decoding fails
         try {
-          filtersArray = JSON.parse(filters);
+          const parsedFilters = JSON.parse(filters);
+          filtersString = JSON.stringify(parsedFilters);
         } catch (e2) {
           console.error('Error parsing filters directly:', e2);
         }
@@ -66,33 +68,38 @@ export async function GET(request: NextRequest) {
     
     // Add search filter
     if (search) {
-      filtersArray.push(["customer_name", "like", `%${search}%`]);
+      const searchFilter = '["customer_name","like","%' + search + '%"]';
+      filtersString = filtersString ? filtersString.slice(0, -1) + ',' + searchFilter + ']' : '[' + searchFilter + ']';
     }
     
     // Add document number filter
     if (documentNumber) {
-      filtersArray.push(["name", "like", `%${documentNumber}%`]);
+      const docFilter = '["name","like","%' + documentNumber + '%"]';
+      filtersString = filtersString ? filtersString.slice(0, -1) + ',' + docFilter + ']' : '[' + docFilter + ']';
     }
     
     // Add status filter
     if (status) {
-      filtersArray.push(["status", "=", status]);
+      const statusFilter = '["status","=","' + status + '"]';
+      filtersString = filtersString ? filtersString.slice(0, -1) + ',' + statusFilter + ']' : '[' + statusFilter + ']';
     }
     
     // Add date filters
     if (fromDate) {
-      filtersArray.push(["posting_date", ">=", fromDate]);
+      const dateFilter = '["posting_date",">=","' + fromDate + '"]';
+      filtersString = filtersString ? filtersString.slice(0, -1) + ',' + dateFilter + ']' : '[' + dateFilter + ']';
     }
     
     if (toDate) {
-      filtersArray.push(["posting_date", "<=", toDate]);
+      const dateFilter = '["posting_date","<=","' + toDate + '"]';
+      filtersString = filtersString ? filtersString.slice(0, -1) + ',' + dateFilter + ']' : '[' + dateFilter + ']';
     }
 
     // Build ERPNext URL
-    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Delivery Note?fields=["name","customer","customer_name","posting_date","status","grand_total"]&limit_page_length=${limit}&start=${start}`;
+    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Delivery Note?fields=["name","customer","customer_name","posting_date","status","grand_total","sales_order"]&limit_page_length=${limit}&start=${start}`;
     
-    if (filtersArray.length > 0) {
-      erpNextUrl += `&filters=${encodeURIComponent(JSON.stringify(filtersArray))}`;
+    if (filtersString) {
+      erpNextUrl += `&filters=${encodeURIComponent(filtersString)}`;
     }
     
     if (orderBy) {
@@ -218,6 +225,7 @@ export async function POST(request: NextRequest) {
           headers: {
             'Cookie': `sid=${sid}`,
           },
+          credentials: 'include',
         });
         
         if (csrfResponse.ok) {
@@ -244,6 +252,7 @@ export async function POST(request: NextRequest) {
       method: 'POST',
       headers,
       body: JSON.stringify(deliveryNoteData),
+      credentials: 'include',
     });
 
     const data = await response.json();
