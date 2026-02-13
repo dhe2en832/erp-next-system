@@ -1236,13 +1236,13 @@ export default function InvoicePage() {
   };
 
   if (loading) {
-    return <LoadingSpinner message="Loading Sales Invoices..." />;
+    return <LoadingSpinner message="Memuat Faktur Penjualan..." />;
   }
 
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Sales Invoices</h1>
+        <h1 className="text-3xl font-bold text-gray-900">Faktur Penjualan</h1>
         <div className="flex space-x-3">
           <button
             onClick={() => {
@@ -1301,7 +1301,7 @@ export default function InvoicePage() {
             <svg className="w-5 h-5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
             </svg>
-            Create New Invoice
+            Buat Faktur Baru
           </button>
           <button
             onClick={() => {
@@ -1310,7 +1310,7 @@ export default function InvoicePage() {
             }}
             className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 hidden"
           >
-            Create From Delivery Note
+            Buat dari Surat Jalan
           </button>
         </div>
       </div>
@@ -1320,11 +1320,11 @@ export default function InvoicePage() {
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Cari Customer
+              Cari Pelanggan
             </label>
             <input
               type="text"
-              placeholder="Search by customer..."
+              placeholder="Cari nama pelanggan..."
               className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -1336,7 +1336,7 @@ export default function InvoicePage() {
             </label>
             <input
               type="text"
-              placeholder="Search invoice..."
+              placeholder="Cari nomor faktur..."
               className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
               value={documentNumberFilter}
               onChange={(e) => setDocumentNumberFilter(e.target.value)}
@@ -1353,10 +1353,10 @@ export default function InvoicePage() {
             >
               <option value="">Semua Status</option>
               <option value="Draft">Draft</option>
-              <option value="Submitted">Submitted</option>
-              <option value="Unpaid">Unpaid</option>
-              <option value="Paid">Paid</option>
-              <option value="Cancelled">Cancelled</option>
+              <option value="Submitted">Diajukan</option>
+              <option value="Unpaid">Belum Lunas</option>
+              <option value="Paid">Lunas</option>
+              <option value="Cancelled">Dibatalkan</option>
             </select>
           </div>
           <div>
@@ -1394,7 +1394,7 @@ export default function InvoicePage() {
               }}
               className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400"
             >
-              Clear Filters
+              Hapus Filter
             </button>
           </div>
         </div>
@@ -1447,7 +1447,7 @@ export default function InvoicePage() {
             <div className="px-6 py-4 border-b border-gray-200">
               <div className="flex justify-between items-center">
                 <h3 className="text-lg font-medium text-gray-900">
-                  {editingInvoice ? 'Edit Sales Invoice' : 'Create Sales Invoice'}
+                  {editingInvoice ? 'Edit Faktur Penjualan' : 'Buat Faktur Penjualan'}
                 </h3>
                 {!editingInvoice && (
                   <button
@@ -1458,7 +1458,7 @@ export default function InvoicePage() {
                     }}
                     className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
                   >
-                    Create from Delivery Note
+                    Buat dari Surat Jalan
                   </button>
                 )}
               </div>
@@ -1467,7 +1467,7 @@ export default function InvoicePage() {
               <div className="grid grid-cols-2 gap-4 mb-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
-                    Customer
+                    Pelanggan
                   </label>
                   <input
                     type="text"
@@ -1481,7 +1481,7 @@ export default function InvoicePage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
-                    Posting Date
+                    Tanggal Posting
                   </label>
                   <BrowserStyleDatePicker
                     value={formData.posting_date}
@@ -1494,7 +1494,7 @@ export default function InvoicePage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
-                    Due Date
+                    Jatuh Tempo
                   </label>
                   <BrowserStyleDatePicker
                     value={formData.due_date}
@@ -1522,13 +1522,13 @@ export default function InvoicePage() {
 
               <div className="mb-4">
                 <div className="flex justify-between items-center mb-2">
-                  <h4 className="text-md font-medium text-gray-900">Items</h4>
+                  <h4 className="text-md font-medium text-gray-900">Barang</h4>
                   <button
                     type="button"
                     onClick={handleAddItem}
                     className="hidden bg-green-600 text-white px-3 py-1 rounded-md text-sm hover:bg-green-700"
                   >
-                    Add Item
+                    Tambah Barang
                   </button>
                 </div>
 
@@ -1537,7 +1537,7 @@ export default function InvoicePage() {
                     <div className="grid grid-cols-6 gap-2">
                       <div>
                         <label className="block text-xs font-medium text-gray-700">
-                          Item Code
+                          Kode Barang
                         </label>
                         <input
                           type="text"
@@ -1549,7 +1549,7 @@ export default function InvoicePage() {
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-700">
-                          Item Name
+                          Nama Barang
                         </label>
                         <input
                           type="text"
@@ -1561,7 +1561,7 @@ export default function InvoicePage() {
                       </div>
                       <div className="text-right">
                         <label className="block text-xs font-medium text-gray-700">
-                          Quantity
+                          Kuantitas
                         </label>
                         <input
                           type="text"
@@ -1573,7 +1573,7 @@ export default function InvoicePage() {
                       </div>
                       <div className="text-right">
                         <label className="block text-xs font-medium text-gray-700">
-                          Rate
+                          Harga
                         </label>
                         <input
                           type="text"
@@ -1585,7 +1585,7 @@ export default function InvoicePage() {
                       </div>
                       <div className="text-right">
                         <label className="block text-xs font-medium text-gray-700">
-                          Amount
+                          Jumlah
                         </label>
                         <input
                           type="text"
@@ -1596,7 +1596,7 @@ export default function InvoicePage() {
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-700">
-                          Income Account
+                          Akun Pendapatan
                         </label>
                         <input
                           type="text"
@@ -1611,38 +1611,38 @@ export default function InvoicePage() {
                     <div className="grid grid-cols-4 gap-2 mt-2">
                       <div>
                         <label className="block text-xs font-medium text-gray-700">
-                          Delivery Note
+                          Surat Jalan
                         </label>
                         <input
                           type="text"
                           className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm bg-gray-50"
                           value={item.delivery_note || ''}
                           readOnly
-                          placeholder="Select DN above..."
+                          placeholder="Pilih SJ di atas..."
                         />
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-700">
-                          Sales Order
+                          Pesanan Penjualan
                         </label>
                         <input
                           type="text"
                           className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm bg-gray-50"
                           value={item.sales_order || ''}
                           readOnly
-                          placeholder="Auto-filled from DN..."
+                          placeholder="Otomatis dari SJ..."
                         />
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-700">
-                          SO Detail
+                          Detail SO
                         </label>
                         <input
                           type="text"
                           className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm bg-gray-50"
                           value={item.so_detail || ''}
                           readOnly
-                          placeholder="Auto-filled from DN..."
+                          placeholder="Otomatis dari SJ..."
                         />
                       </div>
                       <div>
@@ -1664,7 +1664,7 @@ export default function InvoicePage() {
                         onClick={() => handleRemoveItem(index)}
                         className="mt-2 text-red-600 text-sm hover:text-red-800 hidden"
                       >
-                        Remove
+                        Hapus
                       </button>
                     )}
                   </div>
@@ -1681,13 +1681,13 @@ export default function InvoicePage() {
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-gray-600">Total Quantity:</div>
+                        <div className="text-gray-600">Total Kuantitas:</div>
                         <div className="font-semibold text-gray-900">
                           {formData.items.reduce((sum, item) => sum + item.qty, 0).toLocaleString('id-ID')}
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-gray-600">Total Amount:</div>
+                        <div className="text-gray-600">Total Jumlah:</div>
                         <div className="font-semibold text-lg text-gray-900">
                           Rp {formData.items.reduce((sum, item) => sum + item.amount, 0).toLocaleString('id-ID')}
                         </div>
@@ -1752,14 +1752,14 @@ export default function InvoicePage() {
                   }}
                   className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400"
                 >
-                  Cancel
+                  Batal
                 </button>
                 <button
                   type="submit"
                   disabled={formLoading || editingInvoiceStatus === 'Paid'}
                   className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 disabled:opacity-50"
                 >
-                  {formLoading ? 'Creating...' : editingInvoice ? 'Update Invoice' : 'Create Invoice'}
+                  {formLoading ? 'Memproses...' : editingInvoice ? 'Perbarui Faktur' : 'Simpan Faktur'}
                 </button>
               </div>
             </form>
@@ -1785,7 +1785,7 @@ export default function InvoicePage() {
                     <p className="text-sm font-medium text-indigo-600 truncate">
                       {invoice.name}
                     </p>
-                    <p className="mt-1 text-sm text-gray-900">Customer: {invoice.customer_name || invoice.customer}</p>
+                    <p className="mt-1 text-sm text-gray-900">Pelanggan: {invoice.customer_name || invoice.customer}</p>
                   </div>
                   <div className="ml-4 flex-shrink-0">
                     <span
@@ -1808,10 +1808,10 @@ export default function InvoicePage() {
                 <div className="mt-2 sm:flex sm:justify-between">
                   <div className="sm:flex">
                     <p className="flex items-center text-sm text-gray-500">
-                      Posting Date: {invoice.posting_date}
+                      Tanggal: {invoice.posting_date}
                     </p>
                     <p className="mt-2 sm:mt-0 sm:ml-6 flex items-center text-sm text-gray-500">
-                      Due Date: {invoice.due_date}
+                      Jatuh Tempo: {invoice.due_date}
                     </p>
                     {invoice.items && invoice.items.length > 0 && invoice.items.find((item: InvoiceItem) => item.delivery_note) && (
                       <p className="mt-2 sm:mt-0 sm:ml-6 flex items-center text-sm text-gray-500">
@@ -1824,10 +1824,10 @@ export default function InvoicePage() {
                       <div className="font-medium text-sm text-gray-900">Total: Rp {invoice.grand_total ? invoice.grand_total.toLocaleString('id-ID') : '0'}</div>
                       <div className="flex items-center space-x-4 mt-1">
                         <span className="text-xs text-green-600">
-                          Paid: Rp {(invoice.paid_amount || (invoice.grand_total - invoice.outstanding_amount) || 0).toLocaleString('id-ID')}
+                          Dibayar: Rp {(invoice.paid_amount || (invoice.grand_total - invoice.outstanding_amount) || 0).toLocaleString('id-ID')}
                         </span>
                         <span className="text-xs text-orange-600">
-                          Outstanding: Rp {invoice.outstanding_amount ? invoice.outstanding_amount.toLocaleString('id-ID') : '0'}
+                          Sisa: Rp {invoice.outstanding_amount ? invoice.outstanding_amount.toLocaleString('id-ID') : '0'}
                         </span>
                       </div>
                       {/* Payment Progress Bar */}
@@ -1842,7 +1842,7 @@ export default function InvoicePage() {
                             ></div>
                           </div>
                           <div className="text-xs text-gray-500 mt-1">
-                            {Math.round(((invoice.paid_amount || (invoice.grand_total - invoice.outstanding_amount) || 0) / invoice.grand_total) * 100)}% Paid
+                            {Math.round(((invoice.paid_amount || (invoice.grand_total - invoice.outstanding_amount) || 0) / invoice.grand_total) * 100)}% Lunas
                           </div>
                         </div>
                       )}
@@ -1864,10 +1864,10 @@ export default function InvoicePage() {
                               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                             </svg>
-                            Submitting...
+                            Mengajukan...
                           </>
                         ) : (
-                          'Submit'
+                          'Ajukan'
                         )}
                       </button>
                     )}
@@ -1882,7 +1882,7 @@ export default function InvoicePage() {
         </ul>
         {invoices.length === 0 && (
           <div className="text-center py-12">
-            <p className="text-gray-500">No invoices found</p>
+            <p className="text-gray-500">Tidak ada faktur ditemukan</p>
           </div>
         )}
 

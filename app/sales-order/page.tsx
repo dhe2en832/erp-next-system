@@ -164,7 +164,7 @@ export default function SalesOrderPage() {
     }
     
     if (!companyToUse) {
-      setError('No company selected. Please select a company first.');
+      setError('Perusahaan belum dipilih. Silakan pilih perusahaan terlebih dahulu.');
       setLoading(false);
       return;
     }
@@ -243,16 +243,16 @@ export default function SalesOrderPage() {
         });
         
         if (ordersData.length === 0) {
-          setError(`No sales orders found for company: ${companyToUse}`);
+          setError(`Tidak ada pesanan penjualan untuk perusahaan: ${companyToUse}`);
         } else {
           setError(''); // Clear error if data is found
         }
         setOrders(ordersData);
       } else {
-        setError(result.message || 'Failed to fetch sales orders');
+        setError(result.message || 'Gagal memuat pesanan penjualan');
       }
     } catch {
-      setError('Failed to fetch sales orders');
+      setError('Gagal memuat pesanan penjualan');
     } finally {
       setLoading(false);
     }
@@ -893,13 +893,13 @@ export default function SalesOrderPage() {
   };
 
   if (loading) {
-    return <LoadingSpinner message="Loading Sales Orders..." />;
+    return <LoadingSpinner message="Memuat Pesanan Penjualan..." />;
   }
 
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Sales Orders</h1>
+        <h1 className="text-3xl font-bold text-gray-900">Pesanan Penjualan</h1>
         <button
           onClick={() => {
             resetForm();
@@ -907,7 +907,7 @@ export default function SalesOrderPage() {
           }}
           className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
         >
-          New Sales Order
+          Buat Pesanan
         </button>
       </div>
 
@@ -915,12 +915,12 @@ export default function SalesOrderPage() {
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Search Name
+              Cari Nama
             </label>
             <input
               type="text"
               className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              placeholder="Search by name..."
+              placeholder="Cari nama pelanggan..."
               value={nameFilter}
               onChange={(e) => setNameFilter(e.target.value)}
             />
@@ -932,7 +932,7 @@ export default function SalesOrderPage() {
             <input
               type="text"
               className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              placeholder="Cari nomor SO..."
+              placeholder="Cari nomor pesanan..."
               value={documentNumberFilter}
               onChange={(e) => setDocumentNumberFilter(e.target.value)}
             />
@@ -948,10 +948,10 @@ export default function SalesOrderPage() {
             >
               <option value="">Semua Status</option>
               <option value="Draft">Draft</option>
-              <option value="Submitted">Submitted</option>
-              <option value="To Deliver">To Deliver</option>
-              <option value="Completed">Completed</option>
-              <option value="Cancelled">Cancelled</option>
+              <option value="Submitted">Diajukan</option>
+              <option value="To Deliver">Belum Dikirim</option>
+              <option value="Completed">Selesai</option>
+              <option value="Cancelled">Dibatalkan</option>
             </select>
           </div>
           <div>
@@ -989,7 +989,7 @@ export default function SalesOrderPage() {
               }}
               className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400"
             >
-              Clear Filters
+              Hapus Filter
             </button>
           </div>
         </div>
@@ -1004,12 +1004,12 @@ export default function SalesOrderPage() {
       {showForm && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
           <div className="relative top-20 mx-auto p-5 border w-11/12 max-w-4xl shadow-lg rounded-md bg-white">
-            <h3 className="text-lg font-bold text-gray-900 mb-4">New Sales Order</h3>
+            <h3 className="text-lg font-bold text-gray-900 mb-4">{editingOrder ? 'Edit Pesanan Penjualan' : 'Buat Pesanan Penjualan Baru'}</h3>
             <form onSubmit={handleSubmit}>
               <div className="grid grid-cols-2 gap-4 mb-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
-                    Customer <span className="text-red-500">*</span>
+                    Pelanggan <span className="text-red-500">*</span>
                   </label>
                   <div className="flex mt-1">
                     <input
@@ -1043,7 +1043,7 @@ export default function SalesOrderPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
-                    Transaction Date <span className="text-red-500">*</span>
+                    Tanggal Transaksi <span className="text-red-500">*</span>
                   </label>
                   <BrowserStyleDatePicker
                     value={formData.transaction_date}
@@ -1058,7 +1058,7 @@ export default function SalesOrderPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
-                    Delivery Date <span className="text-red-500">*</span>
+                    Tanggal Pengiriman <span className="text-red-500">*</span>
                   </label>
                   <BrowserStyleDatePicker
                     value={formData.delivery_date}
@@ -1073,7 +1073,7 @@ export default function SalesOrderPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
-                    Sales Person <span className="text-red-500">*</span>
+                    Tenaga Penjual <span className="text-red-500">*</span>
                   </label>
                   <div className="flex mt-1">
                     <input
@@ -1102,7 +1102,7 @@ export default function SalesOrderPage() {
 
               <div className="mb-4">
                 <div className="flex justify-between items-center mb-2">
-                  <h4 className="text-md font-medium text-gray-900">Items</h4>
+                  <h4 className="text-md font-medium text-gray-900">Barang</h4>
                   <button
                     type="button"
                     onClick={handleAddItem}
@@ -1113,7 +1113,7 @@ export default function SalesOrderPage() {
                         : 'bg-green-600 text-white hover:bg-green-700'
                     } px-3 py-1 rounded-md text-sm`}
                   >
-                    Add Item
+                    Tambah Barang
                   </button>
                 </div>
 
@@ -1122,7 +1122,7 @@ export default function SalesOrderPage() {
                     <div className="grid grid-cols-12 gap-2">
                       <div className="col-span-2">
                         <label className="block text-xs font-medium text-gray-700">
-                          Item Code <span className="text-red-500">*</span>
+                          Kode Barang <span className="text-red-500">*</span>
                         </label>
                         <div className="flex mt-1">
                           <input
@@ -1152,7 +1152,7 @@ export default function SalesOrderPage() {
                       </div>
                       <div className="col-span-3">
                         <label className="block text-xs font-medium text-gray-700">
-                          Item Name <span className="text-red-500">*</span>
+                          Nama Barang <span className="text-red-500">*</span>
                         </label>
                         <div className="flex mt-1">
                           <input
@@ -1182,37 +1182,37 @@ export default function SalesOrderPage() {
                       </div>
                       <div className="col-span-2">
                         <label className="block text-xs font-medium text-gray-700">
-                          Warehouse
+                          Gudang
                         </label>
                         <input
                           type="text"
                           readOnly
                           className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm bg-gray-50"
                           value={item.warehouse}
-                          placeholder="Auto-select"
+                          placeholder="Otomatis"
                         />
                         {item.warehouse && (
                           <div className="mt-1 p-1 bg-blue-50 border border-blue-200 rounded text-xs">
                             <div className="flex items-center justify-between">
                               <span className="text-blue-700">
-                                Avail: <span className="font-semibold">{item.available_stock || 0}</span>
+                                Tersedia: <span className="font-semibold">{item.available_stock || 0}</span>
                               </span>
                               <span className="text-gray-600">
                                 A:{item.actual_stock || 0} R:{item.reserved_stock || 0}
                               </span>
                             </div>
                             {item.available_stock <= 0 && (
-                              <div className="text-xs text-orange-600">⚠️ Out of stock</div>
+                              <div className="text-xs text-orange-600">⚠️ Stok habis</div>
                             )}
                             {item.available_stock > 0 && item.available_stock < 10 && (
-                              <div className="text-xs text-yellow-600">⚠️ Low stock ({item.available_stock})</div>
+                              <div className="text-xs text-yellow-600">⚠️ Stok rendah ({item.available_stock})</div>
                             )}
                           </div>
                         )}
                       </div>
                       <div className="col-span-1">
                         <label className="block text-xs font-medium text-gray-700">
-                          Qty <span className="text-red-500">*</span>
+                          Jml <span className="text-red-500">*</span>
                         </label>
                         <input
                           type="number"
@@ -1243,12 +1243,12 @@ export default function SalesOrderPage() {
                           readOnly
                           className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm bg-gray-50"
                           value={item.stock_uom}
-                          placeholder="Auto"
+                          placeholder="Otomatis"
                         />
                       </div>
                       <div className="col-span-1">
                         <label className="block text-xs font-medium text-gray-700">
-                          Rate
+                          Harga
                         </label>
                         <input
                           type="number"
@@ -1272,7 +1272,7 @@ export default function SalesOrderPage() {
                       </div>
                       <div className="col-span-2">
                         <label className="block text-xs font-medium text-gray-700">
-                          Amount
+                          Jumlah
                         </label>
                         <input
                           type="text"
@@ -1293,7 +1293,7 @@ export default function SalesOrderPage() {
                             : 'text-red-600 hover:text-red-800'
                         }`}
                       >
-                        Remove
+                        Hapus Baris
                       </button>
                     )}
                   </div>
@@ -1305,13 +1305,13 @@ export default function SalesOrderPage() {
                 <div className="flex justify-end">
                   <div className="grid grid-cols-2 gap-8 text-sm">
                     <div className="text-right">
-                      <div className="text-gray-600">Total Quantity:</div>
+                      <div className="text-gray-600">Total Kuantitas:</div>
                       <div className="font-semibold text-gray-900">
                         {formData.items.reduce((sum, item) => sum + item.qty, 0).toLocaleString('id-ID')}
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-gray-600">Total Amount:</div>
+                      <div className="text-gray-600">Total Jumlah:</div>
                       <div className="font-semibold text-lg text-gray-900">
                         Rp {formData.items.reduce((sum, item) => sum + item.amount, 0).toLocaleString('id-ID')}
                       </div>
@@ -1329,7 +1329,7 @@ export default function SalesOrderPage() {
                   }}
                   className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400"
                 >
-                  Cancel
+                  Batal
                 </button>
                 <button
                   type="submit"
@@ -1341,12 +1341,12 @@ export default function SalesOrderPage() {
                   } px-4 py-2 rounded-md disabled:opacity-50`}
                 >
                   {formLoading 
-                    ? 'Creating...' 
+                    ? 'Memproses...' 
                     : currentOrderStatus !== 'Draft' && currentOrderStatus !== ''
-                      ? `${currentOrderStatus} - Cannot Edit` 
+                      ? `${currentOrderStatus} - Tidak Bisa Diedit` 
                       : editingOrder 
-                        ? 'Update Order' 
-                        : 'Create Order'
+                        ? 'Perbarui Pesanan' 
+                        : 'Simpan Pesanan'
                   }
                 </button>
               </div>
@@ -1374,7 +1374,7 @@ export default function SalesOrderPage() {
                     <p className="text-sm font-medium text-indigo-600 truncate">
                       {order.name}
                     </p>
-                    <p className="mt-1 text-sm text-gray-900">Customer: {order.customer_name}</p>
+                    <p className="mt-1 text-sm text-gray-900">Pelanggan: {order.customer_name}</p>
                   </div>
                   <div className="ml-4 flex-shrink-0">
                     <span
@@ -1395,10 +1395,10 @@ export default function SalesOrderPage() {
                 <div className="mt-2 sm:flex sm:justify-between">
                   <div className="sm:flex">
                     <p className="flex items-center text-sm text-gray-500">
-                      Transaction Date: {order.transaction_date}
+                      Tgl Transaksi: {order.transaction_date}
                     </p>
                     <p className="mt-2 sm:mt-0 sm:ml-6 flex items-center text-sm text-gray-500">
-                      Delivery Date: {order.delivery_date}
+                      Tgl Pengiriman: {order.delivery_date}
                     </p>
                   </div>
                   <div className="mt-2 flex items-center justify-between sm:mt-0">
@@ -1413,7 +1413,7 @@ export default function SalesOrderPage() {
                         }}
                         className="ml-4 px-3 py-1 bg-green-600 text-white text-xs font-medium rounded hover:bg-green-700 transition-colors"
                       >
-                        Submit
+                        Ajukan
                       </button>
                     )}
                     
@@ -1427,7 +1427,7 @@ export default function SalesOrderPage() {
                           }}
                           className="ml-4 px-3 py-1 bg-orange-600 text-white text-xs font-medium rounded hover:bg-orange-700 transition-colors"
                         >
-                          Create Delivery
+                          Buat Surat Jalan
                         </button>
                         <button
                           onClick={(e) => {
@@ -1436,7 +1436,7 @@ export default function SalesOrderPage() {
                           }}
                           className="ml-2 px-3 py-1 bg-blue-600 text-white text-xs font-medium rounded hover:bg-blue-700 transition-colors"
                         >
-                          Create Invoice
+                          Buat Faktur
                         </button>
                       </>
                     )}
@@ -1452,7 +1452,7 @@ export default function SalesOrderPage() {
         </ul>
         {orders.length === 0 && (
           <div className="text-center py-12">
-            <p className="text-gray-500">No sales orders found</p>
+            <p className="text-gray-500">Tidak ada pesanan penjualan</p>
           </div>
         )}
         
