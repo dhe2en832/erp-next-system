@@ -260,10 +260,10 @@ export default function PurchaseOrderList() {
         // Redirect to poMain for this PO
         router.push(`/purchase-orders/poMain?name=${poName}`);
       } else {
-        setError(data.message || 'Failed to receive PO');
+        setError(data.message || 'Gagal menerima PO');
       }
     } catch (err) {
-      setError('Failed to receive PO');
+      setError('Gagal menerima PO');
     }
   };
 
@@ -282,10 +282,10 @@ export default function PurchaseOrderList() {
         // Redirect to poMain for this PO
         router.push(`/purchase-orders/poMain?name=${poName}`);
       } else {
-        setError(data.message || 'Failed to complete PO');
+        setError(data.message || 'Gagal menyelesaikan PO');
       }
     } catch (err) {
-      setError('Failed to complete PO');
+      setError('Gagal menyelesaikan PO');
     }
   };
 

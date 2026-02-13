@@ -203,7 +203,7 @@ export default function PurchaseInvoiceMain() {
             router.push('/purchase-invoice/piList');
           }, 3000);
         } else {
-          setError(data.message?.message || 'Gagal mengambil data Purchase Invoice');
+          setError(data.message?.message || 'Gagal mengambil data faktur pembelian');
         }
       }
     } catch (error) {
@@ -211,13 +211,13 @@ export default function PurchaseInvoiceMain() {
 
       // Check if it's a permission error
       if (error instanceof Error && error.message.includes('PermissionError')) {
-        setError('Permission Error: Anda tidak memiliki izin untuk mengakses Purchase Invoice ini. Silakan hubungi administrator untuk mendapatkan akses. Anda akan dialihkan ke halaman daftar dalam 3 detik.');
+        setError('Kesalahan Izin: Anda tidak memiliki izin untuk mengakses faktur pembelian ini. Silakan hubungi administrator untuk mendapatkan akses. Anda akan dialihkan ke halaman daftar dalam 3 detik.');
         // Auto-redirect to list after 3 seconds for permission errors
         setTimeout(() => {
           router.push('/purchase-invoice/piList');
         }, 3000);
       } else {
-        setError('Terjadi kesalahan saat mengambil data Purchase Invoice');
+        setError('Terjadi kesalahan saat mengambil data faktur pembelian');
       }
     } finally {
       setLoading(false);
@@ -260,12 +260,12 @@ export default function PurchaseInvoiceMain() {
 
         setPurchaseReceipts(receipts);
       } else {
-        setPurchaseReceiptsError(data.message?.message || 'Gagal mengambil data Purchase Receipt');
+        setPurchaseReceiptsError(data.message?.message || 'Gagal mengambil data penerimaan barang');
         setPurchaseReceipts([]);
       }
     } catch (error) {
       console.error('Error fetching purchase receipts:', error);
-      setPurchaseReceiptsError('Gagal mengambil data Purchase Receipt');
+      setPurchaseReceiptsError('Gagal mengambil data penerimaan barang');
       setPurchaseReceipts([]);
     } finally {
       setPurchaseReceiptsLoading(false);
@@ -342,11 +342,11 @@ export default function PurchaseInvoiceMain() {
         setShowPurchaseReceiptDialog(false);
         setError('');
       } else {
-        setError(data.message?.message || 'Gagal mengambil detail Purchase Receipt');
+        setError(data.message?.message || 'Gagal mengambil detail penerimaan barang');
       }
     } catch (error) {
       console.error('Error fetching PR detail:', error);
-      setError('Gagal mengambil detail Purchase Receipt');
+      setError('Gagal mengambil detail penerimaan barang');
     }
   };
 
@@ -397,7 +397,7 @@ export default function PurchaseInvoiceMain() {
 
     // Common ERPNext error patterns
     if (errorMessage.includes('PermissionError') || errorMessage.includes('frappe.exceptions.PermissionError')) {
-      return 'Permission Error: Anda tidak memiliki izin untuk mengakses atau mengubah Purchase Invoice. Silakan hubungi administrator sistem.';
+      return 'Kesalahan Izin: Anda tidak memiliki izin untuk mengakses atau mengubah faktur pembelian. Silakan hubungi administrator sistem.';
     }
 
     if (errorMessage.includes('mandatory')) {
@@ -429,7 +429,7 @@ export default function PurchaseInvoiceMain() {
 
     // Validate form data
     if (!formData.supplier) {
-      setError('Supplier harus dipilih');
+      setError('Pemasok harus dipilih');
       setFormLoading(false);
       return;
     }
@@ -450,7 +450,7 @@ export default function PurchaseInvoiceMain() {
     const validItems = formData.items.filter(item => item.item_code && item.qty > 0);
 
     if (validItems.length === 0) {
-      setError('Silakan tambahkan minimal satu item yang valid dengan qty > 0');
+      setError('Silakan tambahkan minimal satu barang yang valid dengan qty > 0');
       setFormLoading(false);
       return;
     }
@@ -529,7 +529,7 @@ export default function PurchaseInvoiceMain() {
         
         if (data.success) {
           isSuccess = true;
-          const successMessage = isEditMode ? 'Purchase Invoice berhasil diupdate!' : 'Purchase Invoice berhasil dibuat!';
+          const successMessage = isEditMode ? 'Faktur Pembelian berhasil diperbarui!' : 'Faktur Pembelian berhasil dibuat!';
           setSuccessMessage(successMessage);
           setShowSuccessDialog(true);
           

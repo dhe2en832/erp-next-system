@@ -262,7 +262,7 @@ export default function PurchaseReceiptMain() {
           }
         }
       } else {
-        setError(data.message || 'Gagal mengambil data Purchase Receipt');
+        setError(data.message || 'Gagal mengambil data penerimaan barang');
       }
     } catch (err) {
       console.error('Error fetching purchase receipt:', err);
@@ -324,7 +324,7 @@ export default function PurchaseReceiptMain() {
         setSelectedItems(prItems);
         setShowPODialog(false);
       } else {
-        setError(data.message || 'Gagal mengambil data items Purchase Order');
+        setError(data.message || 'Gagal mengambil data barang pesanan pembelian');
       }
     } catch (err) {
       console.error('Error fetching PO items:', err);
@@ -379,7 +379,7 @@ export default function PurchaseReceiptMain() {
 
   const validateForm = () => {
     if (!purchaseOrder) {
-      setValidationMessage('Purchase Order harus dipilih');
+      setValidationMessage('Pesanan Pembelian harus dipilih');
       setShowValidationAlert(true);
       return false;
     }
@@ -579,7 +579,7 @@ export default function PurchaseReceiptMain() {
       const data = await response.json();
 
       if (data.success) {
-        const successMessage = isEditMode ? 'Purchase Receipt berhasil diupdate!' : 'Purchase Receipt berhasil dibuat!';
+        const successMessage = isEditMode ? 'Penerimaan Barang berhasil diperbarui!' : 'Penerimaan Barang berhasil dibuat!';
         setSuccess(successMessage);
         setSuccessMessage(successMessage);
         setShowSuccessDialog(true);
@@ -596,7 +596,7 @@ export default function PurchaseReceiptMain() {
       }
     } catch (err) {
       console.error('Purchase Receipt creation error:', err);
-      setError(`Gagal ${isEditMode ? 'mengupdate' : 'membuat'} purchase receipt`);
+      setError(`Gagal ${isEditMode ? 'memperbarui' : 'membuat'} penerimaan barang`);
     } finally {
       setLoading(false);
     }
