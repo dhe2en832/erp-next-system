@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Pagination from '../components/Pagination';
+import { parseDate } from '../../utils/format';
 
 interface StockLedger {
   name: string;
@@ -140,11 +141,17 @@ export default function StockManagementPage() {
       }
       
       if (dateFilter.from_date) {
-        params.append('from_date', dateFilter.from_date);
+        const parsedDate = parseDate(dateFilter.from_date);
+        if (parsedDate) {
+          params.append('from_date', parsedDate);
+        }
       }
       
       if (dateFilter.to_date) {
-        params.append('to_date', dateFilter.to_date);
+        const parsedDate = parseDate(dateFilter.to_date);
+        if (parsedDate) {
+          params.append('to_date', parsedDate);
+        }
       }
 
       console.log('Fetching Stock Ledger from:', `/api/stock-ledger?${params}`);

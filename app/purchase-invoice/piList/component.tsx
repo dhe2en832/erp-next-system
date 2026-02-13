@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import Pagination from '../../components/Pagination';
+import { formatDate, parseDate } from '../../../utils/format';
+import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
 
 interface PurchaseInvoice {
   name: string;
@@ -58,43 +60,12 @@ export default function PurchaseInvoiceList() {
     setSearchTimeout(newTimeout);
   };
   
-  // Helper function to format date as DD-MM-YYYY
-  const formatDate = (date: Date): string => {
-    const day = date.getDate().toString().padStart(2, '0');
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const year = date.getFullYear();
-    return `${day}-${month}-${year}`;
-  };
-  
-  // Helper function to parse DD-MM-YYYY to Date
-  const parseDate = (dateString: string): Date => {
-    const [day, month, year] = dateString.split('-').map(Number);
-    return new Date(year, month - 1, day);
-  };
-  
-  // Helper function to validate DD-MM-YYYY format
-  const isValidDateFormat = (dateString: string): boolean => {
-    const regex = /^\d{2}-\d{2}-\d{4}$/;
-    if (!regex.test(dateString)) return false;
-    
-    const [day, month, year] = dateString.split('-').map(Number);
-    const date = new Date(year, month - 1, day);
-    return (
-      date.getFullYear() === year &&
-      date.getMonth() === month - 1 &&
-      date.getDate() === day
-    );
-  };
-  
-  // Helper function to convert DD-MM-YYYY to YYYY-MM-DD for API
-  const convertToApiFormat = (dateString: string): string => {
-    const [day, month, year] = dateString.split('-');
-    return `${year}-${month}-${day}`;
-  };
-  
-  const [dateFilter, setDateFilter] = useState({
-    from_date: new Date(Date.now() - 86400000).toISOString().split('T')[0], // Yesterday in YYYY-MM-DD
-    to_date: new Date().toISOString().split('T')[0], // Today in YYYY-MM-DD
+  const [dateFilter, setDateFilter] = useState<{
+    from_date: string;
+    to_date: string;
+  }>({
+    from_date: formatDate(new Date(Date.now() - 86400000)), // Yesterday in DD/MM/YYYY
+    to_date: formatDate(new Date()), // Today in DD/MM/YYYY
   });
 
   // Pagination states
@@ -189,12 +160,16 @@ export default function PurchaseInvoiceList() {
         params.append('status', statusFilter);
       }
       if (dateFilter.from_date) {
-        // Already in YYYY-MM-DD format for API
-        params.append('from_date', dateFilter.from_date);
+        const parsedDate = parseDate(dateFilter.from_date);
+        if (parsedDate) {
+          params.append('from_date', parsedDate);
+        }
       }
       if (dateFilter.to_date) {
-        // Already in YYYY-MM-DD format for API
-        params.append('to_date', dateFilter.to_date);
+        const parsedDate = parseDate(dateFilter.to_date);
+        if (parsedDate) {
+          params.append('to_date', parsedDate);
+        }
       }
 
       const response = await fetch(`/api/purchase-invoice?${params}`, {
@@ -216,7 +191,7 @@ export default function PurchaseInvoiceList() {
     } finally {
       setLoading(false);
     }
-  }, [selectedCompany, currentPage, pageSize, searchTerm, documentNumber, /*supplierFilter,*/ statusFilter, dateFilter]);
+  }, [selectedCompany, currentPage, pageSize, searchTerm, documentNumber, /*supplierFilter,*/ statusFilter, dateFilter.from_date, dateFilter.to_date]);
 
   useEffect(() => {
     if (selectedCompany) {
@@ -393,22 +368,22 @@ export default function PurchaseInvoiceList() {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Dari Tanggal
               </label>
-              <input
-                type="date"
-                className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              <BrowserStyleDatePicker
                 value={dateFilter.from_date}
-                onChange={(e) => setDateFilter(prev => ({ ...prev, from_date: e.target.value }))}
+                onChange={(value: string) => setDateFilter(prev => ({ ...prev, from_date: value }))}
+                className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                placeholder="DD/MM/YYYY"
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Sampai Tanggal
               </label>
-              <input
-                type="date"
-                className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              <BrowserStyleDatePicker
                 value={dateFilter.to_date}
-                onChange={(e) => setDateFilter(prev => ({ ...prev, to_date: e.target.value }))}
+                onChange={(value: string) => setDateFilter(prev => ({ ...prev, to_date: value }))}
+                className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                placeholder="DD/MM/YYYY"
               />
             </div>
           </div>
@@ -419,8 +394,8 @@ export default function PurchaseInvoiceList() {
                 setDocumentNumber('');
                 setStatusFilter('');
                 setDateFilter({
-                  from_date: new Date(Date.now() - 86400000).toISOString().split('T')[0], // Reset to yesterday in YYYY-MM-DD
-                  to_date: new Date().toISOString().split('T')[0], // Reset to today in YYYY-MM-DD
+                  from_date: formatDate(new Date(Date.now() - 86400000)), // Reset to yesterday in DD/MM/YYYY
+                  to_date: formatDate(new Date()), // Reset to today in DD/MM/YYYY
                 });
                 setCurrentPage(1);
               }}
@@ -489,11 +464,11 @@ export default function PurchaseInvoiceList() {
                     <div className="mt-2 sm:flex sm:justify-between">
                       <div className="sm:flex">
                         <p className="flex items-center text-sm text-gray-500">
-                          Posting Date: {invoice.posting_date}
+                          Posting Date: {formatDate(invoice.posting_date)}
                         </p>
                         {invoice.due_date && (
                           <p className="ml-6 flex items-center text-sm text-gray-500">
-                            Due Date: {invoice.due_date}
+                            Due Date: {formatDate(invoice.due_date)}
                           </p>
                         )}
                       </div>

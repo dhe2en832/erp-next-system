@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import Pagination from '../../components/Pagination';
 import { useRouter } from 'next/navigation';
+import { formatDate, parseDate } from '../../../utils/format';
+import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
 
 interface PurchaseReceipt {
   name: string;
@@ -42,8 +44,8 @@ export default function PurchaseReceiptList() {
   const [documentNumber, setDocumentNumber] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [dateFilter, setDateFilter] = useState({
-    from_date: new Date(Date.now() - 86400000).toISOString().split('T')[0], // Yesterday
-    to_date: new Date().toISOString().split('T')[0], // Today
+    from_date: formatDate(new Date(Date.now() - 86400000)), // Yesterday in DD/MM/YYYY
+    to_date: formatDate(new Date()), // Today in DD/MM/YYYY
   });
   
   // Pagination states
@@ -158,10 +160,16 @@ export default function PurchaseReceiptList() {
         params.append('status', statusFilter);
       }
       if (dateFilter.from_date) {
-        params.append('from_date', dateFilter.from_date);
+        const parsedDate = parseDate(dateFilter.from_date);
+        if (parsedDate) {
+          params.append('from_date', parsedDate);
+        }
       }
       if (dateFilter.to_date) {
-        params.append('to_date', dateFilter.to_date);
+        const parsedDate = parseDate(dateFilter.to_date);
+        if (parsedDate) {
+          params.append('to_date', parsedDate);
+        }
       }
 
       const response = await fetch(`/api/purchase-receipts?${params}`);
@@ -344,22 +352,22 @@ export default function PurchaseReceiptList() {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Dari Tanggal
               </label>
-              <input
-                type="date"
-                className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              <BrowserStyleDatePicker
                 value={dateFilter.from_date}
-                onChange={(e) => setDateFilter(prev => ({ ...prev, from_date: e.target.value }))}
+                onChange={(value: string) => setDateFilter(prev => ({ ...prev, from_date: value }))}
+                className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                placeholder="DD/MM/YYYY"
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Sampai Tanggal
               </label>
-              <input
-                type="date"
-                className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              <BrowserStyleDatePicker
                 value={dateFilter.to_date}
-                onChange={(e) => setDateFilter(prev => ({ ...prev, to_date: e.target.value }))}
+                onChange={(value: string) => setDateFilter(prev => ({ ...prev, to_date: value }))}
+                className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                placeholder="DD/MM/YYYY"
               />
             </div>
           </div>
@@ -370,8 +378,8 @@ export default function PurchaseReceiptList() {
                 setDocumentNumber('');
                 setStatusFilter('');
                 setDateFilter({
-                  from_date: new Date(Date.now() - 86400000).toISOString().split('T')[0], // Reset to yesterday
-                  to_date: new Date().toISOString().split('T')[0], // Reset to today
+                  from_date: formatDate(new Date(Date.now() - 86400000)), // Reset to yesterday
+                  to_date: formatDate(new Date()), // Reset to today
                 });
               }}
               className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400"
@@ -450,7 +458,7 @@ export default function PurchaseReceiptList() {
                     <div className="mt-2 sm:flex sm:justify-between">
                       <div className="sm:flex">
                         <p className="flex items-center text-sm text-gray-500">
-                          Posting Date: {receipt.posting_date}
+                          Posting Date: {formatDate(receipt.posting_date)}
                         </p>
                       </div>
                       <div className="mt-2 flex items-center justify-between sm:mt-0">

@@ -63,11 +63,10 @@ export async function GET(request: NextRequest) {
         filters.push(["status", "=", status]);
       }
     } else {
-      // Default filter: show submitted POs with less than 100% received
-      filters.push(["docstatus", "=", "1"]);
-      filters.push(["per_received", "<", "100"]);
+      // When "Semua Status" selected, show all documents regardless of status
+      // Don't add any default filters
+      console.log('No status filter - showing all statuses');
     }
-    // If no status filter, don't add docstatus filter - show all statuses
 
     // Add additional filters if provided
     if (search) {

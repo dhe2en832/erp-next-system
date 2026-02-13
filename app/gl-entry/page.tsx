@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Pagination from '../components/Pagination';
+import { parseDate } from '../../utils/format';
 
 interface GLEntry {
   name: string;
@@ -84,11 +85,17 @@ export default function GLEntryPage() {
       }
 
       if (dateFilter.from_date) {
-        params.append('from_date', dateFilter.from_date);
+        const parsedDate = parseDate(dateFilter.from_date);
+        if (parsedDate) {
+          params.append('from_date', parsedDate);
+        }
       }
 
       if (dateFilter.to_date) {
-        params.append('to_date', dateFilter.to_date);
+        const parsedDate = parseDate(dateFilter.to_date);
+        if (parsedDate) {
+          params.append('to_date', parsedDate);
+        }
       }
 
       if (accountFilter) {
