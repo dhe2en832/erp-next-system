@@ -95,7 +95,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Build ERPNext URL
-    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Payment Entry?fields=["name","payment_type","party","party_name","party_type","paid_amount","received_amount","status","posting_date"]&limit_page_length=${limit}&start=${start}`;
+    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Payment Entry?fields=["name","payment_type","party","party_name","party_type","paid_amount","received_amount","status","posting_date","custom_notes_payment"]&limit_page_length=${limit}&start=${start}`;
     
     if (filtersArray.length > 0) {
       erpNextUrl += `&filters=${encodeURIComponent(JSON.stringify(filtersArray))}`;
@@ -311,6 +311,8 @@ export async function POST(request: NextRequest) {
       paid_from_account_currency: 'IDR',
       paid_to: paymentData.paid_to || '',
       paid_to_account_currency: 'IDR',
+      // Custom fields
+      custom_notes_payment: paymentData.custom_notes_payment || '',
     };
 
     console.log('🚨 BACKEND FINAL PAYLOAD:', paymentPayload);
