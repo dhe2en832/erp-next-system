@@ -86,7 +86,7 @@ export async function GET() {
           dn_with_so_ref: dnWithSORef.length,
           dn_without_so_ref: dnList.length - dnWithSORef.length
         },
-        all_delivery_notes: dnList.map(dn => ({
+        all_delivery_notes: dnList.map((dn: any) => ({
           name: dn.name,
           customer: dn.customer,
           status: dn.status,

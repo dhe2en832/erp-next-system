@@ -4,10 +4,10 @@ const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { pr: string } }
+  { params }: { params: Promise<{ pr: string }> }
 ) {
   try {
-    // For Next.js 13+ app router, params is a Promise
+    // For Next.js 16 app router, params is a Promise
     const resolvedParams = await params;
     const { pr } = resolvedParams;
 

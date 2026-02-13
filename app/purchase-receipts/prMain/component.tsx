@@ -230,7 +230,7 @@ export default function PurchaseReceiptMain() {
         }
         
         // Process items to ensure all fields are properly set
-        const processedItems = (receipt.items || []).map(item => {
+        const processedItems = (receipt.items || []).map((item: PurchaseReceiptItem) => {
           console.log('Processing item:', item);
           console.log('Original received_qty:', item.received_qty);
           console.log('Original rejected_qty:', item.rejected_qty);

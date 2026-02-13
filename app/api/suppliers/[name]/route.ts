@@ -4,11 +4,12 @@ const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { name: string } }
+  { params }: { params: Promise<{ name: string }> }
 ) {
   try {
+    const resolvedParams = await params;
     console.log('Supplier Detail API - ERPNext URL:', ERPNEXT_API_URL);
-    console.log('Supplier Detail API - Supplier Name:', params.name);
+    console.log('Supplier Detail API - Supplier Name:', resolvedParams.name);
     
     const cookies = request.cookies;
     const sid = cookies.get('sid')?.value;
@@ -40,7 +41,7 @@ export async function GET(
     }
 
     // Build ERPNext URL untuk detail supplier
-    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Supplier/${params.name}`;
+    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Supplier/${resolvedParams.name}`;
     
     console.log('Supplier Detail ERPNext URL:', erpNextUrl);
 

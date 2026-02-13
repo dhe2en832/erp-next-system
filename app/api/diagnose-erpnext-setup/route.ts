@@ -8,7 +8,7 @@ export async function GET() {
     
     const authString = Buffer.from(`${process.env.ERP_API_KEY}:${process.env.ERP_API_SECRET}`).toString('base64');
     
-    const diagnostics = {};
+    const diagnostics: Record<string, any> = {};
     
     // 1. Check Delivery Note doctype
     console.log('1. Checking Delivery Note doctype...');
