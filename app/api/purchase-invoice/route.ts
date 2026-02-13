@@ -44,6 +44,7 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status');
     const fromDate = searchParams.get('from_date');
     const toDate = searchParams.get('to_date');
+    const documentNumber = searchParams.get('documentNumber');
     const id = searchParams.get('id'); // For single document fetch
 
     const cookies = request.cookies;
@@ -221,7 +222,12 @@ export async function GET(request: NextRequest) {
     let filters = `[["company","=","${company}"]`;
     
     if (search) {
-      filters += `,["name","like","%${search}%"],["supplier","like","%${search}%"]`;
+      // Search by supplier name only (like PR API)
+      filters += `,["supplier_name","like","%${search}%"]`;
+    }
+    
+    if (documentNumber) {
+      filters += `,["name","like","%${documentNumber}%"]`;
     }
     
     if (supplier) {
@@ -247,8 +253,6 @@ export async function GET(request: NextRequest) {
     const start = searchParams.get('start') || '0';
     
     const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Purchase Invoice?fields=["name","supplier","supplier_name","posting_date","due_date","grand_total","outstanding_amount","status","currency"]&filters=${encodeURIComponent(filters)}&order_by=posting_date desc&limit_page_length=${limit}&start=${start}`;
-
-    console.log('Purchase Invoice ERPNext URL:', erpNextUrl);
 
     const response = await fetch(
       erpNextUrl,

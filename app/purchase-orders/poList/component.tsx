@@ -392,7 +392,10 @@ export default function PurchaseOrderList() {
               Hapus Filter
             </button>
             <button
-              onClick={fetchPurchaseOrders}
+              onClick={() => {
+                setCurrentPage(1);
+                fetchPurchaseOrders();
+              }}
               className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
             >
               Terapkan Filter

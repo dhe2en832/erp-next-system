@@ -65,17 +65,27 @@ export async function GET(request: NextRequest) {
     } else {
       // Default filter: show submitted POs with less than 100% received
       filters.push(["docstatus", "=", "1"]);
-      filters.push(["per_received", "<", 100]);
+      filters.push(["per_received", "<", "100"]);
     }
     // If no status filter, don't add docstatus filter - show all statuses
 
     // Add additional filters if provided
+    if (search) {
+      // Search by supplier name or PO number
+      console.log('Adding search filter for:', search);
+      filters.push(["supplier_name", "like", `%${search}%`]);
+    }
+
     if (documentNumber) {
       filters.push(["name", "like", `%${documentNumber}%`]);
     }
 
-    if (fromDate && toDate) {
-      filters.push(["transaction_date", "between", [fromDate, toDate]]);
+    if (fromDate) {
+      filters.push(["transaction_date", ">=", fromDate]);
+    }
+    
+    if (toDate) {
+      filters.push(["transaction_date", "<=", toDate]);
     }
 
     const fields = [

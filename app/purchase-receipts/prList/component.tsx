@@ -335,6 +335,7 @@ export default function PurchaseReceiptList() {
                 <option value="">Semua Status</option>
                 <option value="Draft">Draft</option>
                 <option value="Submitted">Submitted</option>
+                <option value="To Bill">To Bill</option>
                 <option value="Completed">Completed</option>
                 <option value="Cancelled">Cancelled</option>
               </select>

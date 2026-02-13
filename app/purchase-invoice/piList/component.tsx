@@ -32,10 +32,31 @@ export default function PurchaseInvoiceList() {
   const [successMessage, setSuccessMessage] = useState('');
   const [error, setError] = useState('');
   const [selectedCompany, setSelectedCompany] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(''); // Search by PI name
   const [documentNumber, setDocumentNumber] = useState(''); // Tambahkan document number filter
   const [supplierFilter, setSupplierFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  
+  // Debounce for search
+  const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
+  
+  // Handle search with debounce
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+    
+    // Clear existing timeout
+    if (searchTimeout) {
+      clearTimeout(searchTimeout);
+    }
+    
+    // Set new timeout
+    const newTimeout = setTimeout(() => {
+      setCurrentPage(1);
+      fetchPurchaseInvoices();
+    }, 500); // 500ms delay
+    
+    setSearchTimeout(newTimeout);
+  };
   
   // Helper function to format date as DD-MM-YYYY
   const formatDate = (date: Date): string => {
@@ -161,9 +182,9 @@ export default function PurchaseInvoiceList() {
       if (documentNumber) { // Tambahkan document number filter
         params.append('documentNumber', documentNumber);
       }
-      if (supplierFilter) {
-        params.append('supplier', supplierFilter);
-      }
+      // if (supplierFilter) {
+      //   params.append('supplier', supplierFilter);
+      // }
       if (statusFilter) {
         params.append('status', statusFilter);
       }
@@ -195,7 +216,7 @@ export default function PurchaseInvoiceList() {
     } finally {
       setLoading(false);
     }
-  }, [selectedCompany, currentPage, pageSize, searchTerm, documentNumber, supplierFilter, statusFilter, dateFilter]);
+  }, [selectedCompany, currentPage, pageSize, searchTerm, documentNumber, /*supplierFilter,*/ statusFilter, dateFilter]);
 
   useEffect(() => {
     if (selectedCompany) {
@@ -221,7 +242,7 @@ export default function PurchaseInvoiceList() {
     }
   };
 
-  const getStatusText = (status: string) => {
+  const getStatusText = (status: string, dueDate?: string) => {
     switch (status) {
       case 'Draft':
         return 'Draft';
@@ -233,6 +254,15 @@ export default function PurchaseInvoiceList() {
         return 'Unpaid';
       case 'Cancelled':
         return 'Cancelled';
+      case 'Overdue':
+        if (dueDate) {
+          const today = new Date();
+          const due = new Date(dueDate);
+          const diffTime = Math.abs(today.getTime() - due.getTime());
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          return `Overdue (${diffDays} hari)`;
+        }
+        return 'Overdue';
       default:
         return status;
     }
@@ -326,7 +356,7 @@ export default function PurchaseInvoiceList() {
                 className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                 placeholder="Cari berdasarkan nama supplier..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => handleSearchChange(e.target.value)}
               />
             </div>
             <div>
@@ -354,6 +384,7 @@ export default function PurchaseInvoiceList() {
                 <option value="Draft">Draft</option>
                 <option value="Submitted">Submitted</option>
                 <option value="Unpaid">Unpaid</option>
+                <option value="Overdue">Overdue</option>
                 <option value="Paid">Paid</option>
                 <option value="Cancelled">Cancelled</option>
               </select>
@@ -451,7 +482,7 @@ export default function PurchaseInvoiceList() {
                         <span
                           className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(invoice.status)}`}
                         >
-                          {getStatusText(invoice.status)}
+                          {getStatusText(invoice.status, invoice.due_date)}
                         </span>
                       </div>
                     </div>
