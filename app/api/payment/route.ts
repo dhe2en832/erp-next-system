@@ -4,71 +4,186 @@ const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
 
 export async function GET(request: NextRequest) {
   try {
+    console.log('=== Payment API Called ===');
+    
     const { searchParams } = new URL(request.url);
     const filters = searchParams.get('filters');
     const limit = searchParams.get('limit') || '20';
     const start = searchParams.get('start') || '0';
+    const orderBy = searchParams.get('order_by');
+    const search = searchParams.get('search');
+    const status = searchParams.get('status');
+    const fromDate = searchParams.get('from_date');
+    const toDate = searchParams.get('to_date');
+    const paymentType = searchParams.get('payment_type');
+    const documentNumber = searchParams.get('documentNumber');
 
-    const cookies = request.cookies;
-    const sid = cookies.get('sid')?.value;
-
-    const headers: Record<string, string> = {
+    // Try session authentication first
+    const sessionCookie = request.headers.get('cookie') || '';
+    
+    let headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
 
-    // Prioritize API Key authentication
-    const apiKey = process.env.ERP_API_KEY;
-    const apiSecret = process.env.ERP_API_SECRET;
-    
-    console.log(' API Key Available:', !!apiKey);
-    console.log(' API Secret Available:', !!apiSecret);
-    
-    if (apiKey && apiSecret) {
-      headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-      console.log('Using API key authentication for payments list');
-    } else if (sid) {
-      headers['Cookie'] = `sid=${sid}`;
-      console.log('Using session-based authentication for payments list');
+    // Check if we have session cookie
+    if (sessionCookie) {
+      console.log('Using session authentication');
+      headers['Cookie'] = sessionCookie;
     } else {
-      return NextResponse.json(
-        { success: false, message: 'Unauthorized - No session or API key found' },
-        { status: 401 }
-      );
+      // Fallback to API key authentication
+      console.log('Using API key authentication');
+      const apiKey = process.env.ERP_API_KEY;
+      const apiSecret = process.env.ERP_API_SECRET;
+      
+      if (apiKey && apiSecret) {
+        headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
+      } else {
+        return NextResponse.json(
+          { success: false, message: 'No authentication available' },
+          { status: 401 }
+        );
+      }
     }
 
-    // Build ERPNext URL tanpa double encoding
-    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Payment Entry?fields=["name","payment_type","party","party_name","party_type","paid_amount","received_amount","status","posting_date"]&limit=${limit}&start=${start}`;
+    // Build filters
+    let filtersArray: any[] = [];
     
+    // Parse existing filters if provided
     if (filters) {
-      // Tambahkan filters tanpa additional encoding (sudah ter-encode dari client)
-      erpNextUrl += `&filters=${filters}`;
+      try {
+        // Handle URL-encoded filters
+        const decodedFilters = decodeURIComponent(filters);
+        filtersArray = JSON.parse(decodedFilters);
+      } catch (e) {
+        console.error('Error parsing filters:', e);
+        // Try parsing directly if decoding fails
+        try {
+          filtersArray = JSON.parse(filters);
+        } catch (e2) {
+          console.error('Error parsing filters directly:', e2);
+        }
+      }
+    }
+    
+    // Add search filter
+    if (search) {
+      filtersArray.push(["party_name", "like", `%${search}%`]);
+    }
+    
+    // Add document number filter
+    if (documentNumber) {
+      filtersArray.push(["name", "like", `%${documentNumber}%`]);
+    }
+    
+    // Add status filter
+    if (status) {
+      filtersArray.push(["status", "=", status]);
+    }
+    
+    // Add payment type filter
+    if (paymentType) {
+      filtersArray.push(["payment_type", "=", paymentType]);
+    }
+    
+    // Add date filters
+    if (fromDate) {
+      filtersArray.push(["posting_date", ">=", fromDate]);
+    }
+    
+    if (toDate) {
+      filtersArray.push(["posting_date", "<=", toDate]);
+    }
+
+    // Build ERPNext URL
+    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Payment Entry?fields=["name","payment_type","party","party_name","party_type","paid_amount","received_amount","status","posting_date"]&limit_page_length=${limit}&start=${start}`;
+    
+    if (filtersArray.length > 0) {
+      erpNextUrl += `&filters=${encodeURIComponent(JSON.stringify(filtersArray))}`;
+    }
+    
+    if (orderBy) {
+      erpNextUrl += `&order_by=${orderBy}`;
+    } else {
+      erpNextUrl += '&order_by=creation desc';
     }
 
     console.log('Payment ERPNext URL:', erpNextUrl);
 
-    const response = await fetch(
-      erpNextUrl,
-      {
-        method: 'GET',
-        headers: headers,
-      }
-    );
+    const response = await fetch(erpNextUrl, {
+      method: 'GET',
+      headers,
+    });
 
-    const data = await response.json();
+    const responseText = await response.text();
+    console.log('Payment ERPNext Response Status:', response.status);
+    
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('Failed to parse response as JSON:', parseError);
+      console.error('Response text:', responseText);
+      
+      return NextResponse.json(
+        { success: false, message: 'Invalid response from ERPNext server' },
+        { status: response.status }
+      );
+    }
+
+    console.log('Payment API Response:', { status: response.status, data });
 
     if (response.ok) {
       return NextResponse.json({
         success: true,
         data: data.data,
+        total_records: data.total_records || (data.data || []).length,
       });
     } else {
+      let errorMessage = 'Failed to fetch payments';
+      
+      if (data.exc) {
+        try {
+          const excData = JSON.parse(data.exc);
+          console.log('Parsed Exception Data:', excData);
+          errorMessage = excData.exc_type && excData.message 
+            ? `${excData.exc_type}: ${excData.message}`
+            : excData.exc_type || excData.message || 'Failed to fetch payments';
+        } catch (e) {
+          console.log('Failed to parse exception, using raw data');
+          errorMessage = data.message || data.exc || 'Failed to fetch payments';
+        }
+      } else if (data.message) {
+        errorMessage = data.message;
+      } else if (data._server_messages) {
+        try {
+          const serverMessages = JSON.parse(data._server_messages);
+          console.log('Parsed Server Messages:', serverMessages);
+          errorMessage = serverMessages[0]?.message || serverMessages[0] || errorMessage;
+        } catch (e) {
+          console.log('Failed to parse server messages, using raw data');
+          errorMessage = data._server_messages;
+        }
+      } else if (data.error) {
+        errorMessage = data.error;
+      } else if (typeof data === 'string') {
+        errorMessage = data;
+      } else {
+        errorMessage = `Unknown error occurred. Response: ${JSON.stringify(data)}`;
+      }
+      
+      console.error('Payment Error Details:', {
+        status: response.status,
+        data: data,
+        errorMessage: errorMessage
+      });
+      
       return NextResponse.json(
-        { success: false, message: data.message || 'Failed to fetch payments' },
+        { success: false, message: errorMessage },
         { status: response.status }
       );
     }
   } catch (error) {
-    console.error('Fetch payments error:', error);
+    console.error('Payment API Error:', error);
     return NextResponse.json(
       { success: false, message: 'Internal server error' },
       { status: 500 }

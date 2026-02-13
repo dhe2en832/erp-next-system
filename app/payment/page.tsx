@@ -7,7 +7,8 @@ import Pagination from '../components/Pagination';
 import PaymentCustomerDialog from '../components/PaymentCustomerDialog';
 import PaymentSupplierDialog from '../components/PaymentSupplierDialog';
 import CurrencyInput from '../components/CurrencyInput';
-import { exitCode } from 'process';
+import BrowserStyleDatePicker from '../../components/BrowserStyleDatePicker';
+import { formatDate, parseDate } from '../../utils/format';
 
 interface SalesInvoice {
   name: string;
@@ -138,12 +139,16 @@ export default function PaymentPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalRecords, setTotalRecords] = useState(0);
+  
+  // Set default dates: yesterday to today in DD/MM/YYYY format
   const [dateFilter, setDateFilter] = useState({
-    from_date: '',
-    to_date: ''
+    from_date: formatDate(new Date(Date.now() - 86400000)), // Yesterday in DD/MM/YYYY
+    to_date: formatDate(new Date()), // Today in DD/MM/YYYY
   });
   const [searchFilter, setSearchFilter] = useState('');
+  const [documentNumberFilter, setDocumentNumberFilter] = useState('');
   const [paymentTypeFilter, setPaymentTypeFilter] = useState(''); // '', 'Receive', 'Pay'
+  const [statusFilter, setStatusFilter] = useState(''); // '', 'Draft', 'Submitted', 'Cancelled'
 
   const router = useRouter();
 
@@ -515,34 +520,52 @@ export default function PaymentPage() {
     }
 
     try {
+      // Build URL with parameters
       const params = new URLSearchParams();
-      params.append('company', selectedCompany);
+      
+      // Add pagination parameters
       params.append('limit_page_length', pageSize.toString());
       params.append('start', ((currentPage - 1) * pageSize).toString());
-
-      const filters: any[][] = [["company", "=", selectedCompany]];
-      if (dateFilter.from_date) filters.push(["posting_date", ">=", dateFilter.from_date]);
-      if (dateFilter.to_date) filters.push(["posting_date", "<=", dateFilter.to_date]);
-
+      
+      // Add date filters
+      if (dateFilter.from_date) {
+        const parsedDate = parseDate(dateFilter.from_date);
+        if (parsedDate) {
+          params.append('from_date', parsedDate);
+        }
+      }
+      
+      if (dateFilter.to_date) {
+        const parsedDate = parseDate(dateFilter.to_date);
+        if (parsedDate) {
+          params.append('to_date', parsedDate);
+        }
+      }
+      
       // Add payment type filter
       if (paymentTypeFilter) {
-        filters.push(["payment_type", "=", paymentTypeFilter]);
+        params.append('payment_type', paymentTypeFilter);
       }
-
-      // Add search filter for payment name or party name
+      
+      // Add status filter
+      if (statusFilter) {
+        params.append('status', statusFilter);
+      }
+      
+      // Add search filter for party name
       if (searchFilter.trim()) {
-        filters.push(["or",
-          ["name", "like", `%${searchFilter.trim()}%`],
-          ["party_name", "like", `%${searchFilter.trim()}%`],
-          ["party", "like", `%${searchFilter.trim()}%`]
-        ]);
+        params.append('search', searchFilter.trim());
       }
-
-      params.append('filters', JSON.stringify(filters));
-
-      console.log('Payment API URL:', `/api/payment?${params}`);
-
-      const response = await fetch(`/api/payment?${params}`);
+      
+      // Add document number filter
+      if (documentNumberFilter.trim()) {
+        params.append('documentNumber', documentNumberFilter.trim());
+      }
+      
+      // Add company filter
+      params.append('filters', JSON.stringify([["company", "=", selectedCompany]]));
+      
+      const response = await fetch(`/api/payment?${params.toString()}`);
       const data = await response.json();
 
       console.log('Fetch Payments Response:', {
@@ -573,7 +596,7 @@ export default function PaymentPage() {
         setError(data.message || 'Failed to fetch payments');
       }
     } catch (err) {
-      console.error('❌ Fetch payments error:', err);
+      console.error('❌ Fetch Payments Error:', err);
       setError('Failed to fetch payments');
     } finally {
       setLoading(false);
@@ -583,7 +606,7 @@ export default function PaymentPage() {
   // Call fetchPayments when dependencies change
   useEffect(() => {
     fetchPayments();
-  }, [selectedCompany, currentPage, pageSize, dateFilter, searchFilter, paymentTypeFilter]);
+  }, [selectedCompany, currentPage, pageSize, dateFilter, searchFilter, documentNumberFilter, paymentTypeFilter, statusFilter]);
 
   // Handle party change
   const handlePartyChange = (party: string) => {
@@ -1377,16 +1400,29 @@ export default function PaymentPage() {
 
       {/* Date and Search Filters */}
       <div className="bg-white shadow rounded-lg p-4 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
             <input
               type="text"
               className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              placeholder="Payment no. or customer name"
+              placeholder="Customer name"
               value={searchFilter}
               onChange={(e) => {
                 setSearchFilter(e.target.value);
+                setCurrentPage(1); // Reset to first page when searching
+              }}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">No. Dokumen</label>
+            <input
+              type="text"
+              className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              placeholder="Payment number"
+              value={documentNumberFilter}
+              onChange={(e) => {
+                setDocumentNumberFilter(e.target.value);
                 setCurrentPage(1); // Reset to first page when searching
               }}
             />
@@ -1407,35 +1443,61 @@ export default function PaymentPage() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Dari Tanggal</label>
-            <input
-              type="date"
+            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+            <select
               className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              value={dateFilter.from_date}
+              value={statusFilter}
               onChange={(e) => {
-                setDateFilter({ ...dateFilter, from_date: e.target.value });
+                setStatusFilter(e.target.value);
                 setCurrentPage(1); // Reset to first page when filtering
               }}
+            >
+              <option value="">Semua Status</option>
+              <option value="Draft">Draft</option>
+              <option value="Submitted">Submitted</option>
+              <option value="Cancelled">Cancelled</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Dari Tanggal
+            </label>
+            <BrowserStyleDatePicker
+              value={dateFilter.from_date}
+              onChange={(value: string) => {
+                setDateFilter(prev => ({ ...prev, from_date: value }));
+                setCurrentPage(1); // Reset to first page when filtering
+              }}
+              className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              placeholder="DD/MM/YYYY"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Sampai Tanggal</label>
-            <input
-              type="date"
-              className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Sampai Tanggal
+            </label>
+            <BrowserStyleDatePicker
               value={dateFilter.to_date}
-              onChange={(e) => {
-                setDateFilter({ ...dateFilter, to_date: e.target.value });
+              onChange={(value: string) => {
+                setDateFilter(prev => ({ ...prev, to_date: value }));
                 setCurrentPage(1); // Reset to first page when filtering
               }}
+              className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              placeholder="DD/MM/YYYY"
             />
           </div>
           <div className="flex items-end">
             <button
               onClick={() => {
-                setDateFilter({ from_date: '', to_date: '' });
+                setDateFilter({ 
+                  from_date: formatDate(new Date(Date.now() - 86400000)), 
+                  to_date: formatDate(new Date())
+                });
                 setSearchFilter('');
+                setDocumentNumberFilter('');
                 setPaymentTypeFilter('');
+                setStatusFilter('');
+                setCurrentPage(1);
               }}
               className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400"
             >
