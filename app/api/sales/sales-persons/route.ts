@@ -80,6 +80,63 @@ export async function GET(request: NextRequest) {
   }
 }
 
+export async function POST(request: NextRequest) {
+  try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    const apiKey = process.env.ERP_API_KEY;
+    const apiSecret = process.env.ERP_API_SECRET;
+    const sid = request.cookies.get('sid')?.value;
+
+    if (apiKey && apiSecret) {
+      headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
+    } else if (sid) {
+      headers['Cookie'] = `sid=${sid}`;
+    } else {
+      return NextResponse.json(
+        { success: false, message: 'No authentication available' },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json();
+    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Sales Person`;
+
+    const response = await fetch(erpNextUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        data: {
+          sales_person_name: body.sales_person_name,
+          parent_sales_person: body.parent_sales_person || 'Sales Team',
+          is_group: body.is_group || 0,
+          commission_rate: body.commission_rate || 0,
+          enabled: body.enabled !== undefined ? body.enabled : 1,
+        }
+      }),
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+      return NextResponse.json({ success: true, data: data.data });
+    } else {
+      return NextResponse.json(
+        { success: false, message: data.message || data.exc || 'Failed to create sales person' },
+        { status: response.status }
+      );
+    }
+  } catch (error) {
+    console.error('Sales Person POST API Error:', error);
+    return NextResponse.json(
+      { success: false, message: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
 // Helper function to categorize sales persons based on their names
 function getCategoryFromName(name: string): string {
   const lowerName = name.toLowerCase();

@@ -163,3 +163,54 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+
+export async function POST(request: NextRequest) {
+  try {
+    const cookies = request.cookies;
+    const sid = cookies.get('sid')?.value;
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    const apiKey = process.env.ERP_API_KEY;
+    const apiSecret = process.env.ERP_API_SECRET;
+
+    if (apiKey && apiSecret) {
+      headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
+    } else if (sid) {
+      headers['Cookie'] = `sid=${sid}`;
+    } else {
+      return NextResponse.json(
+        { success: false, message: 'No authentication available' },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json();
+    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Customer`;
+
+    const response = await fetch(erpNextUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ data: body }),
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+      return NextResponse.json({ success: true, data: data.data });
+    } else {
+      return NextResponse.json(
+        { success: false, message: data.message || data.exc || 'Failed to create customer' },
+        { status: response.status }
+      );
+    }
+  } catch (error) {
+    console.error('Customer POST API Error:', error);
+    return NextResponse.json(
+      { success: false, message: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}

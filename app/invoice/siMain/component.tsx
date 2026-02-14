@@ -303,7 +303,7 @@ export default function SalesInvoiceMain() {
           taxes_and_charges: completeDnData.taxes_and_charges || '',
           base_total: 0, base_net_total: 0, base_grand_total: 0,
           total: 0, net_total: 0, grand_total: 0, outstanding_amount: 0,
-          custom_notes_si: '',
+          custom_notes_si: completeDnData.custom_notes_dn || '',
         });
         setShowDeliveryNoteDialog(false);
         setError('');

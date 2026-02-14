@@ -147,7 +147,7 @@ export default function DeliveryNoteMain() {
           customer_name: order.customer_name,
           posting_date: new Date().toISOString().split('T')[0],
           sales_order: salesOrderName,
-          custom_notes_dn: '',
+          custom_notes_dn: order.custom_notes_so || '',
           items: order.items || [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0 }],
         });
       }
@@ -267,7 +267,7 @@ export default function DeliveryNoteMain() {
           customer_name: order.customer_name,
           posting_date: new Date().toISOString().split('T')[0],
           sales_order: order.name,
-          custom_notes_dn: '',
+          custom_notes_dn: order.custom_notes_so || '',
           items: deliveryNoteItems,
         });
       } else {

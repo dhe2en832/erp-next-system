@@ -11,6 +11,8 @@ interface Item {
   item_group: string;
   stock_uom: string;
   opening_stock: number;
+  valuation_rate?: number;
+  standard_rate?: number;
 }
 
 export default function ItemMain() {
@@ -31,7 +33,11 @@ export default function ItemMain() {
     item_group: 'All Item Groups',
     stock_uom: 'Nos',
     opening_stock: 0,
+    valuation_rate: 0,
+    standard_rate: 0,
+    bottom_price: 0,
   });
+  const [valuationRateLoading, setValuationRateLoading] = useState(false);
 
   useEffect(() => {
     let savedCompany = localStorage.getItem('selected_company');
@@ -68,7 +74,12 @@ export default function ItemMain() {
           item_group: item.item_group || 'All Item Groups',
           stock_uom: item.stock_uom || 'Nos',
           opening_stock: item.opening_stock || 0,
+          valuation_rate: item.valuation_rate || 0,
+          standard_rate: item.standard_rate || 0,
+          bottom_price: 0,
         });
+        // Fetch valuation rate and bottom price for existing items
+        fetchItemPricing(item.item_code);
       } else {
         setError('Gagal memuat detail barang');
       }
@@ -76,6 +87,26 @@ export default function ItemMain() {
       setError('Gagal memuat detail barang');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchItemPricing = async (itemCode: string) => {
+    setValuationRateLoading(true);
+    try {
+      const response = await fetch(`/api/inventory/items/price?item_code=${encodeURIComponent(itemCode)}`, { credentials: 'include' });
+      const data = await response.json();
+      if (data.success && data.data) {
+        setFormData(prev => ({
+          ...prev,
+          valuation_rate: data.data.valuation_rate || prev.valuation_rate,
+          standard_rate: data.data.standard_rate || prev.standard_rate,
+          bottom_price: data.data.bottom_price || 0,
+        }));
+      }
+    } catch (err) {
+      console.error('Error fetching item pricing:', err);
+    } finally {
+      setValuationRateLoading(false);
     }
   };
 
@@ -207,6 +238,50 @@ export default function ItemMain() {
                     value={formData.opening_stock}
                     onChange={(e) => setFormData({ ...formData, opening_stock: parseFloat(e.target.value) || 0 })}
                   />
+                </div>
+              </div>
+            </div>
+
+            {/* Pricing Section */}
+            <div className="mt-8 pt-6 border-t border-gray-200">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Informasi Harga</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Harga Beli (Valuation Rate)</label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-gray-50"
+                      value={formData.valuation_rate}
+                      readOnly
+                      title="Valuation rate dihitung otomatis oleh ERPNext berdasarkan transaksi pembelian"
+                    />
+                    {valuationRateLoading && <span className="absolute right-3 top-3 text-xs text-gray-400">Memuat...</span>}
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500">Otomatis dari transaksi pembelian</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Harga Jual Standar</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    value={formData.standard_rate}
+                    onChange={(e) => setFormData({ ...formData, standard_rate: parseFloat(e.target.value) || 0 })}
+                  />
+                  <p className="mt-1 text-xs text-gray-500">Harga jual default</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Harga Jual Minimum (Bottom Price)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    value={formData.bottom_price}
+                    onChange={(e) => setFormData({ ...formData, bottom_price: parseFloat(e.target.value) || 0 })}
+                  />
+                  <p className="mt-1 text-xs text-gray-500">Harga terendah yang boleh dijual</p>
                 </div>
               </div>
             </div>

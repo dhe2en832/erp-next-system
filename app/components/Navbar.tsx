@@ -134,7 +134,7 @@ export default function Navbar() {
     },
     {
       name: 'Penjualan',
-      icon: '�',
+      icon: '💰',
       items: [
         { name: 'Pesanan Penjualan', href: '/sales-order' },
         { name: 'Surat Jalan', href: '/delivery-note' },
@@ -143,7 +143,7 @@ export default function Navbar() {
     },
     {
       name: 'Pembelian',
-      icon: '�',
+      icon: '🛒',
       items: [
         { name: 'Pesanan Pembelian', href: '/purchase-orders' },
         { name: 'Penerimaan Barang', href: '/purchase-receipts' },
@@ -151,17 +151,18 @@ export default function Navbar() {
       ]
     },
     {
-      name: 'Keuangan',
+      name: 'Kas & Bank',
       icon: '💳',
       items: [
+        { name: 'Kas Masuk', href: '/payment/paymentMain?type=receive' },
+        { name: 'Kas Keluar', href: '/payment/paymentMain?type=pay' },
         { name: 'Pembayaran', href: '/payment' },
-        { name: 'Termin Pembayaran', href: '/payment-terms' },
         { name: 'Rekonsiliasi Pembayaran', href: '/payment-reconciliation' }
       ]
     },
     {
       name: 'Akunting',
-      icon: '�',
+      icon: '📒',
       items: [
         { name: 'Bagan Akun', href: '/chart-of-accounts' },
         { name: 'Jurnal Umum', href: '/gl-entry' },
@@ -170,29 +171,34 @@ export default function Navbar() {
     },
     {
       name: 'Persediaan',
-      icon: '📋',
+      icon: '�',
       items: [
         { name: 'Barang', href: '/items' },
-        { name: 'Manajemen Stok', href: '/stock-management' }
-      ]
-    },
-    {
-      name: 'Gudang',
-      icon: '🏭',
-      items: [
         { name: 'Gudang', href: '/warehouse' },
         { name: 'Entri Stok', href: '/stock-entry' },
-        { name: 'Rekonsiliasi Stok', href: '/stock-reconciliation' }
+        { name: 'Rekonsiliasi Stok', href: '/stock-reconciliation' },
+        { name: 'Manajemen Stok', href: '/stock-management' }
       ]
     },
     {
       name: 'Laporan',
       icon: '📈',
       items: [
-        { name: '— Penjualan —', href: '#' },
-        { name: 'Dashboard Komisi', href: '/commission' },
-        { name: '— Keuangan —', href: '#' },
         { name: 'Laporan Keuangan', href: '/financial-reports' },
+        { name: 'Piutang Usaha', href: '/reports/accounts-receivable' },
+        { name: 'Hutang Usaha', href: '/reports/accounts-payable' },
+        { name: 'Alur Kas', href: '/reports/cash-flow' },
+        { name: 'Laporan Penjualan', href: '/reports/sales' },
+        { name: 'Laporan Pembelian', href: '/reports/purchases' },
+        { name: 'Stok per Gudang', href: '/reports/stock-balance' }
+      ]
+    },
+    {
+      name: 'Komisi',
+      icon: '🏆',
+      items: [
+        { name: 'Dashboard Komisi', href: '/commission' },
+        { name: 'Pembayaran Komisi', href: '/commission-payment' }
       ]
     },
     {
@@ -200,7 +206,9 @@ export default function Navbar() {
       icon: '🗂️',
       items: [
         { name: 'Pelanggan', href: '/customers' },
-        { name: 'Pemasok', href: '/suppliers' }
+        { name: 'Pemasok', href: '/suppliers' },
+        { name: 'Sales Person', href: '/sales-persons' },
+        { name: 'Termin Pembayaran', href: '/payment-terms' }
       ]
     }
   ];

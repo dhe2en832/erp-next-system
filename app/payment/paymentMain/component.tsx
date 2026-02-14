@@ -68,9 +68,10 @@ interface PaymentMainProps {
   onBack: () => void;
   selectedCompany: string;
   editPayment?: any;
+  defaultPaymentType?: 'Receive' | 'Pay';
 }
 
-export default function PaymentMain({ onBack, selectedCompany, editPayment }: PaymentMainProps) {
+export default function PaymentMain({ onBack, selectedCompany, editPayment, defaultPaymentType }: PaymentMainProps) {
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingPaymentId, setEditingPaymentId] = useState('');
   const [outstandingInvoices, setOutstandingInvoices] = useState<SalesInvoice[]>([]);
@@ -86,8 +87,8 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment }: Pa
   const [selectedSupplierName, setSelectedSupplierName] = useState('');
 
   const [formData, setFormData] = useState<PaymentFormData>({
-    payment_type: 'Receive',
-    party_type: 'Customer',
+    payment_type: defaultPaymentType || 'Receive',
+    party_type: (defaultPaymentType === 'Pay') ? 'Supplier' : 'Customer',
     party: '',
     posting_date: new Date().toISOString().split('T')[0],
     paid_amount: 0,
