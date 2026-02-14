@@ -50,7 +50,7 @@ export default function WarehouseList() {
         start: ((currentPage - 1) * pageSize).toString()
       });
 
-      const response = await fetch(`/api/warehouses?${params}`);
+      const response = await fetch(`/api/inventory/warehouses?${params}`);
       const data = await response.json();
 
       if (data.success) {

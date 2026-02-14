@@ -36,7 +36,7 @@ export default function SalesPersonDialog({ isOpen, onClose, onSelect }: SalesPe
         params.append('search', searchTerm);
       }
       
-      const response = await fetch(`/api/sales-persons?${params.toString()}`);
+      const response = await fetch(`/api/sales/sales-persons?${params.toString()}`);
       const data = await response.json();
       
       if (data.success) {

@@ -79,7 +79,7 @@ export default function StockManagementPage() {
     if (!companyToUse) return;
 
     try {
-      const response = await fetch(`/api/warehouses?company=${encodeURIComponent(companyToUse)}`);
+      const response = await fetch(`/api/inventory/warehouses?company=${encodeURIComponent(companyToUse)}`);
       const data = await response.json();
       
       if (data.success) {
@@ -155,7 +155,7 @@ export default function StockManagementPage() {
       }
 
       console.log('Fetching Stock Ledger from:', `/api/stock-ledger?${params}`);
-      const response = await fetch(`/api/stock-ledger?${params}`);
+      const response = await fetch(`/api/inventory/stock-entry/ledger?${params}`);
       const data = await response.json();
       
       console.log('Stock Ledger response:', data);

@@ -121,7 +121,7 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment }: Pa
 
     setLoadingAccounts(true);
     try {
-      const response = await fetch(`/api/company-accounts?company=${selectedCompany}`);
+      const response = await fetch(`/api/finance/company/accounts?company=${selectedCompany}`);
       const data = await response.json();
 
       if (data.success) {
@@ -269,7 +269,7 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment }: Pa
 
     setLoadingInvoices(true);
     try {
-      const response = await fetch(`/api/outstanding-invoices?customer=${customer}&company=${selectedCompany}`);
+      const response = await fetch(`/api/sales/invoices/outstanding?customer=${customer}&company=${selectedCompany}`);
       const data = await response.json();
 
       if (data.success) {
@@ -294,7 +294,7 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment }: Pa
 
     setLoadingInvoices(true);
     try {
-      const response = await fetch(`/api/outstanding-purchase-invoices?supplier=${supplier}&company=${selectedCompany}`);
+      const response = await fetch(`/api/purchase/invoices/outstanding?supplier=${supplier}&company=${selectedCompany}`);
       const data = await response.json();
 
       if (data.success) {
@@ -356,7 +356,7 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment }: Pa
       setIsEditMode(true);
       setEditingPaymentId(payment.name);
 
-      const response = await fetch(`/api/payment/details?name=${payment.name}`);
+      const response = await fetch(`/api/finance/payments/details?name=${payment.name}`);
       const data = await response.json();
 
       if (!data.success) {
@@ -402,7 +402,7 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment }: Pa
 
           const invoicePromises = references.map(async (ref) => {
             try {
-              const response = await fetch(`/api/invoice-details?invoice_name=${ref.reference_name}`);
+              const response = await fetch(`/api/sales/invoices/details?invoice_name=${ref.reference_name}`);
               const data = await response.json();
 
               if (data.success && data.data) {
@@ -450,7 +450,7 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment }: Pa
 
           const invoicePromises = references.map(async (ref) => {
             try {
-              const response = await fetch(`/api/purchase-invoice-details?invoice_name=${ref.reference_name}&company=${selectedCompany}`);
+              const response = await fetch(`/api/purchase/invoices/details?invoice_name=${ref.reference_name}&company=${selectedCompany}`);
               const data = await response.json();
 
               if (data.success && data.data) {
@@ -777,7 +777,7 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment }: Pa
         })),
       };
 
-      const response = await fetch('/api/payment', {
+      const response = await fetch('/api/finance/payments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(paymentPayload),

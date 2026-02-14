@@ -44,7 +44,7 @@ export default function ItemDialog({ isOpen, onClose, onSelect, showStock = fals
     if (!showStock) return;
     
     try {
-      const res = await fetch(`/api/stock-check?item_code=${itemCode}`);
+      const res = await fetch(`/api/inventory/check?item_code=${itemCode}`);
       const data = await res.json();
       
       if (!data.error) {
@@ -63,7 +63,7 @@ export default function ItemDialog({ isOpen, onClose, onSelect, showStock = fals
         params.append('filters', JSON.stringify([["item_name", "like", `%${searchTerm}%`]]));
       }
       
-      const response = await fetch(`/api/items?${params.toString()}`);
+      const response = await fetch(`/api/inventory/items?${params.toString()}`);
       const data = await response.json();
       
       if (data.success) {

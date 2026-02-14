@@ -52,7 +52,7 @@ export default function DashboardPage() {
     try {
       // Test simple request dulu untuk debugging
       console.log('Testing Dashboard simple request...');
-      const response = await fetch("/api/dashboard-simple");
+      const response = await fetch("/api/setup/dashboard");
       const data = await response.json();
       
       console.log('Dashboard Simple Test Response:', data);

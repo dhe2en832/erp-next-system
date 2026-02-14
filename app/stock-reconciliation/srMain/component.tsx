@@ -46,7 +46,7 @@ export default function StockReconciliationMain() {
   const fetchWarehouses = useCallback(async () => {
     if (!selectedCompany) return;
     try {
-      const response = await fetch(`/api/warehouses?company=${selectedCompany}`);
+      const response = await fetch(`/api/inventory/warehouses?company=${selectedCompany}`);
       const data = await response.json();
       if (data.success) setWarehouses(data.data || []);
     } catch (err) {
@@ -57,7 +57,7 @@ export default function StockReconciliationMain() {
   const fetchItems = useCallback(async () => {
     if (!selectedCompany) return;
     try {
-      const response = await fetch(`/api/items?company=${selectedCompany}`);
+      const response = await fetch(`/api/inventory/items?company=${selectedCompany}`);
       const data = await response.json();
       if (data.success) setItems(data.data || []);
     } catch (err) {
@@ -98,7 +98,7 @@ export default function StockReconciliationMain() {
       return;
     }
     try {
-      const response = await fetch('/api/stock-reconciliation', {
+      const response = await fetch('/api/inventory/reconciliation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...newReconciliation, company: selectedCompany }),

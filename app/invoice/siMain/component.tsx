@@ -121,7 +121,7 @@ export default function SalesInvoiceMain() {
     if (!name || name === 'undefined') return;
     setLoading(true);
     try {
-      const response = await fetch("/api/get-invoice", {
+      const response = await fetch("/api/sales/invoices", {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ invoiceName: name }),
@@ -210,7 +210,7 @@ export default function SalesInvoiceMain() {
     try {
       setDeliveryNotesLoading(true);
       setDeliveryNotesError('');
-      const invoiceItemsResponse = await fetch(`/api/invoice-items?company=${encodeURIComponent(selectedCompany)}`);
+      const invoiceItemsResponse = await fetch(`/api/sales/invoices/items?company=${encodeURIComponent(selectedCompany)}`);
       const invoiceItemsData = await invoiceItemsResponse.json();
       if (invoiceItemsData.success) {
         const allDNs = invoiceItemsData.data || [];
@@ -235,7 +235,7 @@ export default function SalesInvoiceMain() {
       // Step 1: Try to get commission preview
       let commissionData: any = null;
       try {
-        const res = await fetch(`/api/preview-sales-invoice-commission?delivery_note=${encodeURIComponent(dn)}`);
+        const res = await fetch(`/api/setup/commission/preview?delivery_note=${encodeURIComponent(dn)}`);
         const data = await res.json();
         if (data.success && data.message && data.message.preview_available && data.message.items && data.message.total_commission !== undefined) {
           commissionData = data.message;
@@ -245,7 +245,7 @@ export default function SalesInvoiceMain() {
       }
 
       // Step 2: Get complete DN data
-      const dnResponse = await fetch(`/api/delivery-note-detail?name=${encodeURIComponent(dn)}`);
+      const dnResponse = await fetch(`/api/sales/delivery-notes/detail?name=${encodeURIComponent(dn)}`);
       if (!dnResponse.ok) throw new Error(`Gagal mengambil detail Surat Jalan: ${dnResponse.status}`);
 
       const dnData = await dnResponse.json();
@@ -358,7 +358,7 @@ export default function SalesInvoiceMain() {
         custom_notes_si: formData.custom_notes_si || '',
       };
 
-      const response = await fetch('/api/invoice', {
+      const response = await fetch('/api/sales/invoices', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(invoicePayload),

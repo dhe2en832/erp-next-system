@@ -106,7 +106,7 @@ export default function GLEntryPage() {
         params.append('voucher_type', voucherTypeFilter);
       }
 
-      const response = await fetch(`/api/gl-entry?${params}`);
+      const response = await fetch(`/api/finance/gl-entry?${params}`);
       const data = await response.json();
 
       if (data.success) {

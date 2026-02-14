@@ -48,7 +48,7 @@ export default function CustomerDialog({ isOpen, onClose, onSelect }: CustomerDi
       }
       
       console.log('🔍 Searching customers with term:', debouncedSearchTerm.trim());
-      const response = await fetch(`/api/customers?${params.toString()}`);
+      const response = await fetch(`/api/sales/customers?${params.toString()}`);
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -73,7 +73,7 @@ export default function CustomerDialog({ isOpen, onClose, onSelect }: CustomerDi
           console.log('🔄 Server search returned empty, trying client-side filtering...');
           try {
             // Fetch all customers without search
-            const allResponse = await fetch('/api/customers?limit=100');
+            const allResponse = await fetch('/api/sales/customers?limit=100');
             if (allResponse.ok) {
               const allData = await allResponse.json();
               if (allData.success && allData.data) {

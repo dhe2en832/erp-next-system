@@ -56,7 +56,7 @@ export default function ItemMain() {
   const fetchItemDetails = async (code: string) => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/items-simple?search=${encodeURIComponent(code)}&limit_page_length=1`);
+      const response = await fetch(`/api/inventory/items/simple?search=${encodeURIComponent(code)}&limit_page_length=1`);
       const data = await response.json();
       if (data.success && data.data && data.data.length > 0) {
         const item = data.data.find((i: Item) => i.item_code === code) || data.data[0];
@@ -85,7 +85,7 @@ export default function ItemMain() {
     setError('');
 
     try {
-      const response = await fetch('/api/items', {
+      const response = await fetch('/api/inventory/items', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ company: selectedCompany, ...formData }),

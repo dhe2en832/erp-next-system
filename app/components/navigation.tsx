@@ -14,7 +14,7 @@ export default function Navigation() {
 
   const handleLogout = async () => {
     try {
-      await fetch('/api/auth/logout', { method: 'POST' });
+      await fetch('/api/setup/auth/logout', { method: 'POST' });
       localStorage.removeItem('selected_company');
       localStorage.removeItem('selectedCompany');
       router.push('/login');

@@ -86,7 +86,7 @@ export default function JournalPage() {
     try {
       // Test simple request dulu untuk debugging
       console.log('Testing Journal Entries simple request...');
-      const response = await fetch("/api/journal-simple");
+      const response = await fetch("/api/finance/journal");
       const data = await response.json();
       
       console.log('Journal Entries Simple Test Response:', data);

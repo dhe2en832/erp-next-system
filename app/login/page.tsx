@@ -17,7 +17,7 @@ export default function LoginPage() {
     setError('');
 
     try {
-      const response = await fetch('/api/auth/login', {
+      const response = await fetch('/api/setup/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -53,7 +53,7 @@ export default function LoginPage() {
         } else if (data.companies.length === 1) {
           // Auto-select single company (fallback)
           console.log('Auto-selecting single company...');
-          const companyResponse = await fetch('/api/auth/set-company', {
+          const companyResponse = await fetch('/api/setup/auth/set-company', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

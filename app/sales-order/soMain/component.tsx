@@ -98,7 +98,7 @@ export default function SalesOrderMain() {
     
     setLoading(true);
     try {
-      const response = await fetch("/api/sales-order/" + name);
+      const response = await fetch("/api/sales/orders/" + name);
       const data = await response.json();
       
       if (data.success) {
@@ -192,7 +192,7 @@ export default function SalesOrderMain() {
 
   const fetchCustomerDetail = async (customerName: string) => {
     try {
-      const response = await fetch(`/api/customer/${encodeURIComponent(customerName)}`);
+      const response = await fetch(`/api/sales/customers/customer/${encodeURIComponent(customerName)}`);
       
       if (!response.ok) {
         getFallbackSalesPerson(customerName);
@@ -283,7 +283,7 @@ export default function SalesOrderMain() {
       
       let rate = 0;
       try {
-        const priceResponse = await fetch(`/api/item-price?item_code=${item.item_code}`);
+        const priceResponse = await fetch(`/api/inventory/items/price?item_code=${item.item_code}`);
         const priceResult = await priceResponse.json();
         if (priceResult.success) {
           rate = priceResult.data.price_list_rate;
@@ -310,7 +310,7 @@ export default function SalesOrderMain() {
 
   const getDefaultWarehouse = async () => {
     try {
-      const response = await fetch('/api/company-settings');
+      const response = await fetch('/api/finance/company/settings');
       const data = await response.json();
       if (data.success && data.data?.default_warehouse) {
         return data.data.default_warehouse;
@@ -323,7 +323,7 @@ export default function SalesOrderMain() {
 
   const checkItemStock = async (itemCode: string, itemIndex: number, currentItem: OrderItem) => {
     try {
-      const response = await fetch(`/api/stock-check?item_code=${itemCode}`);
+      const response = await fetch(`/api/inventory/check?item_code=${itemCode}`);
       const data = await response.json();
       
       if (!data.error && data.length > 0) {
@@ -453,7 +453,7 @@ export default function SalesOrderMain() {
         grand_total: validItems.reduce((sum, item) => sum + item.amount, 0),
       };
 
-      const response = await fetch('/api/sales-order', {
+      const response = await fetch('/api/sales/orders', {
         method: editingOrder ? 'PUT' : 'POST',
         headers: {
           'Content-Type': 'application/json',

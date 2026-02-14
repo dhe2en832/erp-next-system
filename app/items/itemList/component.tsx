@@ -36,7 +36,7 @@ export default function ItemList() {
       });
       if (searchTerm) params.append('search', searchTerm);
 
-      const response = await fetch(`/api/items-simple?${params}`);
+      const response = await fetch(`/api/inventory/items/simple?${params}`);
       const data = await response.json();
 
       if (data.success) {

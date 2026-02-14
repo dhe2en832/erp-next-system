@@ -47,7 +47,7 @@ export default function StockEntryMain() {
   const fetchWarehouses = useCallback(async () => {
     if (!selectedCompany) return;
     try {
-      const response = await fetch(`/api/warehouses?company=${selectedCompany}`);
+      const response = await fetch(`/api/inventory/warehouses?company=${selectedCompany}`);
       const data = await response.json();
       if (data.success) setWarehouses(data.data || []);
     } catch (err) {
@@ -58,7 +58,7 @@ export default function StockEntryMain() {
   const fetchItems = useCallback(async () => {
     if (!selectedCompany) return;
     try {
-      const response = await fetch(`/api/items?company=${selectedCompany}`);
+      const response = await fetch(`/api/inventory/items?company=${selectedCompany}`);
       const data = await response.json();
       if (data.success) setItems(data.data || []);
     } catch (err) {
@@ -111,7 +111,7 @@ export default function StockEntryMain() {
     }
 
     try {
-      const response = await fetch('/api/stock-entry', {
+      const response = await fetch('/api/inventory/stock-entry', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...newEntry, company: selectedCompany }),

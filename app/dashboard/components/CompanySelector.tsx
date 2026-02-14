@@ -25,7 +25,7 @@ export default function CompanySelector({ onCompanyChange }: CompanySelectorProp
 
   const fetchCompanies = async () => {
     try {
-      const response = await fetch('/api/companies');
+      const response = await fetch('/api/finance/company');
       const data = await response.json();
 
       if (data.success) {

@@ -191,7 +191,7 @@ export default function PurchaseReceiptMain() {
     if (!selectedCompany) return;
 
     try {
-      const response = await fetch(`/api/suppliers?company=${encodeURIComponent(selectedCompany)}`);
+      const response = await fetch(`/api/purchase/suppliers?company=${encodeURIComponent(selectedCompany)}`);
       const data = await response.json();
 
       if (data.success) {
@@ -208,7 +208,7 @@ export default function PurchaseReceiptMain() {
     setError('');
 
     try {
-      const response = await fetch(`/api/purchase-receipts/${id}?company=${encodeURIComponent(selectedCompany)}`);
+      const response = await fetch(`/api/purchase/receipts/${id}?company=${encodeURIComponent(selectedCompany)}`);
       const data = await response.json();
 
       if (data.success) {
@@ -278,7 +278,7 @@ export default function PurchaseReceiptMain() {
 
     try {
       // Call Next.js API proxy route
-      const response = await fetch(`/api/purchase-receipts/fetch-po-detail?po=${encodeURIComponent(poName)}`);
+      const response = await fetch(`/api/purchase/receipts/fetch-po-detail?po=${encodeURIComponent(poName)}`);
       const data = await response.json();
 
       if (data.message && data.message.success) {
@@ -341,7 +341,7 @@ export default function PurchaseReceiptMain() {
         return;
       }
 
-      const response = await fetch(`/api/erpnext/warehouse?company=${encodeURIComponent(selectedCompany)}`);
+      const response = await fetch(`/api/utils/erpnext/warehouse?company=${encodeURIComponent(selectedCompany)}`);
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -565,7 +565,7 @@ export default function PurchaseReceiptMain() {
       console.log('Sending Purchase Receipt data:', receiptData);
 
       // Determine API endpoint and method based on edit mode
-      const apiUrl = isEditMode ? `/api/purchase-receipts/${prId}` : '/api/purchase-receipts';
+      const apiUrl = isEditMode ? `/api/purchase/receipts/${prId}` : '/api/purchase/receipts';
       const method = isEditMode ? 'PUT' : 'POST';
 
       const response = await fetch(apiUrl, {
@@ -637,7 +637,7 @@ export default function PurchaseReceiptMain() {
         return;
       }
 
-      const response = await fetch(`/api/purchase-orders?company=${encodeURIComponent(selectedCompany)}`);
+      const response = await fetch(`/api/purchase/orders?company=${encodeURIComponent(selectedCompany)}`);
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);

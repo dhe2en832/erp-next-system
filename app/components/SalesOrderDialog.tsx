@@ -59,7 +59,7 @@ export default function SalesOrderDialog({ isOpen, onClose, onSelect, selectedCo
           params.append('search', searchTerm);
         }
         
-        url = `/api/sales-order-available?${params}`;
+        url = `/api/sales/orders?available=true&${params}`;
         console.log('Sales Order Dialog - Trying Advanced API URL:', url);
         
         const response = await fetch(url, {
@@ -135,7 +135,7 @@ export default function SalesOrderDialog({ isOpen, onClose, onSelect, selectedCo
         params.append('search', searchTerm);
       }
       
-      url = `/api/sales-order-simple?${params}`;
+      url = `/api/sales/orders?${params}`;
       console.log('Sales Order Dialog - Using Simple API URL:', url);
       
       const response = await fetch(url, {
@@ -189,7 +189,7 @@ export default function SalesOrderDialog({ isOpen, onClose, onSelect, selectedCo
             company: selectedCompany
           });
           
-          const dnResponse = await fetch(`/api/get-dn-with-so-references?${dnParams}`, {
+          const dnResponse = await fetch(`/api/sales/delivery-notes/with-so-ref?${dnParams}`, {
             method: 'GET',
             credentials: 'include',
             headers: {

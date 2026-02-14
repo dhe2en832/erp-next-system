@@ -158,7 +158,7 @@ export default function PurchaseInvoiceMain() {
     setError('');
 
     try {
-      const response = await fetch(`/api/method/fetch_pi_detail?pi=${encodeURIComponent(id)}`);
+      const response = await fetch(`/api/purchase/invoices/detail?pi=${encodeURIComponent(id)}`);
       const data = await response.json();
 
       if (data.message && data.message.success) {
@@ -237,7 +237,7 @@ export default function PurchaseInvoiceMain() {
 
       console.log('Fetching available purchase receipts for company:', selectedCompany);
 
-      const response = await fetch(`/api/pr-list-for-pi?company=${encodeURIComponent(selectedCompany)}`, {
+      const response = await fetch(`/api/purchase/receipts/list-for-pi?company=${encodeURIComponent(selectedCompany)}`, {
         credentials: 'include'
       });
 
@@ -287,7 +287,7 @@ export default function PurchaseInvoiceMain() {
     try {
       console.log('Fetching detail for PR:', prName);
 
-      const response = await fetch(`/api/pr-detail-for-pi/${prName}`, {
+      const response = await fetch(`/api/purchase/receipts/detail-for-pi/${prName}`, {
         credentials: 'include'
       });
 
@@ -504,7 +504,7 @@ export default function PurchaseInvoiceMain() {
       
       try {
         // Use different API for create vs update
-        const apiUrl = isEditMode ? `/api/purchase-invoice?id=${invoiceId}` : '/api/purchase-invoice';
+        const apiUrl = isEditMode ? `/api/purchase/invoices?id=${invoiceId}` : '/api/purchase/invoices';
         const method = isEditMode ? 'PUT' : 'POST';
         
         console.log(`${isEditMode ? 'Updating' : 'Creating'} Purchase Invoice with ${method} ${apiUrl}`);

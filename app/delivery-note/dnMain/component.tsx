@@ -96,7 +96,7 @@ export default function DeliveryNoteMain() {
     if (!name || name === 'undefined') return;
     setLoading(true);
     try {
-      const response = await fetch("/api/delivery-note/" + name);
+      const response = await fetch("/api/sales/delivery-notes/" + name);
       const data = await response.json();
       if (data.success) {
         const dn = data.data;
@@ -138,7 +138,7 @@ export default function DeliveryNoteMain() {
       return;
     }
     try {
-      const response = await fetch(`/api/sales-order/${salesOrderName}`);
+      const response = await fetch(`/api/sales/orders/${salesOrderName}`);
       const data = await response.json();
       if (data.success) {
         const order = data.data;
@@ -204,7 +204,7 @@ export default function DeliveryNoteMain() {
         }))
       };
 
-      const response = await fetch('/api/delivery-note', {
+      const response = await fetch('/api/sales/delivery-notes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(deliveryNotePayload),
@@ -246,7 +246,7 @@ export default function DeliveryNoteMain() {
   const handleSalesOrderSelect = async (salesOrder: SalesOrder) => {
     try {
       resetForm();
-      const response = await fetch(`/api/sales-order/${salesOrder.name}`);
+      const response = await fetch(`/api/sales/orders/${salesOrder.name}`);
       const data = await response.json();
       if (data.success) {
         const order = data.data;

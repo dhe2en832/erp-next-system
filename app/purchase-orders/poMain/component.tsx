@@ -174,7 +174,7 @@ export default function PurchaseOrderMain() {
   const fetchPOData = async (poId: string, company: string) => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/purchase-orders/${poId}?company=${encodeURIComponent(company)}`);
+      const response = await fetch(`/api/purchase/orders/${poId}?company=${encodeURIComponent(company)}`);
       const data = await response.json();
       
       if (data.success && data.data) {
@@ -197,7 +197,7 @@ export default function PurchaseOrderMain() {
         // Fetch supplier details to get address
         if (poData.supplier) {
           try {
-            const supplierResponse = await fetch(`/api/supplier/${poData.supplier}`);
+            const supplierResponse = await fetch(`/api/purchase/suppliers/${poData.supplier}`);
             const supplierData = await supplierResponse.json();
             
             if (supplierData.success && supplierData.data) {
@@ -296,7 +296,7 @@ export default function PurchaseOrderMain() {
 
   const fetchSuppliers = async (company: string) => {
     try {
-      const response = await fetch(`/api/suppliers?company=${encodeURIComponent(company)}`);
+      const response = await fetch(`/api/purchase/suppliers?company=${encodeURIComponent(company)}`);
       const data = await response.json();
       
       if (data.success) {
@@ -309,7 +309,7 @@ export default function PurchaseOrderMain() {
 
   const fetchItems = async (company: string) => {
     try {
-      const response = await fetch(`/api/items?company=${encodeURIComponent(company)}`);
+      const response = await fetch(`/api/inventory/items?company=${encodeURIComponent(company)}`);
       const data = await response.json();
       
       if (data.success) {
@@ -322,7 +322,7 @@ export default function PurchaseOrderMain() {
 
   const fetchTermsAndConditions = async (company: string) => {
     try {
-      const response = await fetch(`/api/terms-and-conditions?company=${encodeURIComponent(company)}`);
+      const response = await fetch(`/api/setup/terms-and-conditions?company=${encodeURIComponent(company)}`);
       
       if (!response.ok) {
         // API tidak ada atau error, gunakan fallback data
@@ -355,7 +355,7 @@ export default function PurchaseOrderMain() {
 
   const fetchTaxTemplates = async (company: string) => {
     try {
-      const response = await fetch(`/api/tax-templates?company=${encodeURIComponent(company)}`);
+      const response = await fetch(`/api/setup/tax-templates?company=${encodeURIComponent(company)}`);
       
       if (!response.ok) {
         // API tidak ada atau error, gunakan fallback data
@@ -388,7 +388,7 @@ export default function PurchaseOrderMain() {
 
   const fetchWarehouses = async (company: string) => {
     try {
-      const response = await fetch(`/api/warehouses?company=${encodeURIComponent(company)}`);
+      const response = await fetch(`/api/inventory/warehouses?company=${encodeURIComponent(company)}`);
       
       if (!response.ok) {
         // API tidak ada, gunakan fallback data
@@ -475,7 +475,7 @@ export default function PurchaseOrderMain() {
     
     // Ambil detail supplier dari API
     try {
-      const response = await fetch(`/api/supplier/${supplierCode}`);
+      const response = await fetch(`/api/purchase/suppliers/${supplierCode}`);
       const data = await response.json();
       
       console.log('Supplier detail response:', data);
@@ -546,7 +546,7 @@ export default function PurchaseOrderMain() {
     const itemWarehouse = currentItem.warehouse;
     
     try {
-      const response = await fetch(`/api/stock-check?item_code=${itemCode}&company=${selectedCompany}`);
+      const response = await fetch(`/api/inventory/check?item_code=${itemCode}&company=${selectedCompany}`);
       const data = await response.json();
       
       console.log('Stock check response:', data);
@@ -645,7 +645,7 @@ export default function PurchaseOrderMain() {
     try {
       // Coba dengan "Standar Pembelian"
       console.log('Trying to fetch price for item:', item.item_code, 'company:', selectedCompany);
-      const priceResponse = await fetch(`/api/item-price?item_code=${item.item_code}&price_list=Standar%20Pembelian&company=${selectedCompany}`);
+      const priceResponse = await fetch(`/api/inventory/items/price?item_code=${item.item_code}&price_list=Standar%20Pembelian&company=${selectedCompany}`);
       const priceResult = await priceResponse.json();
       
       console.log('Price API response:', priceResult);
@@ -656,7 +656,7 @@ export default function PurchaseOrderMain() {
       } else {
         console.log('No price found from Standar Pembelian, using default rate 0');
         // Coba tanpa price list (gunakan default)
-        const defaultResponse = await fetch(`/api/item-price?item_code=${item.item_code}&company=${selectedCompany}`);
+        const defaultResponse = await fetch(`/api/inventory/items/price?item_code=${item.item_code}&company=${selectedCompany}`);
         const defaultResult = await defaultResponse.json();
         
         console.log('Default price API response:', defaultResult);
@@ -843,7 +843,7 @@ export default function PurchaseOrderMain() {
       console.log('Sending PO data:', purchaseOrderData);
 
       // Determine API endpoint and method based on edit mode
-      const apiUrl = isEditMode ? `/api/purchase-orders/${poId}` : '/api/purchase-orders';
+      const apiUrl = isEditMode ? `/api/purchase/orders/${poId}` : '/api/purchase/orders';
       const method = isEditMode ? 'PUT' : 'POST';
 
       const response = await fetch(apiUrl, {
