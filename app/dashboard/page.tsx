@@ -50,15 +50,10 @@ export default function DashboardPage() {
 
   const fetchDashboardStats = async () => {
     try {
-      // Test simple request dulu untuk debugging
-      console.log('Testing Dashboard simple request...');
       const response = await fetch("/api/setup/dashboard");
       const data = await response.json();
       
-      console.log('Dashboard Simple Test Response:', data);
-      
       if (data.success) {
-        console.log('Dashboard stats received:', data.data);
         setStats(data.data);
       } else {
         console.error('Dashboard test failed: ' + data.message);

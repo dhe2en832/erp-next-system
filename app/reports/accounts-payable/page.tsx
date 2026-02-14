@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import LoadingSpinner from '../../components/LoadingSpinner';
 
 interface APEntry {
@@ -13,11 +13,23 @@ interface APEntry {
   due_date?: string;
 }
 
+function calcOverdueDays(dueDate?: string): number {
+  if (!dueDate) return 0;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const due = new Date(dueDate);
+  due.setHours(0, 0, 0, 0);
+  const diff = Math.floor((today.getTime() - due.getTime()) / (1000 * 60 * 60 * 24));
+  return diff > 0 ? diff : 0;
+}
+
 export default function AccountsPayablePage() {
   const [data, setData] = useState<APEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedCompany, setSelectedCompany] = useState('');
+  const [filterSupplier, setFilterSupplier] = useState('');
+  const [filterInvoice, setFilterInvoice] = useState('');
 
   useEffect(() => {
     const saved = localStorage.getItem('selected_company');
@@ -36,8 +48,7 @@ export default function AccountsPayablePage() {
       } else {
         setError(result.message || 'Gagal memuat data hutang');
       }
-    } catch (err) {
-      console.error('Error fetching AP:', err);
+    } catch {
       setError('Gagal memuat data hutang');
     } finally {
       setLoading(false);
@@ -48,23 +59,60 @@ export default function AccountsPayablePage() {
     if (selectedCompany) fetchData();
   }, [selectedCompany, fetchData]);
 
-  const totalOutstanding = data.reduce((sum, entry) => sum + (entry.outstanding_amount || 0), 0);
+  const filteredData = useMemo(() => {
+    return data.filter(entry => {
+      const matchSupplier = !filterSupplier ||
+        (entry.supplier_name || entry.supplier || '').toLowerCase().includes(filterSupplier.toLowerCase());
+      const matchInvoice = !filterInvoice ||
+        (entry.voucher_no || '').toLowerCase().includes(filterInvoice.toLowerCase());
+      return matchSupplier && matchInvoice;
+    });
+  }, [data, filterSupplier, filterInvoice]);
+
+  const totalOutstanding = filteredData.reduce((sum, entry) => sum + (entry.outstanding_amount || 0), 0);
 
   if (loading) return <LoadingSpinner message="Memuat data hutang usaha..." />;
 
   return (
-    <div className="max-w-6xl mx-auto p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Hutang Usaha</h1>
-        <p className="text-sm text-gray-500">Daftar hutang usaha (Accounts Payable)</p>
+    <div className="max-w-7xl mx-auto p-6">
+      <div className="flex justify-between items-start mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Hutang Usaha</h1>
+          <p className="text-sm text-gray-500">Daftar hutang usaha (Accounts Payable)</p>
+        </div>
+        <button
+          onClick={() => window.print()}
+          className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 text-sm flex items-center gap-2 print:hidden"
+        >
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+          Cetak
+        </button>
       </div>
 
       {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{error}</div>}
 
+      {/* Filters */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 print:hidden">
+        <input
+          type="text"
+          placeholder="Filter Pemasok..."
+          value={filterSupplier}
+          onChange={(e) => setFilterSupplier(e.target.value)}
+          className="border border-gray-300 rounded-md shadow-sm py-2 px-3 text-sm focus:ring-indigo-500 focus:border-indigo-500"
+        />
+        <input
+          type="text"
+          placeholder="Filter No. Faktur..."
+          value={filterInvoice}
+          onChange={(e) => setFilterInvoice(e.target.value)}
+          className="border border-gray-300 rounded-md shadow-sm py-2 px-3 text-sm focus:ring-indigo-500 focus:border-indigo-500"
+        />
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
           <p className="text-sm text-blue-600 font-medium">Jumlah Hutang</p>
-          <p className="text-2xl font-bold text-blue-900">{data.length}</p>
+          <p className="text-2xl font-bold text-blue-900">{filteredData.length}</p>
         </div>
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
           <p className="text-sm text-red-600 font-medium">Total Outstanding</p>
@@ -82,22 +130,29 @@ export default function AccountsPayablePage() {
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Jatuh Tempo</th>
               <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total Faktur</th>
               <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Outstanding</th>
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Overdue (Hari)</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {data.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-500">Tidak ada data hutang</td></tr>
+            {filteredData.length === 0 ? (
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-500">Tidak ada data hutang</td></tr>
             ) : (
-              data.map((entry, i) => (
-                <tr key={i} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-sm font-medium text-indigo-600">{entry.voucher_no}</td>
-                  <td className="px-4 py-3 text-sm text-gray-900">{entry.supplier_name || entry.supplier}</td>
-                  <td className="px-4 py-3 text-sm text-gray-500">{entry.posting_date}</td>
-                  <td className="px-4 py-3 text-sm text-gray-500">{entry.due_date || '-'}</td>
-                  <td className="px-4 py-3 text-sm text-gray-900 text-right">Rp {(entry.invoice_grand_total || 0).toLocaleString('id-ID')}</td>
-                  <td className="px-4 py-3 text-sm font-medium text-red-600 text-right">Rp {(entry.outstanding_amount || 0).toLocaleString('id-ID')}</td>
-                </tr>
-              ))
+              filteredData.map((entry, i) => {
+                const overdue = calcOverdueDays(entry.due_date);
+                return (
+                  <tr key={i} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 text-sm font-medium text-indigo-600">{entry.voucher_no}</td>
+                    <td className="px-4 py-3 text-sm text-gray-900">{entry.supplier_name || entry.supplier}</td>
+                    <td className="px-4 py-3 text-sm text-gray-500">{entry.posting_date}</td>
+                    <td className="px-4 py-3 text-sm text-gray-500">{entry.due_date || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-gray-900 text-right">Rp {(entry.invoice_grand_total || 0).toLocaleString('id-ID')}</td>
+                    <td className="px-4 py-3 text-sm font-medium text-red-600 text-right">Rp {(entry.outstanding_amount || 0).toLocaleString('id-ID')}</td>
+                    <td className={`px-4 py-3 text-sm text-right font-medium ${overdue > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                      {overdue > 0 ? `${overdue} hari` : '-'}
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>

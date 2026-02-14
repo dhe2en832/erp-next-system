@@ -430,7 +430,6 @@ export default function PurchaseOrderList() {
           </div>
           <ul className="divide-y divide-gray-200">
             {purchaseOrders.map((order, index) => {
-              console.log(`Rendering PO ${index}:`, order);
               return (
               <li 
                 key={order.name}

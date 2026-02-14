@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import Pagination from '../../components/Pagination';
 
 interface StockEntry {
   name: string;
@@ -32,6 +33,8 @@ export default function StockEntryList() {
   const [warehouseFilter, setWarehouseFilter] = useState('');
   const [dateFilter, setDateFilter] = useState({ from_date: '', to_date: '' });
   const [selectedCompany, setSelectedCompany] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 20;
 
   useEffect(() => {
     const savedCompany = localStorage.getItem('selected_company');
@@ -87,6 +90,11 @@ export default function StockEntryList() {
       fetchWarehouses();
     }
   }, [selectedCompany, fetchEntries, fetchWarehouses]);
+
+  const paginatedEntries = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return entries.slice(start, start + PAGE_SIZE);
+  }, [entries, currentPage]);
 
   const getPurposeColor = (purpose: string) => {
     switch (purpose?.toLowerCase()) {
@@ -185,7 +193,7 @@ export default function StockEntryList() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
         <div className="bg-white shadow overflow-hidden sm:rounded-md">
           <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
-            <h3 className="text-sm font-medium text-gray-900">Entri Stok ({entries.length} entri)</h3>
+            <h3 className="text-sm font-medium text-gray-900">Entri Stok ({entries.length} entri){entries.length > PAGE_SIZE && ` — Hal. ${currentPage}`}</h3>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
@@ -200,7 +208,7 @@ export default function StockEntryList() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {entries.map((entry) => (
+                {paginatedEntries.map((entry) => (
                   <tr key={entry.name} className="hover:bg-gray-50 cursor-pointer" onClick={() => router.push(`/stock-entry/seMain?name=${entry.name}`)}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-indigo-600">{entry.name}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{entry.posting_date} {entry.posting_time}</td>
@@ -218,6 +226,13 @@ export default function StockEntryList() {
           {entries.length === 0 && (
             <div className="text-center py-12"><p className="text-gray-500">Tidak ada entri stok ditemukan</p></div>
           )}
+          <Pagination
+            currentPage={currentPage}
+            totalPages={Math.ceil(entries.length / PAGE_SIZE)}
+            totalRecords={entries.length}
+            pageSize={PAGE_SIZE}
+            onPageChange={setCurrentPage}
+          />
         </div>
       </div>
     </div>

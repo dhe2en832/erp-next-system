@@ -174,7 +174,6 @@ export default function SalesOrderList() {
   // Submit Sales Order untuk mengubah status dari Draft ke Submitted
   const handleSubmitSalesOrder = async (orderName: string) => {
     try {
-      console.log('Submitting Sales Order:', orderName);
       
       const response = await fetch(`/api/sales/orders/${orderName}/submit`, {
         method: 'POST',

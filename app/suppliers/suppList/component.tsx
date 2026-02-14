@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import Pagination from '../../components/Pagination';
 
 interface Supplier {
   name: string;
@@ -13,18 +14,23 @@ interface Supplier {
   mobile_no?: string;
 }
 
+const PAGE_SIZE = 20;
+
 export default function SupplierList() {
   const router = useRouter();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [error, setError] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
 
   const fetchSuppliers = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const params = new URLSearchParams({ limit: '100' });
+      const start = (currentPage - 1) * PAGE_SIZE;
+      const params = new URLSearchParams({ limit: String(PAGE_SIZE), start: String(start) });
       if (search.trim()) params.set('search', search.trim());
 
       const response = await fetch(`/api/purchase/suppliers?${params}`, { credentials: 'include' });
@@ -32,20 +38,24 @@ export default function SupplierList() {
 
       if (data.success) {
         setSuppliers(data.data || []);
+        setTotalRecords(data.total || data.data?.length || 0);
       } else {
         setError(data.message || 'Gagal memuat data pemasok');
       }
-    } catch (err) {
-      console.error('Error fetching suppliers:', err);
+    } catch {
       setError('Gagal memuat data pemasok');
     } finally {
       setLoading(false);
     }
-  }, [search]);
+  }, [search, currentPage]);
 
   useEffect(() => {
     fetchSuppliers();
   }, [fetchSuppliers]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search]);
 
   if (loading) {
     return <LoadingSpinner message="Memuat data pemasok..." />;
@@ -118,6 +128,13 @@ export default function SupplierList() {
             )}
           </tbody>
         </table>
+        <Pagination
+          currentPage={currentPage}
+          totalPages={Math.ceil(totalRecords / PAGE_SIZE)}
+          totalRecords={totalRecords}
+          pageSize={PAGE_SIZE}
+          onPageChange={setCurrentPage}
+        />
       </div>
     </div>
   );

@@ -425,7 +425,6 @@ export default function PurchaseReceiptList() {
             </div>
             <ul className="divide-y divide-gray-200">
               {purchaseReceipts.map((receipt, index) => {
-                console.log(`Rendering PR ${index}:`, receipt);
                 return (
                 <li 
                   key={receipt.name}

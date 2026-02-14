@@ -213,7 +213,6 @@ export default function PurchaseReceiptMain() {
 
       if (data.success) {
         const receipt = data.data;
-        console.log('Purchase Receipt data received:', receipt);
         
         setSupplier(receipt.supplier);
         setSupplierName(receipt.supplier_name);
@@ -231,9 +230,6 @@ export default function PurchaseReceiptMain() {
         
         // Process items to ensure all fields are properly set
         const processedItems = (receipt.items || []).map((item: PurchaseReceiptItem) => {
-          console.log('Processing item:', item);
-          console.log('Original received_qty:', item.received_qty);
-          console.log('Original rejected_qty:', item.rejected_qty);
           
           // ERPNext logic: received_qty = received_qty + rejected_qty
           // So: received_qty = received_qty - rejected_qty
@@ -246,8 +242,6 @@ export default function PurchaseReceiptMain() {
             rejected_qty: item.rejected_qty || 0,
           };
           
-          console.log('Calculated received_qty:', calculatedReceivedQty);
-          console.log('Processed item:', processedItem);
           return processedItem;
         });
         
@@ -258,7 +252,6 @@ export default function PurchaseReceiptMain() {
           const firstPO = receipt.items[0].purchase_order;
           if (firstPO) {
             setPurchaseOrder(firstPO);
-            console.log('PO number set from first item:', firstPO);
           }
         }
       } else {
@@ -283,7 +276,6 @@ export default function PurchaseReceiptMain() {
 
       if (data.message && data.message.success) {
         const poData = data.message.data;
-        console.log('PO data received:', poData);
         
         // Set form fields from PO data
         setSupplier(poData.supplier);
@@ -319,7 +311,6 @@ export default function PurchaseReceiptMain() {
           schedule_date: item.schedule_date,
         }));
 
-        console.log('PR items mapped:', prItems);
 
         setSelectedItems(prItems);
         setShowPODialog(false);
@@ -341,21 +332,19 @@ export default function PurchaseReceiptMain() {
         return;
       }
 
-      const response = await fetch(`/api/utils/erpnext/warehouse?company=${encodeURIComponent(selectedCompany)}`);
+      const response = await fetch(`/api/inventory/warehouses?company=${encodeURIComponent(selectedCompany)}`, { credentials: 'include' });
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
-      console.log('data warehosue ', data)
       if (data.error) {
         throw new Error(data.error);
       }
 
       if (data.data && Array.isArray(data.data)) {
         setWarehouses(data.data);
-        console.log('Warehouses fetched successfully:', data.data.length);
       } else {
         console.warn('No warehouse data received');
         setWarehouses([]);
@@ -530,11 +519,6 @@ export default function PurchaseReceiptMain() {
           const uiRejectedQty = item.rejected_qty || 0; // What user entered in "Rejected Qty" field
           const erpnextReceivedQty = uiReceivedQty + uiRejectedQty; // ERPNext: total received = accepted + rejected
           
-          console.log(`=== PAYLOAD CALCULATION FOR ${item.item_code} ===`);
-          console.log(`UI "Accepted Qty" field: ${uiReceivedQty} (what user entered)`);
-          console.log(`UI "Rejected Qty" field: ${uiRejectedQty} (what user entered)`);
-          console.log(`ERPNext received_qty (total): ${uiReceivedQty} + ${uiRejectedQty} = ${erpnextReceivedQty}`);
-          console.log(`✅ This is CORRECT - ERPNext received_qty = accepted + rejected`);
           
           return {
             item_code: item.item_code,
@@ -559,10 +543,6 @@ export default function PurchaseReceiptMain() {
         })
       };
 
-      console.log('=== FINAL PAYLOAD DEBUG ===');
-      console.log('Valid Items:', validItems);
-      console.log('Receipt Data Items:', receiptData.items);
-      console.log('Sending Purchase Receipt data:', receiptData);
 
       // Determine API endpoint and method based on edit mode
       const apiUrl = isEditMode ? `/api/purchase/receipts/${prId}` : '/api/purchase/receipts';
@@ -603,22 +583,18 @@ export default function PurchaseReceiptMain() {
   };
 
   const updateItemQty = (index: number, field: 'received_qty' | 'rejected_qty', value: number) => {
-    console.log(`Updating ${field} for item ${index} to ${value}`);
     const newItems = [...selectedItems];
     const oldValue = newItems[index][field];
     newItems[index][field] = value;
     
-    console.log(`${field} changed from ${oldValue} to ${value}`);
 
     // Only recalculate amount if received_qty is being updated
     if (field === 'received_qty') {
       const newAmount = value * newItems[index].rate;
       newItems[index].amount = newAmount;
-      console.log(`Amount recalculated to ${newAmount}`);
     }
 
     setSelectedItems(newItems);
-    console.log('SelectedItems updated:', newItems);
   };
 
   const removeItem = (index: number) => {
@@ -647,7 +623,6 @@ export default function PurchaseReceiptMain() {
 
       if (data.success && Array.isArray(data.data)) {
         setPurchaseOrders(data.data);
-        console.log('Purchase Orders fetched successfully:', data.data.length);
       } else {
         console.warn('No purchase orders data received');
         setPurchaseOrders([]);
@@ -680,7 +655,6 @@ export default function PurchaseReceiptMain() {
 
   const openItemDialog = (index: number) => {
     // TODO: Implement item selection dialog
-    console.log('Open item dialog for index:', index);
   };
 
   if (loading && !purchaseOrder) {

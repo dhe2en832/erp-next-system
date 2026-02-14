@@ -13,6 +13,7 @@ interface SupplierFormData {
   mobile_no: string;
   email_id: string;
   default_currency: string;
+  supplier_primary_address: string;
 }
 
 export default function SupplierMain() {
@@ -35,6 +36,7 @@ export default function SupplierMain() {
     mobile_no: '',
     email_id: '',
     default_currency: 'IDR',
+    supplier_primary_address: '',
   });
 
   useEffect(() => {
@@ -61,6 +63,7 @@ export default function SupplierMain() {
           mobile_no: s.mobile_no || '',
           email_id: s.email_id || '',
           default_currency: s.default_currency || 'IDR',
+          supplier_primary_address: s.supplier_primary_address || '',
         });
       } else {
         setError('Gagal memuat detail pemasok');
@@ -222,6 +225,16 @@ export default function SupplierMain() {
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
             />
           </div>
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Alamat</label>
+            <textarea
+              rows={3}
+              value={formData.supplier_primary_address}
+              onChange={(e) => setFormData({ ...formData, supplier_primary_address: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              placeholder="Masukkan alamat pemasok"
+            />
+          </div>
         </div>
 
         <div className="flex justify-end space-x-3 pt-4 border-t">
@@ -235,8 +248,9 @@ export default function SupplierMain() {
           <button
             type="submit"
             disabled={formLoading}
-            className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium disabled:opacity-50"
+            className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium disabled:opacity-50 flex items-center gap-2"
           >
+            {formLoading && <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>}
             {formLoading ? 'Menyimpan...' : (isEditMode ? 'Perbarui' : 'Simpan')}
           </button>
         </div>

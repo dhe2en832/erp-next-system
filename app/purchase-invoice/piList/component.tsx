@@ -252,7 +252,6 @@ export default function PurchaseInvoiceList() {
   };
 
   const handleSubmit = async (piName: string) => {
-    console.log('Submit button clicked for PI:', piName);
     setActionLoading(true);
     setError('');
     
@@ -489,7 +488,6 @@ export default function PurchaseInvoiceList() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                console.log('Button clicked, invoice.name:', invoice.name);
                                 handleSubmit(invoice.name);
                               }}
                               disabled={actionLoading}

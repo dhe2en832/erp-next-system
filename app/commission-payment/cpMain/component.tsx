@@ -31,9 +31,12 @@ export default function CommissionPaymentMain() {
 
   const [salesPerson, setSalesPerson] = useState('');
   const [salesPersons, setSalesPersons] = useState<SalesPerson[]>([]);
+  const [employeeId, setEmployeeId] = useState('');
+  const [employeeName, setEmployeeName] = useState('');
   const [postingDate, setPostingDate] = useState(new Date().toISOString().split('T')[0]);
   const [modeOfPayment, setModeOfPayment] = useState('Cash');
   const [paidFromAccount, setPaidFromAccount] = useState('111100 - Kas - BAC');
+  const [commissionExpenseAccount, setCommissionExpenseAccount] = useState('519000 - Biaya Komisi Penjualan - BAC');
   const [invoices, setInvoices] = useState<PayableInvoice[]>([]);
 
   useEffect(() => {
@@ -44,6 +47,25 @@ export default function CommissionPaymentMain() {
   useEffect(() => {
     if (selectedCompany) fetchSalesPersons();
   }, [selectedCompany]);
+
+  const lookupEmployee = async (spName: string) => {
+    setEmployeeId('');
+    setEmployeeName('');
+    if (!spName) return;
+    try {
+      const response = await fetch(`/api/setup/employees?sales_person=${encodeURIComponent(spName)}`, { credentials: 'include' });
+      const data = await response.json();
+      if (data.success && data.data?.length > 0) {
+        setEmployeeId(data.data[0].name);
+        setEmployeeName(data.data[0].employee_name || data.data[0].name);
+      }
+    } catch { /* silent */ }
+  };
+
+  const handleSalesPersonChange = (value: string) => {
+    setSalesPerson(value);
+    lookupEmployee(value);
+  };
 
   const fetchSalesPersons = async () => {
     try {
@@ -116,9 +138,11 @@ export default function CommissionPaymentMain() {
         body: JSON.stringify({
           company: selectedCompany,
           sales_person: salesPerson,
+          employee_id: employeeId || undefined,
           posting_date: postingDate,
           mode_of_payment: modeOfPayment,
           paid_from_account: paidFromAccount,
+          commission_expense_account: commissionExpenseAccount,
           invoices: selectedInvoices.map(inv => ({
             invoice_name: inv.name,
             commission_amount: inv.custom_total_komisi_sales || 0,
@@ -184,7 +208,7 @@ export default function CommissionPaymentMain() {
               <select
                 required
                 value={salesPerson}
-                onChange={(e) => setSalesPerson(e.target.value)}
+                onChange={(e) => handleSalesPersonChange(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
               >
                 <option value="">-- Pilih Sales Person --</option>
@@ -226,6 +250,35 @@ export default function CommissionPaymentMain() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                 placeholder="Contoh: 111100 - Kas - BAC"
               />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Akun Biaya Komisi</label>
+              <input
+                type="text"
+                value={commissionExpenseAccount}
+                onChange={(e) => setCommissionExpenseAccount(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                placeholder="Contoh: 519000 - Biaya Komisi Penjualan - BAC"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Employee (Party)</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={employeeId ? `${employeeId} — ${employeeName}` : '(auto-detect dari Sales Person)'}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-50 sm:text-sm text-gray-500"
+                />
+              </div>
+              {employeeId && (
+                <p className="text-xs text-green-600 mt-1">✓ Employee ditemukan, JE akan menggunakan Party Type = Employee</p>
+              )}
+              {salesPerson && !employeeId && (
+                <p className="text-xs text-yellow-600 mt-1">⚠ Employee tidak ditemukan untuk sales person ini</p>
+              )}
             </div>
           </div>
 

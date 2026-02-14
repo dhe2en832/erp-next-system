@@ -30,10 +30,8 @@ export default function Navbar() {
   const pathname = usePathname();
 
   useEffect(() => {
-    console.log('Navbar useEffect triggered');
     // Get selected company from localStorage
     const storedCompany = localStorage.getItem('selected_company');
-    console.log('Stored company from localStorage:', storedCompany);
     
     if (storedCompany) {
       const companyData = {
@@ -42,10 +40,7 @@ export default function Navbar() {
         country: '',
         abbr: storedCompany.substring(0, 3).toUpperCase()
       };
-      console.log('Setting selected company:', companyData);
       setSelectedCompany(companyData);
-    } else {
-      console.log('No stored company found');
     }
 
     // Get user data from localStorage
@@ -53,12 +48,8 @@ export default function Navbar() {
     if (loginData) {
       try {
         const data = JSON.parse(loginData);
-        console.log('Navbar login data:', data);
-        console.log('User full_name:', data.full_name);
         setUser({ full_name: data.full_name });
-      } catch {
-        console.log('Invalid login data in localStorage');
-      }
+      } catch { /* ignore invalid data */ }
     }
 
     // Listen for storage changes (for cross-tab synchronization)
@@ -154,6 +145,8 @@ export default function Navbar() {
       name: 'Kas & Bank',
       icon: '💳',
       items: [
+        { name: 'Kas Masuk (Multi)', href: '/kas-masuk' },
+        { name: 'Kas Keluar (Multi)', href: '/kas-keluar' },
         { name: 'Kas Masuk', href: '/payment/paymentMain?type=receive' },
         { name: 'Kas Keluar', href: '/payment/paymentMain?type=pay' },
         { name: 'Pembayaran', href: '/payment' },
@@ -210,16 +203,21 @@ export default function Navbar() {
         { name: 'Sales Person', href: '/sales-persons' },
         { name: 'Termin Pembayaran', href: '/payment-terms' }
       ]
+    },
+    {
+      name: 'Pengaturan',
+      icon: '⚙️',
+      items: [
+        { name: 'Manajemen Pengguna', href: '/users' },
+        { name: 'Ganti Perusahaan', href: '/select-company' }
+      ]
     }
   ];
 
   // Don't show navbar on login and company selection pages
-  console.log('Current pathname:', pathname);
   if (pathname === '/login' || pathname === '/select-company') {
-    console.log('Hiding navbar for pathname:', pathname);
     return null;
   }
-  console.log('Showing navbar for pathname:', pathname);
 
   return (
     <>

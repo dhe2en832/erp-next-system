@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import Pagination from '../../components/Pagination';
 
 interface StockReconciliation {
   name: string;
@@ -31,6 +32,8 @@ export default function StockReconciliationList() {
   const [statusFilter, setStatusFilter] = useState('');
   const [dateFilter, setDateFilter] = useState({ from_date: '', to_date: '' });
   const [selectedCompany, setSelectedCompany] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 20;
 
   useEffect(() => {
     const savedCompany = localStorage.getItem('selected_company');
@@ -81,6 +84,11 @@ export default function StockReconciliationList() {
   useEffect(() => {
     if (selectedCompany) { fetchReconciliations(); fetchWarehouses(); }
   }, [selectedCompany, fetchReconciliations, fetchWarehouses]);
+
+  const paginatedReconciliations = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return reconciliations.slice(start, start + PAGE_SIZE);
+  }, [reconciliations, currentPage]);
 
   if (loading) {
     return (
@@ -160,7 +168,7 @@ export default function StockReconciliationList() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
         <div className="bg-white shadow overflow-hidden sm:rounded-md">
           <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
-            <h3 className="text-sm font-medium text-gray-900">Rekonsiliasi Stok ({reconciliations.length} entri)</h3>
+            <h3 className="text-sm font-medium text-gray-900">Rekonsiliasi Stok ({reconciliations.length} entri){reconciliations.length > PAGE_SIZE && ` — Hal. ${currentPage}`}</h3>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
@@ -172,7 +180,7 @@ export default function StockReconciliationList() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {reconciliations.map((rec) => (
+                {paginatedReconciliations.map((rec) => (
                   <tr key={rec.name} className="hover:bg-gray-50 cursor-pointer" onClick={() => router.push(`/stock-reconciliation/srMain?name=${rec.name}`)}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-indigo-600">{rec.name}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{rec.posting_date} {rec.posting_time}</td>
@@ -185,6 +193,13 @@ export default function StockReconciliationList() {
           {reconciliations.length === 0 && (
             <div className="text-center py-12"><p className="text-gray-500">Tidak ada rekonsiliasi stok ditemukan</p></div>
           )}
+          <Pagination
+            currentPage={currentPage}
+            totalPages={Math.ceil(reconciliations.length / PAGE_SIZE)}
+            totalRecords={reconciliations.length}
+            pageSize={PAGE_SIZE}
+            onPageChange={setCurrentPage}
+          />
         </div>
       </div>
     </div>

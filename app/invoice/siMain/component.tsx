@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import PrintDialog from '../../components/PrintDialog';
 import { formatDate, parseDate } from '../../../utils/format';
 import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
 
@@ -42,6 +43,8 @@ export default function SalesInvoiceMain() {
   const [editingInvoiceStatus, setEditingInvoiceStatus] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [formLoading, setFormLoading] = useState(false);
+  const [showPrintDialog, setShowPrintDialog] = useState(false);
+  const [savedDocName, setSavedDocName] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
   // Delivery Note Dialog
@@ -229,6 +232,38 @@ export default function SalesInvoiceMain() {
     }
   };
 
+  // Calculate due date from SO payment terms template
+  const calculateDueDate = async (postingDate: string, salesOrderName: string): Promise<string> => {
+    const defaultDays = 30;
+    try {
+      if (!salesOrderName) return addDays(postingDate, defaultDays);
+
+      // Fetch SO to get payment_terms_template
+      const soRes = await fetch(`/api/sales/orders/${encodeURIComponent(salesOrderName)}`, { credentials: 'include' });
+      const soData = await soRes.json();
+      if (!soData.success || !soData.data?.payment_terms_template) {
+        return addDays(postingDate, defaultDays);
+      }
+
+      // Fetch payment terms detail to get credit_days
+      const ptRes = await fetch(`/api/setup/payment-terms/detail?name=${encodeURIComponent(soData.data.payment_terms_template)}`, { credentials: 'include' });
+      const ptData = await ptRes.json();
+      if (ptData.success && ptData.data?.terms && ptData.data.terms.length > 0) {
+        const creditDays = ptData.data.terms[0].credit_days || defaultDays;
+        return addDays(postingDate, creditDays);
+      }
+    } catch {
+      // fallback to default
+    }
+    return addDays(postingDate, defaultDays);
+  };
+
+  const addDays = (dateStr: string, days: number): string => {
+    const date = new Date(dateStr);
+    date.setDate(date.getDate() + days);
+    return date.toISOString().split('T')[0];
+  };
+
   // Main function to handle delivery note selection with commission preview
   async function handleSelectDeliveryNote(dn: string) {
     try {
@@ -282,11 +317,16 @@ export default function SalesInvoiceMain() {
           commissionData.total_commission :
           invoiceItems.reduce((sum: number, item: CompleteInvoiceItem) => sum + (item.custom_komisi_sales || 0), 0);
 
+        // Step 3: Calculate due date from SO payment terms
+        const postingDate = new Date().toISOString().split('T')[0];
+        const firstSOName = invoiceItems.find((item: any) => item.sales_order)?.sales_order || '';
+        const dueDate = await calculateDueDate(postingDate, firstSOName);
+
         setFormData({
           customer: completeDnData.customer || '',
           customer_name: completeDnData.customer_name || '',
-          posting_date: new Date().toISOString().split('T')[0],
-          due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          posting_date: postingDate,
+          due_date: dueDate,
           items: invoiceItems,
           custom_total_komisi_sales: totalKomisiSales,
           company: selectedCompany,
@@ -311,7 +351,6 @@ export default function SalesInvoiceMain() {
         throw new Error('Data Surat Jalan tidak valid');
       }
     } catch (error) {
-      console.error('Error in handleSelectDeliveryNote:', error);
       setError(`Gagal memproses surat jalan: ${error instanceof Error ? error.message : 'Kesalahan tidak diketahui'}`);
     }
   }
@@ -367,10 +406,9 @@ export default function SalesInvoiceMain() {
       const data = await response.json();
 
       if (data.success) {
-        setSuccessMessage(`Faktur Penjualan ${data.data?.name || ''} berhasil disimpan!`);
-        setTimeout(() => {
-          router.push('/invoice/siList');
-        }, 2000);
+        const siName = data.data?.name || '';
+        setSavedDocName(siName);
+        setShowPrintDialog(true);
       } else {
         setError(`Gagal menyimpan Faktur Penjualan: ${data.message}`);
       }
@@ -611,8 +649,9 @@ export default function SalesInvoiceMain() {
                 <button
                   type="submit"
                   disabled={formLoading}
-                  className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 disabled:opacity-50"
+                  className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2"
                 >
+                  {formLoading && <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>}
                   {formLoading ? 'Memproses...' : editingInvoice ? 'Perbarui Faktur' : 'Simpan Faktur'}
                 </button>
               )}
@@ -706,6 +745,15 @@ export default function SalesInvoiceMain() {
           </div>
         </div>
       )}
+
+      {/* Print Dialog after save */}
+      <PrintDialog
+        isOpen={showPrintDialog}
+        onClose={() => { setShowPrintDialog(false); router.push('/invoice/siList'); }}
+        documentType="Sales Invoice"
+        documentName={savedDocName}
+        documentLabel="Faktur Penjualan"
+      />
     </div>
   );
 }

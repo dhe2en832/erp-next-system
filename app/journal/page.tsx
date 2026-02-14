@@ -84,19 +84,10 @@ export default function JournalPage() {
     }
     
     try {
-      // Test simple request dulu untuk debugging
-      console.log('Testing Journal Entries simple request...');
       const response = await fetch("/api/finance/journal");
       const data = await response.json();
       
-      console.log('Journal Entries Simple Test Response:', data);
-      
       if (data.success) {
-        console.log('Journal Entries data received:', data.data);
-        if (data.data && data.data.length > 0) {
-          console.log('First journal entry structure:', data.data[0]);
-          console.log('Available fields:', Object.keys(data.data[0]));
-        }
         setJournalEntries(data.data || []);
         setError('');
       } else {

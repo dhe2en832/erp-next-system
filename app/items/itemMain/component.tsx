@@ -35,9 +35,11 @@ export default function ItemMain() {
     opening_stock: 0,
     valuation_rate: 0,
     standard_rate: 0,
-    bottom_price: 0,
+    brand: '',
+    default_currency: 'IDR',
   });
   const [valuationRateLoading, setValuationRateLoading] = useState(false);
+  const [brands, setBrands] = useState<{name: string}[]>([]);
 
   useEffect(() => {
     let savedCompany = localStorage.getItem('selected_company');
@@ -50,6 +52,18 @@ export default function ItemMain() {
       }
     }
     if (savedCompany) setSelectedCompany(savedCompany);
+  }, []);
+
+  // Fetch brands from ERPNext
+  useEffect(() => {
+    const fetchBrands = async () => {
+      try {
+        const response = await fetch('/api/inventory/items/brands', { credentials: 'include' });
+        const data = await response.json();
+        if (data.success) setBrands(data.data || []);
+      } catch { /* silently fail */ }
+    };
+    fetchBrands();
   }, []);
 
   // Load item details for edit mode
@@ -76,7 +90,8 @@ export default function ItemMain() {
           opening_stock: item.opening_stock || 0,
           valuation_rate: item.valuation_rate || 0,
           standard_rate: item.standard_rate || 0,
-          bottom_price: 0,
+          brand: item.brand || '',
+          default_currency: 'IDR',
         });
         // Fetch valuation rate and bottom price for existing items
         fetchItemPricing(item.item_code);
@@ -100,7 +115,6 @@ export default function ItemMain() {
           ...prev,
           valuation_rate: data.data.valuation_rate || prev.valuation_rate,
           standard_rate: data.data.standard_rate || prev.standard_rate,
-          bottom_price: data.data.bottom_price || 0,
         }));
       }
     } catch (err) {
@@ -185,12 +199,12 @@ export default function ItemMain() {
                 <label className="block text-sm font-medium text-gray-700">Kode Barang</label>
                 <input
                   type="text"
-                  required
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  value={formData.item_code}
-                  onChange={(e) => setFormData({ ...formData, item_code: e.target.value })}
-                  readOnly={!!editingItem}
+                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-gray-50"
+                  value={formData.item_code || (editingItem ? '' : 'Otomatis dari ERPNext')}
+                  readOnly
+                  title="Kode barang akan di-generate otomatis oleh ERPNext"
                 />
+                <p className="mt-1 text-xs text-gray-500">Kode barang di-generate otomatis oleh sistem</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Nama Barang</label>
@@ -211,7 +225,7 @@ export default function ItemMain() {
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 />
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Grup Barang</label>
                   <input
@@ -222,12 +236,36 @@ export default function ItemMain() {
                   />
                 </div>
                 <div>
+                  <label className="block text-sm font-medium text-gray-700">Merek (Brand)</label>
+                  <select
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    value={formData.brand}
+                    onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
+                  >
+                    <option value="">Pilih Merek...</option>
+                    {brands.map((b) => (
+                      <option key={b.name} value={b.name}>{b.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
                   <label className="block text-sm font-medium text-gray-700">Satuan Stok</label>
                   <input
                     type="text"
                     className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                     value={formData.stock_uom}
                     onChange={(e) => setFormData({ ...formData, stock_uom: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Mata Uang</label>
+                  <input
+                    type="text"
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-gray-50"
+                    value={formData.default_currency}
+                    readOnly
                   />
                 </div>
                 <div>
@@ -245,7 +283,7 @@ export default function ItemMain() {
             {/* Pricing Section */}
             <div className="mt-8 pt-6 border-t border-gray-200">
               <h3 className="text-lg font-medium text-gray-900 mb-4">Informasi Harga</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Harga Beli (Valuation Rate)</label>
                   <div className="relative">
@@ -259,29 +297,19 @@ export default function ItemMain() {
                     />
                     {valuationRateLoading && <span className="absolute right-3 top-3 text-xs text-gray-400">Memuat...</span>}
                   </div>
-                  <p className="mt-1 text-xs text-gray-500">Otomatis dari transaksi pembelian</p>
+                  <p className="mt-1 text-xs text-gray-500">Otomatis dari transaksi pembelian · Price List: Standar Pembelian</p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Harga Jual Standar</label>
+                  <label className="block text-sm font-medium text-gray-700">Harga Jual Standar <span className="text-red-500">*</span></label>
                   <input
                     type="number"
                     step="0.01"
+                    required
                     className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                     value={formData.standard_rate}
                     onChange={(e) => setFormData({ ...formData, standard_rate: parseFloat(e.target.value) || 0 })}
                   />
-                  <p className="mt-1 text-xs text-gray-500">Harga jual default</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Harga Jual Minimum (Bottom Price)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                    value={formData.bottom_price}
-                    onChange={(e) => setFormData({ ...formData, bottom_price: parseFloat(e.target.value) || 0 })}
-                  />
-                  <p className="mt-1 text-xs text-gray-500">Harga terendah yang boleh dijual</p>
+                  <p className="mt-1 text-xs text-gray-500">Price List: Standard Jual (wajib diisi)</p>
                 </div>
               </div>
             </div>
@@ -297,8 +325,9 @@ export default function ItemMain() {
               <button
                 type="submit"
                 disabled={formLoading}
-                className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 disabled:opacity-50"
+                className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2"
               >
+                {formLoading && <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>}
                 {formLoading ? 'Memproses...' : editingItem ? 'Perbarui Barang' : 'Simpan Barang'}
               </button>
             </div>

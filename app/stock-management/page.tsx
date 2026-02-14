@@ -154,11 +154,8 @@ export default function StockManagementPage() {
         }
       }
 
-      console.log('Fetching Stock Ledger from:', `/api/stock-ledger?${params}`);
       const response = await fetch(`/api/inventory/stock-entry/ledger?${params}`);
       const data = await response.json();
-      
-      console.log('Stock Ledger response:', data);
       
       if (data.success) {
         setStockLedger(data.data || []);

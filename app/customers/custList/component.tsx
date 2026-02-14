@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import Pagination from '../../components/Pagination';
 
 interface Customer {
   name: string;
@@ -13,18 +14,23 @@ interface Customer {
   email_id?: string;
 }
 
+const PAGE_SIZE = 20;
+
 export default function CustomerList() {
   const router = useRouter();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [error, setError] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
 
   const fetchCustomers = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const params = new URLSearchParams({ limit: '100' });
+      const start = (currentPage - 1) * PAGE_SIZE;
+      const params = new URLSearchParams({ limit: String(PAGE_SIZE), start: String(start) });
       if (search.trim()) params.set('search', search.trim());
 
       const response = await fetch(`/api/sales/customers?${params}`, { credentials: 'include' });
@@ -32,20 +38,24 @@ export default function CustomerList() {
 
       if (data.success) {
         setCustomers(data.data || []);
+        setTotalRecords(data.total || data.data?.length || 0);
       } else {
         setError(data.message || 'Gagal memuat data pelanggan');
       }
-    } catch (err) {
-      console.error('Error fetching customers:', err);
+    } catch {
       setError('Gagal memuat data pelanggan');
     } finally {
       setLoading(false);
     }
-  }, [search]);
+  }, [search, currentPage]);
 
   useEffect(() => {
     fetchCustomers();
   }, [fetchCustomers]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search]);
 
   if (loading) {
     return <LoadingSpinner message="Memuat data pelanggan..." />;
@@ -122,6 +132,13 @@ export default function CustomerList() {
             )}
           </tbody>
         </table>
+        <Pagination
+          currentPage={currentPage}
+          totalPages={Math.ceil(totalRecords / PAGE_SIZE)}
+          totalRecords={totalRecords}
+          pageSize={PAGE_SIZE}
+          onPageChange={setCurrentPage}
+        />
       </div>
     </div>
   );

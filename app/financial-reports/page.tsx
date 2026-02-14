@@ -102,11 +102,8 @@ export default function FinancialReportsPage() {
         url += `&to_date=${encodeURIComponent(dateFilter.to_date)}`;
       }
 
-      console.log(`Fetching ${activeTab} from:`, url);
       const response = await fetch(url);
       const data = await response.json();
-      
-      console.log(`${activeTab} response:`, data);
       
       if (data.success) {
         switch (activeTab) {

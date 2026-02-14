@@ -27,9 +27,11 @@ export async function POST(request: NextRequest) {
     const {
       company,
       sales_person,
+      employee_id,
       posting_date,
       mode_of_payment,
       paid_from_account,
+      commission_expense_account,
       invoices, // Array of { invoice_name, commission_amount }
     } = body;
 
@@ -41,36 +43,40 @@ export async function POST(request: NextRequest) {
     }
 
     const totalAmount = invoices.reduce((sum: number, inv: any) => sum + (inv.commission_amount || 0), 0);
+    const expenseAccount = commission_expense_account || '519000 - Biaya Komisi Penjualan - BAC';
+    const cashAccount = paid_from_account || '111100 - Kas - BAC';
 
     // Step 1: Create Journal Entry for commission payment
-    // Debit: Commission Expense account, Credit: Cash/Bank account
+    // Debit: Commission Expense account (with Party Type Employee if employee_id provided)
+    // Credit: Cash/Bank account
+    const debitEntry: any = {
+      account: expenseAccount,
+      debit_in_account_currency: totalAmount,
+      credit_in_account_currency: 0,
+      cost_center: 'Main - BAC',
+    };
+
+    // If employee_id is provided, set Party Type = Employee
+    if (employee_id) {
+      debitEntry.party_type = 'Employee';
+      debitEntry.party = employee_id;
+    }
+
+    const creditEntry: any = {
+      account: cashAccount,
+      debit_in_account_currency: 0,
+      credit_in_account_currency: totalAmount,
+      cost_center: 'Main - BAC',
+    };
+
     const journalEntry = {
       doctype: 'Journal Entry',
       voucher_type: 'Journal Entry',
       company,
       posting_date: posting_date || new Date().toISOString().split('T')[0],
       user_remark: `Pembayaran Komisi Sales: ${sales_person} - ${invoices.map((i: any) => i.invoice_name).join(', ')}`,
-      accounts: [
-        {
-          account: '519000 - Biaya Komisi Penjualan - BAC',
-          debit_in_account_currency: totalAmount,
-          credit_in_account_currency: 0,
-          party_type: '',
-          party: '',
-          cost_center: 'Main - BAC',
-        },
-        {
-          account: paid_from_account || '111100 - Kas - BAC',
-          debit_in_account_currency: 0,
-          credit_in_account_currency: totalAmount,
-          party_type: '',
-          party: '',
-          cost_center: 'Main - BAC',
-        },
-      ],
+      accounts: [debitEntry, creditEntry],
     };
-
-    console.log('Creating Journal Entry for commission:', JSON.stringify(journalEntry, null, 2));
 
     const jeResponse = await fetch(`${ERPNEXT_API_URL}/api/resource/Journal Entry`, {
       method: 'POST',

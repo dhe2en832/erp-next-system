@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import SalesOrderDialog from '../../components/SalesOrderDialog';
 import CustomerDialog from '../../components/CustomerDialog';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import PrintDialog from '../../components/PrintDialog';
 import { formatDate, parseDate } from '../../../utils/format';
 import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
 
@@ -58,6 +59,8 @@ export default function DeliveryNoteMain() {
   const [error, setError] = useState('');
   const [formLoading, setFormLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  const [showPrintDialog, setShowPrintDialog] = useState(false);
+  const [savedDocName, setSavedDocName] = useState('');
 
   const [formData, setFormData] = useState<DeliveryNoteFormData>({
     customer: '',
@@ -213,10 +216,9 @@ export default function DeliveryNoteMain() {
       const data = await response.json();
 
       if (data.success) {
-        setSuccessMessage(`Surat Jalan ${data.data?.name || ''} berhasil disimpan!`);
-        setTimeout(() => {
-          router.push('/delivery-note/dnList');
-        }, 2000);
+        const dnName = data.data?.name || '';
+        setSavedDocName(dnName);
+        setShowPrintDialog(true);
       } else {
         setError(data.message || 'Gagal menyimpan surat jalan');
       }
@@ -517,8 +519,9 @@ export default function DeliveryNoteMain() {
                 <button
                   type="submit"
                   disabled={formLoading}
-                  className="bg-indigo-600 text-white hover:bg-indigo-700 px-4 py-2 rounded-md disabled:opacity-50"
+                  className="bg-indigo-600 text-white hover:bg-indigo-700 px-4 py-2 rounded-md disabled:opacity-50 flex items-center gap-2"
                 >
+                  {formLoading && <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>}
                   {formLoading
                     ? 'Memproses...'
                     : editingDeliveryNote
@@ -551,6 +554,15 @@ export default function DeliveryNoteMain() {
         isOpen={showCustomerDialog}
         onClose={() => setShowCustomerDialog(false)}
         onSelect={handleCustomerSelect}
+      />
+
+      {/* Print Dialog after save */}
+      <PrintDialog
+        isOpen={showPrintDialog}
+        onClose={() => { setShowPrintDialog(false); router.push('/delivery-note/dnList'); }}
+        documentType="Delivery Note"
+        documentName={savedDocName}
+        documentLabel="Surat Jalan"
       />
     </div>
   );

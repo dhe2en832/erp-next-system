@@ -32,10 +32,6 @@ export default function LoginPage() {
 
       if (data.success) {
         setIsRedirecting(true);
-        console.log('Login response data:', data);
-        console.log('Full name:', data.full_name);
-        console.log('Companies:', data.companies);
-        console.log('Needs company selection:', data.needs_company_selection);
         
         // Store login data in localStorage for company selection page
         localStorage.setItem('loginData', JSON.stringify({
@@ -46,13 +42,11 @@ export default function LoginPage() {
 
         // Redirect to company selection
         if (data.needs_company_selection) {
-          console.log('Redirecting to company selection...');
           // Use window.location.href for immediate redirect
           window.location.href = '/select-company';
           return; // Stop execution here
         } else if (data.companies.length === 1) {
           // Auto-select single company (fallback)
-          console.log('Auto-selecting single company...');
           const companyResponse = await fetch('/api/setup/auth/set-company', {
             method: 'POST',
             headers: {
@@ -71,7 +65,6 @@ export default function LoginPage() {
           }
         } else {
           // Fallback to dashboard
-          console.log('Fallback to dashboard...');
           router.push('/dashboard');
         }
       } else {

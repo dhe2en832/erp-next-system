@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import ItemDialog from '../../components/ItemDialog';
 
 interface Warehouse {
   name: string;
@@ -26,6 +27,9 @@ export default function StockEntryMain() {
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [isViewMode, setIsViewMode] = useState(false);
+  const [formLoading, setFormLoading] = useState(false);
+  const [showItemDialog, setShowItemDialog] = useState(false);
+  const [currentItemIndex, setCurrentItemIndex] = useState<number | null>(null);
   const [newEntry, setNewEntry] = useState({
     purpose: 'Material Receipt',
     posting_date: new Date().toISOString().split('T')[0],
@@ -110,6 +114,8 @@ export default function StockEntryMain() {
       return;
     }
 
+    setFormLoading(true);
+    setError('');
     try {
       const response = await fetch('/api/inventory/stock-entry', {
         method: 'POST',
@@ -126,6 +132,8 @@ export default function StockEntryMain() {
       }
     } catch {
       setError('Terjadi kesalahan saat membuat entri stok');
+    } finally {
+      setFormLoading(false);
     }
   };
 
@@ -228,10 +236,23 @@ export default function StockEntryMain() {
                       {newEntry.items.map((item, index) => (
                         <tr key={index}>
                           <td className="px-4 py-2">
-                            <select className="block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm" value={item.item_code} onChange={(e) => updateItemRow(index, 'item_code', e.target.value)}>
-                              <option value="">Pilih Barang</option>
-                              {items.map((it) => (<option key={it.name} value={it.item_code}>{it.item_name} ({it.item_code})</option>))}
-                            </select>
+                            <div className="flex gap-1">
+                              <input
+                                type="text"
+                                className="block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm bg-gray-50 cursor-pointer"
+                                value={item.item_code ? `${item.item_code}` : ''}
+                                readOnly
+                                placeholder="Klik untuk pilih barang..."
+                                onClick={() => { setCurrentItemIndex(index); setShowItemDialog(true); }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => { setCurrentItemIndex(index); setShowItemDialog(true); }}
+                                className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-xs hover:bg-indigo-200 whitespace-nowrap"
+                              >
+                                Pilih
+                              </button>
+                            </div>
                           </td>
                           <td className="px-4 py-2">
                             <input type="number" className="block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm" value={item.qty} onChange={(e) => updateItemRow(index, 'qty', parseFloat(e.target.value) || 0)} min="1" />
@@ -254,12 +275,29 @@ export default function StockEntryMain() {
               {/* Actions */}
               <div className="flex flex-col sm:flex-row justify-end gap-2 pt-4">
                 <button type="button" onClick={() => router.push('/stock-entry/seList')} className="w-full sm:w-auto bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400 min-h-[44px]">Batal</button>
-                <button type="button" onClick={handleCreateEntry} className="w-full sm:w-auto bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 min-h-[44px]">Buat Entri Stok</button>
+                <button type="button" onClick={handleCreateEntry} disabled={formLoading} className="w-full sm:w-auto bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 disabled:opacity-50 min-h-[44px] flex items-center justify-center gap-2">
+                  {formLoading && <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>}
+                  {formLoading ? 'Memproses...' : 'Buat Entri Stok'}
+                </button>
               </div>
             </div>
           </div>
         </div>
       )}
+
+      {/* Item Selection Dialog */}
+      <ItemDialog
+        isOpen={showItemDialog}
+        onClose={() => { setShowItemDialog(false); setCurrentItemIndex(null); }}
+        onSelect={(selectedItem) => {
+          if (currentItemIndex !== null) {
+            updateItemRow(currentItemIndex, 'item_code', selectedItem.item_code);
+          }
+          setShowItemDialog(false);
+          setCurrentItemIndex(null);
+        }}
+        showStock
+      />
     </div>
   );
 }

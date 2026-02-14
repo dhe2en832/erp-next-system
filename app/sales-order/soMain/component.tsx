@@ -6,6 +6,7 @@ import CustomerDialog from '../../components/CustomerDialog';
 import ItemDialog from '../../components/ItemDialog';
 import SalesPersonDialog from '../../components/SalesPersonDialog';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import PrintDialog from '../../components/PrintDialog';
 import { formatDate, parseDate } from '../../../utils/format';
 import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
 
@@ -38,6 +39,8 @@ export default function SalesOrderMain() {
   const [currentOrderStatus, setCurrentOrderStatus] = useState<string>('');
   const [error, setError] = useState('');
   const [formLoading, setFormLoading] = useState(false);
+  const [showPrintDialog, setShowPrintDialog] = useState(false);
+  const [savedDocName, setSavedDocName] = useState('');
 
   const [formData, setFormData] = useState({
     customer: '',
@@ -47,6 +50,7 @@ export default function SalesOrderMain() {
     sales_person: '',
     custom_notes_so: '',
     items: [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0, warehouse: '', stock_uom: '', available_stock: 0, actual_stock: 0, reserved_stock: 0 }],
+    payment_terms_template: '',
   });
 
   const [showCustomerDialog, setShowCustomerDialog] = useState(false);
@@ -54,6 +58,7 @@ export default function SalesOrderMain() {
   const [showSalesPersonDialog, setShowSalesPersonDialog] = useState(false);
   const [currentItemIndex, setCurrentItemIndex] = useState<number | null>(null);
   const [salesTeam, setSalesTeam] = useState<SalesTeamMember[]>([]);
+  const [paymentTermsList, setPaymentTermsList] = useState<{name: string}[]>([]);
 
   // Get company on mount
   useEffect(() => {
@@ -67,6 +72,22 @@ export default function SalesOrderMain() {
       }
     }
     if (savedCompany) setSelectedCompany(savedCompany);
+  }, []);
+
+  // Fetch payment terms templates
+  useEffect(() => {
+    const fetchPaymentTerms = async () => {
+      try {
+        const response = await fetch('/api/setup/payment-terms', { credentials: 'include' });
+        const data = await response.json();
+        if (data.success) {
+          setPaymentTermsList(data.data || []);
+        }
+      } catch (err) {
+        // silently fail — dropdown will be empty
+      }
+    };
+    fetchPaymentTerms();
   }, []);
 
   // Set default dates on mount
@@ -103,7 +124,6 @@ export default function SalesOrderMain() {
       
       if (data.success) {
         const order = data.data;
-        console.log('Order details loaded:', order);
         
         setEditingOrder(order);
         setCurrentOrderStatus(order.status || '');
@@ -157,6 +177,7 @@ export default function SalesOrderMain() {
           sales_person: salesPersonValue,
           custom_notes_so: order.custom_notes_so || '',
           items: mappedItems,
+          payment_terms_template: order.payment_terms_template || '',
         });
       } else {
         setError('Gagal memuat detail pesanan');
@@ -259,6 +280,7 @@ export default function SalesOrderMain() {
       sales_person: '',
       custom_notes_so: '',
       items: [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0, warehouse: '', stock_uom: '', available_stock: 0, actual_stock: 0, reserved_stock: 0 }],
+      payment_terms_template: '',
     });
     setSalesTeam([]);
     setError('');
@@ -316,7 +338,6 @@ export default function SalesOrderMain() {
         return data.data.default_warehouse;
       }
     } catch (error: unknown) {
-      console.log('Failed to get default warehouse:', error);
     }
     return 'Stores';
   };
@@ -408,6 +429,12 @@ export default function SalesOrderMain() {
       return;
     }
 
+    if (!formData.payment_terms_template) {
+      setError('Termin pembayaran harus dipilih');
+      setFormLoading(false);
+      return;
+    }
+
     const validItems = formData.items.filter(item => item.item_code && item.qty > 0);
     if (validItems.length === 0) {
       setError('Silakan tambahkan minimal satu barang yang valid');
@@ -432,6 +459,8 @@ export default function SalesOrderMain() {
         order_type: "Sales",
         currency: "IDR",
         status: "Draft",
+        
+        payment_terms_template: formData.payment_terms_template,
         
         sales_team: salesTeam.length > 0 ? salesTeam : (formData.sales_person ? [{
           sales_person: formData.sales_person,
@@ -465,9 +494,8 @@ export default function SalesOrderMain() {
 
       if (result.success) {
         const soName = result.data?.name || 'Unknown';
-        const action = editingOrder ? 'diperbarui' : 'dibuat';
-        alert(`Pesanan Penjualan ${soName} berhasil ${action}!`);
-        router.push('/sales-order/soList');
+        setSavedDocName(soName);
+        setShowPrintDialog(true);
       } else {
         const errorMessage = result.message || result.error || 'Gagal menyimpan pesanan penjualan';
         setError(errorMessage);
@@ -591,6 +619,25 @@ export default function SalesOrderMain() {
                   }`}
                   placeholder="DD/MM/YYYY"
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Termin Pembayaran <span className="text-red-500">*</span>
+                </label>
+                <select
+                  required
+                  className={`mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm ${
+                    isReadOnly ? 'bg-gray-100 cursor-not-allowed' : ''
+                  }`}
+                  value={formData.payment_terms_template}
+                  onChange={(e) => setFormData({ ...formData, payment_terms_template: e.target.value })}
+                  disabled={isReadOnly}
+                >
+                  <option value="">Pilih Termin Pembayaran...</option>
+                  {paymentTermsList.map((pt) => (
+                    <option key={pt.name} value={pt.name}>{pt.name}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">
@@ -865,8 +912,9 @@ export default function SalesOrderMain() {
                 <button
                   type="submit"
                   disabled={formLoading}
-                  className="bg-indigo-600 text-white hover:bg-indigo-700 px-4 py-2 rounded-md disabled:opacity-50"
+                  className="bg-indigo-600 text-white hover:bg-indigo-700 px-4 py-2 rounded-md disabled:opacity-50 flex items-center gap-2"
                 >
+                  {formLoading && <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>}
                   {formLoading 
                     ? 'Memproses...' 
                     : editingOrder 
@@ -904,6 +952,15 @@ export default function SalesOrderMain() {
         isOpen={showSalesPersonDialog}
         onClose={() => setShowSalesPersonDialog(false)}
         onSelect={handleSalesPersonSelect}
+      />
+
+      {/* Print Dialog after save */}
+      <PrintDialog
+        isOpen={showPrintDialog}
+        onClose={() => { setShowPrintDialog(false); router.push('/sales-order/soList'); }}
+        documentType="Sales Order"
+        documentName={savedDocName}
+        documentLabel="Pesanan Penjualan"
       />
     </div>
   );
