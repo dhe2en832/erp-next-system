@@ -160,18 +160,8 @@ export async function GET(request: NextRequest) {
     // Apply frontend filters
     invoices = applyFrontendFilters(invoices, { invoiceNo, customerName, salesPerson, dateFrom, dateTo });
 
-    // Get total count for pagination
-    const totalUrl = `${ERPNEXT_API_URL}/api/resource/Sales Invoice?fields=["name"]&filters=${encodeURIComponent(JSON.stringify(filters))}&limit_page_length=0`;
-    let total = invoices.length;
-    try {
-      const totalResponse = await fetch(totalUrl, { method: 'GET', headers });
-      const totalData = await totalResponse.json();
-      if (totalResponse.ok && totalData.data) {
-        total = totalData.data.filter((inv: any) => (inv.custom_total_komisi_sales || 0) > 0).length;
-      }
-    } catch {
-      // Use local count as fallback
-    }
+    // Use filtered invoices length as total (more accurate)
+    const total = invoices.length;
 
     return NextResponse.json({ success: true, data: invoices, total, page, limit });
   } catch (error) {

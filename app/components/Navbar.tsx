@@ -150,7 +150,7 @@ export default function Navbar() {
         // { name: 'Kas Masuk', href: '/payment/paymentMain?type=receive' },
         // { name: 'Kas Keluar', href: '/payment/paymentMain?type=pay' },
         { name: 'Pembayaran', href: '/payment' },
-        { name: 'Rekonsiliasi Pembayaran', href: '/payment-reconciliation' }
+        // { name: 'Rekonsiliasi Pembayaran', href: '/payment-reconciliation' }
       ]
     },
     {
@@ -170,7 +170,7 @@ export default function Navbar() {
         { name: 'Gudang', href: '/warehouse' },
         { name: 'Entri Stok', href: '/stock-entry' },
         { name: 'Rekonsiliasi Stok', href: '/stock-reconciliation' },
-        { name: 'Manajemen Stok', href: '/stock-management' }
+        // { name: 'Manajemen Stok', href: '/stock-management' }
       ]
     },
     {
@@ -190,7 +190,7 @@ export default function Navbar() {
       name: 'Komisi',
       icon: '🏆',
       items: [
-        { name: 'Dashboard Komisi', href: '/commission' },
+        // { name: 'Dashboard Komisi', href: '/commission' },
         { name: 'Pembayaran Komisi', href: '/commission-payment' }
       ]
     },

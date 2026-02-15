@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
@@ -35,22 +35,16 @@ export default function CommissionPaymentList() {
     salesPerson: '',
   });
 
-  // Debounced filters untuk API
-  const [debouncedFilters, setDebouncedFilters] = useState(filters);
-
-  // Debounce effect
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedFilters(filters);
-    }, 500); // 500ms delay
-
-    return () => clearTimeout(timer);
-  }, [filters]);
-
   // Pagination states
-  const [page, setPage] = useState(1);
+  const [currentPage, setCurrentPage] = useState(1);
   const [limit, setLimit] = useState(20);
   const [total, setTotal] = useState(0);
+
+  // Refs untuk input focus
+  const invoiceNoRef = useRef<HTMLInputElement>(null);
+  const customerNameRef = useRef<HTMLInputElement>(null);
+  const salesPersonRef = useRef<HTMLInputElement>(null);
+  const lastActiveInput = useRef<string | null>(null);
 
   useEffect(() => {
     const saved = localStorage.getItem('selected_company');
@@ -69,7 +63,7 @@ export default function CommissionPaymentList() {
     setFilters(prev => ({ ...prev, ...defaultFilters }));
   }, []);
 
-  const fetchPayableInvoices = useCallback(async (pageNum = 1) => {
+  const fetchPayableInvoices = async (pageNum = currentPage) => {
     if (!selectedCompany) return;
     setLoading(true);
     setError('');
@@ -81,18 +75,18 @@ export default function CommissionPaymentList() {
       });
 
       // Add filters if provided
-      if (debouncedFilters.invoiceNo) params.set('invoice_no', debouncedFilters.invoiceNo);
-      if (debouncedFilters.customerName) params.set('customer_name', debouncedFilters.customerName);
-      if (debouncedFilters.status && debouncedFilters.status !== 'all') params.set('status', debouncedFilters.status);
-      if (debouncedFilters.dateFrom) {
-        const parsedDate = parseDate(debouncedFilters.dateFrom);
+      if (filters.invoiceNo) params.set('invoice_no', filters.invoiceNo);
+      if (filters.customerName) params.set('customer_name', filters.customerName);
+      if (filters.status && filters.status !== 'all') params.set('status', filters.status);
+      if (filters.dateFrom) {
+        const parsedDate = parseDate(filters.dateFrom);
         if (parsedDate) params.set('date_from', parsedDate);
       }
-      if (debouncedFilters.dateTo) {
-        const parsedDate = parseDate(debouncedFilters.dateTo);
+      if (filters.dateTo) {
+        const parsedDate = parseDate(filters.dateTo);
         if (parsedDate) params.set('date_to', parsedDate);
       }
-      if (debouncedFilters.salesPerson) params.set('sales_person', debouncedFilters.salesPerson);
+      if (filters.salesPerson) params.set('sales_person', filters.salesPerson);
 
       const response = await fetch(`/api/finance/commission/payable-invoices?${params}`, { credentials: 'include' });
       const data = await response.json();
@@ -109,19 +103,29 @@ export default function CommissionPaymentList() {
     } finally {
       setLoading(false);
     }
-  }, [selectedCompany, debouncedFilters, limit]);
+  };
 
   useEffect(() => {
     if (selectedCompany) {
-      setPage(1);
-      fetchPayableInvoices(1);
+      fetchPayableInvoices();
     }
-  }, [selectedCompany, debouncedFilters, fetchPayableInvoices]);
+  }, [selectedCompany, currentPage, filters, limit]);
+
+  // Restore focus after re-render
+  useEffect(() => {
+    if (lastActiveInput.current === 'invoiceNo' && invoiceNoRef.current) {
+      invoiceNoRef.current.focus();
+    } else if (lastActiveInput.current === 'customerName' && customerNameRef.current) {
+      customerNameRef.current.focus();
+    } else if (lastActiveInput.current === 'salesPerson' && salesPersonRef.current) {
+      salesPersonRef.current.focus();
+    }
+  });
 
   const handleReset = () => {
     const emptyFilters = { invoiceNo: '', customerName: '', status: 'all', dateFrom: '', dateTo: '', salesPerson: '' };
     setFilters(emptyFilters);
-    setPage(1);
+    setCurrentPage(1);
   };
   const unpaidInvoices = invoices.filter(inv => !inv.custom_commission_paid);
   const paidInvoices = invoices.filter(inv => inv.custom_commission_paid);
@@ -187,9 +191,14 @@ export default function CommissionPaymentList() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">No. Faktur</label>
             <input
+              ref={invoiceNoRef}
               type="text"
               value={filters.invoiceNo}
-              onChange={(e) => setFilters(prev => ({ ...prev, invoiceNo: e.target.value }))}
+              onChange={(e) => {
+                lastActiveInput.current = 'invoiceNo';
+                setFilters(prev => ({ ...prev, invoiceNo: e.target.value }));
+                setCurrentPage(1);
+              }}
               placeholder="Cari no faktur..."
               className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500"
             />
@@ -197,9 +206,14 @@ export default function CommissionPaymentList() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Nama Pelanggan</label>
             <input
+              ref={customerNameRef}
               type="text"
               value={filters.customerName}
-              onChange={(e) => setFilters(prev => ({ ...prev, customerName: e.target.value }))}
+              onChange={(e) => {
+                lastActiveInput.current = 'customerName';
+                setFilters(prev => ({ ...prev, customerName: e.target.value }));
+                setCurrentPage(1);
+              }}
               placeholder="Cari pelanggan..."
               className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500"
             />
@@ -207,9 +221,14 @@ export default function CommissionPaymentList() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Sales Person</label>
             <input
+              ref={salesPersonRef}
               type="text"
               value={filters.salesPerson}
-              onChange={(e) => setFilters(prev => ({ ...prev, salesPerson: e.target.value }))}
+              onChange={(e) => {
+                lastActiveInput.current = 'salesPerson';
+                setFilters(prev => ({ ...prev, salesPerson: e.target.value }));
+                setCurrentPage(1);
+              }}
               placeholder="Cari sales..."
               className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500"
             />
@@ -218,7 +237,10 @@ export default function CommissionPaymentList() {
             <label className="block text-sm font-medium text-gray-700 mb-1">Status Komisi</label>
             <select
               value={filters.status}
-              onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
+              onChange={(e) => {
+                setFilters(prev => ({ ...prev, status: e.target.value }));
+                setCurrentPage(1);
+              }}
               className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500"
             >
               <option value="all">Semua</option>
@@ -230,7 +252,10 @@ export default function CommissionPaymentList() {
             <label className="block text-sm font-medium text-gray-700 mb-1">Dari Tanggal</label>
             <BrowserStyleDatePicker
               value={filters.dateFrom}
-              onChange={(value) => setFilters(prev => ({ ...prev, dateFrom: value }))}
+              onChange={(value) => {
+                setFilters(prev => ({ ...prev, dateFrom: value }));
+                setCurrentPage(1);
+              }}
               className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500"
             />
           </div>
@@ -238,7 +263,10 @@ export default function CommissionPaymentList() {
             <label className="block text-sm font-medium text-gray-700 mb-1">Sampai Tanggal</label>
             <BrowserStyleDatePicker
               value={filters.dateTo}
-              onChange={(value) => setFilters(prev => ({ ...prev, dateTo: value }))}
+              onChange={(value) => {
+                setFilters(prev => ({ ...prev, dateTo: value }));
+                setCurrentPage(1);
+              }}
               className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500"
             />
           </div>
@@ -311,22 +339,22 @@ export default function CommissionPaymentList() {
         {total > 0 && (
           <div className="px-4 py-3 border-t border-gray-200 flex items-center justify-between">
             <div className="text-sm text-gray-500">
-              Menampilkan {((page - 1) * limit) + 1} - {Math.min(page * limit, total)} dari {total} data
+              Menampilkan {((currentPage - 1) * limit) + 1} - {Math.min(currentPage * limit, total)} dari {total} data
             </div>
             <div className="flex gap-2">
               <button
-                onClick={() => { if (page > 1) { setPage(page - 1); fetchPayableInvoices(page - 1); } }}
-                disabled={page <= 1}
+                onClick={() => { if (currentPage > 1) { setCurrentPage(currentPage - 1); fetchPayableInvoices(currentPage - 1); } }}
+                disabled={currentPage <= 1}
                 className="px-3 py-1 border border-gray-300 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
               >
                 &larr; Sebelumnya
               </button>
               <span className="px-3 py-1 text-sm text-gray-600">
-                Halaman {page}
+                Halaman {currentPage}
               </span>
               <button
-                onClick={() => { if (page * limit < total) { setPage(page + 1); fetchPayableInvoices(page + 1); } }}
-                disabled={page * limit >= total}
+                onClick={() => { if (currentPage * limit < total) { setCurrentPage(currentPage + 1); fetchPayableInvoices(currentPage + 1); } }}
+                disabled={currentPage * limit >= total}
                 className="px-3 py-1 border border-gray-300 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
               >
                 Selanjutnya &rarr;
