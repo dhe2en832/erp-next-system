@@ -11,6 +11,7 @@ interface PayableInvoice {
   posting_date: string;
   grand_total: number;
   custom_total_komisi_sales: number;
+  custom_commission_paid?: boolean;
   selected: boolean;
 }
 
@@ -145,7 +146,9 @@ export default function CommissionPaymentMain() {
       const data = await response.json();
 
       if (data.success) {
-        setInvoices((data.data || []).map((inv: any) => ({ ...inv, selected: true })));
+        // Filter hanya yang belum dibayar (custom_commission_paid = false atau undefined)
+        const unpaidInvoices = (data.data || []).filter((inv: any) => !inv.custom_commission_paid);
+        setInvoices(unpaidInvoices.map((inv: any) => ({ ...inv, selected: true })));
       } else {
         setError(data.message || 'Gagal memuat faktur');
       }

@@ -23,7 +23,17 @@ export default function CommissionPaymentList() {
   const [error, setError] = useState('');
   const [selectedCompany, setSelectedCompany] = useState('');
 
-  // Filter states
+  // Filter states - untuk input UI saja
+  const [inputFilters, setInputFilters] = useState({
+    invoiceNo: '',
+    customerName: '',
+    status: 'all',
+    dateFrom: '',
+    dateTo: '',
+    salesPerson: '',
+  });
+
+  // Filter states - untuk fetch data (hanya update saat klik Cari)
   const [filters, setFilters] = useState({
     invoiceNo: '',
     customerName: '',
@@ -48,12 +58,16 @@ export default function CommissionPaymentList() {
     yesterday.setDate(yesterday.getDate() - 1);
     
     const formatDate = (date: Date) => date.toISOString().split('T')[0];
+    const defaultDateFrom = formatDate(yesterday);
+    const defaultDateTo = formatDate(today);
     
-    setFilters(prev => ({
-      ...prev,
-      dateFrom: formatDate(yesterday),
-      dateTo: formatDate(today)
-    }));
+    const defaultFilters = {
+      dateFrom: defaultDateFrom,
+      dateTo: defaultDateTo
+    };
+    
+    setFilters(prev => ({ ...prev, ...defaultFilters }));
+    setInputFilters(prev => ({ ...prev, ...defaultFilters }));
   }, []);
 
   const fetchPayableInvoices = useCallback(async (pageNum = 1) => {
@@ -99,7 +113,17 @@ export default function CommissionPaymentList() {
     }
   }, [selectedCompany, filters, fetchPayableInvoices]);
 
-  // Calculate totals
+  const handleSearch = () => {
+    setFilters(inputFilters);
+    setPage(1);
+  };
+
+  const handleReset = () => {
+    const emptyFilters = { invoiceNo: '', customerName: '', status: 'all', dateFrom: '', dateTo: '', salesPerson: '' };
+    setInputFilters(emptyFilters);
+    setFilters(emptyFilters);
+    setPage(1);
+  };
   const unpaidInvoices = invoices.filter(inv => !inv.custom_commission_paid);
   const paidInvoices = invoices.filter(inv => inv.custom_commission_paid);
   const totalCommission = invoices.reduce((sum, inv) => sum + (inv.custom_total_komisi_sales || 0), 0);
@@ -165,8 +189,8 @@ export default function CommissionPaymentList() {
             <label className="block text-sm font-medium text-gray-700 mb-1">No. Faktur</label>
             <input
               type="text"
-              value={filters.invoiceNo}
-              onChange={(e) => setFilters(prev => ({ ...prev, invoiceNo: e.target.value }))}
+              value={inputFilters.invoiceNo}
+              onChange={(e) => setInputFilters(prev => ({ ...prev, invoiceNo: e.target.value }))}
               placeholder="Cari no faktur..."
               className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500"
             />
@@ -175,8 +199,8 @@ export default function CommissionPaymentList() {
             <label className="block text-sm font-medium text-gray-700 mb-1">Nama Pelanggan</label>
             <input
               type="text"
-              value={filters.customerName}
-              onChange={(e) => setFilters(prev => ({ ...prev, customerName: e.target.value }))}
+              value={inputFilters.customerName}
+              onChange={(e) => setInputFilters(prev => ({ ...prev, customerName: e.target.value }))}
               placeholder="Cari pelanggan..."
               className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500"
             />
@@ -185,8 +209,8 @@ export default function CommissionPaymentList() {
             <label className="block text-sm font-medium text-gray-700 mb-1">Sales Person</label>
             <input
               type="text"
-              value={filters.salesPerson}
-              onChange={(e) => setFilters(prev => ({ ...prev, salesPerson: e.target.value }))}
+              value={inputFilters.salesPerson}
+              onChange={(e) => setInputFilters(prev => ({ ...prev, salesPerson: e.target.value }))}
               placeholder="Cari sales..."
               className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500"
             />
@@ -194,8 +218,8 @@ export default function CommissionPaymentList() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Status Komisi</label>
             <select
-              value={filters.status}
-              onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
+              value={inputFilters.status}
+              onChange={(e) => setInputFilters(prev => ({ ...prev, status: e.target.value }))}
               className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500"
             >
               <option value="all">Semua</option>
@@ -207,8 +231,8 @@ export default function CommissionPaymentList() {
             <label className="block text-sm font-medium text-gray-700 mb-1">Dari Tanggal</label>
             <input
               type="date"
-              value={filters.dateFrom}
-              onChange={(e) => setFilters(prev => ({ ...prev, dateFrom: e.target.value }))}
+              value={inputFilters.dateFrom}
+              onChange={(e) => setInputFilters(prev => ({ ...prev, dateFrom: e.target.value }))}
               className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500"
             />
           </div>
@@ -216,24 +240,21 @@ export default function CommissionPaymentList() {
             <label className="block text-sm font-medium text-gray-700 mb-1">Sampai Tanggal</label>
             <input
               type="date"
-              value={filters.dateTo}
-              onChange={(e) => setFilters(prev => ({ ...prev, dateTo: e.target.value }))}
+              value={inputFilters.dateTo}
+              onChange={(e) => setInputFilters(prev => ({ ...prev, dateTo: e.target.value }))}
               className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500"
             />
           </div>
         </div>
         <div className="mt-4 flex justify-end gap-2">
           <button
-            onClick={() => {
-              setFilters({ invoiceNo: '', customerName: '', status: 'all', dateFrom: '', dateTo: '', salesPerson: '' });
-              setPage(1);
-            }}
+            onClick={handleReset}
             className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md text-sm hover:bg-gray-50"
           >
             Reset Filter
           </button>
           <button
-            onClick={() => { setPage(1); fetchPayableInvoices(1); }}
+            onClick={handleSearch}
             className="px-4 py-2 bg-indigo-600 text-white rounded-md text-sm hover:bg-indigo-700"
           >
             Cari
