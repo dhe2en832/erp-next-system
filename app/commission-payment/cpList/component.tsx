@@ -35,6 +35,18 @@ export default function CommissionPaymentList() {
     salesPerson: '',
   });
 
+  // Debounced filters untuk API
+  const [debouncedFilters, setDebouncedFilters] = useState(filters);
+
+  // Debounce effect
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedFilters(filters);
+    }, 500); // 500ms delay
+
+    return () => clearTimeout(timer);
+  }, [filters]);
+
   // Pagination states
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
@@ -69,18 +81,18 @@ export default function CommissionPaymentList() {
       });
 
       // Add filters if provided
-      if (filters.invoiceNo) params.set('invoice_no', filters.invoiceNo);
-      if (filters.customerName) params.set('customer_name', filters.customerName);
-      if (filters.status && filters.status !== 'all') params.set('status', filters.status);
-      if (filters.dateFrom) {
-        const parsedDate = parseDate(filters.dateFrom);
+      if (debouncedFilters.invoiceNo) params.set('invoice_no', debouncedFilters.invoiceNo);
+      if (debouncedFilters.customerName) params.set('customer_name', debouncedFilters.customerName);
+      if (debouncedFilters.status && debouncedFilters.status !== 'all') params.set('status', debouncedFilters.status);
+      if (debouncedFilters.dateFrom) {
+        const parsedDate = parseDate(debouncedFilters.dateFrom);
         if (parsedDate) params.set('date_from', parsedDate);
       }
-      if (filters.dateTo) {
-        const parsedDate = parseDate(filters.dateTo);
+      if (debouncedFilters.dateTo) {
+        const parsedDate = parseDate(debouncedFilters.dateTo);
         if (parsedDate) params.set('date_to', parsedDate);
       }
-      if (filters.salesPerson) params.set('sales_person', filters.salesPerson);
+      if (debouncedFilters.salesPerson) params.set('sales_person', debouncedFilters.salesPerson);
 
       const response = await fetch(`/api/finance/commission/payable-invoices?${params}`, { credentials: 'include' });
       const data = await response.json();
@@ -97,14 +109,14 @@ export default function CommissionPaymentList() {
     } finally {
       setLoading(false);
     }
-  }, [selectedCompany, filters, limit]);
+  }, [selectedCompany, debouncedFilters, limit]);
 
   useEffect(() => {
     if (selectedCompany) {
       setPage(1);
       fetchPayableInvoices(1);
     }
-  }, [selectedCompany, filters, fetchPayableInvoices]);
+  }, [selectedCompany, debouncedFilters, fetchPayableInvoices]);
 
   const handleReset = () => {
     const emptyFilters = { invoiceNo: '', customerName: '', status: 'all', dateFrom: '', dateTo: '', salesPerson: '' };
