@@ -24,6 +24,7 @@ interface PurchaseReceiptDetail {
   company: string;
   currency: string;
   custom_notes_pr?: string;
+  remarks?: string;
   items: PurchaseReceiptItem[];
 }
 
@@ -72,6 +73,7 @@ interface PurchaseInvoiceFormData {
   currency: string;
   items: PurchaseInvoiceItem[];
   custom_notes_pi?: string;
+  
 }
 
 export default function PurchaseInvoiceMain() {
@@ -307,7 +309,7 @@ export default function PurchaseInvoiceMain() {
           due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
           company: prData.company,
           currency: prData.currency,
-          custom_notes_pi: prData.custom_notes_pr,
+          custom_notes_pi: prData.custom_notes_pr||prData.remarks,
           items: prData.items.map(item => ({
             item_code: item.item_code,
             item_name: item.item_name,

@@ -145,10 +145,10 @@ export default function Navbar() {
       name: 'Kas & Bank',
       icon: '💳',
       items: [
-        { name: 'Kas Masuk (Multi)', href: '/kas-masuk' },
-        { name: 'Kas Keluar (Multi)', href: '/kas-keluar' },
-        { name: 'Kas Masuk', href: '/payment/paymentMain?type=receive' },
-        { name: 'Kas Keluar', href: '/payment/paymentMain?type=pay' },
+        { name: 'Kas Masuk', href: '/kas-masuk' },
+        { name: 'Kas Keluar', href: '/kas-keluar' },
+        // { name: 'Kas Masuk', href: '/payment/paymentMain?type=receive' },
+        // { name: 'Kas Keluar', href: '/payment/paymentMain?type=pay' },
         { name: 'Pembayaran', href: '/payment' },
         { name: 'Rekonsiliasi Pembayaran', href: '/payment-reconciliation' }
       ]
