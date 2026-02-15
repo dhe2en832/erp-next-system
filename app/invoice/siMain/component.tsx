@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import dayjs from 'dayjs';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import PrintDialog from '../../components/PrintDialog';
 import { formatDate, parseDate } from '../../../utils/format';
@@ -32,6 +33,11 @@ interface CompleteInvoiceItem extends InvoiceItem {
   conversion_factor?: number;
 }
 
+interface SalesTeamMember {
+  sales_person: string;
+  allocated_percentage: number;
+}
+
 export default function SalesInvoiceMain() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -52,6 +58,8 @@ export default function SalesInvoiceMain() {
   const [deliveryNotes, setDeliveryNotes] = useState<any[]>([]);
   const [deliveryNotesLoading, setDeliveryNotesLoading] = useState(false);
   const [deliveryNotesError, setDeliveryNotesError] = useState('');
+
+  const [salesTeam, setSalesTeam] = useState<SalesTeamMember[]>([]);
 
   const [formData, setFormData] = useState({
     customer: '',
@@ -94,6 +102,7 @@ export default function SalesInvoiceMain() {
     outstanding_amount: 0,
     custom_total_komisi_sales: 0,
     custom_notes_si: '',
+    payment_terms_template: '',
   });
 
   // Get company on mount
@@ -154,8 +163,8 @@ export default function SalesInvoiceMain() {
           ...formData,
           customer: invoice.customer,
           customer_name: invoice.customer_name || invoice.customer,
-          posting_date: formatDate(invoice.posting_date) || formatDate(new Date()),
-          due_date: formatDate(invoice.due_date) || formatDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)),
+          posting_date: invoice.posting_date ? dayjs(invoice.posting_date).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD'),
+          due_date: invoice.due_date ? dayjs(invoice.due_date).format('YYYY-MM-DD') : dayjs().add(30, 'day').format('YYYY-MM-DD'),
           company: selectedCompany,
           items: invoiceItems,
           currency: invoice.currency || 'IDR',
@@ -337,7 +346,29 @@ export default function SalesInvoiceMain() {
         // Step 3: Calculate due date from SO payment terms
         const postingDate = new Date().toISOString().split('T')[0];
         const firstSOName = invoiceItems.find((item: any) => item.sales_order)?.sales_order || '';
+        
+        // Fetch SO to get payment_terms_template (since DN doesn't store it)
+        let paymentTermsTemplate = '';
+        try {
+          const soRes = await fetch(`/api/sales/orders/${encodeURIComponent(firstSOName)}`, { credentials: 'include' });
+          const soData = await soRes.json();
+          if (soData.success && soData.data?.payment_terms_template) {
+            paymentTermsTemplate = soData.data.payment_terms_template;
+          }
+        } catch {
+          // ignore error, will use empty string
+        }
+        
         const dueDate = await calculateDueDate(postingDate, firstSOName);
+
+        // Debug logging
+        console.log('[DEBUG] DN Data:', {
+          postingDate,
+          dueDate,
+          salesTeam: completeDnData.sales_team,
+          paymentTerms: paymentTermsTemplate,
+          firstSOName
+        });
 
         setFormData({
           customer: completeDnData.customer || '',
@@ -361,7 +392,18 @@ export default function SalesInvoiceMain() {
           base_total: 0, base_net_total: 0, base_grand_total: 0,
           total: 0, net_total: 0, grand_total: 0, outstanding_amount: 0,
           custom_notes_si: completeDnData.custom_notes_dn || '',
+          payment_terms_template: paymentTermsTemplate,
         });
+        
+        console.log('[DEBUG] Setting formData dates:', { postingDate, dueDate });
+        
+        // Copy sales_team from DN
+        const loadedSalesTeam = completeDnData.sales_team?.map((member: any) => ({
+          sales_person: member.sales_person || '',
+          allocated_percentage: member.allocated_percentage || 0
+        })) || [];
+        console.log('[DEBUG] Loaded sales_team:', loadedSalesTeam);
+        setSalesTeam(loadedSalesTeam);
         setShowDeliveryNoteDialog(false);
         setError('');
       } else {
@@ -378,7 +420,31 @@ export default function SalesInvoiceMain() {
     setError('');
 
     try {
+      // Validasi tanggal
+      if (!formData.posting_date || formData.posting_date === 'Invalid Date') {
+        setError('Tanggal Posting tidak valid');
+        setFormLoading(false);
+        return;
+      }
+      if (!formData.due_date || formData.due_date === 'Invalid Date') {
+        setError('Tanggal Jatuh Tempo tidak valid');
+        setFormLoading(false);
+        return;
+      }
+      
+      // Validasi due_date harus >= posting_date
+      const postingDateObj = new Date(formData.posting_date);
+      const dueDateObj = new Date(formData.due_date);
+      if (dueDateObj < postingDateObj) {
+        setError('Tanggal Jatuh Tempo tidak boleh lebih awal dari Tanggal Posting');
+        setFormLoading(false);
+        return;
+      }
+
       const total = formData.items.reduce((sum, item) => sum + (item.amount || 0), 0);
+
+      console.log('[DEBUG] Submitting SI with sales_team:', salesTeam);
+      console.log('[DEBUG] FormData dates:', { posting: formData.posting_date, due: formData.due_date });
 
       const invoicePayload = {
         company: selectedCompany,
@@ -397,6 +463,15 @@ export default function SalesInvoiceMain() {
         remarks: formData.items.find(item => item.delivery_note)
           ? `Generated from Delivery Note: ${formData.items.find(item => item.delivery_note)?.delivery_note}`
           : 'Direct Sales Invoice',
+        sales_team: salesTeam.length > 0 ? salesTeam.map((m, idx) => ({ 
+          sales_person: m.sales_person, 
+          allocated_percentage: m.allocated_percentage,
+          idx: idx + 1,
+          doctype: 'Sales Team',
+          parentfield: 'sales_team',
+          parenttype: 'Sales Invoice'
+        })) : undefined,
+        payment_terms_template: formData.payment_terms_template || undefined,
         items: formData.items.map(item => ({
           item_code: item.item_code,
           qty: item.qty,
@@ -421,6 +496,8 @@ export default function SalesInvoiceMain() {
         base_grand_total: total,
         outstanding_amount: total,
       };
+
+      console.log('[DEBUG] SI Payload:', JSON.stringify(invoicePayload, null, 2));
 
       // Determine if this is create or update
       const isUpdate = !!editingInvoice;

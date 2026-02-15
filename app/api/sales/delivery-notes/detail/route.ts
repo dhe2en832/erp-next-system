@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
       }, { status: 500 });
     }
 
-    const erpNextUrl = `${baseUrl}/api/resource/Delivery Note/${name}?fields=["*"]`;
+    const erpNextUrl = `${baseUrl}/api/method/frappe.desk.form.load.getdoc?doctype=Delivery%20Note&name=${encodeURIComponent(name)}`;
 
     const response = await fetch(erpNextUrl, {
       method: 'GET',
@@ -44,10 +44,13 @@ export async function GET(request: NextRequest) {
 
     const data = await response.json();
 
+    // form.load.getdoc returns data in different structure
+    const dnData = data.docs?.[0] || data.doc || data.data || data;
+
     return NextResponse.json({
       success: true,
       message: 'Delivery Note detail fetched successfully',
-      data: data.data
+      data: dnData
     });
 
   } catch (error: any) {

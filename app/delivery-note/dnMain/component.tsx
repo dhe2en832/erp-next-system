@@ -38,12 +38,18 @@ interface DeliveryNoteItem {
   delivered_qty?: number;
 }
 
+interface SalesTeamMember {
+  sales_person: string;
+  allocated_percentage: number;
+}
+
 interface DeliveryNoteFormData {
   customer: string;
   customer_name: string;
   posting_date: string;
   sales_order: string;
   custom_notes_dn: string;
+  payment_terms_template?: string;
   items: DeliveryNoteItem[];
 }
 
@@ -70,6 +76,8 @@ export default function DeliveryNoteMain() {
     custom_notes_dn: '',
     items: [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0, uom: 'Nos' }],
   });
+
+  const [salesTeam, setSalesTeam] = useState<SalesTeamMember[]>([]);
 
   const [showSalesOrderDialog, setShowSalesOrderDialog] = useState(false);
   const [showCustomerDialog, setShowCustomerDialog] = useState(false);
@@ -117,8 +125,15 @@ export default function DeliveryNoteMain() {
           posting_date: formatDate(dn.posting_date),
           sales_order: salesOrderValue,
           custom_notes_dn: dn.custom_notes_dn || '',
+          payment_terms_template: dn.payment_terms_template || '',
           items: dn.items || [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0 }],
         });
+        // Load sales_team from DN
+        const loadedSalesTeam = dn.sales_team?.map((member: any) => ({
+          sales_person: member.sales_person || '',
+          allocated_percentage: member.allocated_percentage || 0
+        })) || [];
+        setSalesTeam(loadedSalesTeam);
       } else {
         setError('Gagal memuat detail surat jalan');
       }
@@ -138,6 +153,7 @@ export default function DeliveryNoteMain() {
         customer: '',
         items: [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0 }],
       });
+      setSalesTeam([]);
       return;
     }
     try {
@@ -151,8 +167,15 @@ export default function DeliveryNoteMain() {
           posting_date: new Date().toISOString().split('T')[0],
           sales_order: salesOrderName,
           custom_notes_dn: order.custom_notes_so || '',
+          payment_terms_template: order.payment_terms_template || '',
           items: order.items || [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0 }],
         });
+        // Copy sales_team from SO
+        const loadedSalesTeam = order.sales_team?.map((member: any) => ({
+          sales_person: member.sales_person || '',
+          allocated_percentage: member.allocated_percentage || 0
+        })) || [];
+        setSalesTeam(loadedSalesTeam);
       }
     } catch (err) {
       console.error('Error fetching sales order details:', err);
@@ -189,6 +212,8 @@ export default function DeliveryNoteMain() {
           remarks: `Based on Sales Order: ${formData.sales_order}`
         }),
         custom_notes_dn: formData.custom_notes_dn || '',
+        payment_terms_template: formData.payment_terms_template || undefined,
+        sales_team: salesTeam.length > 0 ? salesTeam : undefined,
         items: formData.items.map((item) => ({
           item_code: item.item_code,
           item_name: item.item_name,
@@ -206,6 +231,8 @@ export default function DeliveryNoteMain() {
           stock_uom: item.stock_uom || 'Nos',
         }))
       };
+
+      console.log('[DEBUG] DN Payload:', deliveryNotePayload);
 
       const response = await fetch('/api/sales/delivery-notes', {
         method: 'POST',
@@ -237,8 +264,10 @@ export default function DeliveryNoteMain() {
       posting_date: new Date().toISOString().split('T')[0],
       sales_order: '',
       custom_notes_dn: '',
+      payment_terms_template: '',
       items: [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0, uom: 'Nos' }],
     });
+    setSalesTeam([]);
     setError('');
     setFormLoading(false);
     setEditingDeliveryNote(null);
@@ -270,7 +299,21 @@ export default function DeliveryNoteMain() {
           posting_date: new Date().toISOString().split('T')[0],
           sales_order: order.name,
           custom_notes_dn: order.custom_notes_so || '',
+          payment_terms_template: order.payment_terms_template || '',
           items: deliveryNoteItems,
+        });
+        // Copy sales_team from SO
+        const loadedSalesTeam = order.sales_team?.map((member: any) => ({
+          sales_person: member.sales_person || '',
+          allocated_percentage: member.allocated_percentage || 0
+        })) || [];
+        setSalesTeam(loadedSalesTeam);
+        
+        // Debug logging
+        console.log('[DEBUG] SO Data loaded:', {
+          salesOrder: order.name,
+          payment_terms_template: order.payment_terms_template,
+          sales_team: order.sales_team
         });
       } else {
         setError('Gagal memuat detail pesanan penjualan');

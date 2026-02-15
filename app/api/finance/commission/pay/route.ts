@@ -43,8 +43,19 @@ export async function POST(request: NextRequest) {
     }
 
     const totalAmount = invoices.reduce((sum: number, inv: any) => sum + (inv.commission_amount || 0), 0);
-    const expenseAccount = commission_expense_account || '519000 - Biaya Komisi Penjualan - BAC';
-    const cashAccount = paid_from_account || '111100 - Kas - BAC';
+    
+    // Build account names based on company
+    // Extract company abbreviation (e.g., "Berkat Abadi Cirebon" -> "BAC")
+    const companyWords = company.split(' ');
+    const companyAbbr = companyWords.length > 1 
+      ? companyWords.map((w: string) => w[0]).join('').toUpperCase()
+      : company.substring(0, 3).toUpperCase();
+    
+    const expenseAccount = commission_expense_account || `519000 - Biaya Komisi Penjualan - ${companyAbbr}`;
+    const cashAccount = paid_from_account || `111100 - Kas - ${companyAbbr}`;
+    const costCenter = `Main - ${companyAbbr}`;
+
+    console.log('[DEBUG] Using accounts:', { expenseAccount, cashAccount, costCenter, company });
 
     // Step 1: Create Journal Entry for commission payment
     // Debit: Commission Expense account (with Party Type Employee if employee_id provided)
@@ -53,7 +64,7 @@ export async function POST(request: NextRequest) {
       account: expenseAccount,
       debit_in_account_currency: totalAmount,
       credit_in_account_currency: 0,
-      cost_center: 'Main - BAC',
+      cost_center: costCenter,
     };
 
     // If employee_id is provided, set Party Type = Employee
@@ -66,7 +77,7 @@ export async function POST(request: NextRequest) {
       account: cashAccount,
       debit_in_account_currency: 0,
       credit_in_account_currency: totalAmount,
-      cost_center: 'Main - BAC',
+      cost_center: costCenter,
     };
 
     const journalEntry = {

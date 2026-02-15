@@ -179,6 +179,19 @@ export async function POST(request: NextRequest) {
       base_write_off_amount: 0
     };
 
+    // Add optional fields if provided
+    if (invoiceData.sales_team && invoiceData.sales_team.length > 0) {
+      payload.sales_team = invoiceData.sales_team;
+    }
+
+    if (invoiceData.payment_terms_template) {
+      payload.payment_terms_template = invoiceData.payment_terms_template;
+    }
+
+    if (invoiceData.taxes_and_charges) {
+      payload.taxes_and_charges = invoiceData.taxes_and_charges;
+    }
+
     // Add calculated totals if provided
     if (invoiceData.grand_total) {
       payload.grand_total = invoiceData.grand_total;
@@ -190,7 +203,8 @@ export async function POST(request: NextRequest) {
       payload.outstanding_amount = invoiceData.outstanding_amount || invoiceData.grand_total;
     }
 
-    console.log('Final Payload:', JSON.stringify(payload, null, 2));
+    console.log('Final Payload with sales_team:', JSON.stringify(payload, null, 2));
+    console.log('Sales Team in payload:', payload.sales_team);
 
     const response = await fetch(erpNextUrl, {
       method: 'POST',
