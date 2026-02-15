@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
+import { formatDate, parseDate } from '../../../utils/format';
 
 interface PayableInvoice {
   name: string;
@@ -23,17 +25,7 @@ export default function CommissionPaymentList() {
   const [error, setError] = useState('');
   const [selectedCompany, setSelectedCompany] = useState('');
 
-  // Filter states - untuk input UI saja
-  const [inputFilters, setInputFilters] = useState({
-    invoiceNo: '',
-    customerName: '',
-    status: 'all',
-    dateFrom: '',
-    dateTo: '',
-    salesPerson: '',
-  });
-
-  // Filter states - untuk fetch data (hanya update saat klik Cari)
+  // Filter states - langsung digunakan untuk fetch (responsif)
   const [filters, setFilters] = useState({
     invoiceNo: '',
     customerName: '',
@@ -57,17 +49,12 @@ export default function CommissionPaymentList() {
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
     
-    const formatDate = (date: Date) => date.toISOString().split('T')[0];
-    const defaultDateFrom = formatDate(yesterday);
-    const defaultDateTo = formatDate(today);
-    
     const defaultFilters = {
-      dateFrom: defaultDateFrom,
-      dateTo: defaultDateTo
+      dateFrom: formatDate(yesterday),
+      dateTo: formatDate(today)
     };
     
     setFilters(prev => ({ ...prev, ...defaultFilters }));
-    setInputFilters(prev => ({ ...prev, ...defaultFilters }));
   }, []);
 
   const fetchPayableInvoices = useCallback(async (pageNum = 1) => {
@@ -85,8 +72,14 @@ export default function CommissionPaymentList() {
       if (filters.invoiceNo) params.set('invoice_no', filters.invoiceNo);
       if (filters.customerName) params.set('customer_name', filters.customerName);
       if (filters.status && filters.status !== 'all') params.set('status', filters.status);
-      if (filters.dateFrom) params.set('date_from', filters.dateFrom);
-      if (filters.dateTo) params.set('date_to', filters.dateTo);
+      if (filters.dateFrom) {
+        const parsedDate = parseDate(filters.dateFrom);
+        if (parsedDate) params.set('date_from', parsedDate);
+      }
+      if (filters.dateTo) {
+        const parsedDate = parseDate(filters.dateTo);
+        if (parsedDate) params.set('date_to', parsedDate);
+      }
       if (filters.salesPerson) params.set('sales_person', filters.salesPerson);
 
       const response = await fetch(`/api/finance/commission/payable-invoices?${params}`, { credentials: 'include' });
@@ -113,14 +106,8 @@ export default function CommissionPaymentList() {
     }
   }, [selectedCompany, filters, fetchPayableInvoices]);
 
-  const handleSearch = () => {
-    setFilters(inputFilters);
-    setPage(1);
-  };
-
   const handleReset = () => {
     const emptyFilters = { invoiceNo: '', customerName: '', status: 'all', dateFrom: '', dateTo: '', salesPerson: '' };
-    setInputFilters(emptyFilters);
     setFilters(emptyFilters);
     setPage(1);
   };
@@ -189,8 +176,8 @@ export default function CommissionPaymentList() {
             <label className="block text-sm font-medium text-gray-700 mb-1">No. Faktur</label>
             <input
               type="text"
-              value={inputFilters.invoiceNo}
-              onChange={(e) => setInputFilters(prev => ({ ...prev, invoiceNo: e.target.value }))}
+              value={filters.invoiceNo}
+              onChange={(e) => setFilters(prev => ({ ...prev, invoiceNo: e.target.value }))}
               placeholder="Cari no faktur..."
               className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500"
             />
@@ -199,8 +186,8 @@ export default function CommissionPaymentList() {
             <label className="block text-sm font-medium text-gray-700 mb-1">Nama Pelanggan</label>
             <input
               type="text"
-              value={inputFilters.customerName}
-              onChange={(e) => setInputFilters(prev => ({ ...prev, customerName: e.target.value }))}
+              value={filters.customerName}
+              onChange={(e) => setFilters(prev => ({ ...prev, customerName: e.target.value }))}
               placeholder="Cari pelanggan..."
               className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500"
             />
@@ -209,8 +196,8 @@ export default function CommissionPaymentList() {
             <label className="block text-sm font-medium text-gray-700 mb-1">Sales Person</label>
             <input
               type="text"
-              value={inputFilters.salesPerson}
-              onChange={(e) => setInputFilters(prev => ({ ...prev, salesPerson: e.target.value }))}
+              value={filters.salesPerson}
+              onChange={(e) => setFilters(prev => ({ ...prev, salesPerson: e.target.value }))}
               placeholder="Cari sales..."
               className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500"
             />
@@ -218,8 +205,8 @@ export default function CommissionPaymentList() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Status Komisi</label>
             <select
-              value={inputFilters.status}
-              onChange={(e) => setInputFilters(prev => ({ ...prev, status: e.target.value }))}
+              value={filters.status}
+              onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
               className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500"
             >
               <option value="all">Semua</option>
@@ -229,35 +216,27 @@ export default function CommissionPaymentList() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Dari Tanggal</label>
-            <input
-              type="date"
-              value={inputFilters.dateFrom}
-              onChange={(e) => setInputFilters(prev => ({ ...prev, dateFrom: e.target.value }))}
+            <BrowserStyleDatePicker
+              value={filters.dateFrom}
+              onChange={(value) => setFilters(prev => ({ ...prev, dateFrom: value }))}
               className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500"
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Sampai Tanggal</label>
-            <input
-              type="date"
-              value={inputFilters.dateTo}
-              onChange={(e) => setInputFilters(prev => ({ ...prev, dateTo: e.target.value }))}
+            <BrowserStyleDatePicker
+              value={filters.dateTo}
+              onChange={(value) => setFilters(prev => ({ ...prev, dateTo: value }))}
               className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500"
             />
           </div>
         </div>
-        <div className="mt-4 flex justify-end gap-2">
+        <div className="mt-4 flex justify-end">
           <button
             onClick={handleReset}
             className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md text-sm hover:bg-gray-50"
           >
             Reset Filter
-          </button>
-          <button
-            onClick={handleSearch}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-md text-sm hover:bg-indigo-700"
-          >
-            Cari
           </button>
         </div>
       </div>
