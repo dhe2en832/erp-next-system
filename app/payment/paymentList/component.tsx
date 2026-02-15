@@ -72,6 +72,18 @@ export default function PaymentList({ onEdit, onCreate, selectedCompany }: Payme
   const [statusFilter, setStatusFilter] = useState('');
   const [modeOfPaymentFilter, setModeOfPaymentFilter] = useState('');
 
+  // Warkat dialog states
+  const [showClearWarkatDialog, setShowClearWarkatDialog] = useState(false);
+  const [showBounceWarkatDialog, setShowBounceWarkatDialog] = useState(false);
+  const [selectedWarkatPayment, setSelectedWarkatPayment] = useState('');
+  const [selectedWarkatPaymentType, setSelectedWarkatPaymentType] = useState<'Pay' | 'Receive'>('Pay');
+  const [bankAccounts, setBankAccounts] = useState<Array<{ name: string; account_name: string; account_type: string }>>([]);
+  const [selectedBankAccount, setSelectedBankAccount] = useState('');
+  const [bounceReason, setBounceReason] = useState('');
+  const [warkatLoading, setWarkatLoading] = useState(false);
+  const [loadingBankAccounts, setLoadingBankAccounts] = useState(false);
+  const [submittingPayment, setSubmittingPayment] = useState<string>('');
+
   const fetchPayments = async () => {
     setError('');
 
@@ -132,10 +144,11 @@ export default function PaymentList({ onEdit, onCreate, selectedCompany }: Payme
     if (selectedCompany) {
       fetchPayments();
     }
-  }, [selectedCompany, currentPage, pageSize, dateFilter, searchFilter, documentNumberFilter, paymentTypeFilter, statusFilter]);
+  }, [selectedCompany, currentPage, pageSize, dateFilter, searchFilter, documentNumberFilter, paymentTypeFilter, statusFilter, modeOfPaymentFilter]);
 
   // Handle submit payment
   const handleSubmitPayment = async (paymentName: string) => {
+    setSubmittingPayment(paymentName);
     try {
       const response = await fetch(`/api/finance/payments/${paymentName}/submit`, {
         method: 'POST',
@@ -154,6 +167,107 @@ export default function PaymentList({ onEdit, onCreate, selectedCompany }: Payme
     } catch (error) {
       console.error('Payment submit error:', error);
       setError('Terjadi kesalahan saat submit pembayaran');
+    } finally {
+      setSubmittingPayment('');
+    }
+  };
+
+  // Fetch bank accounts for warkat clearing dialog
+  const fetchBankAccounts = async () => {
+    setLoadingBankAccounts(true);
+    try {
+      const response = await fetch(`/api/finance/accounts/cash-bank?company=${selectedCompany}`);
+      const data = await response.json();
+      if (data.success) {
+        setBankAccounts(data.data || []);
+      }
+    } catch (err) {
+      console.error('Error fetching bank accounts:', err);
+    } finally {
+      setLoadingBankAccounts(false);
+    }
+  };
+
+  // Open clear warkat dialog
+  const handleOpenClearWarkat = (paymentName: string, paymentType: 'Pay' | 'Receive') => {
+    setSelectedWarkatPayment(paymentName);
+    setSelectedWarkatPaymentType(paymentType);
+    setSelectedBankAccount('');
+    setShowClearWarkatDialog(true);
+    fetchBankAccounts();
+  };
+
+  // Open bounce warkat dialog
+  const handleOpenBounceWarkat = (paymentName: string, paymentType: 'Pay' | 'Receive') => {
+    setSelectedWarkatPayment(paymentName);
+    setSelectedWarkatPaymentType(paymentType);
+    setBounceReason('');
+    setShowBounceWarkatDialog(true);
+  };
+
+  // Handle clear warkat
+  const handleClearWarkat = async () => {
+    if (!selectedBankAccount) {
+      setError('Pilih akun bank terlebih dahulu');
+      return;
+    }
+    setWarkatLoading(true);
+    setError('');
+    try {
+      const response = await fetch('/api/finance/payments/clear-warkat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          company: selectedCompany,
+          payment_entry: selectedWarkatPayment,
+          bank_account: selectedBankAccount,
+          payment_type: selectedWarkatPaymentType,
+        }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setSuccessMessage(`Warkat ${selectedWarkatPayment} berhasil dicairkan! Journal Entry: ${data.journal_entry || '-'}`);
+        setShowClearWarkatDialog(false);
+        fetchPayments();
+        setTimeout(() => setSuccessMessage(''), 5000);
+      } else {
+        setError(data.message || 'Gagal mencairkan warkat');
+      }
+    } catch (err) {
+      setError('Terjadi kesalahan saat mencairkan warkat');
+    } finally {
+      setWarkatLoading(false);
+    }
+  };
+
+  // Handle bounce warkat
+  const handleBounceWarkat = async () => {
+    setWarkatLoading(true);
+    setError('');
+    try {
+      const response = await fetch('/api/finance/payments/bounce-warkat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          company: selectedCompany,
+          payment_entry: selectedWarkatPayment,
+          reason: bounceReason || 'Warkat ditolak',
+          payment_type: selectedWarkatPaymentType,
+        }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setSuccessMessage(`Warkat ${selectedWarkatPayment} berhasil ditolak! Journal Entry: ${data.journal_entry || '-'}`);
+        setShowBounceWarkatDialog(false);
+        fetchPayments();
+        setTimeout(() => setSuccessMessage(''), 5000);
+      } else {
+        setError(data.message || 'Gagal menolak warkat');
+      }
+    } catch (err) {
+      setError('Terjadi kesalahan saat menolak warkat');
+    } finally {
+      setWarkatLoading(false);
     }
   };
 
@@ -403,17 +517,52 @@ export default function PaymentList({ onEdit, onCreate, selectedCompany }: Payme
                     </span>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-center">
-                    {payment.status === 'Draft' && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleSubmitPayment(payment.name);
-                        }}
-                        className="px-3 py-1 bg-green-600 text-white text-xs font-medium rounded hover:bg-green-700 transition-colors"
-                      >
-                        Ajukan
-                      </button>
-                    )}
+                    <div className="flex items-center justify-center gap-1">
+                      {payment.status === 'Draft' && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSubmitPayment(payment.name);
+                          }}
+                          disabled={submittingPayment === payment.name}
+                          className="px-2 py-1 bg-green-600 text-white text-xs font-medium rounded hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                        >
+                          {submittingPayment === payment.name ? (
+                            <>
+                              <svg className="animate-spin -ml-1 mr-1 h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              ...
+                            </>
+                          ) : (
+                            'Ajukan'
+                          )}
+                        </button>
+                      )}
+                      {payment.status === 'Submitted' && payment.mode_of_payment === 'Warkat' && (
+                        <>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenClearWarkat(payment.name, payment.payment_type as 'Pay' | 'Receive');
+                            }}
+                            className="px-2 py-1 bg-teal-600 text-white text-xs font-medium rounded hover:bg-teal-700 transition-colors"
+                          >
+                            Cairkan
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenBounceWarkat(payment.name, payment.payment_type as 'Pay' | 'Receive');
+                            }}
+                            className="px-2 py-1 bg-red-600 text-white text-xs font-medium rounded hover:bg-red-700 transition-colors"
+                          >
+                            Tolak
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -474,10 +623,43 @@ export default function PaymentList({ onEdit, onCreate, selectedCompany }: Payme
                             e.stopPropagation();
                             handleSubmitPayment(payment.name);
                           }}
-                          className="px-3 py-1 bg-green-600 text-white text-xs font-medium rounded hover:bg-green-700 transition-colors"
+                          disabled={submittingPayment === payment.name}
+                          className="px-3 py-1 bg-green-600 text-white text-xs font-medium rounded hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
                         >
-                          Ajukan
+                          {submittingPayment === payment.name ? (
+                            <>
+                              <svg className="animate-spin -ml-1 mr-1 h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              ...
+                            </>
+                          ) : (
+                            'Ajukan'
+                          )}
                         </button>
+                      )}
+                      {payment.status === 'Submitted' && payment.mode_of_payment === 'Warkat' && (
+                        <>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenClearWarkat(payment.name, payment.payment_type as 'Pay' | 'Receive');
+                            }}
+                            className="px-2 py-1 bg-teal-600 text-white text-xs font-medium rounded hover:bg-teal-700 transition-colors"
+                          >
+                            Cairkan
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenBounceWarkat(payment.name, payment.payment_type as 'Pay' | 'Receive');
+                            }}
+                            className="px-2 py-1 bg-red-600 text-white text-xs font-medium rounded hover:bg-red-700 transition-colors"
+                          >
+                            Tolak
+                          </button>
+                        </>
                       )}
                     </div>
                   </div>
@@ -506,6 +688,155 @@ export default function PaymentList({ onEdit, onCreate, selectedCompany }: Payme
           onPageChange={setCurrentPage}
         />
       </div>
+
+      {/* Dialog Cairkan Warkat */}
+      {showClearWarkatDialog && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen px-4">
+            <div className="fixed inset-0 bg-black bg-opacity-50 transition-opacity" onClick={() => !warkatLoading && setShowClearWarkatDialog(false)} />
+            <div className="relative bg-white rounded-xl shadow-2xl max-w-md w-full p-6 z-10">
+              <h3 className="text-lg font-bold text-gray-900 mb-1">Cairkan Warkat</h3>
+              <p className="text-sm text-gray-500 mb-4">
+                Pembayaran: <span className="font-medium text-gray-900">{selectedWarkatPayment}</span>
+              </p>
+
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md text-xs text-blue-700">
+                <p className="font-medium mb-1">Jurnal yang akan terbentuk:</p>
+                {selectedWarkatPaymentType === 'Pay' ? (
+                  <>
+                    <p>Dr Warkat Keluar → Cr Bank</p>
+                    <p className="mt-1">Uang keluar dari bank, warkat selesai.</p>
+                  </>
+                ) : (
+                  <>
+                    <p>Dr Bank → Cr Warkat Masuk</p>
+                    <p className="mt-1">Dana masuk ke bank, warkat selesai.</p>
+                  </>
+                )}
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Pilih Akun Bank</label>
+                {loadingBankAccounts ? (
+                  <p className="text-sm text-gray-500">Memuat akun bank...</p>
+                ) : (
+                  <select
+                    className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    value={selectedBankAccount}
+                    onChange={(e) => setSelectedBankAccount(e.target.value)}
+                  >
+                    <option value="">-- Pilih Akun Bank --</option>
+                    {bankAccounts.map((acc) => (
+                      <option key={acc.name} value={acc.name}>
+                        {acc.name} ({acc.account_type})
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowClearWarkatDialog(false)}
+                  disabled={warkatLoading}
+                  className="px-4 py-2 text-sm text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 disabled:opacity-50"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleClearWarkat}
+                  disabled={warkatLoading || !selectedBankAccount}
+                  className="px-4 py-2 text-sm text-white bg-teal-600 rounded-md hover:bg-teal-700 disabled:opacity-50 flex items-center"
+                >
+                  {warkatLoading ? (
+                    <>
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Memproses...
+                    </>
+                  ) : (
+                    'Cairkan Warkat'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dialog Tolak Warkat */}
+      {showBounceWarkatDialog && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen px-4">
+            <div className="fixed inset-0 bg-black bg-opacity-50 transition-opacity" onClick={() => !warkatLoading && setShowBounceWarkatDialog(false)} />
+            <div className="relative bg-white rounded-xl shadow-2xl max-w-md w-full p-6 z-10">
+              <h3 className="text-lg font-bold text-gray-900 mb-1">Tolak Warkat</h3>
+              <p className="text-sm text-gray-500 mb-4">
+                Pembayaran: <span className="font-medium text-gray-900">{selectedWarkatPayment}</span>
+              </p>
+
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-xs text-red-700">
+                <p className="font-medium mb-1">Jurnal yang akan terbentuk:</p>
+                {selectedWarkatPaymentType === 'Pay' ? (
+                  <>
+                    <p>Dr Warkat Keluar → Cr Hutang Dagang</p>
+                    <p className="mt-1">Hutang muncul kembali, warkat dibatalkan.</p>
+                  </>
+                ) : (
+                  <>
+                    <p>Dr Piutang Dagang → Cr Warkat Masuk</p>
+                    <p className="mt-1">Piutang muncul kembali, warkat dibatalkan.</p>
+                  </>
+                )}
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Alasan Penolakan</label>
+                <textarea
+                  className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  rows={3}
+                  value={bounceReason}
+                  onChange={(e) => setBounceReason(e.target.value)}
+                  placeholder="cth: Saldo tidak cukup, warkat kadaluarsa, dll"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowBounceWarkatDialog(false)}
+                  disabled={warkatLoading}
+                  className="px-4 py-2 text-sm text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 disabled:opacity-50"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleBounceWarkat}
+                  disabled={warkatLoading}
+                  className="px-4 py-2 text-sm text-white bg-red-600 rounded-md hover:bg-red-700 disabled:opacity-50 flex items-center"
+                >
+                  {warkatLoading ? (
+                    <>
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Memproses...
+                    </>
+                  ) : (
+                    'Tolak Warkat'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

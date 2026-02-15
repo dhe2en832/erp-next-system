@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
     const fromDate = searchParams.get('from_date');
     const toDate = searchParams.get('to_date');
     const paymentType = searchParams.get('payment_type');
+    const modeOfPayment = searchParams.get('mode_of_payment');
     const documentNumber = searchParams.get('documentNumber');
 
     // Try session authentication first
@@ -85,6 +86,11 @@ export async function GET(request: NextRequest) {
       filtersArray.push(["payment_type", "=", paymentType]);
     }
     
+    // Add mode of payment filter
+    if (modeOfPayment) {
+      filtersArray.push(["mode_of_payment", "=", modeOfPayment]);
+    }
+    
     // Add date filters
     if (fromDate) {
       filtersArray.push(["posting_date", ">=", fromDate]);
@@ -95,7 +101,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Build ERPNext URL
-    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Payment Entry?fields=["name","payment_type","party","party_name","party_type","paid_amount","received_amount","status","posting_date","custom_notes_payment"]&limit_page_length=${limit}&start=${start}`;
+    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Payment Entry?fields=["name","payment_type","party","party_name","party_type","paid_amount","received_amount","status","posting_date","mode_of_payment","reference_no","custom_notes_payment"]&limit_page_length=${limit}&start=${start}`;
     
     if (filtersArray.length > 0) {
       erpNextUrl += `&filters=${encodeURIComponent(JSON.stringify(filtersArray))}`;

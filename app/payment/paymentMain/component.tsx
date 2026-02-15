@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import PaymentCustomerDialog from '../../components/PaymentCustomerDialog';
 import PaymentSupplierDialog from '../../components/PaymentSupplierDialog';
@@ -34,6 +34,7 @@ interface PurchaseInvoice {
 interface CompanyAccount {
   name: string;
   account_type: string;
+  root_type: string;
 }
 
 interface PaymentFormData {
@@ -73,6 +74,7 @@ interface PaymentMainProps {
 
 export default function PaymentMain({ onBack, selectedCompany, editPayment, defaultPaymentType }: PaymentMainProps) {
   const [isEditMode, setIsEditMode] = useState(false);
+  const isEditModeRef = useRef(false);
   const [editingPaymentId, setEditingPaymentId] = useState('');
   const [outstandingInvoices, setOutstandingInvoices] = useState<SalesInvoice[]>([]);
   const [outstandingPurchaseInvoices, setOutstandingPurchaseInvoices] = useState<PurchaseInvoice[]>([]);
@@ -98,10 +100,10 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
     debit_account: '',
     credit_account: '',
     check_number: '',
-    check_date: '',
+    check_date: new Date().toISOString().split('T')[0],
     bank_reference: '',
     reference_no: '',
-    reference_date: '',
+    reference_date: new Date().toISOString().split('T')[0],
     custom_notes_payment: '',
     selected_invoices: [],
     paid_from: '',
@@ -118,7 +120,7 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
   const [showJournalPreview, setShowJournalPreview] = useState(false);
 
   // Fetch company default accounts
-  const fetchCompanyAccounts = useCallback(async () => {
+  const fetchCompanyAccounts = useCallback(async (skipAutoSelection = false) => {
     if (!selectedCompany) return;
 
     setLoadingAccounts(true);
@@ -130,9 +132,13 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
         setCompanyAccounts(data.data || {});
 
         // Trigger auto-selection immediately after company accounts are loaded
-        if (formData.payment_type && formData.mode_of_payment) {
+        // Skip if in edit mode or explicitly requested to skip
+        if (!skipAutoSelection && !isEditModeRef.current && formData.payment_type && formData.mode_of_payment) {
           setTimeout(() => {
-            triggerAutoSelection(data.data || {}, formData.payment_type, formData.mode_of_payment);
+            // Double-check edit mode inside timeout to handle race conditions
+            if (!isEditModeRef.current) {
+              triggerAutoSelection(data.data || {}, formData.payment_type, formData.mode_of_payment);
+            }
           }, 100);
         }
       } else {
@@ -144,88 +150,83 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
     } finally {
       setLoadingAccounts(false);
     }
-  }, [selectedCompany]);
+  }, [selectedCompany, isEditMode, formData.payment_type, formData.mode_of_payment]);
+
+  // Get selectable accounts filtered by mode_of_payment and payment_type
+  const getSelectableAccounts = useCallback((mode: string, paymentType?: string): CompanyAccount[] => {
+    if (!companyAccounts.available_accounts) return [];
+    const accounts = companyAccounts.available_accounts as CompanyAccount[];
+    // Use provided paymentType or fall back to formData (for backward compatibility)
+    const effectivePaymentType = paymentType || formData.payment_type;
+
+    switch (mode) {
+      case 'Cash':
+        return accounts.filter(a => a.account_type === 'Cash');
+      case 'Bank Transfer':
+      case 'Credit Card':
+        return accounts.filter(a => a.account_type === 'Bank');
+      case 'Warkat': {
+        const warkatKeyword = effectivePaymentType === 'Pay' ? 'warkat keluar' : 'warkat masuk';
+        return accounts.filter(a =>
+          a.root_type === 'Asset' &&
+          a.name.toLowerCase().includes(warkatKeyword)
+        );
+      }
+      default:
+        return accounts.filter(a => a.account_type === 'Cash');
+    }
+  }, [companyAccounts.available_accounts, formData.payment_type]);
+
+  // Get the auto-set account (Receivable for Receive, Payable for Pay)
+  const getAutoAccount = useCallback((paymentType: string): string => {
+    if (paymentType === 'Receive') {
+      return companyAccounts.default_receivable_account || '';
+    }
+    return companyAccounts.default_payable_account || '';
+  }, [companyAccounts]);
 
   // Manual trigger function for auto-selection
   const triggerAutoSelection = useCallback((accounts: any, paymentType: string, paymentMode: string) => {
     if (!accounts || !paymentType || !paymentMode) return;
 
-    // Auto-select debit account
-    let newDebitAccount = '';
+    console.log('triggerAutoSelection called:', { paymentType, paymentMode, isEditMode });
+
+    const selectableList = getSelectableAccounts(paymentMode, paymentType);
+    const firstSelectable = selectableList.length > 0 ? selectableList[0].name : '';
+    const autoAccount = paymentType === 'Receive'
+      ? (accounts.default_receivable_account || '')
+      : (accounts.default_payable_account || '');
+
+    console.log('Auto-selection values:', { firstSelectable, autoAccount });
+
     if (paymentType === 'Receive') {
-      if (paymentMode === 'Bank Transfer' || paymentMode === 'Warkat') {
-        newDebitAccount = accounts.default_accounts?.bank || accounts.default_accounts?.cash || 'Bank Account';
-      } else if (paymentMode === 'Credit Card') {
-        newDebitAccount = accounts.default_accounts?.credit_card || accounts.default_accounts?.cash || 'Credit Card';
-      } else {
-        newDebitAccount = accounts.default_accounts?.cash || 'Cash Account';
-      }
+      setFormData(prev => ({
+        ...prev,
+        paid_from: autoAccount,
+        paid_to: firstSelectable,
+        debit_account: firstSelectable,
+        credit_account: autoAccount,
+      }));
     } else {
-      newDebitAccount = accounts.default_accounts?.payable || 'Accounts Payable';
+      setFormData(prev => ({
+        ...prev,
+        paid_from: firstSelectable,
+        paid_to: autoAccount,
+        debit_account: autoAccount,
+        credit_account: firstSelectable,
+      }));
     }
+  }, [getSelectableAccounts]);
 
-    // Auto-select credit account
-    let newCreditAccount = '';
-    if (paymentType === 'Receive') {
-      newCreditAccount = accounts.default_accounts?.receivable || 'Accounts Receivable';
-    } else {
-      if (paymentMode === 'Bank Transfer' || paymentMode === 'Warkat') {
-        newCreditAccount = accounts.default_accounts?.bank || accounts.default_accounts?.cash || 'Bank Account';
-      } else if (paymentMode === 'Credit Card') {
-        newCreditAccount = accounts.default_accounts?.credit_card || accounts.default_accounts?.cash || 'Credit Card';
-      } else {
-        newCreditAccount = accounts.default_accounts?.cash || 'Cash Account';
-      }
-    }
-
-    setFormData(prev => ({
-      ...prev,
-      debit_account: newDebitAccount,
-      credit_account: newCreditAccount,
-      paid_from: paymentType === 'Receive' ? newCreditAccount : newDebitAccount,
-      paid_to: paymentType === 'Receive' ? newDebitAccount : newCreditAccount
-    }));
-  }, [companyAccounts, selectedCompany]);
-
-  // Auto-update debit and credit accounts when payment type or mode changes
+  // Auto-update accounts when payment type or mode changes
   useEffect(() => {
+    console.log('useEffect auto-selection:', { isEditMode, payment_type: formData.payment_type, mode_of_payment: formData.mode_of_payment, hasCompanyAccounts: !!companyAccounts.default_payable_account });
     if (isEditMode) return;
     if (!companyAccounts || !selectedCompany) return;
-
-    let newDebitAccount = '';
-    if (formData.payment_type === 'Receive') {
-      if (formData.mode_of_payment === 'Bank Transfer' || formData.mode_of_payment === 'Warkat') {
-        newDebitAccount = companyAccounts.default_accounts?.bank || 'Bank Account';
-      } else if (formData.mode_of_payment === 'Credit Card') {
-        newDebitAccount = companyAccounts.default_accounts?.credit_card || 'Credit Card';
-      } else {
-        newDebitAccount = companyAccounts.default_accounts?.cash || 'Cash Account';
-      }
-    } else {
-      newDebitAccount = companyAccounts.default_accounts?.payable || 'Accounts Payable';
-    }
-
-    let newCreditAccount = '';
-    if (formData.payment_type === 'Receive') {
-      newCreditAccount = companyAccounts.default_accounts?.receivable || 'Accounts Receivable';
-    } else {
-      if (formData.mode_of_payment === 'Bank Transfer' || formData.mode_of_payment === 'Warkat') {
-        newCreditAccount = companyAccounts.default_accounts?.bank || 'Bank Account';
-      } else if (formData.mode_of_payment === 'Credit Card') {
-        newCreditAccount = companyAccounts.default_accounts?.credit_card || 'Credit Card';
-      } else {
-        newCreditAccount = companyAccounts.default_accounts?.cash || 'Cash Account';
-      }
-    }
-
-    setFormData(prev => ({
-      ...prev,
-      debit_account: newDebitAccount,
-      credit_account: newCreditAccount,
-      paid_from: formData.payment_type === 'Receive' ? newCreditAccount : newDebitAccount,
-      paid_to: formData.payment_type === 'Receive' ? newDebitAccount : newCreditAccount
-    }));
-  }, [formData.payment_type, formData.mode_of_payment, companyAccounts, selectedCompany, isEditMode]);
+    // Don't auto-select if paid_from already has a valid warkat/bank account (for edit mode safety)
+    if (formData.paid_from && (formData.paid_from.toLowerCase().includes('warkat') || formData.paid_from.toLowerCase().includes('bank') || formData.paid_from.toLowerCase().includes('kas'))) return;
+    triggerAutoSelection(companyAccounts, formData.payment_type, formData.mode_of_payment);
+  }, [formData.payment_type, formData.mode_of_payment, companyAccounts, selectedCompany, isEditMode, formData.paid_from]);
 
   // Fetch company accounts when company changes
   useEffect(() => {
@@ -356,6 +357,7 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
   const handleEditPayment = async (payment: any) => {
     try {
       setIsEditMode(true);
+      isEditModeRef.current = true;
       setEditingPaymentId(payment.name);
 
       const response = await fetch(`/api/finance/payments/details?name=${payment.name}`);
@@ -368,6 +370,21 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
 
       const paymentDetails = data.data;
 
+      // Extract account values - handle both string and object formats from ERPNext
+      const paidFromAccount = typeof paymentDetails.paid_from === 'string' 
+        ? paymentDetails.paid_from 
+        : paymentDetails.paid_from?.name || '';
+      const paidToAccount = typeof paymentDetails.paid_to === 'string' 
+        ? paymentDetails.paid_to 
+        : paymentDetails.paid_to?.name || '';
+
+      console.log('Edit Payment - Accounts:', { 
+        paid_from: paidFromAccount, 
+        paid_to: paidToAccount,
+        payment_type: paymentDetails.payment_type,
+        mode_of_payment: paymentDetails.mode_of_payment 
+      });
+
       setFormData({
         payment_type: paymentDetails.payment_type as 'Receive' | 'Pay',
         party_type: paymentDetails.party_type as 'Customer' | 'Supplier',
@@ -375,13 +392,13 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
         posting_date: paymentDetails.posting_date,
         paid_amount: paymentDetails.paid_amount || 0,
         received_amount: paymentDetails.received_amount || 0,
-        mode_of_payment: paymentDetails.mode_of_payment || 'Kas',
+        mode_of_payment: paymentDetails.mode_of_payment || 'Cash',
         company: selectedCompany,
-        debit_account: paymentDetails.payment_type === 'Receive' ? paymentDetails.paid_from : paymentDetails.paid_to,
-        credit_account: paymentDetails.payment_type === 'Receive' ? paymentDetails.paid_to : paymentDetails.paid_from,
+        debit_account: paymentDetails.payment_type === 'Receive' ? paidFromAccount : paidToAccount,
+        credit_account: paymentDetails.payment_type === 'Receive' ? paidToAccount : paidFromAccount,
         check_number: paymentDetails.reference_no || '',
         check_date: paymentDetails.reference_date || '',
-        bank_reference: paymentDetails.reference_no || '',
+        bank_reference: paymentDetails.bank_reference || paymentDetails.reference_no || '',
         reference_no: paymentDetails.reference_no || '',
         reference_date: paymentDetails.reference_date || '',
         custom_notes_payment: paymentDetails.custom_notes_payment || '',
@@ -391,8 +408,8 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
           outstanding_amount: ref.allocated_amount || 0,
           allocated_amount: ref.allocated_amount || 0
         })) || [],
-        paid_from: paymentDetails.paid_from || '',
-        paid_to: paymentDetails.paid_to || '',
+        paid_from: paidFromAccount,
+        paid_to: paidToAccount,
       });
 
       // Set display names
@@ -496,6 +513,11 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
       setEditingPayment(payment);
       setEditingPaymentStatus(payment.status);
 
+      // Fetch accounts after setting edit values, with skipAutoSelection=true
+      if (selectedCompany) {
+        fetchCompanyAccounts(true);
+      }
+
     } catch (error: unknown) {
       console.error('Error fetching payment details:', error);
       const errorMessage = error instanceof Error ? error.message : 'Terjadi kesalahan saat memuat detail pembayaran';
@@ -503,82 +525,28 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
     }
   };
 
-  // Get filtered accounts for dropdowns
+  // Get filtered accounts for dropdowns (now delegates to getSelectableAccounts)
   const getFilteredAccounts = useCallback((accountType: 'debit' | 'credit'): CompanyAccount[] => {
     if (!companyAccounts.available_accounts) return [];
 
-    return companyAccounts.available_accounts.filter((account: CompanyAccount) => {
-      if (formData.payment_type === 'Receive') {
-        if (accountType === 'debit') {
-          if (formData.mode_of_payment === 'Warkat') {
-            return ['Bank', 'Asset'].includes(account.account_type) ||
-              account.name.toLowerCase().includes('bank') ||
-              account.name.toLowerCase().includes('cek') ||
-              account.name.toLowerCase().includes('warkat') ||
-              account.name.toLowerCase().includes('giro');
-          } else if (formData.mode_of_payment === 'Bank Transfer') {
-            return ['Bank', 'Asset'].includes(account.account_type) ||
-              account.name.toLowerCase().includes('bank');
-          } else if (formData.mode_of_payment === 'Credit Card') {
-            return ['Bank', 'Asset'].includes(account.account_type) ||
-              account.name.toLowerCase().includes('bank') ||
-              account.name.toLowerCase().includes('credit') ||
-              account.name.toLowerCase().includes('card');
-          } else {
-            return ['Cash', 'Asset'].includes(account.account_type) ||
-              account.name.toLowerCase().includes('cash') ||
-              account.name.toLowerCase().includes('kas');
-          }
-        }
-        if (accountType === 'credit') {
-          return ['Receivable'].includes(account.account_type) ||
-            account.name.toLowerCase().includes('receivable') ||
-            account.name.toLowerCase().includes('piutang');
-        }
-      }
+    // The selectable side uses mode-based filtering
+    // PAY:     credit side = selectable (source of funds), debit side = auto (Payable)
+    // RECEIVE: debit side  = selectable (destination),     credit side = auto (Receivable)
+    const isSelectableSide =
+      (formData.payment_type === 'Pay' && accountType === 'credit') ||
+      (formData.payment_type === 'Receive' && accountType === 'debit');
 
-      if (formData.payment_type === 'Pay') {
-        if (accountType === 'debit') {
-          const hasPayableKeyword = ['Expense', 'Purchase', 'Cost', 'Payable'].includes(account.account_type) ||
-            account.name.toLowerCase().includes('expense') ||
-            account.name.toLowerCase().includes('purchase') ||
-            account.name.toLowerCase().includes('biaya') ||
-            account.name.toLowerCase().includes('belanja') ||
-            account.name.toLowerCase().includes('hutang') ||
-            account.name.toLowerCase().includes('payable');
-          const hasExcludedKeyword = account.name.toLowerCase().includes('muka') ||
-            account.name.toLowerCase().includes('prepaid') ||
-            account.name.toLowerCase().includes('advance');
-          return hasPayableKeyword && !hasExcludedKeyword;
-        }
-        if (accountType === 'credit') {
-          if (formData.mode_of_payment === 'Warkat') {
-            return ['Bank', 'Asset'].includes(account.account_type) ||
-              account.name.toLowerCase().includes('bank') ||
-              account.name.toLowerCase().includes('cek') ||
-              account.name.toLowerCase().includes('warkat') ||
-              account.name.toLowerCase().includes('giro') ||
-              account.name.toLowerCase().includes('bac');
-          } else if (formData.mode_of_payment === 'Bank Transfer') {
-            return ['Bank', 'Asset'].includes(account.account_type) ||
-              account.name.toLowerCase().includes('bank') ||
-              account.name.toLowerCase().includes('bac');
-          } else if (formData.mode_of_payment === 'Credit Card') {
-            return ['Bank', 'Asset'].includes(account.account_type) ||
-              account.name.toLowerCase().includes('bank') ||
-              account.name.toLowerCase().includes('credit') ||
-              account.name.toLowerCase().includes('card') ||
-              account.name.toLowerCase().includes('bac');
-          } else {
-            return ['Cash', 'Asset'].includes(account.account_type) ||
-              account.name.toLowerCase().includes('cash') ||
-              account.name.toLowerCase().includes('kas');
-          }
-        }
-      }
-      return false;
-    });
-  }, [companyAccounts.available_accounts, formData.payment_type, formData.mode_of_payment]);
+    if (isSelectableSide) {
+      return getSelectableAccounts(formData.mode_of_payment);
+    }
+
+    // Auto side: show Payable or Receivable accounts
+    const accounts = companyAccounts.available_accounts as CompanyAccount[];
+    if (formData.payment_type === 'Pay') {
+      return accounts.filter(a => a.account_type === 'Payable');
+    }
+    return accounts.filter(a => a.account_type === 'Receivable');
+  }, [companyAccounts.available_accounts, formData.payment_type, formData.mode_of_payment, getSelectableAccounts]);
 
   // Calculate total outstanding for validation
   const getTotalOutstanding = useCallback(() => {
@@ -727,8 +695,42 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
     setSuccessMessage('');
 
     try {
+      // Validasi reference_no wajib untuk transaksi Bank/Warkat
+      if ((formData.mode_of_payment === 'Bank Transfer' || formData.mode_of_payment === 'Warkat') && !formData.reference_no?.trim()) {
+        window.alert('⚠️ Validasi Gagal\n\nMetode pembayaran Bank Transfer atau Warkat memerlukan No. Referensi.\nSilakan isi kolom No. Referensi di bagian Referensi.');
+        setFormLoading(false);
+        return;
+      }
+
+      // Validasi per metode pembayaran
+      if (formData.mode_of_payment === 'Warkat') {
+        const missingFields: string[] = [];
+        if (!formData.check_number?.trim()) missingFields.push('Nomor Warkat');
+        if (!formData.check_date) missingFields.push('Tanggal Warkat');
+        if (!formData.bank_reference?.trim()) missingFields.push('Referensi Bank');
+        if (missingFields.length > 0) {
+          window.alert(`⚠️ Validasi Gagal\n\nMetode Warkat memerlukan:\n${missingFields.join('\n')}`);
+          setFormLoading(false);
+          return;
+        }
+      }
+
       const paymentAmount = formData.payment_type === 'Receive' ? formData.received_amount : formData.paid_amount;
       const totalOutstanding = getTotalOutstanding();
+
+      // Validasi akun wajib diisi
+      if (!formData.paid_from || !formData.paid_to) {
+        window.alert('⚠️ Validasi Gagal\n\nAkun pembayaran belum lengkap.\n\nPastikan akun sumber dan tujuan sudah dipilih.');
+        setFormLoading(false);
+        return;
+      }
+
+      // Validasi jumlah pembayaran harus > 0
+      if (!paymentAmount || paymentAmount <= 0) {
+        window.alert('⚠️ Validasi Gagal\n\nJumlah pembayaran harus lebih besar dari 0.\nSilakan pilih faktur dan masukkan jumlah alokasi.');
+        setFormLoading(false);
+        return;
+      }
 
       if (formData.party_type === 'Customer' && paymentAmount > totalOutstanding && totalOutstanding > 0) {
         const confirmOverpayment = window.confirm(
@@ -754,8 +756,21 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
         }
       }
 
-      const realPaidFrom = getRealPaidFrom(formData.payment_type, formData.mode_of_payment);
-      const realPaidTo = getRealPaidTo(formData.payment_type, formData.mode_of_payment);
+      // Default tanggal ke hari ini jika kosong
+      const today = new Date().toISOString().split('T')[0];
+      const finalCheckDate = formData.check_date || today;
+      const finalReferenceDate = formData.reference_date || today;
+      const finalReferenceNo = formData.reference_no || formData.check_number || '';
+
+      // Validasi akun Warkat untuk mode Warkat
+      if (formData.mode_of_payment === 'Warkat') {
+        const warkatSourceAccount = formData.payment_type === 'Pay' ? formData.paid_from : formData.paid_to;
+        if (!warkatSourceAccount || !warkatSourceAccount.toLowerCase().includes('warkat')) {
+          window.alert('⚠️ Validasi Gagal\n\nUntuk metode Warkat, silakan pilih akun Warkat yang sesuai.\n\nPAY → Warkat Keluar\nRECEIVE → Warkat Masuk');
+          setFormLoading(false);
+          return;
+        }
+      }
 
       const paymentPayload = {
         company: selectedCompany,
@@ -767,11 +782,14 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
         paid_amount: formData.payment_type === 'Receive' ? formData.received_amount : formData.paid_amount,
         received_amount: formData.payment_type === 'Receive' ? formData.received_amount : formData.paid_amount,
         mode_of_payment: formData.mode_of_payment,
-        reference_no: formData.reference_no,
-        reference_date: formData.reference_date,
+        reference_no: finalReferenceNo,
+        reference_date: finalReferenceDate,
+        check_number: formData.check_number,
+        check_date: finalCheckDate,
+        bank_reference: formData.bank_reference,
         custom_notes_payment: formData.custom_notes_payment,
-        paid_from: formData.payment_type === 'Receive' ? realPaidFrom : realPaidTo,
-        paid_to: formData.payment_type === 'Receive' ? realPaidTo : realPaidFrom,
+        paid_from: formData.paid_from,
+        paid_to: formData.paid_to,
         references: checkedInvoices.map(invoice => ({
           reference_doctype: formData.payment_type === 'Receive' ? "Sales Invoice" : "Purchase Invoice",
           reference_name: invoice.invoice_name,
@@ -797,18 +815,22 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
         setTimeout(() => {
           onBack();
         }, 2000);
+        // Don't setFormLoading(false) here - keep button disabled until navigation
+        return;
       } else {
         setError(data.message || 'Gagal membuat pembayaran');
       }
     } catch (err) {
       setError('Terjadi kesalahan. Silakan coba lagi.');
     } finally {
+      // Only reset loading if not successful (success case returns early)
       setFormLoading(false);
     }
   };
 
   const resetForm = () => {
     setIsEditMode(false);
+    isEditModeRef.current = false;
     setEditingPaymentId('');
     setFormData({
       payment_type: 'Receive',
@@ -856,7 +878,7 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
             </svg>
           </button>
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
-            {editPayment ? 'Edit Pembayaran' : 'Buat Pembayaran Baru'}
+            {editPayment ? (formData.payment_type === 'Receive' ? 'Edit Penerimaan' : 'Edit Pembayaran') : (formData.payment_type === 'Receive' ? 'Buat Penerimaan Baru' : 'Buat Pembayaran Baru')}
           </h1>
         </div>
       </div>
@@ -893,51 +915,62 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Tipe Pembayaran</label>
-                <select
-                  className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  value={formData.payment_type}
-                  onChange={(e) => handlePartyTypeChange(e.target.value as 'Receive' | 'Pay')}
-                >
-                  <option value="Receive">Penerimaan</option>
-                  <option value="Pay">Pembayaran</option>
-                </select>
+                {defaultPaymentType && !isEditMode ? (
+                  <input
+                    type="text"
+                    value={formData.payment_type === 'Receive' ? 'Penerimaan' : 'Pembayaran'}
+                    readOnly
+                    className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 bg-gray-100 sm:text-sm cursor-not-allowed"
+                  />
+                ) : (
+                  <select
+                    className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    value={formData.payment_type}
+                    onChange={(e) => handlePartyTypeChange(e.target.value as 'Receive' | 'Pay')}
+                  >
+                    <option value="Receive">Penerimaan</option>
+                    <option value="Pay">Pembayaran</option>
+                  </select>
+                )}
               </div>
 
               <div className="sm:col-span-1 lg:col-span-1">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   {formData.party_type === 'Customer' ? 'Pelanggan' : 'Pemasok'}
                 </label>
-                <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
+                <div className="flex items-center space-x-2">
                   <input
                     type="text"
                     value={formData.party_type === 'Customer' ? selectedCustomerName : selectedSupplierName}
                     readOnly
                     placeholder={`Pilih ${formData.party_type === 'Customer' ? 'Pelanggan' : 'Pemasok'}`}
-                    className="block flex-1 border border-gray-300 rounded-md shadow-sm py-2 px-3 bg-gray-50 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    className="block flex-1 min-w-0 border border-gray-300 rounded-md shadow-sm py-2 px-3 bg-gray-50 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                     required
                   />
-                  <button
-                    type="button"
-                    onClick={() => formData.party_type === 'Customer' ? setShowCustomerDialog(true) : setShowSupplierDialog(true)}
-                    className="px-3 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm flex items-center"
-                    title={`Cari ${formData.party_type === 'Customer' ? 'Pelanggan' : 'Pemasok'}`}
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                  </button>
-                  {formData.party && (
+                  <div className="flex-shrink-0 flex items-center space-x-1">
                     <button
                       type="button"
-                      onClick={() => handlePartyChange('')}
-                      className="px-3 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm flex items-center"
-                      title="Hapus pilihan"
+                      onClick={() => formData.party_type === 'Customer' ? setShowCustomerDialog(true) : setShowSupplierDialog(true)}
+                      className="p-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm"
+                      title={`Cari ${formData.party_type === 'Customer' ? 'Pelanggan' : 'Pemasok'}`}
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                       </svg>
                     </button>
-                  )}
+                    {formData.party && (
+                      <button
+                        type="button"
+                        onClick={() => handlePartyChange('')}
+                        className="p-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm"
+                        title="Hapus pilihan"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -997,62 +1030,121 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
           {/* Section 3: Akun */}
           <div>
             <h3 className="text-lg font-medium text-gray-900 mb-4">Pemilihan Akun</h3>
+            {(() => {
+              console.log('Render - payment_type:', formData.payment_type, 'paid_from:', formData.paid_from, 'paid_to:', formData.paid_to);
+              return null;
+            })()}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Akun Debit ({formData.payment_type === 'Receive' ? 'Kas/Bank' : 'Beban/Pembelian'})
-                  <span className="text-xs text-green-600 ml-1">✅ Otomatis</span>
-                </label>
-                <select
-                  className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  value={formData.debit_account}
-                  onChange={(e) => setFormData(prev => ({ ...prev, debit_account: e.target.value }))}
-                >
-                  {getFilteredAccounts('debit').map((account: CompanyAccount) => (
-                    <option key={account.name} value={account.name}>
-                      {account.name} ({account.account_type})
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-green-600 mt-1">Dipilih otomatis berdasarkan tipe dan metode pembayaran</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Akun Kredit ({formData.payment_type === 'Receive' ? 'Piutang' : 'Kas/Bank'})
-                  <span className="text-xs text-green-600 ml-1">✅ Otomatis</span>
-                </label>
-                <select
-                  key={`credit-account-${formData.credit_account}-${formData.mode_of_payment}`}
-                  className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  value={formData.credit_account}
-                  onChange={(e) => setFormData(prev => ({ ...prev, credit_account: e.target.value }))}
-                >
-                  {getFilteredAccounts('credit').map((account: CompanyAccount) => (
-                    <option key={account.name} value={account.name}>
-                      {account.name} ({account.account_type})
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-green-600 mt-1">Dipilih otomatis berdasarkan tipe dan metode pembayaran</p>
-              </div>
+              {formData.payment_type === 'Pay' ? (
+                <>
+                  {/* PAY: paid_from = selectable (Cash/Bank/Warkat), paid_to = auto (Payable) */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Akun Sumber Dana
+                      {formData.mode_of_payment === 'Cash' && <span className="text-xs text-gray-500 ml-1">(Kas)</span>}
+                      {formData.mode_of_payment === 'Bank Transfer' && <span className="text-xs text-gray-500 ml-1">(Bank)</span>}
+                      {formData.mode_of_payment === 'Warkat' && <span className="text-xs text-gray-500 ml-1">(Warkat Keluar)</span>}
+                      {formData.mode_of_payment === 'Credit Card' && <span className="text-xs text-gray-500 ml-1">(Bank)</span>}
+                    </label>
+                    <select
+                      className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      value={formData.paid_from}
+                      onChange={(e) => {
+                        const selected = e.target.value;
+                        setFormData(prev => ({ ...prev, paid_from: selected, credit_account: selected }));
+                      }}
+                    >
+                      <option value="">-- Pilih Akun --</option>
+                      {getSelectableAccounts(formData.mode_of_payment).map((account: CompanyAccount) => (
+                        <option key={account.name} value={account.name}>
+                          {account.name} ({account.account_type})
+                        </option>
+                      ))}
+                      {/* Fallback: show current value if not in list (edit mode) */}
+                      {formData.paid_from && !getSelectableAccounts(formData.mode_of_payment).some((a: CompanyAccount) => a.name === formData.paid_from) && (
+                        <option value={formData.paid_from}>{formData.paid_from}</option>
+                      )}
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">Pilih akun berdasarkan metode pembayaran</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Akun Tujuan (Hutang)
+                      <span className="text-xs text-green-600 ml-1">Otomatis</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.paid_to || getAutoAccount('Pay')}
+                      readOnly
+                      className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 bg-gray-100 sm:text-sm cursor-not-allowed"
+                    />
+                    <p className="text-xs text-green-600 mt-1">Akun hutang default perusahaan</p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* RECEIVE: paid_from = auto (Receivable), paid_to = selectable (Cash/Bank/Warkat) */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Akun Sumber (Piutang)
+                      <span className="text-xs text-green-600 ml-1">Otomatis</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.paid_from || getAutoAccount('Receive')}
+                      readOnly
+                      className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 bg-gray-100 sm:text-sm cursor-not-allowed"
+                    />
+                    <p className="text-xs text-green-600 mt-1">Akun piutang default perusahaan</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Akun Tujuan Dana
+                      {formData.mode_of_payment === 'Cash' && <span className="text-xs text-gray-500 ml-1">(Kas)</span>}
+                      {formData.mode_of_payment === 'Bank Transfer' && <span className="text-xs text-gray-500 ml-1">(Bank)</span>}
+                      {formData.mode_of_payment === 'Warkat' && <span className="text-xs text-gray-500 ml-1">(Warkat Masuk)</span>}
+                      {formData.mode_of_payment === 'Credit Card' && <span className="text-xs text-gray-500 ml-1">(Bank)</span>}
+                    </label>
+                    <select
+                      className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      value={formData.paid_to}
+                      onChange={(e) => {
+                        const selected = e.target.value;
+                        setFormData(prev => ({ ...prev, paid_to: selected, debit_account: selected }));
+                      }}
+                    >
+                      <option value="">-- Pilih Akun --</option>
+                      {getSelectableAccounts(formData.mode_of_payment).map((account: CompanyAccount) => (
+                        <option key={account.name} value={account.name}>
+                          {account.name} ({account.account_type})
+                        </option>
+                      ))}
+                      {/* Fallback: show current value if not in list (edit mode) */}
+                      {formData.paid_to && !getSelectableAccounts(formData.mode_of_payment).some((a: CompanyAccount) => a.name === formData.paid_to) && (
+                        <option value={formData.paid_to}>{formData.paid_to}</option>
+                      )}
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">Pilih akun berdasarkan metode pembayaran</p>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Account Selection Info */}
-            <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div className="flex items-center">
-                <svg className="w-5 h-5 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <div className="flex items-start">
+                <svg className="w-4 h-4 text-blue-600 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <h6 className="text-sm font-medium text-blue-900">Pemilihan Akun Otomatis</h6>
-              </div>
-              <div className="mt-2 text-xs text-blue-700">
-                <p>Akun dipilih otomatis berdasarkan:</p>
-                <ul className="ml-4 mt-1 space-y-1">
-                  <li>• <strong>Tipe Pembayaran:</strong> {formData.payment_type === 'Receive' ? 'Penerimaan (AR)' : 'Pembayaran (AP)'}</li>
-                  <li>• <strong>Metode Pembayaran:</strong> {formData.mode_of_payment}</li>
-                  <li>• <strong>Default Perusahaan:</strong> Akun default perusahaan Anda</li>
-                </ul>
-                <p className="mt-2 font-medium">Ini mencegah kesalahan akuntansi dan memastikan kepatuhan.</p>
+                <div className="text-xs text-blue-700">
+                  <p className="font-medium">Mapping Akun:</p>
+                  <p className="mt-1">
+                    <strong>Cash</strong> → Kas | <strong>Transfer</strong> → Bank | <strong>Warkat</strong> → Warkat {formData.payment_type === 'Pay' ? 'Keluar' : 'Masuk'}
+                  </p>
+                  <p className="mt-1">
+                    Akun {formData.payment_type === 'Pay' ? 'hutang' : 'piutang'} dipilih otomatis dari default perusahaan.
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -1427,13 +1519,19 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
                   <label className="block text-sm font-medium text-gray-700 mb-1">Jumlah Dibayar</label>
                   <CurrencyInput
                     value={formData.paid_amount}
-                    onChange={(value) => setFormData(prev => ({ ...prev, paid_amount: value }))}
+                    onChange={() => { }}
                     placeholder="0"
-                    className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 bg-gray-100 sm:text-sm cursor-not-allowed"
                     min={0}
                     step="1"
                     required
+                    disabled={true}
                   />
+                  {getTotalAllocationAmount() > 0 && (
+                    <p className="mt-1 text-xs text-gray-500">
+                      Dihitung otomatis dari jumlah alokasi: Rp {getTotalAllocationAmount().toLocaleString('id-ID')}
+                    </p>
+                  )}
                 </div>
               )}
             </div>

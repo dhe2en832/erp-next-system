@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
 
     if (response.ok && data.data) {
       // Fetch available accounts for dropdowns
-      const accountsUrl = `${ERPNEXT_API_URL}/api/resource/Account?fields=["name","account_type","company"]&filters=[["company","=", "${company}"],["is_group","=",0]]&order_by=name&limit_page_length=100`;
+      const accountsUrl = `${ERPNEXT_API_URL}/api/resource/Account?fields=["name","account_type","root_type","company"]&filters=[["company","=", "${company}"],["is_group","=",0]]&order_by=name&limit_page_length=500`;
       
       const accountsResponse = await fetch(accountsUrl, {
         method: 'GET',
