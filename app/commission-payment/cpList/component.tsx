@@ -41,6 +41,19 @@ export default function CommissionPaymentList() {
   useEffect(() => {
     const saved = localStorage.getItem('selected_company');
     if (saved) setSelectedCompany(saved);
+
+    // Set default date range: kemarin sampai hari ini
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    const formatDate = (date: Date) => date.toISOString().split('T')[0];
+    
+    setFilters(prev => ({
+      ...prev,
+      dateFrom: formatDate(yesterday),
+      dateTo: formatDate(today)
+    }));
   }, []);
 
   const fetchPayableInvoices = useCallback(async (pageNum = 1) => {
@@ -251,7 +264,12 @@ export default function CommissionPaymentList() {
             ) : (
               invoices.map((inv) => (
                 <tr key={inv.name} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-indigo-600">{inv.name}</td>
+                  <td 
+                    className="px-4 py-3 whitespace-nowrap text-sm font-medium text-indigo-600 cursor-pointer hover:underline"
+                    onClick={() => router.push(`/invoice/siMain?name=${encodeURIComponent(inv.name)}`)}
+                  >
+                    {inv.name}
+                  </td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{inv.customer_name || inv.customer}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
                     {inv.sales_team && inv.sales_team.length > 0

@@ -97,6 +97,26 @@ export async function GET(request: NextRequest) {
             (inv.custom_total_komisi_sales || 0) > 0
           );
 
+          // Fetch sales_team for each invoice (child table not returned by default)
+          if (invoices.length > 0) {
+            const invoicesWithSalesTeam = await Promise.all(
+              invoices.map(async (inv: any) => {
+                try {
+                  const detailUrl = `${ERPNEXT_API_URL}/api/resource/Sales Invoice/${encodeURIComponent(inv.name)}?fields=["sales_team"]`;
+                  const detailResponse = await fetch(detailUrl, { method: 'GET', headers });
+                  const detailData = await detailResponse.json();
+                  if (detailResponse.ok && detailData.data) {
+                    return { ...inv, sales_team: detailData.data.sales_team || [] };
+                  }
+                } catch (err) {
+                  console.error(`Error fetching sales_team for ${inv.name}:`, err);
+                }
+                return { ...inv, sales_team: [] };
+              })
+            );
+            invoices = invoicesWithSalesTeam;
+          }
+
           // Apply frontend filters
           invoices = applyFrontendFilters(invoices, { invoiceNo, customerName, salesPerson, dateFrom, dateTo });
           const total = invoices.length;
@@ -116,6 +136,26 @@ export async function GET(request: NextRequest) {
     let invoices = (data.data || []).filter((inv: any) =>
       (inv.custom_total_komisi_sales || 0) > 0
     );
+
+    // Fetch sales_team for each invoice (child table not returned by default)
+    if (invoices.length > 0) {
+      const invoicesWithSalesTeam = await Promise.all(
+        invoices.map(async (inv: any) => {
+          try {
+            const detailUrl = `${ERPNEXT_API_URL}/api/resource/Sales Invoice/${encodeURIComponent(inv.name)}?fields=["sales_team"]`;
+            const detailResponse = await fetch(detailUrl, { method: 'GET', headers });
+            const detailData = await detailResponse.json();
+            if (detailResponse.ok && detailData.data) {
+              return { ...inv, sales_team: detailData.data.sales_team || [] };
+            }
+          } catch (err) {
+            console.error(`Error fetching sales_team for ${inv.name}:`, err);
+          }
+          return { ...inv, sales_team: [] };
+        })
+      );
+      invoices = invoicesWithSalesTeam;
+    }
 
     // Apply frontend filters
     invoices = applyFrontendFilters(invoices, { invoiceNo, customerName, salesPerson, dateFrom, dateTo });
