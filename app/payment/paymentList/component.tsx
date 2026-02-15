@@ -19,6 +19,7 @@ interface PaymentEntry {
   total_allocated_amount: number;
   mode_of_payment?: string;
   custom_notes_payment?: string;
+  clearance_date?: string;
   references: Array<{
     reference_doctype: string;
     reference_name: string;
@@ -80,9 +81,11 @@ export default function PaymentList({ onEdit, onCreate, selectedCompany }: Payme
   const [bankAccounts, setBankAccounts] = useState<Array<{ name: string; account_name: string; account_type: string }>>([]);
   const [selectedBankAccount, setSelectedBankAccount] = useState('');
   const [bounceReason, setBounceReason] = useState('');
+  const [clearanceDate, setClearanceDate] = useState('');
   const [warkatLoading, setWarkatLoading] = useState(false);
   const [loadingBankAccounts, setLoadingBankAccounts] = useState(false);
   const [submittingPayment, setSubmittingPayment] = useState<string>('');
+  const [createdJournalEntry, setCreatedJournalEntry] = useState<string>('');
 
   const fetchPayments = async () => {
     setError('');
@@ -193,6 +196,7 @@ export default function PaymentList({ onEdit, onCreate, selectedCompany }: Payme
     setSelectedWarkatPayment(paymentName);
     setSelectedWarkatPaymentType(paymentType);
     setSelectedBankAccount('');
+    setClearanceDate(formatDate(new Date()));
     setShowClearWarkatDialog(true);
     fetchBankAccounts();
   };
@@ -211,6 +215,10 @@ export default function PaymentList({ onEdit, onCreate, selectedCompany }: Payme
       setError('Pilih akun bank terlebih dahulu');
       return;
     }
+    if (!clearanceDate) {
+      setError('Pilih tanggal pencairan terlebih dahulu');
+      return;
+    }
     setWarkatLoading(true);
     setError('');
     try {
@@ -222,14 +230,19 @@ export default function PaymentList({ onEdit, onCreate, selectedCompany }: Payme
           payment_entry: selectedWarkatPayment,
           bank_account: selectedBankAccount,
           payment_type: selectedWarkatPaymentType,
+          clearance_date: parseDate(clearanceDate),
         }),
       });
       const data = await response.json();
       if (data.success) {
-        setSuccessMessage(`Warkat ${selectedWarkatPayment} berhasil dicairkan! Journal Entry: ${data.journal_entry || '-'}`);
+        setCreatedJournalEntry(data.journal_entry || '');
+        setSuccessMessage(`Warkat ${selectedWarkatPayment} berhasil dicairkan!`);
         setShowClearWarkatDialog(false);
         fetchPayments();
-        setTimeout(() => setSuccessMessage(''), 5000);
+        setTimeout(() => {
+          setSuccessMessage('');
+          setCreatedJournalEntry('');
+        }, 5000);
       } else {
         setError(data.message || 'Gagal mencairkan warkat');
       }
@@ -300,11 +313,26 @@ export default function PaymentList({ onEdit, onCreate, selectedCompany }: Payme
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
               </svg>
             </div>
-            <div className="ml-3">
+            <div className="ml-3 flex-1">
               <h3 className="text-sm font-medium text-green-800">Berhasil!</h3>
               <div className="mt-2 text-sm text-green-700">
                 <pre className="whitespace-pre-wrap font-sans">{successMessage}</pre>
               </div>
+              {createdJournalEntry && (
+                <div className="mt-3">
+                  <a
+                    href={`${process.env.NEXT_PUBLIC_ERPNEXT_URL || 'http://localhost:8000'}/app/journal-entry/${createdJournalEntry}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center px-3 py-1.5 bg-teal-600 text-white text-xs font-medium rounded hover:bg-teal-700 transition-colors"
+                  >
+                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                    Lihat Journal Entry: {createdJournalEntry}
+                  </a>
+                </div>
+              )}
             </div>
             <div className="ml-auto pl-3">
               <button
@@ -542,24 +570,42 @@ export default function PaymentList({ onEdit, onCreate, selectedCompany }: Payme
                       )}
                       {payment.status === 'Submitted' && payment.mode_of_payment === 'Warkat' && (
                         <>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleOpenClearWarkat(payment.name, payment.payment_type as 'Pay' | 'Receive');
-                            }}
-                            className="px-2 py-1 bg-teal-600 text-white text-xs font-medium rounded hover:bg-teal-700 transition-colors"
-                          >
-                            Cairkan
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleOpenBounceWarkat(payment.name, payment.payment_type as 'Pay' | 'Receive');
-                            }}
-                            className="px-2 py-1 bg-red-600 text-white text-xs font-medium rounded hover:bg-red-700 transition-colors"
-                          >
-                            Tolak
-                          </button>
+                          {!payment.clearance_date ? (
+                            <>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenClearWarkat(payment.name, payment.payment_type as 'Pay' | 'Receive');
+                                }}
+                                className="px-2 py-1 bg-teal-600 text-white text-xs font-medium rounded hover:bg-teal-700 transition-colors"
+                              >
+                                Cairkan
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenBounceWarkat(payment.name, payment.payment_type as 'Pay' | 'Receive');
+                                }}
+                                className="px-2 py-1 bg-red-600 text-white text-xs font-medium rounded hover:bg-red-700 transition-colors"
+                              >
+                                Tolak
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onEdit(payment);
+                              }}
+                              className="px-2 py-1 bg-blue-600 text-white text-xs font-medium rounded hover:bg-blue-700 transition-colors inline-flex items-center"
+                            >
+                              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                              </svg>
+                              Lihat
+                            </button>
+                          )}
                         </>
                       )}
                     </div>
@@ -641,24 +687,42 @@ export default function PaymentList({ onEdit, onCreate, selectedCompany }: Payme
                       )}
                       {payment.status === 'Submitted' && payment.mode_of_payment === 'Warkat' && (
                         <>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleOpenClearWarkat(payment.name, payment.payment_type as 'Pay' | 'Receive');
-                            }}
-                            className="px-2 py-1 bg-teal-600 text-white text-xs font-medium rounded hover:bg-teal-700 transition-colors"
-                          >
-                            Cairkan
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleOpenBounceWarkat(payment.name, payment.payment_type as 'Pay' | 'Receive');
-                            }}
-                            className="px-2 py-1 bg-red-600 text-white text-xs font-medium rounded hover:bg-red-700 transition-colors"
-                          >
-                            Tolak
-                          </button>
+                          {!payment.clearance_date ? (
+                            <>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenClearWarkat(payment.name, payment.payment_type as 'Pay' | 'Receive');
+                                }}
+                                className="px-2 py-1 bg-teal-600 text-white text-xs font-medium rounded hover:bg-teal-700 transition-colors"
+                              >
+                                Cairkan
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenBounceWarkat(payment.name, payment.payment_type as 'Pay' | 'Receive');
+                                }}
+                                className="px-2 py-1 bg-red-600 text-white text-xs font-medium rounded hover:bg-red-700 transition-colors"
+                              >
+                                Tolak
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onEdit(payment);
+                              }}
+                              className="px-2 py-1 bg-blue-600 text-white text-xs font-medium rounded hover:bg-blue-700 transition-colors inline-flex items-center"
+                            >
+                              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                              </svg>
+                              Lihat
+                            </button>
+                          )}
                         </>
                       )}
                     </div>
@@ -733,6 +797,16 @@ export default function PaymentList({ onEdit, onCreate, selectedCompany }: Payme
                     ))}
                   </select>
                 )}
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal Pencairan</label>
+                <BrowserStyleDatePicker
+                  value={clearanceDate}
+                  onChange={(value: string) => setClearanceDate(value)}
+                  className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  placeholder="DD/MM/YYYY"
+                />
               </div>
 
               <div className="flex justify-end gap-3">

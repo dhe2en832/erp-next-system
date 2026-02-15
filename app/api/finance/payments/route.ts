@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Build ERPNext URL
-    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Payment Entry?fields=["name","payment_type","party","party_name","party_type","paid_amount","received_amount","status","posting_date","mode_of_payment","reference_no","custom_notes_payment"]&limit_page_length=${limit}&start=${start}`;
+    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Payment Entry?fields=["name","payment_type","party","party_name","party_type","paid_amount","received_amount","status","posting_date","mode_of_payment","reference_no","custom_notes_payment","clearance_date"]&limit_page_length=${limit}&start=${start}`;
     
     if (filtersArray.length > 0) {
       erpNextUrl += `&filters=${encodeURIComponent(JSON.stringify(filtersArray))}`;

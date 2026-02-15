@@ -33,6 +33,7 @@ export async function GET(request: NextRequest) {
     const filters: any[] = [
       ['account_type', 'in', ['Cash', 'Bank']],
       ['is_group', '=', 0],
+      ['disabled', '=', 0],
     ];
     if (company) {
       filters.push(['company', '=', company]);

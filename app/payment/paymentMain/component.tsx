@@ -1691,7 +1691,7 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
             </button>
             <button
               type="submit"
-              disabled={formLoading}
+              disabled={formLoading || editingPaymentStatus === 'Submitted'}
               className="w-full sm:w-auto bg-indigo-600 text-white px-6 py-2 rounded-md hover:bg-indigo-700 disabled:opacity-50"
             >
               {formLoading ? (

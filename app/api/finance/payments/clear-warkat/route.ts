@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { company, payment_entry, bank_account, payment_type } = body;
+    const { company, payment_entry, bank_account, payment_type, clearance_date } = body;
 
     if (!company || !payment_entry || !bank_account) {
       return NextResponse.json({
@@ -42,14 +42,14 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('=== CLEAR WARKAT PAYMENT ===');
-    console.log('Payload:', { company, payment_entry, bank_account, payment_type });
+    console.log('Payload:', { company, payment_entry, bank_account, payment_type, clearance_date });
 
     const erpUrl = `${ERPNEXT_API_URL}/api/method/clear_warkat_payment`;
 
     const response = await fetch(erpUrl, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ company, payment_entry, bank_account, payment_type }),
+      body: JSON.stringify({ company, payment_entry, bank_account, payment_type, clearance_date }),
     });
 
     const data = await response.json();
