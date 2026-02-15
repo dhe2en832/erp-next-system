@@ -35,13 +35,67 @@ export default function CommissionPaymentMain() {
   const [employeeName, setEmployeeName] = useState('');
   const [postingDate, setPostingDate] = useState(new Date().toISOString().split('T')[0]);
   const [modeOfPayment, setModeOfPayment] = useState('Cash');
-  const [paidFromAccount, setPaidFromAccount] = useState('111100 - Kas - BAC');
-  const [commissionExpenseAccount, setCommissionExpenseAccount] = useState('519000 - Biaya Komisi Penjualan - BAC');
+  const [paidFromAccount, setPaidFromAccount] = useState('');
+  const [cashAccounts, setCashAccounts] = useState<{name: string, account_name: string}[]>([]);
+  const [bankAccounts, setBankAccounts] = useState<{name: string, account_name: string}[]>([]);
+  const [loadingAccounts, setLoadingAccounts] = useState(false);
+  const [companyAbbr, setCompanyAbbr] = useState('');
+  const [commissionAccount, setCommissionAccount] = useState('');
   const [invoices, setInvoices] = useState<PayableInvoice[]>([]);
+
+  // Calculate company abbreviation
+  const getCompanyAbbr = (companyName: string) => {
+    const words = companyName.split(' ');
+    return words.length > 1 
+      ? words.map((w: string) => w[0]).join('').toUpperCase()
+      : companyName.substring(0, 3).toUpperCase();
+  };
+
+  // Fetch cash and bank accounts + commission account
+  const fetchCashBankAccounts = async (company: string) => {
+    if (!company) return;
+    setLoadingAccounts(true);
+    try {
+      const [cashBankRes, commissionRes] = await Promise.all([
+        fetch(`/api/finance/accounts/cash-bank?company=${encodeURIComponent(company)}`, { credentials: 'include' }),
+        fetch(`/api/finance/commission/account?company=${encodeURIComponent(company)}`, { credentials: 'include' })
+      ]);
+      
+      const cashBankData = await cashBankRes.json();
+      const commissionData = await commissionRes.json();
+      
+      if (cashBankData.success) {
+        setCashAccounts(cashBankData.data.filter((a: any) => a.account_type === 'Cash'));
+        setBankAccounts(cashBankData.data.filter((a: any) => a.account_type === 'Bank'));
+        const firstCash = cashBankData.data.find((a: any) => a.account_type === 'Cash');
+        if (firstCash) {
+          setPaidFromAccount(firstCash.name);
+        }
+      }
+      
+      if (commissionData.success && commissionData.data?.account_name) {
+        setCommissionAccount(commissionData.data.account_name);
+      } else {
+        // Fallback to default format
+        const abbr = getCompanyAbbr(company);
+        setCommissionAccount(`2150.0001 - Hutang Komisi Sales - ${abbr}`);
+      }
+    } catch (err) {
+      console.error('Error fetching accounts:', err);
+      const abbr = getCompanyAbbr(company);
+      setCommissionAccount(`2150.0001 - Hutang Komisi Sales - ${abbr}`);
+    } finally {
+      setLoadingAccounts(false);
+    }
+  };
 
   useEffect(() => {
     const saved = localStorage.getItem('selected_company');
-    if (saved) setSelectedCompany(saved);
+    if (saved) {
+      setSelectedCompany(saved);
+      setCompanyAbbr(getCompanyAbbr(saved));
+      fetchCashBankAccounts(saved);
+    }
   }, []);
 
   useEffect(() => {
@@ -142,7 +196,7 @@ export default function CommissionPaymentMain() {
           posting_date: postingDate,
           mode_of_payment: modeOfPayment,
           paid_from_account: paidFromAccount,
-          commission_expense_account: commissionExpenseAccount,
+          commission_expense_account: commissionAccount || `2150.0001 - Hutang Komisi Sales - ${companyAbbr}`,
           invoices: selectedInvoices.map(inv => ({
             invoice_name: inv.name,
             commission_amount: inv.custom_total_komisi_sales || 0,
@@ -242,25 +296,41 @@ export default function CommissionPaymentMain() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Akun Bayar Dari</label>
-              <input
-                type="text"
+              <label className="block text-sm font-medium text-gray-700 mb-1">Akun Bayar Dari *</label>
+              <select
+                required
                 value={paidFromAccount}
                 onChange={(e) => setPaidFromAccount(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                placeholder="Contoh: 111100 - Kas - BAC"
-              />
+                disabled={loadingAccounts}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm disabled:bg-gray-100"
+              >
+                <option value="">{loadingAccounts ? 'Memuat...' : '-- Pilih Akun --'}</option>
+                {cashAccounts.length > 0 && (
+                  <optgroup label="Kas (Cash)">
+                    {cashAccounts.map(acc => (
+                      <option key={acc.name} value={acc.name}>{acc.name}</option>
+                    ))}
+                  </optgroup>
+                )}
+                {bankAccounts.length > 0 && (
+                  <optgroup label="Bank">
+                    {bankAccounts.map(acc => (
+                      <option key={acc.name} value={acc.name}>{acc.name}</option>
+                    ))}
+                  </optgroup>
+                )}
+              </select>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Akun Biaya Komisi</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Akun Hutang Komisi (Debit)</label>
               <input
                 type="text"
-                value={commissionExpenseAccount}
-                onChange={(e) => setCommissionExpenseAccount(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                placeholder="Contoh: 519000 - Biaya Komisi Penjualan - BAC"
+                readOnly
+                value={commissionAccount || `2150.0001 - Hutang Komisi Sales - ${companyAbbr}`}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-50 sm:text-sm text-gray-600"
               />
+              <p className="text-xs text-gray-500 mt-1">Auto: Hutang Komisi Sales (Liability)</p>
             </div>
 
             <div>
