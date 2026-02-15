@@ -561,11 +561,8 @@ export default function PurchaseInvoiceMain() {
           setError(`Gagal ${isEditMode ? 'mengupdate' : 'membuat'} Purchase Invoice`);
         }
       } finally {
-        // Only set form loading to false if there was an error
-        // On success, keep loading true until redirect
-        if (!isSuccess) {
-          setFormLoading(false);
-        }
+        // Reset form loading state
+        setFormLoading(false);
       }
     } catch (error) {  // <-- BARIS INI YANG DITAMBAHKAN (closing brace untuk outer try + catch block)
       console.error('Error in handleSubmit:', error);
@@ -651,7 +648,7 @@ export default function PurchaseInvoiceMain() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Nama Pemasok
                   </label>
-                  <div className="flex space-x-2">
+                  <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
                     <input
                       type="text"
                       value={formData.supplier_name}

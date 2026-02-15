@@ -115,6 +115,7 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
   const [editingPaymentStatus, setEditingPaymentStatus] = useState('');
   const [companyAccounts, setCompanyAccounts] = useState<any>({});
   const [loadingAccounts, setLoadingAccounts] = useState(false);
+  const [showJournalPreview, setShowJournalPreview] = useState(false);
 
   // Fetch company default accounts
   const fetchCompanyAccounts = useCallback(async () => {
@@ -906,7 +907,7 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   {formData.party_type === 'Customer' ? 'Pelanggan' : 'Pemasok'}
                 </label>
-                <div className="flex items-center space-x-2">
+                <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
                   <input
                     type="text"
                     value={formData.party_type === 'Customer' ? selectedCustomerName : selectedSupplierName}
@@ -1512,11 +1513,35 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
             return (
               <div className="border rounded-lg p-4 bg-gray-50 border-gray-200">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 gap-2">
-                  <h5 className="text-md font-medium text-gray-900">Preview Jurnal</h5>
-                  <span className="text-sm text-gray-600">Entri Akuntansi</span>
+                  <div className="flex items-center space-x-2">
+                    <h5 className="text-md font-medium text-gray-900">Preview Jurnal</h5>
+                    <span className="text-sm text-gray-600">Entri Akuntansi</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowJournalPreview(!showJournalPreview)}
+                    className="text-sm text-indigo-600 hover:text-indigo-800 flex items-center space-x-1"
+                  >
+                    {showJournalPreview ? (
+                      <>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                        <span>Sembunyikan</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                        <span>Tampilkan</span>
+                      </>
+                    )}
+                  </button>
                 </div>
 
-                <div className="space-y-2 text-sm font-mono">
+                {showJournalPreview && (
+                  <div className="space-y-2 text-sm font-mono">
                   <div className="bg-green-50 border border-green-200 rounded p-2 text-xs text-green-700">
                     ✅ <strong>Pemilihan Akun Otomatis:</strong> Akun dipilih berdasarkan tipe dan metode pembayaran.
                   </div>
@@ -1534,24 +1559,25 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
                       </div>
                     ))}
                   </div>
-                </div>
 
-                <div className="mt-3 pt-3 border-t border-gray-300">
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="font-medium text-gray-900">Total Debit:</span>
-                    <span className="font-bold text-green-600">Rp {journal.debit.amount.toLocaleString('id-ID')}</span>
+                  <div className="mt-3 pt-3 border-t border-gray-300">
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="font-medium text-gray-900">Total Debit:</span>
+                      <span className="font-bold text-green-600">Rp {journal.debit.amount.toLocaleString('id-ID')}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="font-medium text-gray-900">Total Kredit:</span>
+                      <span className="font-bold text-red-600">
+                        Rp {journal.credits.reduce((sum: number, credit: any) => sum + credit.amount, 0).toLocaleString('id-ID')}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="font-medium text-gray-900">Total Kredit:</span>
-                    <span className="font-bold text-red-600">
-                      Rp {journal.credits.reduce((sum: number, credit: any) => sum + credit.amount, 0).toLocaleString('id-ID')}
-                    </span>
-                  </div>
-                </div>
 
-                <div className="mt-3 text-xs text-gray-500">
-                  Entri jurnal akan otomatis dibuat oleh ERPNext saat pembayaran di-submit
-                </div>
+                  <div className="mt-3 text-xs text-gray-500">
+                    Entri jurnal akan otomatis dibuat oleh ERPNext saat pembayaran di-submit
+                  </div>
+                  </div>
+                )}
               </div>
             );
           })()}
@@ -1570,7 +1596,31 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
               disabled={formLoading}
               className="w-full sm:w-auto bg-indigo-600 text-white px-6 py-2 rounded-md hover:bg-indigo-700 disabled:opacity-50"
             >
-              {formLoading ? 'Memproses...' : (editingPayment ? 'Perbarui Pembayaran' : 'Simpan Pembayaran')}
+              {formLoading ? (
+                <>
+                  <svg
+                    className="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    ></circle>
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path>
+                  </svg>
+                  Memproses...
+                </>
+              ) : (editingPayment ? 'Perbarui Pembayaran' : 'Simpan Pembayaran')}
             </button>
           </div>
         </form>

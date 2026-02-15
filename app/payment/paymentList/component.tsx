@@ -17,6 +17,7 @@ interface PaymentEntry {
   status: string;
   posting_date: string;
   total_allocated_amount: number;
+  mode_of_payment?: string;
   custom_notes_payment?: string;
   references: Array<{
     reference_doctype: string;
@@ -69,6 +70,7 @@ export default function PaymentList({ onEdit, onCreate, selectedCompany }: Payme
   const [documentNumberFilter, setDocumentNumberFilter] = useState('');
   const [paymentTypeFilter, setPaymentTypeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [modeOfPaymentFilter, setModeOfPaymentFilter] = useState('');
 
   const fetchPayments = async () => {
     setError('');
@@ -96,6 +98,7 @@ export default function PaymentList({ onEdit, onCreate, selectedCompany }: Payme
 
       if (paymentTypeFilter) params.append('payment_type', paymentTypeFilter);
       if (statusFilter) params.append('status', statusFilter);
+      if (modeOfPaymentFilter) params.append('mode_of_payment', modeOfPaymentFilter);
       if (searchFilter.trim()) params.append('search', searchFilter.trim());
       if (documentNumberFilter.trim()) params.append('documentNumber', documentNumberFilter.trim());
 
@@ -271,6 +274,23 @@ export default function PaymentList({ onEdit, onCreate, selectedCompany }: Payme
             </select>
           </div>
           <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Metode Pembayaran</label>
+            <select
+              className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              value={modeOfPaymentFilter}
+              onChange={(e) => {
+                setModeOfPaymentFilter(e.target.value);
+                setCurrentPage(1);
+              }}
+            >
+              <option value="">Semua Metode</option>
+              <option value="Cash">Cash</option>
+              <option value="Bank Transfer">Bank Transfer</option>
+              <option value="Warkat">Warkat</option>
+              <option value="Credit Card">Credit Card</option>
+            </select>
+          </div>
+          <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Dari Tanggal</label>
             <BrowserStyleDatePicker
               value={dateFilter.from_date}
@@ -305,6 +325,7 @@ export default function PaymentList({ onEdit, onCreate, selectedCompany }: Payme
                 setDocumentNumberFilter('');
                 setPaymentTypeFilter('');
                 setStatusFilter('');
+                setModeOfPaymentFilter('');
                 setCurrentPage(1);
               }}
               className="w-full sm:w-auto bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400"
@@ -325,6 +346,7 @@ export default function PaymentList({ onEdit, onCreate, selectedCompany }: Payme
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">No. Dokumen</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipe</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pihak</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Metode</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tanggal</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Jumlah</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
@@ -350,6 +372,11 @@ export default function PaymentList({ onEdit, onCreate, selectedCompany }: Payme
                   <td className="px-4 py-3">
                     <div className="text-sm text-gray-900">{payment.party_name || payment.party}</div>
                     <div className="text-xs text-gray-500">{payment.party_type === 'Customer' ? 'Pelanggan' : 'Pemasok'}</div>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <span className="text-sm text-gray-900">
+                      {payment.mode_of_payment || '-'}
+                    </span>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
                     {payment.posting_date}
@@ -423,6 +450,9 @@ export default function PaymentList({ onEdit, onCreate, selectedCompany }: Payme
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                       <p className="text-sm text-gray-500">
                         Tipe: {payment.payment_type === 'Receive' ? 'Penerimaan' : 'Pembayaran'}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        Metode: {payment.mode_of_payment || '-'}
                       </p>
                       <p className="text-sm text-gray-500">
                         Tanggal: {payment.posting_date}
