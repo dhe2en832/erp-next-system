@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import { formatDate } from '../../../utils/format';
+import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
 
 interface APEntry {
   supplier: string;
@@ -30,6 +32,10 @@ export default function AccountsPayablePage() {
   const [selectedCompany, setSelectedCompany] = useState('');
   const [filterSupplier, setFilterSupplier] = useState('');
   const [filterInvoice, setFilterInvoice] = useState('');
+  const [dateFilter, setDateFilter] = useState({
+    from_date: formatDate(new Date(Date.now() - 86400000)),
+    to_date: formatDate(new Date()),
+  });
 
   useEffect(() => {
     const saved = localStorage.getItem('selected_company');
@@ -41,7 +47,11 @@ export default function AccountsPayablePage() {
     setLoading(true);
     setError('');
     try {
-      const response = await fetch(`/api/finance/reports/accounts-payable?company=${encodeURIComponent(selectedCompany)}`, { credentials: 'include' });
+      const params = new URLSearchParams();
+      params.append('company', selectedCompany);
+      if (dateFilter.from_date) params.append('from_date', dateFilter.from_date);
+      if (dateFilter.to_date) params.append('to_date', dateFilter.to_date);
+      const response = await fetch(`/api/finance/reports/accounts-payable?${params}`, { credentials: 'include' });
       const result = await response.json();
       if (result.success) {
         setData(result.data || []);
@@ -53,11 +63,11 @@ export default function AccountsPayablePage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedCompany]);
+  }, [selectedCompany, dateFilter]);
 
   useEffect(() => {
     if (selectedCompany) fetchData();
-  }, [selectedCompany, fetchData]);
+  }, [selectedCompany, dateFilter, fetchData]);
 
   const filteredData = useMemo(() => {
     return data.filter(entry => {
@@ -92,21 +102,45 @@ export default function AccountsPayablePage() {
       {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{error}</div>}
 
       {/* Filters */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 print:hidden">
-        <input
-          type="text"
-          placeholder="Filter Pemasok..."
-          value={filterSupplier}
-          onChange={(e) => setFilterSupplier(e.target.value)}
-          className="border border-gray-300 rounded-md shadow-sm py-2 px-3 text-sm focus:ring-indigo-500 focus:border-indigo-500"
-        />
-        <input
-          type="text"
-          placeholder="Filter No. Faktur..."
-          value={filterInvoice}
-          onChange={(e) => setFilterInvoice(e.target.value)}
-          className="border border-gray-300 rounded-md shadow-sm py-2 px-3 text-sm focus:ring-indigo-500 focus:border-indigo-500"
-        />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4 print:hidden">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Dari Tanggal</label>
+          <BrowserStyleDatePicker
+            value={dateFilter.from_date}
+            onChange={(value: string) => setDateFilter(prev => ({ ...prev, from_date: value }))}
+            className="border border-gray-300 rounded-md shadow-sm py-2 px-3 text-sm focus:ring-indigo-500 focus:border-indigo-500 w-full"
+            placeholder="DD/MM/YYYY"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Sampai Tanggal</label>
+          <BrowserStyleDatePicker
+            value={dateFilter.to_date}
+            onChange={(value: string) => setDateFilter(prev => ({ ...prev, to_date: value }))}
+            className="border border-gray-300 rounded-md shadow-sm py-2 px-3 text-sm focus:ring-indigo-500 focus:border-indigo-500 w-full"
+            placeholder="DD/MM/YYYY"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Filter Pemasok</label>
+          <input
+            type="text"
+            placeholder="Cari pemasok..."
+            value={filterSupplier}
+            onChange={(e) => setFilterSupplier(e.target.value)}
+            className="border border-gray-300 rounded-md shadow-sm py-2 px-3 text-sm focus:ring-indigo-500 focus:border-indigo-500 w-full"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Filter No. Faktur</label>
+          <input
+            type="text"
+            placeholder="Cari faktur..."
+            value={filterInvoice}
+            onChange={(e) => setFilterInvoice(e.target.value)}
+            className="border border-gray-300 rounded-md shadow-sm py-2 px-3 text-sm focus:ring-indigo-500 focus:border-indigo-500 w-full"
+          />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">

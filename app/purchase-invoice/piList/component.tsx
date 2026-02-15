@@ -6,6 +6,7 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 import Pagination from '../../components/Pagination';
 import { formatDate, parseDate } from '../../../utils/format';
 import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
+import { Printer } from 'lucide-react';
 
 interface PurchaseInvoice {
   name: string;
@@ -481,8 +482,20 @@ export default function PurchaseInvoiceList() {
                           </span>
                         )}
 
+                        {/* Print button */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.open(`/print/Purchase%20Invoice?name=${invoice.name}`, '_blank');
+                          }}
+                          className="ml-2 p-2 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
+                          title="Cetak"
+                        >
+                          <Printer className="h-4 w-4" />
+                        </button>
+
                          {/* Action buttons based on status */}
-                        <div className="ml-4 flex space-x-2">
+                        <div className="ml-2 flex space-x-2">
                           {/* Submit button for Draft invoices */}
                           {invoice.status === 'Draft' && (
                             <button

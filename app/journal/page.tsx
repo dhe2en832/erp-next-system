@@ -16,8 +16,8 @@ export default function JournalPage() {
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [dateFilter, setDateFilter] = useState({
-    from_date: '',
-    to_date: '',
+    from_date: new Date(Date.now() - 86400000).toISOString().split('T')[0],
+    to_date: new Date().toISOString().split('T')[0],
   });
   const [selectedCompany, setSelectedCompany] = useState('');
   const [error, setError] = useState('');
@@ -111,14 +111,14 @@ export default function JournalPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Journal Entries</h1>
+        <h1 className="text-3xl font-bold text-gray-900">Jurnal Umum</h1>
       </div>
 
       <div className="bg-white shadow rounded-lg p-4 mb-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              From Date
+              Dari Tanggal
             </label>
             <input
               type="date"
@@ -129,7 +129,7 @@ export default function JournalPage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              To Date
+              Sampai Tanggal
             </label>
             <input
               type="date"
@@ -140,10 +140,13 @@ export default function JournalPage() {
           </div>
           <div className="flex items-end">
             <button
-              onClick={() => setDateFilter({ from_date: '', to_date: '' })}
+              onClick={() => setDateFilter({ 
+                from_date: new Date(Date.now() - 86400000).toISOString().split('T')[0],
+                to_date: new Date().toISOString().split('T')[0]
+              })}
               className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400"
             >
-              Clear Filter
+              Reset Filter
             </button>
           </div>
         </div>
@@ -166,11 +169,11 @@ export default function JournalPage() {
                       {entry.name}
                     </p>
                     <p className="mt-1 text-sm text-gray-900">
-                      Type: {entry.voucher_type}
+                      Tipe: {entry.voucher_type}
                     </p>
                     {entry.user_remark && (
                       <p className="mt-1 text-sm text-gray-500">
-                        Remark: {entry.user_remark}
+                        Catatan: {entry.user_remark}
                       </p>
                     )}
                   </div>
@@ -191,15 +194,15 @@ export default function JournalPage() {
                 <div className="mt-2 sm:flex sm:justify-between">
                   <div className="sm:flex">
                     <p className="flex items-center text-sm text-gray-500">
-                      Date: {entry.posting_date}
+                      Tanggal: {entry.posting_date}
                     </p>
                   </div>
                   <div className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">
                     <span className="text-red-600 font-medium">
-                      Debit: ${entry.total_debit.toFixed(2)}
+                      Debit: Rp {entry.total_debit.toLocaleString('id-ID')}
                     </span>
                     <span className="ml-4 text-green-600 font-medium">
-                      Credit: ${entry.total_credit.toFixed(2)}
+                      Credit: Rp {entry.total_credit.toLocaleString('id-ID')}
                     </span>
                   </div>
                 </div>
@@ -209,7 +212,7 @@ export default function JournalPage() {
         </ul>
         {journalEntries.length === 0 && (
           <div className="text-center py-12">
-            <p className="text-gray-500">No journal entries found</p>
+            <p className="text-gray-500">Tidak ada jurnal ditemukan</p>
           </div>
         )}
       </div>

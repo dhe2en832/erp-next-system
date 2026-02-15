@@ -21,21 +21,21 @@ export async function GET(
       );
     }
 
-    // Use API key authentication
-    const apiKey = process.env.ERP_API_KEY;
-    const apiSecret = process.env.ERP_API_SECRET;
+    // Get session cookie for authentication
+    const cookies = request.cookies;
+    const sid = cookies.get('sid')?.value;
 
-    if (!apiKey || !apiSecret) {
+    if (!sid) {
       return NextResponse.json(
-        { success: false, message: 'ERPNext API credentials not configured' },
-        { status: 500 }
+        { success: false, message: 'Unauthorized - Please login first' },
+        { status: 401 }
       );
     }
 
-    // Build ERPNext URL to get specific Purchase Receipt
-    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Purchase Receipt/${name}?fields=["*"]`;
+    // Fetch full document without fields param - ERPNext returns complete doc with child tables
+    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Purchase Receipt/${encodeURIComponent(name)}`;
 
-    console.log('Fetch Purchase Receipt ERPNext URL:', erpNextUrl);
+    console.log('Fetch Purchase Receipt URL:', erpNextUrl);
 
     const response = await fetch(
       erpNextUrl,
@@ -43,13 +43,13 @@ export async function GET(
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `token ${apiKey}:${apiSecret}`,
+          'Cookie': `sid=${sid}`,
         },
+        credentials: 'include',
       }
     );
 
     const data = await response.json();
-    console.log('Fetch Purchase Receipt response:', data);
 
     if (response.ok) {
       return NextResponse.json({

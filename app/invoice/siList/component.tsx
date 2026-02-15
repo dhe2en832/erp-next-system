@@ -6,6 +6,7 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 import Pagination from '../../components/Pagination';
 import { formatDate, parseDate } from '../../../utils/format';
 import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
+import { Printer } from 'lucide-react';
 
 interface InvoiceItem {
   item_code: string;
@@ -336,6 +337,18 @@ export default function SalesInvoiceList() {
                         </div>
                       )}
                     </div>
+
+                    {/* Print button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        window.open(`/print/Sales%20Invoice?name=${invoice.name}`, '_blank');
+                      }}
+                      className="ml-2 p-2 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
+                      title="Cetak"
+                    >
+                      <Printer className="h-4 w-4" />
+                    </button>
 
                     {/* Submit Button for Draft Invoices */}
                     {invoice.status === 'Draft' && (

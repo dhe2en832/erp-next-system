@@ -90,8 +90,8 @@ export default function PurchaseReceiptMain() {
   const [postingDate, setPostingDate] = useState(new Date().toISOString().split('T')[0]);
   const [purchaseOrder, setPurchaseOrder] = useState('');
   const handlePOSelect = (po: PurchaseOrder) => {
+    console.log('handlePOSelect called with PO:', po);
     fetchPOItems(po.name);
-    setShowPODialog(false);
     setPoSearchCode('');
     setPoSearchSupplier('');
   };
@@ -135,6 +135,10 @@ export default function PurchaseReceiptMain() {
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   
+  // Supplier Dialog States
+  const [showSupplierDialog, setShowSupplierDialog] = useState(false);
+  const [supplierSearch, setSupplierSearch] = useState('');
+  
   // PO Dialog Search States
   const [poSearchCode, setPoSearchCode] = useState('');
   const [poSearchSupplier, setPoSearchSupplier] = useState('');
@@ -145,6 +149,22 @@ export default function PurchaseReceiptMain() {
     const matchesSupplier = po.supplier_name.toLowerCase().includes(poSearchSupplier.toLowerCase());
     return matchesCode && matchesSupplier;
   });
+
+  // Filter suppliers based on search criteria
+  const filteredSuppliers = suppliers.filter(supplier => {
+    const searchLower = supplierSearch.toLowerCase();
+    return (
+      supplier.name.toLowerCase().includes(searchLower) ||
+      supplier.supplier_name.toLowerCase().includes(searchLower)
+    );
+  });
+
+  const handleSupplierSelect = (selectedSupplier: Supplier) => {
+    setSupplier(selectedSupplier.name);
+    setSupplierName(selectedSupplier.supplier_name);
+    setShowSupplierDialog(false);
+    setSupplierSearch('');
+  };
 
   useEffect(() => {
     // Get company from localStorage
@@ -167,25 +187,38 @@ export default function PurchaseReceiptMain() {
   }, []);
 
   useEffect(() => {
+    if (!selectedCompany) return;
+    
     // Check URL params for edit/view mode
     const urlParams = new URLSearchParams(window.location.search);
     const id = urlParams.get('id');
     const name = urlParams.get('name');
 
-    if (selectedCompany && (id || name)) {
-      if (id) {
-        // Edit mode
-        setIsEditMode(true);
-        setPrId(id);
-        fetchPurchaseReceipt(id);
-      } else if (name) {
-        // View mode
-        setIsViewMode(true);
-        setPrId(name);
-        fetchPurchaseReceipt(name);
-      }
+    console.log('URL params check - id:', id, 'name:', name, 'company:', selectedCompany);
+
+    if (id) {
+      console.log('Edit mode - fetching PR:', id);
+      setIsEditMode(true);
+      setIsViewMode(false);
+      setPrId(id);
+      fetchPurchaseReceipt(id);
+    } else if (name) {
+      console.log('View mode - fetching PR:', name);
+      setIsViewMode(true);
+      setIsEditMode(false);
+      setPrId(name);
+      fetchPurchaseReceipt(name);
     }
   }, [selectedCompany]);
+
+  // Debug useEffect to monitor selectedItems
+  useEffect(() => {
+    console.log('=== DEBUG selectedItems ===');
+    console.log('Length:', selectedItems.length);
+    console.log('Items:', selectedItems);
+    console.log('EditMode:', isEditMode, 'ViewMode:', isViewMode);
+    console.log('========================');
+  }, [selectedItems, isEditMode, isViewMode]);
 
   const fetchSuppliers = async () => {
     if (!selectedCompany) return;
@@ -195,6 +228,7 @@ export default function PurchaseReceiptMain() {
       const data = await response.json();
 
       if (data.success) {
+        console.log('Fetched suppliers:', data.data);
         setSuppliers(data.data || []);
       }
     } catch (err) {
@@ -213,12 +247,16 @@ export default function PurchaseReceiptMain() {
 
       if (data.success) {
         const receipt = data.data;
+        console.log('Fetched Purchase Receipt:', receipt);
+        console.log('Items count:', receipt.items?.length || 0);
+        console.log('Raw Items data:', receipt.items);
         
+        // Set basic header fields
         setSupplier(receipt.supplier);
         setSupplierName(receipt.supplier_name);
         setPostingDate(receipt.posting_date);
         setPurchaseOrder(receipt.purchase_order);
-        setCurrency(receipt.currency);
+        setCurrency(receipt.currency || 'IDR');
         setRemarks(receipt.remarks || '');
         
         // Set receiving warehouse from set_warehouse or items
@@ -229,22 +267,35 @@ export default function PurchaseReceiptMain() {
         }
         
         // Process items to ensure all fields are properly set
-        const processedItems = (receipt.items || []).map((item: PurchaseReceiptItem) => {
-          
-          // ERPNext logic: received_qty = received_qty + rejected_qty
-          // So: received_qty = received_qty - rejected_qty
-          const calculatedReceivedQty = (item.received_qty || 0) - (item.rejected_qty || 0);
-          
-          const processedItem = {
-            ...item,
-            // Calculate received_qty from received_qty and rejected_qty
-            received_qty: calculatedReceivedQty > 0 ? calculatedReceivedQty : 0,
-            rejected_qty: item.rejected_qty || 0,
-          };
-          
-          return processedItem;
-        });
+        let processedItems = [];
         
+        if (receipt.items && Array.isArray(receipt.items) && receipt.items.length > 0) {
+          processedItems = receipt.items.map((item: any) => {
+            console.log('Processing item:', item);
+            
+            // Ensure all required fields are present
+            const processedItem: PurchaseReceiptItem = {
+              item_code: item.item_code || '',
+              item_name: item.item_name || '',
+              description: item.description || '',
+              qty: item.qty || 0,
+              received_qty: item.received_qty || 0,
+              rejected_qty: item.rejected_qty || 0,
+              uom: item.uom || '',
+              rate: item.rate || 0,
+              amount: item.amount || 0,
+              warehouse: item.warehouse || receipt.set_warehouse || '',
+              purchase_order: item.purchase_order || receipt.purchase_order || '',
+              purchase_order_item: item.purchase_order_item || '',
+              schedule_date: item.schedule_date || '',
+            };
+            
+            console.log('Processed item:', processedItem);
+            return processedItem;
+          });
+        }
+        
+        console.log('Final processed items:', processedItems);
         setSelectedItems(processedItems);
         
         // If no PO in header, get from first item
@@ -255,10 +306,11 @@ export default function PurchaseReceiptMain() {
           }
         }
       } else {
+        console.log('Failed to fetch Purchase Receipt:', data.message);
         setError(data.message || 'Gagal mengambil data penerimaan barang');
       }
     } catch (err) {
-      console.error('Error fetching purchase receipt:', err);
+    
       setError('Terjadi kesalahan saat mengambil data');
     } finally {
       setLoading(false);
@@ -266,16 +318,20 @@ export default function PurchaseReceiptMain() {
   };
 
   const fetchPOItems = async (poName: string) => {
+ 
     setLoading(true);
     setError('');
 
     try {
       // Call Next.js API proxy route
       const response = await fetch(`/api/purchase/receipts/fetch-po-detail?po=${encodeURIComponent(poName)}`);
+      
       const data = await response.json();
+     
 
       if (data.message && data.message.success) {
         const poData = data.message.data;
+        console.log('PO data fetched:', poData);
         
         // Set form fields from PO data
         setSupplier(poData.supplier);
@@ -311,10 +367,11 @@ export default function PurchaseReceiptMain() {
           schedule_date: item.schedule_date,
         }));
 
-
+        console.log('Converted PR items:', prItems);
         setSelectedItems(prItems);
         setShowPODialog(false);
       } else {
+        console.log('fetchPOItems failed:', data.message);
         setError(data.message || 'Gagal mengambil data barang pesanan pembelian');
       }
     } catch (err) {
@@ -365,6 +422,20 @@ export default function PurchaseReceiptMain() {
       fetchWarehouses();
     }
   }, [selectedCompany]);
+
+  useEffect(() => {
+    if (selectedCompany) {
+      fetchPurchaseOrders();
+      // Only reset form fields when supplier changes in CREATE mode
+      // In edit/view mode, items are loaded from the PR data
+      if (!isEditMode && !isViewMode) {
+        setPurchaseOrder('');
+        setPurchaseOrderName('');
+        setSelectedItems([]);
+        setRemarks('');
+      }
+    }
+  }, [supplier]);
 
   const validateForm = () => {
     if (!purchaseOrder) {
@@ -515,22 +586,18 @@ export default function PurchaseReceiptMain() {
           rejected_warehouse: rejectionWarehouse
         }),
         items: validItems.map(item => {
-          const uiReceivedQty = item.received_qty || 0; // What user entered in "Received Qty" field
-          const uiRejectedQty = item.rejected_qty || 0; // What user entered in "Rejected Qty" field
-          const erpnextReceivedQty = uiReceivedQty + uiRejectedQty; // ERPNext: total received = accepted + rejected
-          
+          const uiReceivedQty = item.received_qty || 0; // What user entered as "Received Qty"
+          const uiRejectedQty = item.rejected_qty || 0; // What user entered as "Rejected Qty"
           
           return {
             item_code: item.item_code,
             item_name: item.item_name,
             description: item.description,
-            //qty: item.qty,
-            received_qty: erpnextReceivedQty, // ERPNext: received_qty = accepted + rejected
-            rejected_qty: item.rejected_qty,
-            accepted_qty: uiReceivedQty, // ERPNext needs accepted_qty field
+            qty: uiReceivedQty, // Use received qty as the main qty field
+            rejected_qty: uiRejectedQty, // Send rejected qty
             uom: item.uom,
             rate: item.rate,
-            amount: item.amount,
+            amount: uiReceivedQty * item.rate, // Calculate based on actually received qty
             warehouse: item.warehouse || receivingWarehouse,
             purchase_order: item.purchase_order,
             purchase_order_item: item.purchase_order_item,
@@ -613,7 +680,18 @@ export default function PurchaseReceiptMain() {
         return;
       }
 
-      const response = await fetch(`/api/purchase/orders?company=${encodeURIComponent(selectedCompany)}`);
+      // Use our proxy API that calls ERPNext method
+      let url = `/api/purchase/receipts/list-for-pr?company=${encodeURIComponent(selectedCompany)}`;
+      if (supplier) {
+        url += `&supplier=${encodeURIComponent(supplier)}`;
+        console.log('Fetching POs for supplier:', supplier);
+      } else {
+        console.log('Fetching POs for all suppliers');
+      }
+
+      console.log('Final URL:', url);
+
+      const response = await fetch(url);
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -621,14 +699,22 @@ export default function PurchaseReceiptMain() {
 
       const data = await response.json();
 
-      if (data.success && Array.isArray(data.data)) {
-        setPurchaseOrders(data.data);
-      } else {
-        console.warn('No purchase orders data received');
-        setPurchaseOrders([]);
+      // Handle both custom method and standard API response formats
+      let poData = [];
+      if (data.message && data.message.success && Array.isArray(data.message.data)) {
+        poData = data.message.data;
+      } else if (data.success && Array.isArray(data.data)) {
+        poData = data.data;
       }
+
+      console.log('PO List for PR:', poData.length, 'items');
+      console.log('PO Data:', poData);
+      if (supplier) {
+        console.log('Filtered by supplier:', supplier);
+      }
+      setPurchaseOrders(poData);
     } catch (err) {
-      console.error('Error fetching purchase orders:', err);
+      console.error('Error fetching purchase orders for PR:', err);
       setPurchaseOrders([]);
     }
   };
@@ -747,7 +833,50 @@ export default function PurchaseReceiptMain() {
           {/* Basic Information */}
           <div className="bg-white shadow rounded-lg p-6">
             <h2 className="text-lg font-medium text-gray-900 mb-4">Informasi Dasar</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Pemasok *
+                </label>
+                <div className="flex space-x-2">
+                  <input
+                    type="text"
+                    className="block flex-1 border border-gray-300 rounded-md shadow-sm py-2 px-3 bg-gray-50 sm:text-sm"
+                    value={supplierName}
+                    placeholder="Pilih Pemasok"
+                    readOnly
+                  />
+                  {!isViewMode && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setShowSupplierDialog(true)}
+                        className="bg-indigo-600 text-white px-3 py-2 rounded-md hover:bg-indigo-700"
+                        title="Pilih Pemasok"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                      </button>
+                      {supplier && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSupplier('');
+                            setSupplierName('');
+                          }}
+                          className="bg-gray-500 text-white px-3 py-2 rounded-md hover:bg-gray-600"
+                          title="Clear Pemasok"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Tanggal Transaksi *
@@ -761,6 +890,8 @@ export default function PurchaseReceiptMain() {
                   required
                 />
               </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Pesanan Pembelian *
@@ -856,24 +987,24 @@ export default function PurchaseReceiptMain() {
 
           {/* Items */}
           <div className="bg-white shadow rounded-lg p-6">
-            <div className="hidden">
-              <div className="flex justify-between items-center mb-2">
-                <h4 className="text-md font-medium text-gray-900">Items</h4>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium text-gray-900">Items</h3>
+              {!isViewMode && (
                 <button
                   type="button"
                   onClick={handleAddItem}
                   className="bg-green-600 text-white hover:bg-green-700 px-3 py-1 rounded-md text-sm"
                 >
-                  Add Item
+                  Tambah Item
                 </button>
-              </div>
+              )}
             </div>
 
             {/* Items List */}
-            <div className="space-y-2">
-              
-              {selectedItems.map((item, index) => (
-                <div key={index} className="border border-gray-200 rounded-md p-4 mb-2">
+            {selectedItems.length > 0 ? (
+              <div className="space-y-2">
+                {selectedItems.map((item, index) => (
+                  <div key={index} className="border border-gray-200 rounded-md p-4 mb-2">
                   <div className="grid grid-cols-12 gap-2">
                     <div className="col-span-1">
                       <label className="block text-xs font-medium text-gray-700">
@@ -1056,6 +1187,17 @@ export default function PurchaseReceiptMain() {
                 </div>
               )}
             </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                </svg>
+                <h3 className="mt-2 text-sm font-medium text-gray-900">Belum Ada Items</h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  {purchaseOrder ? 'Items akan muncul setelah memilih Pesanan Pembelian' : 'Pilih Pesanan Pembelian terlebih dahulu untuk menambah items'}
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Action Buttons */}
@@ -1266,6 +1408,89 @@ export default function PurchaseReceiptMain() {
                 className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
               >
                 OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Supplier Dialog */}
+      {showSupplierDialog && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-11/12 max-w-4xl shadow-lg rounded-md bg-white">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900">Pilih Pemasok</h3>
+                  <p className="text-sm text-gray-500 mt-1">Pilih pemasok untuk filter Pesanan Pembelian</p>
+                </div>
+                <button type="button" onClick={() => setShowSupplierDialog(false)} className="text-gray-400 hover:text-gray-600">
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div className="px-6 py-4">
+              {/* Search Input */}
+              <div className="mb-4">
+                <input
+                  type="text"
+                  className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  placeholder="Cari pemasok..."
+                  value={supplierSearch}
+                  onChange={(e) => setSupplierSearch(e.target.value)}
+                />
+              </div>
+
+              {/* Supplier List */}
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {filteredSuppliers.length > 0 ? (
+                  filteredSuppliers.map((supplier) => (
+                    <div
+                      key={supplier.name}
+                      onClick={() => handleSupplierSelect(supplier)}
+                      className="border border-gray-200 rounded-md p-4 hover:bg-gray-50 cursor-pointer transition-colors"
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h4 className="font-medium text-gray-900">{supplier.supplier_name}</h4>
+                          <p className="text-sm text-gray-600">Kode: {supplier.name}</p>
+                          {supplier.supplier_primary_address && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              Alamat: {supplier.supplier_primary_address}
+                            </p>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs text-gray-500">Klik untuk pilih</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                    </svg>
+                    <h3 className="mt-2 text-sm font-medium text-gray-900">Tidak Ada Pemasok</h3>
+                    <p className="mt-1 text-sm text-gray-500">
+                      {supplierSearch 
+                        ? 'Tidak ada pemasok yang cocok dengan pencarian' 
+                        : 'Tidak ada pemasok yang tersedia'
+                      }
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-200 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowSupplierDialog(false)}
+                className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400"
+              >
+                Batal
               </button>
             </div>
           </div>

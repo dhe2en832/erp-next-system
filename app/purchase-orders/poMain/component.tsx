@@ -830,7 +830,7 @@ export default function PurchaseOrderMain() {
         currency: currency,
         conversion_rate: 1,
         set_warehouse: warehouse,
-        custom_notes_po: remarks || "untuk nampung catatan di header",
+        custom_notes_po: remarks || "",
         items: validItems.map(item => ({
           item_code: item.item_code,
           qty: item.qty,

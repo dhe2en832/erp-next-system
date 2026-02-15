@@ -35,6 +35,7 @@ export default function ItemMain() {
     opening_stock: 0,
     valuation_rate: 0,
     standard_rate: 0,
+    last_purchase_rate: 0,
     brand: '',
     default_currency: 'IDR',
   });
@@ -90,6 +91,7 @@ export default function ItemMain() {
           opening_stock: item.opening_stock || 0,
           valuation_rate: item.valuation_rate || 0,
           standard_rate: item.standard_rate || 0,
+          last_purchase_rate: item.last_purchase_rate || 0,
           brand: item.brand || '',
           default_currency: 'IDR',
         });
@@ -283,9 +285,21 @@ export default function ItemMain() {
             {/* Pricing Section */}
             <div className="mt-8 pt-6 border-t border-gray-200">
               <h3 className="text-lg font-medium text-gray-900 mb-4">Informasi Harga</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Harga Beli (Valuation Rate)</label>
+                  <label className="block text-sm font-medium text-gray-700">Harga Beli</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    value={formData.last_purchase_rate || 0}
+                    onChange={(e) => setFormData({ ...formData, last_purchase_rate: parseFloat(e.target.value) || 0 })}
+                    placeholder="Input manual"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">Harga beli manual (opsional)</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Valuation Rate</label>
                   <div className="relative">
                     <input
                       type="number"
@@ -297,7 +311,7 @@ export default function ItemMain() {
                     />
                     {valuationRateLoading && <span className="absolute right-3 top-3 text-xs text-gray-400">Memuat...</span>}
                   </div>
-                  <p className="mt-1 text-xs text-gray-500">Otomatis dari transaksi pembelian · Price List: Standar Pembelian</p>
+                  <p className="mt-1 text-xs text-gray-500">Info: Otomatis dari transaksi</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Harga Jual Standar <span className="text-red-500">*</span></label>
@@ -309,7 +323,7 @@ export default function ItemMain() {
                     value={formData.standard_rate}
                     onChange={(e) => setFormData({ ...formData, standard_rate: parseFloat(e.target.value) || 0 })}
                   />
-                  <p className="mt-1 text-xs text-gray-500">Price List: Standard Jual (wajib diisi)</p>
+                  <p className="mt-1 text-xs text-gray-500">Price List: Standard Jual (wajib)</p>
                 </div>
               </div>
             </div>

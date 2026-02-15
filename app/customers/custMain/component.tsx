@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import SalesPersonDialog from '../../components/SalesPersonDialog';
 
 interface CustomerFormData {
   customer_name: string;
@@ -42,6 +43,7 @@ export default function CustomerMain() {
     customer_primary_address: '',
     sales_person: '',
   });
+  const [showSalesPersonDialog, setShowSalesPersonDialog] = useState(false);
 
   useEffect(() => {
     if (customerName) {
@@ -244,13 +246,22 @@ export default function CustomerMain() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Tenaga Penjual (Sales Person)</label>
-            <input
-              type="text"
-              value={formData.sales_person}
-              onChange={(e) => setFormData({ ...formData, sales_person: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              placeholder="Masukkan nama tenaga penjual"
-            />
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={formData.sales_person}
+                readOnly
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-50 sm:text-sm"
+                placeholder="Pilih tenaga penjual..."
+              />
+              <button
+                type="button"
+                onClick={() => setShowSalesPersonDialog(true)}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm"
+              >
+                Pilih
+              </button>
+            </div>
             <p className="mt-1 text-xs text-gray-500">Akan ditambahkan ke Sales Team pelanggan</p>
           </div>
         </div>
@@ -273,6 +284,15 @@ export default function CustomerMain() {
           </button>
         </div>
       </form>
+
+      {/* Sales Person Dialog */}
+      <SalesPersonDialog
+        isOpen={showSalesPersonDialog}
+        onClose={() => setShowSalesPersonDialog(false)}
+        onSelect={(salesPerson) => {
+          setFormData({ ...formData, sales_person: salesPerson.name });
+        }}
+      />
     </div>
   );
 }

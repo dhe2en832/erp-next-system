@@ -124,10 +124,9 @@ export default function SalesInvoiceMain() {
     if (!name || name === 'undefined') return;
     setLoading(true);
     try {
-      const response = await fetch("/api/sales/invoices", {
-        method: 'POST',
+      const response = await fetch(`/api/sales/invoices/details?invoice_name=${encodeURIComponent(name)}`, {
+        method: 'GET',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ invoiceName: name }),
       });
       const data = await response.json();
 
@@ -155,10 +154,28 @@ export default function SalesInvoiceMain() {
           ...formData,
           customer: invoice.customer,
           customer_name: invoice.customer_name || invoice.customer,
-          posting_date: invoice.posting_date,
-          due_date: invoice.due_date,
+          posting_date: formatDate(invoice.posting_date) || formatDate(new Date()),
+          due_date: formatDate(invoice.due_date) || formatDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)),
           company: selectedCompany,
           items: invoiceItems,
+          currency: invoice.currency || 'IDR',
+          price_list_currency: invoice.price_list_currency || 'IDR',
+          plc_conversion_rate: invoice.plc_conversion_rate || 1,
+          selling_price_list: invoice.selling_price_list || 'Standard Selling',
+          territory: invoice.territory || 'All Territories',
+          tax_id: invoice.tax_id || '',
+          customer_address: invoice.customer_address || '',
+          shipping_address: invoice.shipping_address || '',
+          contact_person: invoice.contact_person || '',
+          tax_category: invoice.tax_category || 'On Net Total',
+          taxes_and_charges: invoice.taxes_and_charges || '',
+          base_total: invoice.base_total || 0,
+          base_net_total: invoice.base_net_total || 0,
+          base_grand_total: invoice.base_grand_total || 0,
+          total: invoice.total || 0,
+          net_total: invoice.net_total || 0,
+          grand_total: invoice.grand_total || 0,
+          outstanding_amount: invoice.outstanding_amount || 0,
           custom_total_komisi_sales: totalKomisiSales,
           custom_notes_si: invoice.custom_notes_si || '',
         });
@@ -366,6 +383,7 @@ export default function SalesInvoiceMain() {
       const invoicePayload = {
         company: selectedCompany,
         customer: formData.customer,
+        customer_name: formData.customer_name,
         posting_date: parseDate(formData.posting_date),
         due_date: parseDate(formData.due_date),
         currency: 'IDR',
@@ -395,10 +413,22 @@ export default function SalesInvoiceMain() {
         docstatus: 0,
         custom_total_komisi_sales: formData.custom_total_komisi_sales,
         custom_notes_si: formData.custom_notes_si || '',
+        grand_total: total,
+        total: total,
+        net_total: total,
+        base_total: total,
+        base_net_total: total,
+        base_grand_total: total,
+        outstanding_amount: total,
       };
 
-      const response = await fetch('/api/sales/invoices', {
-        method: 'POST',
+      // Determine if this is create or update
+      const isUpdate = !!editingInvoice;
+      const url = isUpdate ? `/api/sales/invoices/${encodeURIComponent(editingInvoice)}` : '/api/sales/invoices';
+      const method = isUpdate ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(invoicePayload),
       });
@@ -406,11 +436,15 @@ export default function SalesInvoiceMain() {
       const data = await response.json();
 
       if (data.success) {
-        const siName = data.data?.name || '';
+        const siName = isUpdate ? editingInvoice : (data.data?.name || '');
         setSavedDocName(siName);
         setShowPrintDialog(true);
+        if (isUpdate) {
+          setSuccessMessage('Faktur Penjualan berhasil diperbarui');
+        }
       } else {
-        setError(`Gagal menyimpan Faktur Penjualan: ${data.message}`);
+        const action = isUpdate ? 'memperbarui' : 'menyimpan';
+        setError(`Gagal ${action} Faktur Penjualan: ${data.message}`);
       }
     } catch (error) {
       console.error('Error creating invoice:', error);
