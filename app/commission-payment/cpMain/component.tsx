@@ -138,6 +138,10 @@ export default function CommissionPaymentMain() {
 
   const loadPayableInvoices = useCallback(async () => {
     if (!selectedCompany) return;
+    if (!salesPerson) {
+      setError('Pilih sales person terlebih dahulu');
+      return;
+    }
     setLoading(true);
     setError('');
     try {
