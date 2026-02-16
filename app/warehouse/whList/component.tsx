@@ -154,6 +154,14 @@ export default function WarehouseList() {
                 <div className="mt-4 pt-4 border-t border-gray-100">
                   <div className="flex justify-between items-center">
                     <span className="text-xs text-gray-500">{warehouse.company}</span>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => router.push(`/warehouse/whMain?name=${warehouse.name}&warehouse_name=${warehouse.warehouse_name}&company=${warehouse.company}&is_group=${warehouse.is_group}&parent_warehouse=${warehouse.parent_warehouse || ''}`)}
+                        className="text-indigo-600 hover:text-indigo-900 text-sm font-medium"
+                      >
+                        Edit
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>

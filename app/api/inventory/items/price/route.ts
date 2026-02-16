@@ -3,20 +3,22 @@ import { NextResponse } from 'next/server';
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const itemCode = searchParams.get('item_code');
-  const priceList = searchParams.get('price_list') || 'Standard Jual';
-  // Get company from query parameter or use default
+  const selling = searchParams.get('selling'); // 0 untuk harga beli, 1 untuk harga jual
   const company = searchParams.get('company') || 'Entitas 2020 (Demo)';
 
   if (!itemCode) {
     return NextResponse.json({ error: "item_code is required" }, { status: 400 });
   }
 
-  console.log('Item price request:', { itemCode, priceList, company });
+  // Tentukan price list berdasarkan parameter selling
+  const priceList = selling === '0' ? 'Standar Pembelian' : 'Standard Jual';
+
+  console.log('Item price request:', { itemCode, selling, priceList, company });
   console.log('ERP_URL:', process.env.ERPNEXT_API_URL);
   console.log('API Key exists:', !!process.env.ERP_API_KEY);
 
   try {
-    // Query ke ERPNext Item Price tanpa company filter (company tidak diizinkan)
+    // Query ke ERPNext Item Price
     const erpUrl = `${process.env.ERPNEXT_API_URL}/api/resource/Item Price?fields=["price_list_rate","item_code","price_list"]&filters=[["item_code","=","${itemCode}"],["price_list","=","${priceList}"]]`;
     console.log('ERPNext URL:', erpUrl);
     
