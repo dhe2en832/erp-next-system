@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import Pagination from '../../components/Pagination';
+import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
 
 interface SalesEntry {
   name: string;
@@ -33,14 +35,33 @@ export default function SalesReportPage() {
   const [toDate, setToDate] = useState('');
   const [filterCustomer, setFilterCustomer] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+  
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 20;
+
+  // Helper to convert YYYY-MM-DD to DD/MM/YYYY
+  const formatToDDMMYYYY = (dateStr: string) => {
+    if (!dateStr) return '';
+    const [year, month, day] = dateStr.split('-');
+    return `${day}/${month}/${year}`;
+  };
+
+  // Helper to convert DD/MM/YYYY to YYYY-MM-DD
+  const formatToYYYYMMDD = (dateStr: string) => {
+    if (!dateStr) return '';
+    const [day, month, year] = dateStr.split('/');
+    return `${year}-${month}-${day}`;
+  };
 
   useEffect(() => {
     const saved = localStorage.getItem('selected_company');
     if (saved) setSelectedCompany(saved);
     const today = new Date();
     const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-    setFromDate(firstDay.toISOString().split('T')[0]);
-    setToDate(today.toISOString().split('T')[0]);
+    // Set default dates in DD/MM/YYYY format
+    setFromDate(formatToDDMMYYYY(firstDay.toISOString().split('T')[0]));
+    setToDate(formatToDDMMYYYY(today.toISOString().split('T')[0]));
   }, []);
 
   const fetchData = useCallback(async () => {
@@ -49,8 +70,9 @@ export default function SalesReportPage() {
     setError('');
     try {
       const params = new URLSearchParams({ company: selectedCompany });
-      if (fromDate) params.set('from_date', fromDate);
-      if (toDate) params.set('to_date', toDate);
+      // Convert DD/MM/YYYY to YYYY-MM-DD for API
+      if (fromDate) params.set('from_date', formatToYYYYMMDD(fromDate));
+      if (toDate) params.set('to_date', formatToYYYYMMDD(toDate));
 
       const response = await fetch(`/api/finance/reports/sales?${params}`, { credentials: 'include' });
       const result = await response.json();
@@ -70,16 +92,45 @@ export default function SalesReportPage() {
     if (selectedCompany) fetchData();
   }, [selectedCompany, fetchData]);
 
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterCustomer, filterStatus, fromDate, toDate]);
+
   const filteredData = useMemo(() => {
     return data.filter(entry => {
       const matchCustomer = !filterCustomer ||
-        (entry.customer_name || entry.customer || '').toLowerCase().includes(filterCustomer.toLowerCase());
+        (entry.customer_name || entry.customer || '').toLowerCase().includes(filterCustomer.toLowerCase()) ||
+        (entry.name || '').toLowerCase().includes(filterCustomer.toLowerCase());
       const matchStatus = !filterStatus || entry.status === filterStatus;
       return matchCustomer && matchStatus;
     });
   }, [data, filterCustomer, filterStatus]);
 
+  // Pagination
+  const paginatedData = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredData.slice(start, start + PAGE_SIZE);
+  }, [filteredData, currentPage]);
+
+  // Memoized handlers
+  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setFilterCustomer(e.target.value);
+  }, []);
+
+  const handleClearFilters = useCallback(() => {
+    setFilterCustomer('');
+    setFilterStatus('');
+    setCurrentPage(1);
+    const today = new Date();
+    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+    // Set default dates in DD/MM/YYYY format
+    setFromDate(formatToDDMMYYYY(firstDay.toISOString().split('T')[0]));
+    setToDate(formatToDDMMYYYY(today.toISOString().split('T')[0]));
+  }, []);
+
   const totalSales = filteredData.reduce((sum, e) => sum + (e.grand_total || 0), 0);
+  const avgSales = filteredData.length > 0 ? totalSales / filteredData.length : 0;
 
   if (loading) return <LoadingSpinner message="Memuat laporan penjualan..." />;
 
@@ -102,44 +153,92 @@ export default function SalesReportPage() {
       {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{error}</div>}
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-4 mb-6 print:hidden">
-        <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">Dari Tanggal</label>
-          <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-md text-sm" />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">Sampai Tanggal</label>
-          <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-md text-sm" />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">Pelanggan</label>
-          <input type="text" placeholder="Filter pelanggan..." value={filterCustomer} onChange={(e) => setFilterCustomer(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-md text-sm" />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">Status</label>
-          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-md text-sm">
-            {STATUS_OPTIONS.map(opt => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
-        </div>
-        <div className="flex items-end">
-          <button onClick={fetchData} className="px-4 py-2 bg-indigo-600 text-white rounded-md text-sm hover:bg-indigo-700">Tampilkan</button>
+      <div className="bg-white shadow rounded-lg p-4 mb-6 print:hidden">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Dari Tanggal</label>
+            <BrowserStyleDatePicker
+              value={fromDate}
+              onChange={(value: string) => setFromDate(value)}
+              className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              placeholder="DD/MM/YYYY"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Sampai Tanggal</label>
+            <BrowserStyleDatePicker
+              value={toDate}
+              onChange={(value: string) => setToDate(value)}
+              className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              placeholder="DD/MM/YYYY"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Cari</label>
+            <input 
+              type="text" 
+              placeholder="No. SO atau Pelanggan..." 
+              value={filterCustomer} 
+              onChange={handleSearchChange} 
+              className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" 
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+            <select 
+              value={filterStatus} 
+              onChange={(e) => setFilterStatus(e.target.value)} 
+              className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+            >
+              {STATUS_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-end space-x-2 lg:col-span-2">
+            <button 
+              onClick={handleClearFilters}
+              className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400 transition-colors text-sm"
+            >
+              Hapus Filter
+            </button>
+            <button 
+              onClick={fetchData}
+              className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors text-sm"
+            >
+              Refresh
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <p className="text-sm text-blue-600 font-medium">Jumlah SO</p>
+          <p className="text-sm text-blue-600 font-medium">Total SO</p>
           <p className="text-2xl font-bold text-blue-900">{filteredData.length}</p>
         </div>
         <div className="bg-green-50 border border-green-200 rounded-lg p-4">
           <p className="text-sm text-green-600 font-medium">Total Penjualan</p>
-          <p className="text-2xl font-bold text-green-900">Rp {totalSales.toLocaleString('id-ID')}</p>
+          <p className="text-xl font-bold text-green-900">Rp {totalSales.toLocaleString('id-ID')}</p>
+        </div>
+        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+          <p className="text-sm text-purple-600 font-medium">Rata-rata SO</p>
+          <p className="text-xl font-bold text-purple-900">Rp {avgSales.toLocaleString('id-ID', { maximumFractionDigits: 0 })}</p>
+        </div>
+        <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+          <p className="text-sm text-orange-600 font-medium">Halaman</p>
+          <p className="text-xl font-bold text-orange-900">{currentPage} / {Math.ceil(filteredData.length / PAGE_SIZE) || 1}</p>
         </div>
       </div>
 
       <div className="bg-white shadow rounded-lg overflow-hidden">
+        <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
+          <h3 className="text-sm font-medium text-gray-900">
+            Data Penjualan 
+            <span className="ml-2 px-2 py-1 bg-indigo-100 text-indigo-700 text-xs rounded-full">{filteredData.length} entri</span>
+          </h3>
+        </div>
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
@@ -153,10 +252,10 @@ export default function SalesReportPage() {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {filteredData.length === 0 ? (
+            {paginatedData.length === 0 ? (
               <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-500">Tidak ada data penjualan</td></tr>
             ) : (
-              filteredData.map((entry) => (
+              paginatedData.map((entry) => (
                 <tr key={entry.name} className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-sm font-medium text-indigo-600">{entry.name}</td>
                   <td className="px-4 py-3 text-sm text-gray-900">{entry.customer_name || entry.customer}</td>
@@ -189,6 +288,14 @@ export default function SalesReportPage() {
             )}
           </tbody>
         </table>
+        
+        <Pagination
+          currentPage={currentPage}
+          totalPages={Math.ceil(filteredData.length / PAGE_SIZE)}
+          totalRecords={filteredData.length}
+          pageSize={PAGE_SIZE}
+          onPageChange={setCurrentPage}
+        />
       </div>
     </div>
   );
