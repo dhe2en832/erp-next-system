@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
     const validCreateData: any = {};
     const allowedFields = [
       'item_code', 'item_name', 'description', 'item_group', 'stock_uom', 
-      'opening_stock', 'brand', 'standard_rate', 'last_purchase_rate'
+      'opening_stock', 'brand', 'standard_rate', 'last_purchase_rate', 'valuation_method'
     ];
     
     Object.keys(createData).forEach(key => {
@@ -113,6 +113,9 @@ export async function POST(request: NextRequest) {
         validCreateData[key] = createData[key];
       }
     });
+
+    // Add valuation method for new items
+    validCreateData.valuation_method = 'Moving Average';
 
     console.log('Creating item:', {
       originalData: itemData,
