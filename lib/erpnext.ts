@@ -20,6 +20,9 @@ export async function fetchProfitReport(params: {
   to_date: string;
   company?: string;
   mode: 'valuation' | 'margin';
+  sales_person?: string;
+  customer?: string;
+  include_hpp?: boolean;
 }) {
   const headers = buildAuthHeaders();
   const res = await fetch(`${ERPNEXT_API_URL}/api/method/get_profit_commission_report_dual`, {

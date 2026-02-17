@@ -19,6 +19,9 @@ interface ProfitParams {
   to_date: string;
   company?: string;
   mode: "valuation" | "margin";
+  sales_person?: string;
+  customer?: string;
+  include_hpp?: boolean;
 }
 
 interface Summary {
@@ -30,23 +33,30 @@ interface Summary {
 
 export default function ProfitReportPage() {
   const today = new Date();
-  const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
-    .toISOString()
-    .slice(0, 10);
-  const lastOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0)
-    .toISOString()
-    .slice(0, 10);
+  const todayStr = new Date(today).toISOString().slice(0, 10);
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  const yesterdayStr = yesterday.toISOString().slice(0, 10);
 
   const [params, setParams] = useState<ProfitParams>({
-    from_date: firstOfMonth,
-    to_date: lastOfMonth,
+    from_date: yesterdayStr,
+    to_date: todayStr,
     company: "",
     mode: "valuation",
+    sales_person: "",
+    customer: "",
+    include_hpp: false,
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [data, setData] = useState<any>(null);
   const [expandedInvoice, setExpandedInvoice] = useState<string | null>(null);
+  const [salesList, setSalesList] = useState<string[]>([]);
+  const [customerList, setCustomerList] = useState<string[]>([]);
+  const [showSalesPicker, setShowSalesPicker] = useState(false);
+  const [showCustomerPicker, setShowCustomerPicker] = useState(false);
+  const [searchSales, setSearchSales] = useState("");
+  const [searchCustomer, setSearchCustomer] = useState("");
 
   const fetchData = async (override?: ProfitParams) => {
     const payload = override || params;
@@ -54,6 +64,15 @@ export default function ProfitReportPage() {
     // jangan kirim company kosong; biarkan backend pakai default/env
     if (!payloadToSend.company) {
       delete payloadToSend.company;
+    }
+    if (!payloadToSend.sales_person) {
+      delete payloadToSend.sales_person;
+    }
+    if (!payloadToSend.customer) {
+      delete payloadToSend.customer;
+    }
+    if (payloadToSend.include_hpp === undefined) {
+      payloadToSend.include_hpp = false;
     }
     setLoading(true);
     setError("");
@@ -73,6 +92,26 @@ export default function ProfitReportPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const normalizeDate = (value: string) => {
+    if (!value) return value;
+    // If already ISO yyyy-mm-dd
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+    // If dd/mm/yyyy or dd-MM-yyyy
+    const parts = value.replace(/-/g, "/").split("/");
+    if (parts.length === 3) {
+      const [d, m, y] = parts;
+      if (d.length === 2 && m.length === 2 && y.length === 4) {
+        return `${y}-${m}-${d}`;
+      }
+    }
+    // Fallback: Date parse
+    const parsed = new Date(value);
+    if (!isNaN(parsed.getTime())) {
+      return parsed.toISOString().slice(0, 10);
+    }
+    return value;
   };
 
   // Set default company dari localStorage sebelum fetch pertama
@@ -115,11 +154,47 @@ export default function ProfitReportPage() {
 
   const customerChartData = useMemo(() => {
     if (!data?.by_customer) return [];
-    return data.by_customer.map((row: any) => ({
-      name: row.customer,
-      profit: row.profit || 0,
-    }));
+    return data.by_customer.map((c: any) => ({ name: c.customer, profit: c.profit || c.company_profit || 0 }));
   }, [data]);
+  const salesOptions = useMemo(() => salesList.filter(Boolean), [salesList]);
+  const customerOptions = useMemo(() => customerList.filter(Boolean), [customerList]);
+
+  // Fetch master Sales Person list
+  useEffect(() => {
+    const fetchSales = async () => {
+      try {
+        const qs = new URLSearchParams();
+        if (params.company) qs.set("company", params.company);
+        const res = await fetch(`/api/sales/sales-persons?${qs.toString()}`);
+        const json = await res.json();
+        if (json.success) {
+          setSalesList((json.data || []).map((p: any) => p.full_name || p.name));
+        }
+      } catch (err) {
+        console.error("Fetch sales persons error", err);
+      }
+    };
+    fetchSales();
+  }, [params.company]);
+
+  // Fetch master Customer list
+  useEffect(() => {
+    const fetchCustomers = async () => {
+      try {
+        const qs = new URLSearchParams();
+        qs.set("limit", "500");
+        if (params.company) qs.set("company", params.company);
+        const res = await fetch(`/api/sales/customers?${qs.toString()}`);
+        const json = await res.json();
+        if (json.success) {
+          setCustomerList((json.data || []).map((c: any) => c.customer_name || c.name));
+        }
+      } catch (err) {
+        console.error("Fetch customers error", err);
+      }
+    };
+    fetchCustomers();
+  }, [params.company]);
 
   const handleExportExcel = () => {
     if (!data) return;
@@ -172,7 +247,7 @@ export default function ProfitReportPage() {
           <label className="block text-sm font-medium text-gray-700 mb-1">Dari Tanggal</label>
           <BrowserStyleDatePicker
             value={params.from_date}
-            onChange={(value: string) => setParams((p) => ({ ...p, from_date: value }))}
+            onChange={(value: string) => setParams((p) => ({ ...p, from_date: normalizeDate(value) }))}
             className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
             placeholder="DD/MM/YYYY"
           />
@@ -181,7 +256,7 @@ export default function ProfitReportPage() {
           <label className="block text-sm font-medium text-gray-700 mb-1">Sampai Tanggal</label>
           <BrowserStyleDatePicker
             value={params.to_date}
-            onChange={(value: string) => setParams((p) => ({ ...p, to_date: value }))}
+            onChange={(value: string) => setParams((p) => ({ ...p, to_date: normalizeDate(value) }))}
             className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
             placeholder="DD/MM/YYYY"
           />
@@ -190,11 +265,64 @@ export default function ProfitReportPage() {
           <label className="block text-sm text-gray-700 mb-1">Perusahaan (opsional)</label>
           <input
             type="text"
+            readOnly
             value={params.company || ""}
             onChange={(e) => setParams((p) => ({ ...p, company: e.target.value }))}
             className="w-full border rounded px-3 py-2"
             placeholder="Nama perusahaan"
           />
+        </div>
+        <div>
+          <label className="block text-sm text-gray-700 mb-1">Sales Person (opsional)</label>
+          <input
+            type="text"
+            value={params.sales_person || ""}
+            onChange={(e) => setParams((p) => ({ ...p, sales_person: e.target.value }))}
+            className="w-full border rounded px-3 py-2"
+            placeholder="Nama sales"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              setSearchSales("");
+              setShowSalesPicker(true);
+            }}
+            className="mt-1 text-sm text-indigo-600 hover:underline"
+            disabled={!salesOptions.length}
+          >
+            Pilih dari daftar
+          </button>
+        </div>
+        <div>
+          <label className="block text-sm text-gray-700 mb-1">Customer (opsional)</label>
+          <input
+            type="text"
+            value={params.customer || ""}
+            onChange={(e) => setParams((p) => ({ ...p, customer: e.target.value }))}
+            className="w-full border rounded px-3 py-2"
+            placeholder="Kode/nama customer"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              setSearchCustomer("");
+              setShowCustomerPicker(true);
+            }}
+            className="mt-1 text-sm text-indigo-600 hover:underline"
+            disabled={!customerOptions.length}
+          >
+            Pilih dari daftar
+          </button>
+        </div>
+        <div className="flex items-center gap-2 mt-2">
+          <input
+            id="include_hpp"
+            type="checkbox"
+            className="h-4 w-4"
+            checked={!!params.include_hpp}
+            onChange={(e) => setParams((p) => ({ ...p, include_hpp: e.target.checked }))}
+          />
+          <label htmlFor="include_hpp" className="text-sm text-gray-700">Sertakan HPP</label>
         </div>
         <div>
           <label className="block text-sm text-gray-700 mb-1">Mode</label>
@@ -253,9 +381,121 @@ export default function ProfitReportPage() {
             onToggle={toggleInvoice}
             itemsMap={data.by_item || []}
           />
-          <TableSimple title="Per Item" columns={["invoice", "item", "qty", "sales", "hpp", "commission", "company_profit"]} rows={data.by_item || []} />
-          <TableSimple title="Per Pelanggan" columns={["customer", "profit"]} rows={data.by_customer || []} />
-          <TableSimple title="Per Sales" columns={["sales", "commission"]} rows={data.by_sales || []} />
+          <TableSimple
+            title="Per Item"
+            columns={[
+              { key: "invoice", label: "Invoice" },
+              { key: "item", label: "Item" },
+              { key: "qty", label: "Qty" },
+              { key: "sales", label: "Penjualan" },
+              { key: "hpp", label: "HPP" },
+              { key: "commission", label: "Komisi" },
+              { key: "company_margin", label: "Margin Perusahaan" },
+              { key: "company_profit", label: "Laba Perusahaan" },
+              { key: "gross_profit", label: "Laba Kotor" },
+            ]}
+            rows={data.by_item || []}
+          />
+          <TableSimple
+            title="Per Pelanggan"
+            columns={[
+              { key: "customer", label: "Pelanggan" },
+              { key: "invoices", label: "Invoice" },
+              { key: "sales", label: "Penjualan" },
+              { key: "hpp", label: "HPP" },
+              { key: "base_profit", label: "Laba Dasar" },
+              { key: "commission", label: "Komisi" },
+              { key: "company_margin", label: "Margin Perusahaan" },
+              { key: "profit", label: "Laba Perusahaan" },
+              { key: "gross_profit", label: "Laba Kotor" },
+            ]}
+            rows={data.by_customer || []}
+          />
+          <TableSimple
+            title="Per Sales"
+            columns={[
+              { key: "sales", label: "Sales" },
+              { key: "invoices", label: "Invoice" },
+              { key: "sales_total", label: "Penjualan" },
+              { key: "hpp", label: "HPP" },
+              { key: "base_profit", label: "Laba Dasar" },
+              { key: "commission", label: "Komisi" },
+              { key: "company_margin", label: "Margin Perusahaan" },
+              { key: "profit", label: "Laba Perusahaan" },
+              { key: "gross_profit", label: "Laba Kotor" },
+            ]}
+            rows={data.by_sales || []}
+          />
+        </div>
+      )}
+
+      {/* Picker Sales */}
+      {showSalesPicker && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded shadow-lg w-full max-w-md p-4 space-y-3">
+            <div className="flex justify-between items-center">
+              <h4 className="text-lg font-semibold">Pilih Sales Person</h4>
+              <button className="text-sm text-gray-500" onClick={() => { setShowSalesPicker(false); setSearchSales(""); }}>Tutup</button>
+            </div>
+            <input
+              className="w-full border rounded px-3 py-2"
+              placeholder="Cari sales..."
+              value={searchSales}
+              onChange={(e) => setSearchSales(e.target.value)}
+            />
+            <div className="max-h-60 overflow-y-auto divide-y">
+              {salesOptions
+                .filter((s: string) => !searchSales || s.toLowerCase().includes(searchSales.toLowerCase()))
+                .map((s: string) => (
+                  <button
+                    key={s}
+                    className="w-full text-left px-3 py-2 hover:bg-indigo-50"
+                    onClick={() => {
+                      setParams((p) => ({ ...p, sales_person: s }));
+                      setShowSalesPicker(false);
+                    }}
+                  >
+                    {s}
+                  </button>
+                ))}
+              {!salesOptions.length && <div className="px-3 py-2 text-sm text-gray-500">Tidak ada data</div>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Picker Customer */}
+      {showCustomerPicker && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded shadow-lg w-full max-w-md p-4 space-y-3">
+            <div className="flex justify-between items-center">
+              <h4 className="text-lg font-semibold">Pilih Customer</h4>
+              <button className="text-sm text-gray-500" onClick={() => { setShowCustomerPicker(false); setSearchCustomer(""); }}>Tutup</button>
+            </div>
+            <input
+              className="w-full border rounded px-3 py-2"
+              placeholder="Cari customer..."
+              value={searchCustomer}
+              onChange={(e) => setSearchCustomer(e.target.value)}
+            />
+            <div className="max-h-60 overflow-y-auto divide-y">
+              {customerOptions
+                .filter((c: string) => !searchCustomer || c.toLowerCase().includes(searchCustomer.toLowerCase()))
+                .map((c: string) => (
+                  <button
+                    key={c}
+                    className="w-full text-left px-3 py-2 hover:bg-indigo-50"
+                    onClick={() => {
+                      setParams((p) => ({ ...p, customer: c }));
+                      setShowCustomerPicker(false);
+                    }}
+                  >
+                    {c}
+                  </button>
+                ))}
+              {!customerOptions.length && <div className="px-3 py-2 text-sm text-gray-500">Tidak ada data</div>}
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -356,10 +596,13 @@ function TableInvoice({
           <thead className="bg-gray-50">
             <tr>
               <th className="px-3 py-2 text-left">Invoice</th>
-              <th className="px-3 py-2 text-right">Sales</th>
+              <th className="px-3 py-2 text-right">Penjualan</th>
               <th className="px-3 py-2 text-right">HPP</th>
+              <th className="px-3 py-2 text-right">Laba Dasar</th>
               <th className="px-3 py-2 text-right">Komisi</th>
-              <th className="px-3 py-2 text-right">Profit</th>
+              <th className="px-3 py-2 text-right">Margin Perusahaan</th>
+              <th className="px-3 py-2 text-right">Laba Perusahaan</th>
+              <th className="px-3 py-2 text-right">Laba Kotor</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -374,13 +617,16 @@ function TableInvoice({
                     <td className="px-3 py-2 font-medium text-indigo-700">{row.invoice}</td>
                     <td className="px-3 py-2 text-right">{(row.sales || row.total_sales || 0).toLocaleString("id-ID")}</td>
                     <td className="px-3 py-2 text-right">{(row.hpp || row.total_hpp || 0).toLocaleString("id-ID")}</td>
+                    <td className="px-3 py-2 text-right">{(row.base_profit || 0).toLocaleString("id-ID")}</td>
                     <td className="px-3 py-2 text-right">{(row.commission || 0).toLocaleString("id-ID")}</td>
+                    <td className="px-3 py-2 text-right">{(row.company_margin || row.company_profit || 0).toLocaleString("id-ID")}</td>
                     <td className="px-3 py-2 text-right">{(row.profit || row.company_profit || 0).toLocaleString("id-ID")}</td>
+                    <td className="px-3 py-2 text-right">{(row.gross_profit || 0).toLocaleString("id-ID")}</td>
                   </tr>
                   {isOpen && (
                     <tr key={`${row.invoice}-details`}>
-                      <td colSpan={5} className="bg-gray-50 px-3 py-2">
-                        <div className="text-sm text-gray-700 font-semibold mb-1">Item</div>
+                      <td colSpan={8} className="bg-gray-50 px-3 py-2">
+                        <div className="text-sm text-gray-700 font-semibold mb-1">Detail Item</div>
                         <div className="overflow-x-auto">
                           <table className="min-w-full text-xs">
                             <thead>
@@ -425,7 +671,9 @@ function TableInvoice({
   );
 }
 
-function TableSimple({ title, columns, rows }: { title: string; columns: string[]; rows: any[] }) {
+type TableColumn = { key: string; label: string };
+
+function TableSimple({ title, columns, rows }: { title: string; columns: TableColumn[]; rows: any[] }) {
   return (
     <div className="bg-white rounded shadow p-4">
       <h3 className="text-lg font-semibold mb-2">{title}</h3>
@@ -434,18 +682,20 @@ function TableSimple({ title, columns, rows }: { title: string; columns: string[
           <thead className="bg-gray-50">
             <tr>
               {columns.map((col) => (
-                <th key={col} className="px-3 py-2 text-left capitalize">{col.replace('_', ' ')}</th>
+                <th key={col.key} className="px-3 py-2 text-left">{col.label}</th>
               ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {rows.map((row, idx) => (
-              <tr key={idx} className="hover:bg-gray-50">
+              <tr key={row[columns[0]?.key] ?? idx} className="hover:bg-gray-50">
                 {columns.map((col) => (
-                  <td key={col} className="px-3 py-2">
-                    {typeof row[col] === "number"
-                      ? row[col].toLocaleString("id-ID")
-                      : row[col] ?? "-"}
+                  <td key={col.key} className="px-3 py-2">
+                    {Array.isArray(row[col.key])
+                      ? row[col.key].join(", ") || "-"
+                      : typeof row[col.key] === "number"
+                        ? row[col.key].toLocaleString("id-ID")
+                        : row[col.key] ?? "-"}
                   </td>
                 ))}
               </tr>
