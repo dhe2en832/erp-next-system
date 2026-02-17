@@ -190,7 +190,7 @@ export default function Navbar() {
       name: 'Komisi',
       icon: '🏆',
       items: [
-        // { name: 'Dashboard Komisi', href: '/commission' },
+        { name: 'Laporan Profit & Komisi', href: '/profit-report' },
         { name: 'Pembayaran Komisi', href: '/commission-payment' }
       ]
     },
@@ -200,6 +200,7 @@ export default function Navbar() {
       items: [
         { name: 'Pelanggan', href: '/customers' },
         { name: 'Pemasok', href: '/suppliers' },
+        { name: 'Karyawan', href: '/employees' },
         { name: 'Sales Person', href: '/sales-persons' },
         { name: 'Termin Pembayaran', href: '/payment-terms' }
       ]

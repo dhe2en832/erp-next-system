@@ -6,18 +6,31 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search');
+    const status = searchParams.get('status') || 'Active';
 
     const cookies = request.cookies;
     const sid = cookies.get('sid')?.value;
 
-    // Get sales person master data from Sales Person doctype
-    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Sales Person?fields=["name","sales_person_name","employee"]&limit_page_length=1000`;
+    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Employee?fields=["name","employee_name","department","designation","status","cell_number","personal_email"]&limit_page_length=500`;
     
-    if (search) {
-      erpNextUrl += `&filters=[["sales_person_name","like","%${search}%"]]`;
+    // Build filters array
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const filters: any[] = [];
+    
+    if (status) {
+      filters.push(["status", "=", status]);
+    }
+    
+    if (search && search.trim()) {
+      const searchTrim = search.trim();
+      filters.push(["employee_name", "like", `%${searchTrim}%`]);
+    }
+    
+    if (filters.length > 0) {
+      erpNextUrl += `&filters=${encodeURIComponent(JSON.stringify(filters))}`;
     }
 
-    console.log('Sales Persons ERPNext URL:', erpNextUrl);
+    console.log('Employees ERPNext URL:', erpNextUrl);
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -47,33 +60,33 @@ export async function GET(request: NextRequest) {
     });
 
     const data = await response.json();
-    console.log('Sales Persons API Response:', { status: response.status, data });
+    console.log('Employees API Response:', { status: response.status, dataLength: data.data?.length });
 
-    if (response.ok && data.data) {
-      // Transform sales person master data
-      const salesPersonsList = data.data.map((person: any) => ({
-        name: person.name,
-        full_name: person.sales_person_name || person.name,
-        employee: person.employee || '',
-        email: person.email || '',
-        category: getCategoryFromName(person.sales_person_name || person.name),
-        allocated_percentage: 0,
-        allocated_amount: 0,
+    if (response.ok) {
+      // Transform employee data
+      const employeesList = (data.data || []).map((emp: any) => ({
+        name: emp.name,
+        employee_name: emp.employee_name || emp.name,
+        department: emp.department || '',
+        designation: emp.designation || '',
+        status: emp.status || 'Active',
+        cell_number: emp.cell_number || '',
+        personal_email: emp.personal_email || '',
       }));
 
       return NextResponse.json({
         success: true,
-        data: salesPersonsList,
-        total: salesPersonsList.length,
+        data: employeesList,
+        total: employeesList.length,
       });
     } else {
       return NextResponse.json(
-        { success: false, message: data.message || 'Failed to fetch sales persons' },
+        { success: false, message: data.message || 'Failed to fetch employees' },
         { status: response.status }
       );
     }
   } catch (error) {
-    console.error('Sales Persons API Error:', error);
+    console.error('Employees API Error:', error);
     return NextResponse.json(
       { success: false, message: 'Internal server error' },
       { status: 500 }
@@ -83,13 +96,15 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const cookies = request.cookies;
+    const sid = cookies.get('sid')?.value;
+
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
 
     const apiKey = process.env.ERP_API_KEY;
     const apiSecret = process.env.ERP_API_SECRET;
-    const sid = request.cookies.get('sid')?.value;
 
     if (apiKey && apiSecret) {
       headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
@@ -103,21 +118,12 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Sales Person`;
+    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Employee`;
 
     const response = await fetch(erpNextUrl, {
       method: 'POST',
       headers,
-      body: JSON.stringify({
-        data: {
-          sales_person_name: body.sales_person_name,
-          employee: body.employee || '',
-          parent_sales_person: body.parent_sales_person || 'Sales Team',
-          is_group: body.is_group || 0,
-          commission_rate: body.commission_rate || 0,
-          enabled: body.enabled !== undefined ? body.enabled : 1,
-        }
-      }),
+      body: JSON.stringify({ data: body }),
     });
 
     const data = await response.json();
@@ -126,28 +132,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, data: data.data });
     } else {
       return NextResponse.json(
-        { success: false, message: data.message || data.exc || 'Failed to create sales person' },
+        { success: false, message: data.message || data.exc || 'Failed to create employee' },
         { status: response.status }
       );
     }
   } catch (error) {
-    console.error('Sales Person POST API Error:', error);
+    console.error('Employee POST API Error:', error);
     return NextResponse.json(
       { success: false, message: 'Internal server error' },
       { status: 500 }
     );
   }
-}
-
-// Helper function to categorize sales persons based on their names
-function getCategoryFromName(name: string): string {
-  const lowerName = name.toLowerCase();
-  if (lowerName.includes('deden')) {
-    return 'Deden';
-  } else if (lowerName.includes('kantor')) {
-    return 'Kantor';
-  } else if (lowerName.includes('tim penjualan') || lowerName.includes('tim')) {
-    return 'Tim Penjualan';
-  }
-  return 'Lainnya';
 }

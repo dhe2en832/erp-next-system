@@ -172,6 +172,12 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
+    // Let ERPNext generate name via naming series
+    delete body.name;
+    if (!body.naming_series) {
+      body.naming_series = 'SUP-.#####';
+    }
+
     const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Supplier`;
 
     const response = await fetch(erpNextUrl, {

@@ -1,10 +1,18 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import LoadingSpinner from '../../components/LoadingSpinner';
 
+interface Employee {
+  name: string;
+  employee_name: string;
+  department?: string;
+  designation?: string;
+}
+
 interface SalesPersonFormData {
+  employee: string;
   sales_person_name: string;
   parent_sales_person: string;
   is_group: number;
@@ -24,12 +32,19 @@ export default function SalesPersonMain() {
   const [isEditMode, setIsEditMode] = useState(false);
 
   const [formData, setFormData] = useState<SalesPersonFormData>({
+    employee: '',
     sales_person_name: '',
-    parent_sales_person: 'Sales Team',
+    parent_sales_person: 'Tim Penjualan',
     is_group: 0,
     commission_rate: 0,
     enabled: 1,
   });
+  
+  // Employee list for dropdown
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [loadingEmployees, setLoadingEmployees] = useState(false);
+  const [existingSalesPersonEmployees, setExistingSalesPersonEmployees] = useState<string[]>([]);
+  const [existingSalesPersonNames, setExistingSalesPersonNames] = useState<string[]>([]);
 
   useEffect(() => {
     if (spName) {
@@ -47,6 +62,7 @@ export default function SalesPersonMain() {
       if (data.success && data.data) {
         const sp = data.data;
         setFormData({
+          employee: sp.employee || '',
           sales_person_name: sp.sales_person_name || sp.name || '',
           parent_sales_person: sp.parent_sales_person || 'Sales Team',
           is_group: sp.is_group || 0,
@@ -64,6 +80,68 @@ export default function SalesPersonMain() {
     }
   };
 
+  // Fetch employees on mount (for dropdown)
+  const fetchEmployees = useCallback(async () => {
+    setLoadingEmployees(true);
+    try {
+      const response = await fetch(`/api/hr/employees?status=Active`, { credentials: 'include' });
+      const data = await response.json();
+      if (data.success) {
+        setEmployees(data.data || []);
+      }
+    } catch (err) {
+      console.error('Error fetching employees:', err);
+    } finally {
+      setLoadingEmployees(false);
+    }
+  }, []);
+
+  // Fetch existing sales persons to filter employees
+  const fetchSalesPersons = useCallback(async () => {
+    try {
+      const response = await fetch('/api/sales/sales-persons', { credentials: 'include' });
+      const data = await response.json();
+      if (data.success && Array.isArray(data.data)) {
+        const list = data.data as Array<{ employee?: string; full_name?: string }>;
+        const employeeIds = list.map(sp => sp.employee).filter(Boolean) as string[];
+        const names = list.map(sp => sp.full_name).filter(Boolean) as string[];
+        setExistingSalesPersonEmployees(employeeIds);
+        setExistingSalesPersonNames(names);
+      }
+    } catch (err) {
+      console.error('Error fetching sales persons:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchEmployees();
+    fetchSalesPersons();
+  }, [fetchEmployees, fetchSalesPersons]);
+
+  const availableEmployees = useMemo(() => {
+    if (isEditMode && formData.employee) {
+      return employees;
+    }
+    if (!existingSalesPersonEmployees.length && !existingSalesPersonNames.length) return employees;
+    return employees.filter(emp => {
+      const usedByEmployeeId = existingSalesPersonEmployees.includes(emp.name);
+      const usedByName = existingSalesPersonNames.includes(emp.employee_name);
+      return !usedByEmployeeId && !usedByName;
+    });
+  }, [employees, existingSalesPersonEmployees, existingSalesPersonNames, isEditMode, formData.employee]);
+
+  // Handle employee selection
+  const handleEmployeeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const employeeId = e.target.value;
+    const selectedEmployee = employees.find(emp => emp.name === employeeId);
+    
+    setFormData(prev => ({
+      ...prev,
+      employee: employeeId,
+      sales_person_name: selectedEmployee ? selectedEmployee.employee_name : '',
+    }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormLoading(true);
@@ -74,11 +152,14 @@ export default function SalesPersonMain() {
         ? `/api/sales/sales-persons/detail?name=${encodeURIComponent(spName!)}`
         : '/api/sales/sales-persons';
 
+      const payload = { ...formData } as Record<string, unknown>;
+      payload.parent_sales_person = payload.parent_sales_person || 'Tim Penjualan';
+
       const response = await fetch(url, {
         method: isEditMode ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
       const data = await response.json();
@@ -127,16 +208,60 @@ export default function SalesPersonMain() {
 
       <form onSubmit={handleSubmit} className="bg-white shadow rounded-lg p-6 space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Nama Sales Person *</label>
+          {/* Employee Selection - Only show when creating */}
+          {!isEditMode && (
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Pilih Employee <span className="text-red-500">*</span>
+              </label>
+              {loadingEmployees ? (
+                <div className="text-sm text-gray-500">Memuat data employee...</div>
+              ) : availableEmployees.length === 0 ? (
+                <div className="text-sm text-red-500">
+                  Tidak ada employee tersedia. <a href="/employees/empMain" className="text-indigo-600 underline">Buat employee terlebih dahulu</a>
+                </div>
+              ) : (
+                <select
+                  value={formData.employee}
+                  onChange={handleEmployeeChange}
+                  required={!isEditMode}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                >
+                  <option value="">-- Pilih Employee --</option>
+                  {availableEmployees.map((emp) => (
+                    <option key={emp.name} value={emp.name}>
+                      {emp.employee_name} {emp.designation ? `- ${emp.designation}` : ''}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <p className="mt-1 text-xs text-gray-500">
+                Sales person harus dipilih dari data employee yang sudah ada.
+              </p>
+            </div>
+          )}
+
+          {/* Sales Person Name - Auto-filled from employee, or editable in edit mode */}
+          <div className={isEditMode ? '' : 'md:col-span-2'}>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Nama Sales Person {isEditMode && <span className="text-red-500">*</span>}
+            </label>
             <input
               type="text"
               required
               value={formData.sales_person_name}
               onChange={(e) => setFormData({ ...formData, sales_person_name: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              placeholder="Masukkan nama sales person"
+              readOnly={!isEditMode}
+              className={`w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm sm:text-sm ${
+                !isEditMode ? 'bg-gray-100 cursor-not-allowed' : 'focus:ring-indigo-500 focus:border-indigo-500'
+              }`}
+              placeholder={isEditMode ? "Masukkan nama sales person" : "Otomatis dari data employee"}
             />
+            {!isEditMode && (
+              <p className="mt-1 text-xs text-gray-500">
+                Nama otomatis terisi dari data employee yang dipilih
+              </p>
+            )}
           </div>
 
           <div>
@@ -195,7 +320,7 @@ export default function SalesPersonMain() {
           </button>
           <button
             type="submit"
-            disabled={formLoading}
+            disabled={formLoading || (!isEditMode && employees.length === 0)}
             className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium disabled:opacity-50"
           >
             {formLoading ? 'Menyimpan...' : (isEditMode ? 'Perbarui' : 'Simpan')}

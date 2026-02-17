@@ -188,6 +188,22 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
+    // Let ERPNext generate code
+    delete body.name;
+    if (!body.naming_series) {
+      body.naming_series = 'CUST-.#####';
+    }
+    // Map sales_person to sales_team if provided
+    if (body.sales_person) {
+      body.sales_team = [
+        {
+          sales_person: body.sales_person,
+          allocated_percentage: 100,
+        },
+      ];
+      delete body.sales_person;
+    }
+
     const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Customer`;
 
     const response = await fetch(erpNextUrl, {

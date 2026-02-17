@@ -10,10 +10,16 @@ export async function GET(request: NextRequest) {
 
     console.log('Stock Entry API Parameters:', { filters, orderBy });
 
-    const cookies = request.cookies;
-    const sid = cookies.get('sid')?.value;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const apiKey = process.env.ERP_API_KEY;
+    const apiSecret = process.env.ERP_API_SECRET;
+    const sid = request.cookies.get('sid')?.value;
 
-    if (!sid) {
+    if (apiKey && apiSecret) {
+      headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
+    } else if (sid) {
+      headers['Cookie'] = `sid=${sid}`;
+    } else {
       return NextResponse.json(
         { success: false, message: 'Unauthorized' },
         { status: 401 }
@@ -50,16 +56,10 @@ export async function GET(request: NextRequest) {
 
     console.log('Stock Entry ERPNext URL:', erpNextUrl);
 
-    const response = await fetch(
-      erpNextUrl,
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Cookie': `sid=${sid}`,
-        },
-      }
-    );
+    const response = await fetch(erpNextUrl, {
+      method: 'GET',
+      headers,
+    });
 
     const data = await response.json();
     console.log('Stock Entry ERPNext Response:', {
@@ -95,10 +95,16 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const cookies = request.cookies;
-    const sid = cookies.get('sid')?.value;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const apiKey = process.env.ERP_API_KEY;
+    const apiSecret = process.env.ERP_API_SECRET;
+    const sid = request.cookies.get('sid')?.value;
 
-    if (!sid) {
+    if (apiKey && apiSecret) {
+      headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
+    } else if (sid) {
+      headers['Cookie'] = `sid=${sid}`;
+    } else {
       return NextResponse.json(
         { success: false, message: 'Unauthorized' },
         { status: 401 }
@@ -166,10 +172,7 @@ export async function POST(request: NextRequest) {
 
     const response = await fetch(`${ERPNEXT_API_URL}/api/resource/Stock Entry`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Cookie': `sid=${sid}`
-      },
+      headers,
       body: JSON.stringify(entryData),
     });
 

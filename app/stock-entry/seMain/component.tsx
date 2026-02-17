@@ -211,6 +211,7 @@ export default function StockEntryMain() {
       const response = await fetch('/api/inventory/stock-entry', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ ...newEntry, company: selectedCompany }),
       });
       const data = await response.json();
