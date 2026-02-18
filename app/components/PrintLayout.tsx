@@ -179,11 +179,7 @@ const CSS = `
   color: rgba(180,180,180,0.18);
   pointer-events: none; z-index: 0; white-space: nowrap;
 }
-.no-print {
-  display: flex; justify-content: center; gap: 10px;
-  padding: 10px; background: #f3f4f6;
-  position: sticky; top: 0; z-index: 100;
-}
+.no-print { display: none !important; }
 .btn-print { padding: 6px 20px; background: #4f46e5; color: #fff; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; font-weight: 600; }
 .btn-back { padding: 6px 16px; background: #e5e7eb; color: #374151; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; }
 `;

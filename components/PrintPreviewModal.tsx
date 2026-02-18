@@ -23,6 +23,8 @@ interface PrintPreviewModalProps {
   zoomMax?: number;
   useContentFrame?: boolean;
   contentFramePadding?: string;
+  frameBackground?: string;
+  frameShadow?: string;
 }
 
 const PAPER_DIMS: Record<PaperSize, { w: number; h: number }> = {
@@ -48,6 +50,8 @@ export default function PrintPreviewModal({
   zoomMax = 200,
   useContentFrame = true,
   contentFramePadding = '28px 34px',
+  frameBackground = '#fff',
+  frameShadow = '0 8px 40px rgba(0,0,0,0.5)',
 }: PrintPreviewModalProps) {
   const printRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(100);
@@ -266,23 +270,20 @@ export default function PrintPreviewModal({
       )}
 
       {/* Preview Area */}
-      <div className="flex-1 overflow-auto py-6 px-4 bg-gray-700">
+      <div className="flex-1 overflow-auto py-6 px-4 bg-gray-700 flex justify-center">
         <div
-          className="mx-auto"
           style={{
             transform: `scale(${scale})`,
-            transformOrigin: 'top left',
-            width: useContentFrame
-              ? `${pageWidthPx * scale}px`
-              : 'fit-content',
-            minHeight: useContentFrame ? `${pageHeightPx * scale}px` : undefined,
+            transformOrigin: 'top center',
+            width: useContentFrame ? `${pageWidthPx}px` : 'fit-content',
+            minHeight: useContentFrame ? `${pageHeightPx}px` : undefined,
           }}
         >
           {useContentFrame ? (
             <div
               ref={printRef}
               style={{
-                background: '#fff',
+                background: frameBackground,
                 width: `${pageWidthPx}px`,
                 minHeight: `${pageHeightPx}px`,
                 margin: '0 auto',
@@ -291,7 +292,7 @@ export default function PrintPreviewModal({
                 fontFamily: 'Arial, Helvetica, sans-serif',
                 fontSize: '10px',
                 color: '#111',
-                boxShadow: '0 8px 40px rgba(0,0,0,0.5)',
+                boxShadow: frameShadow,
               }}
             >
               {children}

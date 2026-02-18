@@ -110,6 +110,8 @@ function DeliveryNotePrint() {
           fixedPageSizeMm={{ width: 215, height: 140 }}
           allowPaperSettings={false}
           contentFramePadding="14px 16px"
+          frameBackground="transparent"
+          frameShadow="none"
         >
           {layoutContent}
         </PrintPreviewModal>
