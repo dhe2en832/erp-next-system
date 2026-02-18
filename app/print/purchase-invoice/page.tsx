@@ -59,6 +59,9 @@ function PurchaseInvoicePrint() {
   const taxAmount = data.total_taxes_and_charges || 0;
   const subtotal = data.net_total || data.total || 0;
   const docTitle = `Faktur Pembelian ${data.name}`;
+  const supplierAddress = data.address_display || data.supplier_address || data.shipping_address_name || data.shipping_address || '';
+  const totalQty = (data.items || []).reduce((acc: number, it: any) => acc + Number(it.qty || 0), 0);
+  const totalItems = (data.items || []).length;
 
   const layoutContent = (
     <PrintLayout
@@ -68,6 +71,9 @@ function PurchaseInvoicePrint() {
       companyName={company}
       partyLabel="Pemasok"
       partyName={data.supplier_name || data.supplier || ''}
+      partyAddress={supplierAddress}
+      totalQuantity={totalQty}
+      totalItems={totalItems}
       items={(data.items || []).map((item: any, idx: number) => ({
         no: idx + 1,
         item_code: item.item_code,

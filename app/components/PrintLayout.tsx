@@ -30,7 +30,7 @@ interface PrintLayoutProps {
   documentTitle: string;
   documentNumber: string;
   documentDate: string;
-  companyName?: string;
+  companyName: string;
   companyAddress?: string;
   companyPhone?: string;
   partyLabel: string;
@@ -42,18 +42,20 @@ interface PrintLayoutProps {
   subtotal?: number;
   taxAmount?: number;
   totalAmount?: number;
+  terbilang?: string;
   notes?: string;
-  salesPerson?: string;
   referenceDoc?: string;
   referenceLabel?: string;
+  salesPerson?: string;
+  metaRight?: { label: string; value: string }[];
+  signatures?: PrintSignature[];
   status?: string;
   watermark?: string;
   copyLabel?: string;
   extraFields?: { label: string; value: string }[];
   metaLeft?: { label: string; value: string }[];
-  metaRight?: { label: string; value: string }[];
-  signatures?: PrintSignature[];
-  terbilang?: string;
+  totalQuantity?: number;
+  totalItems?: number;
   footerNote?: string;
 }
 
@@ -166,6 +168,8 @@ const CSS = `
 }
 .footer-left { flex: 1; font-size: 8.5px; color: #374151; }
 .footer-right { min-width: 160px; font-size: 9px; }
+.footer-stats-bar { width: 100%; display: flex; justify-content: center; gap: 14px; margin: 4px 0 2px; font-size: 9px; }
+.footer-stats-bar .label { color: #475569; }
 .total-row { display: flex; justify-content: space-between; padding: 1px 0; }
 .total-row.grand { font-weight: 700; font-size: 10px; border-top: 1px solid #334155; margin-top: 2px; padding-top: 2px; }
 .terbilang-text { font-size: 8px; font-style: italic; color: #475569; margin-top: 2px; }
@@ -212,6 +216,8 @@ export default function PrintLayout({
   metaRight,
   signatures,
   terbilang,
+  totalQuantity,
+  totalItems,
   footerNote,
 }: PrintLayoutProps) {
   const cols = columns || DEFAULT_COLUMNS;
@@ -337,7 +343,19 @@ export default function PrintLayout({
           )}
         </div>
 
-        {/* ZONE 4: FOOTER */}
+        {/* ZONE 4: TOTAL STATS (CENTER) */}
+        {(totalQuantity !== undefined || totalItems !== undefined) && (
+          <div className="footer-stats-bar">
+            {totalQuantity !== undefined && (
+              <span><span className="label">Total Qty:</span> {totalQuantity}</span>
+            )}
+            {totalItems !== undefined && (
+              <span><span className="label">Total Item:</span> {totalItems}</span>
+            )}
+          </div>
+        )}
+
+        {/* ZONE 5: FOOTER */}
         <div className="doc-footer">
           <div className="footer-left">
             {notes && <div><strong>Catatan:</strong> {notes}</div>}

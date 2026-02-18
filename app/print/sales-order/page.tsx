@@ -54,6 +54,9 @@ function SalesOrderPrint() {
 
   const company = typeof window !== 'undefined' ? localStorage.getItem('selected_company') || '' : '';
   const docTitle = `Sales Order ${data.name}`;
+  const customerAddress = data.address_display || data.customer_address || data.shipping_address || data.shipping_address_name || '';
+  const totalQty = (data.items || []).reduce((acc: number, it: any) => acc + Number(it.qty || 0), 0);
+  const totalItems = (data.items || []).length;
 
   const layoutContent = (
     <PrintLayout
@@ -63,6 +66,9 @@ function SalesOrderPrint() {
       companyName={company}
       partyLabel="Pelanggan"
       partyName={data.customer_name || data.customer || ''}
+      partyAddress={customerAddress}
+      totalQuantity={totalQty}
+      totalItems={totalItems}
       items={(data.items || []).map((item: any, idx: number) => ({
         no: idx + 1,
         item_code: item.item_code,

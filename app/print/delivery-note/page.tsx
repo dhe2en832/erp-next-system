@@ -51,6 +51,9 @@ function DeliveryNotePrint() {
 
   const company = typeof window !== 'undefined' ? localStorage.getItem('selected_company') || '' : '';
   const docTitle = `Surat Jalan ${data.name}`;
+  const customerAddress = data.address_display || data.customer_address || data.shipping_address_name || data.shipping_address || '';
+  const totalQty = (data.items || []).reduce((acc: number, it: any) => acc + Number(it.qty || 0), 0);
+  const totalItems = (data.items || []).length;
 
   const layoutContent = (
     <PrintLayout
@@ -60,6 +63,7 @@ function DeliveryNotePrint() {
       companyName={company}
       partyLabel="Pelanggan"
       partyName={data.customer_name || data.customer || ''}
+      partyAddress={customerAddress}
       items={(data.items || []).map((item: any, idx: number) => ({
         no: idx + 1,
         item_code: item.item_code,
@@ -69,12 +73,12 @@ function DeliveryNotePrint() {
       }))}
       columns={DN_COLUMNS}
       showPrice={false}
+      totalQuantity={totalQty}
+      totalItems={totalItems}
       notes={data.custom_notes_dn || ''}
       referenceDoc={data.sales_order || ''}
       referenceLabel="No. SO"
-      metaRight={[
-        ...(data.lr_no ? [{ label: 'No. LR', value: data.lr_no }] : []),
-      ]}
+      metaRight={[{ label: 'Total Qty', value: totalQty.toString() }, ...(data.lr_no ? [{ label: 'No. LR', value: data.lr_no }] : [])]}
       signatures={DN_SIGS}
       status={data.status}
     />

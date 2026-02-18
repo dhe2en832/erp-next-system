@@ -54,6 +54,10 @@ function PurchaseReceiptPrint() {
 
   const company = typeof window !== 'undefined' ? localStorage.getItem('selected_company') || '' : '';
   const docTitle = `Penerimaan Barang ${data.name}`;
+  const supplierAddress = data.address_display || data.supplier_address || data.shipping_address_name || data.shipping_address || '';
+  const totalQty = (data.items || []).reduce((acc: number, it: any) => acc + Number(it.qty || 0), 0);
+  const totalItems = (data.items || []).length;
+  const warehouse = data.set_warehouse || data.target_warehouse || data.warehouse || '';
 
   const layoutContent = (
     <PrintLayout
@@ -63,6 +67,9 @@ function PurchaseReceiptPrint() {
       companyName={company}
       partyLabel="Pemasok"
       partyName={data.supplier_name || data.supplier || ''}
+      partyAddress={supplierAddress}
+      totalQuantity={totalQty}
+      totalItems={totalItems}
       items={(data.items || []).map((item: any, idx: number) => ({
         no: idx + 1,
         item_code: item.item_code,
@@ -73,6 +80,7 @@ function PurchaseReceiptPrint() {
       }))}
       columns={PR_COLUMNS}
       showPrice={false}
+      metaRight={warehouse ? [{ label: 'Gudang', value: warehouse }] : undefined}
       referenceDoc={data.purchase_order || ''}
       referenceLabel="No. PO"
       signatures={PR_SIGS}

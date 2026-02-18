@@ -68,6 +68,9 @@ function PurchaseOrderPrint() {
 
   const company = typeof window !== 'undefined' ? localStorage.getItem('selected_company') || '' : '';
   const docTitle = `Purchase Order ${data.name}`;
+  const supplierAddress = data.address_display || data.supplier_address || data.shipping_address_name || data.shipping_address || '';
+  const totalQty = (data.items || []).reduce((acc: number, it: any) => acc + Number(it.qty || 0), 0);
+  const totalItems = (data.items || []).length;
 
   const layoutContent = (
     <PrintLayout
@@ -77,6 +80,9 @@ function PurchaseOrderPrint() {
       companyName={company}
       partyLabel="Pemasok"
       partyName={data.supplier_name || data.supplier || ''}
+      partyAddress={supplierAddress}
+      totalQuantity={totalQty}
+      totalItems={totalItems}
       items={(data.items || []).map((item: any, idx: number) => ({
         no: idx + 1,
         item_code: item.item_code,
