@@ -19,7 +19,7 @@ interface CommissionData {
 export default function CommissionDashboard() {
   const [data, setData] = useState<CommissionData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [salesPerson, setSalesPerson] = useState('Deden');
+  const [salesPerson, setSalesPerson] = useState('');
   
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);

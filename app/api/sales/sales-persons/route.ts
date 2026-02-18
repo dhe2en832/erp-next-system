@@ -133,9 +133,7 @@ export async function POST(request: NextRequest) {
 // Helper function to categorize sales persons based on their names
 function getCategoryFromName(name: string): string {
   const lowerName = name.toLowerCase();
-  if (lowerName.includes('deden')) {
-    return 'Deden';
-  } else if (lowerName.includes('kantor')) {
+  if (lowerName.includes('kantor')) {
     return 'Kantor';
   } else if (lowerName.includes('tim penjualan') || lowerName.includes('tim')) {
     return 'Tim Penjualan';

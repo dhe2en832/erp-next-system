@@ -50,6 +50,7 @@ export default function SalesOrderMain() {
     transaction_date: '',
     delivery_date: '',
     sales_person: '',
+    custom_persentase_komisi_so: 0,
     custom_notes_so: '',
     items: [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0, warehouse: '', stock_uom: '', available_stock: 0, actual_stock: 0, reserved_stock: 0 }],
     payment_terms_template: '',
@@ -177,6 +178,7 @@ export default function SalesOrderMain() {
           transaction_date: formatDate(order.transaction_date),
           delivery_date: formatDate(order.delivery_date),
           sales_person: salesPersonValue,
+          custom_persentase_komisi_so: order.custom_persentase_komisi_so ?? 0,
           custom_notes_so: order.custom_notes_so || '',
           items: mappedItems,
           payment_terms_template: order.payment_terms_template || '',
@@ -202,11 +204,11 @@ export default function SalesOrderMain() {
     });
   };
 
-  const handleCustomerSelect = (customer: { name: string; customer_name: string }) => {
+  const handleCustomerSelect = (customer: { name: string; customer_name: string; }) => {
     setFormData(prev => ({ 
       ...prev, 
       customer: customer.name,
-      customer_name: customer.customer_name
+      customer_name: customer.customer_name,
     }));
     setShowCustomerDialog(false);
     setError('');
@@ -218,10 +220,9 @@ export default function SalesOrderMain() {
       const response = await fetch(`/api/sales/customers/customer/${encodeURIComponent(customerName)}`);
       
       if (!response.ok) {
-        getFallbackSalesPerson(customerName);
         return;
       }
-      
+      console.log('Customer detail response:', response);
       const result = await response.json();
       
       if (result.success && result.data) {
@@ -237,15 +238,38 @@ export default function SalesOrderMain() {
           if (salesPersonName) {
             setFormData(prev => ({ ...prev, sales_person: salesPersonName }));
             setSalesTeam([{ sales_person: salesPersonName, allocated_percentage: 100 }]);
-            return;
+
+            // Pull default commission rate from Sales Person master
+            try {
+              const spRes = await fetch(`/api/sales/sales-persons/detail?name=${encodeURIComponent(salesPersonName)}`);
+              if (spRes.ok) {
+                const spData = await spRes.json();
+                if (spData.success && spData.data) {
+                  const defaultRate = Number(spData.data.custom_default_commission_rate ?? spData.data.commission_rate ?? 0);
+                  setFormData(prev => ({
+                    ...prev,
+                    custom_persentase_komisi_so: isNaN(defaultRate) ? 0 : defaultRate,
+                  }));
+                }
+              }
+            } catch (err) {
+              console.error('Failed to fetch sales person commission:', err);
+            }
           }
+        }
+
+        if (customerData.custom_persentase_komisi_so !== undefined) {
+          setFormData(prev => ({
+            ...prev,
+            custom_persentase_komisi_so: Number(customerData.custom_persentase_komisi_so) || 0,
+          }));
         }
       }
       
-      getFallbackSalesPerson(customerName);
+      // await getFallbackSalesPerson(customerName);
     } catch (error) {
       console.error('Error fetching customer detail:', error);
-      getFallbackSalesPerson(customerName);
+      await getFallbackSalesPerson(customerName);
     }
   };
 
@@ -254,22 +278,36 @@ export default function SalesOrderMain() {
     setFormData({ ...formData, items: newItems });
   };
 
-  const getFallbackSalesPerson = (customerName: string) => {
+  const getFallbackSalesPerson = async (_customerName: string) => {
     const customerSalesPersonMapping: Record<string, string> = {
-      'West View Software Ltd.': 'Deden',
       'Grant Plastics Ltd.': 'Kantor',
       'Palmer Productions Ltd.': 'Tim Penjualan',
     };
     
-    let defaultSalesPerson = customerSalesPersonMapping[customerName];
+    let defaultSalesPerson = customerSalesPersonMapping[_customerName];
+
+    // If no mapping, pick first available sales person from API
     if (!defaultSalesPerson) {
-      defaultSalesPerson = 'Deden';
+      try {
+        const spRes = await fetch('/api/sales/sales-persons', { credentials: 'include' });
+        if (spRes.ok) {
+          const spData = await spRes.json();
+          const first = Array.isArray(spData.data) ? spData.data[0] : null;
+          if (first?.name) {
+            defaultSalesPerson = first.name;
+          }
+        }
+      } catch (err) {
+        console.error('Fallback sales person lookup failed:', err);
+      }
     }
     
-    if (defaultSalesPerson) {
-      setFormData(prev => ({ ...prev, sales_person: defaultSalesPerson }));
-      setSalesTeam([{ sales_person: defaultSalesPerson, allocated_percentage: 100 }]);
+    if (!defaultSalesPerson) {
+      return;
     }
+    
+    setFormData(prev => ({ ...prev, sales_person: defaultSalesPerson }));
+    setSalesTeam([{ sales_person: defaultSalesPerson, allocated_percentage: 100 }]);
   };
 
   const resetForm = () => {
@@ -280,6 +318,7 @@ export default function SalesOrderMain() {
       transaction_date: today,
       delivery_date: today,
       sales_person: '',
+      custom_persentase_komisi_so: 0,
       custom_notes_so: '',
       items: [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0, warehouse: '', stock_uom: '', available_stock: 0, actual_stock: 0, reserved_stock: 0 }],
       payment_terms_template: '',
@@ -481,6 +520,7 @@ export default function SalesOrderMain() {
           warehouse: item.warehouse,
         })),
         
+        custom_persentase_komisi_so: formData.custom_persentase_komisi_so || 0,
         custom_notes_so: formData.custom_notes_so || '',
         total: validItems.reduce((sum, item) => sum + item.amount, 0),
         grand_total: validItems.reduce((sum, item) => sum + item.amount, 0),

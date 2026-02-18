@@ -66,7 +66,7 @@ export async function POST(
 
     // Get current invoice data to verify custom fields before submit
     try {
-      const getCurrentData = await fetch(`${ERPNEXT_API_URL}/api/resource/Sales%20Invoice/${invoiceName}?fields=["name","custom_total_komisi_sales","items"]`, {
+      const getCurrentData = await fetch(`${ERPNEXT_API_URL}/api/resource/Sales%20Invoice/${invoiceName}?fields=["name","custom_total_komisi_sales","items","sales_team.sales_person","sales_team.employee"]`, {
         method: 'GET',
         headers: headers,
       });
@@ -79,6 +79,43 @@ export async function POST(
           items_count: currentData.data.items?.length || 0,
           items_with_commission: currentData.data.items?.filter((item: any) => item.custom_komisi_sales > 0).length || 0
         });
+
+        // Auto-fill employee for sales team if missing
+        const salesTeam = currentData.data.sales_team || [];
+        const missingEmployeeEntries = salesTeam.filter((st: any) => st.sales_person && !st.employee);
+        if (missingEmployeeEntries.length > 0) {
+          const updatedSalesTeam = await Promise.all(salesTeam.map(async (st: any) => {
+            if (st.employee || !st.sales_person) return st;
+            try {
+              const empRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/setup/employees?sales_person=${encodeURIComponent(st.sales_person)}`, { headers });
+              if (empRes.ok) {
+                const empData = await empRes.json();
+                const firstEmp = empData.data?.[0];
+                if (empData.success && firstEmp) {
+                  return { ...st, employee: firstEmp.name };
+                }
+              }
+            } catch (empErr) {
+              console.warn('Employee lookup failed for sales person', st.sales_person, empErr);
+            }
+            return st;
+          }));
+
+          const hasNewEmployee = updatedSalesTeam.some((st: any, idx: number) => st.employee && !salesTeam[idx]?.employee);
+          if (hasNewEmployee) {
+            try {
+              const updateRes = await fetch(submitUrl, {
+                method: 'PUT',
+                headers,
+                body: JSON.stringify({ sales_team: updatedSalesTeam }),
+              });
+              const updateData = await updateRes.json();
+              console.log('Updated sales_team with employee mapping before submit:', { status: updateRes.status, data: updateData });
+            } catch (updateErr) {
+              console.warn('Failed to update sales_team before submit:', updateErr);
+            }
+          }
+        }
       }
     } catch (getDataError) {
       console.warn('Failed to get current invoice data:', getDataError);

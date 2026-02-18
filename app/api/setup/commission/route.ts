@@ -6,10 +6,14 @@ export async function GET(request: Request) {
   const fromDate = searchParams.get('from_date');
   const toDate = searchParams.get('to_date');
 
+  if (!salesPerson) {
+    return NextResponse.json({ error: 'sales_person diperlukan' }, { status: 400 });
+  }
+
   try {
     // Query Sales Order dengan komisi
     const soResponse = await fetch(
-      `${process.env.ERP_URL}/api/resource/Sales Order?fields=["name","base_grand_total","transaction_date","sales_team.sales_person","sales_team.allocated_percentage"]&filters=[["docstatus","=",1],["sales_team.sales_person","=",${salesPerson ? `"${salesPerson}"` : `"Deden"`}]]&order_by=transaction_date desc`,
+      `${process.env.ERP_URL}/api/resource/Sales Order?fields=["name","base_grand_total","transaction_date","sales_team.sales_person","sales_team.allocated_percentage"]&filters=[["docstatus","=",1],["sales_team.sales_person","=","${salesPerson}"]]&order_by=transaction_date desc`,
       {
         headers: {
           'Authorization': `token ${process.env.ERP_API_KEY}:${process.env.ERP_API_SECRET}`,
@@ -21,7 +25,7 @@ export async function GET(request: Request) {
 
     // Query Sales Invoice yang sudah paid
     const invoiceResponse = await fetch(
-      `${process.env.ERP_URL}/api/resource/Sales Invoice?fields=["name","base_grand_total","posting_date","status","sales_team.sales_person"]&filters=[["docstatus","=",1],["status","=","Paid"],["sales_team.sales_person","=",${salesPerson ? `"${salesPerson}"` : `"Deden"`}]]`,
+      `${process.env.ERP_URL}/api/resource/Sales Invoice?fields=["name","base_grand_total","posting_date","status","sales_team.sales_person"]&filters=[["docstatus","=",1],["status","=","Paid"],["sales_team.sales_person","=","${salesPerson}"]]`,
       {
         headers: {
           'Authorization': `token ${process.env.ERP_API_KEY}:${process.env.ERP_API_SECRET}`,

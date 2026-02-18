@@ -67,8 +67,6 @@ export default function SalesPersonDialog({ isOpen, onClose, onSelect }: SalesPe
   // Get category colors
   const getCategoryColor = (category: string) => {
     switch (category) {
-      case 'Deden':
-        return 'bg-blue-100 text-blue-800';
       case 'Kantor':
         return 'bg-green-100 text-green-800';
       case 'Tim Penjualan':

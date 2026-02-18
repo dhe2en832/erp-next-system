@@ -26,7 +26,7 @@ interface SalesOrderFormProps {
 export default function SalesOrderForm({ onOrderCreated }: SalesOrderFormProps) {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [customerName, setCustomerName] = useState('');
-  const [salesPerson, setSalesPerson] = useState('Deden');
+  const [salesPerson, setSalesPerson] = useState('');
   const [deliveryDate, setDeliveryDate] = useState('');
   const [setWarehouse, setSetWarehouse] = useState(''); // Header warehouse field
   const [loading, setLoading] = useState(false);
