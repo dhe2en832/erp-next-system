@@ -209,6 +209,12 @@ export default function Navbar() {
         { name: 'Laporan Penjualan', href: '/reports/sales', allowedRoles: ['System Manager', 'Sales User', 'Sales Manager', 'Sales Master Manager', 'Report Manager'] },
         { name: 'Laporan Pembelian', href: '/reports/purchases', allowedRoles: ['System Manager', 'Purchase User', 'Purchase Manager', 'Purchase Master Manager', 'Report Manager'] },
         { name: 'Stok per Gudang', href: '/reports/stock-balance', allowedRoles: ['System Manager', 'Stock User', 'Stock Manager', 'Item Manager', 'Report Manager'] },
+        { name: 'Ledger HPP', href: '/reports/hpp-ledger', allowedRoles: ['System Manager', 'Accounts User', 'Accounts Manager', 'Report Manager'] },
+        { name: 'Margin per Unit', href: '/reports/margin-analysis', allowedRoles: ['System Manager', 'Accounts User', 'Accounts Manager', 'Sales Manager', 'Report Manager'] },
+        { name: 'Penyesuaian Stok', href: '/reports/stock-adjustment', allowedRoles: ['System Manager', 'Stock User', 'Stock Manager', 'Accounts Manager', 'Report Manager'] },
+        { name: 'Ongkir/Biaya Perolehan', href: '/reports/acquisition-costs', allowedRoles: ['System Manager', 'Accounts User', 'Accounts Manager', 'Report Manager'] },
+        { name: 'Retur Jual/Beli', href: '/reports/returns', allowedRoles: ['System Manager', 'Accounts User', 'Accounts Manager', 'Sales Manager', 'Purchase Manager', 'Report Manager'] },
+        { name: 'Rekonsiliasi HPP', href: '/reports/hpp-reconciliation', allowedRoles: ['System Manager', 'Accounts User', 'Accounts Manager', 'Report Manager'] },
       ]
     },
     {
