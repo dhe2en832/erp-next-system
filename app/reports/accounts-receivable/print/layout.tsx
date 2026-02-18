@@ -1,9 +1,12 @@
 export default function ReportPrintLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="id">
-      <body style={{ margin: 0, padding: 0, background: '#e5e7eb' }}>
-        {children}
-      </body>
-    </html>
+    <>
+      <style>{`
+        header { display: none !important; }
+        main { padding: 0 !important; background: #e5e7eb !important; min-height: 100vh; }
+        body { margin: 0 !important; padding: 0 !important; }
+      `}</style>
+      {children}
+    </>
   );
 }

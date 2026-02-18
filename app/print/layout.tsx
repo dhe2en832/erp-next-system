@@ -1,13 +1,12 @@
-export default function PrintRouteLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function PrintRouteLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="id">
-      <body style={{ margin: 0, padding: 0, background: '#f5f5f5' }}>
-        {children}
-      </body>
-    </html>
+    <>
+      <style>{`
+        header { display: none !important; }
+        main { padding: 0 !important; background: #f5f5f5 !important; min-height: 100vh; }
+        body { margin: 0 !important; padding: 0 !important; }
+      `}</style>
+      {children}
+    </>
   );
 }
