@@ -177,6 +177,104 @@ Debit:  Beban Penyusutan (Depreciation Expense) Rp XXX
 
 ---
 
+### H. Komisi Sales (Sales Commission)
+**Saat Pembayaran Komisi:**
+```
+Debit:  Beban Komisi Sales (Expense)         Rp XXX
+  Kredit: Kas/Bank (Cash/Bank)                      Rp XXX
+```
+**Atau jika komisi dijurnal saat invoice:**
+```
+Saat Sales Invoice di-submit:
+Debit:  Beban Komisi Sales (Expense)         Rp XXX
+  Kredit: Hutang Komisi Sales (Payable)             Rp XXX
+
+Saat bayar komisi:
+Debit:  Hutang Komisi Sales (Payable)        Rp XXX
+  Kredit: Kas/Bank (Cash/Bank)                      Rp XXX
+```
+
+**PENTING:**
+- Komisi Sales = **Beban Operasional** (bukan HPP)
+- Account Type: **Expense Account**
+- Root Type: **Expense**
+- Jika pakai accrual basis: akui saat invoice, bayar nanti
+- Jika pakai cash basis: akui saat bayar langsung
+
+---
+
+### I. Warkat Tolak, Batal, & Cair (Cheque/Giro Management)
+
+#### 1. Receive Payment - Terima Cek/Giro dari Customer
+
+**A. Saat Terima Cek/Giro (belum cair):**
+```
+Debit:  Giro Dalam Proses (Current Asset)    Rp XXX
+  Kredit: Piutang Usaha (Receivable)                Rp XXX
+```
+
+**B. Saat Giro Cair (deposit berhasil):**
+```
+Debit:  Bank (Bank)                          Rp XXX
+  Kredit: Giro Dalam Proses (Current Asset)         Rp XXX
+```
+
+**C. Saat Giro TOLAK (bounced cheque):**
+```
+Jurnal balik (reversal):
+Debit:  Piutang Usaha (Receivable)           Rp XXX
+Debit:  Beban Admin Bank (Expense)           Rp YYY (fee tolak)
+  Kredit: Giro Dalam Proses (Current Asset)         Rp XXX
+  Kredit: Kas/Bank (fee dipotong rekening)          Rp YYY
+```
+
+**D. Saat Pembayaran BATAL (customer cancel):**
+```
+Jurnal balik:
+Debit:  Piutang Usaha (Receivable)           Rp XXX
+  Kredit: Giro Dalam Proses (Current Asset)         Rp XXX
+```
+
+---
+
+#### 2. Pay Payment - Bayar Cek/Giro ke Supplier
+
+**A. Saat Issue Cek/Giro (belum dicairkan supplier):**
+```
+Debit:  Hutang Usaha (Payable)               Rp XXX
+  Kredit: Giro Diterbitkan (Current Liability)      Rp XXX
+```
+
+**B. Saat Giro Cair (di-clearing oleh supplier):**
+```
+Debit:  Giro Diterbitkan (Current Liability) Rp XXX
+  Kredit: Bank (Bank)                                Rp XXX
+```
+
+**C. Saat Giro TOLAK (insufficient fund):**
+```
+Jurnal balik:
+Debit:  Giro Diterbitkan (Current Liability) Rp XXX
+Debit:  Beban Admin & Denda (Expense)        Rp YYY
+  Kredit: Hutang Usaha (Payable)                    Rp XXX
+  Kredit: Bank (denda dipotong rekening)            Rp YYY
+```
+
+**D. Saat Pembayaran BATAL (kita cancel sebelum cair):**
+```
+Jurnal balik:
+Debit:  Giro Diterbitkan (Current Liability) Rp XXX
+  Kredit: Hutang Usaha (Payable)                    Rp XXX
+```
+
+**PENTING:**
+- **Giro Dalam Proses** = akun peralihan (Current Asset)
+- **Giro Diterbitkan** = akun peralihan (Current Liability)
+- Jangan langsung masuk Bank sebelum cek benar-benar cair
+- Tracking status: "Dalam Proses", "Cair", "Tolak", "Batal"
+
+---
+
 ## 3. Opening Balance - Panduan Pengisian
 
 ### Prinsip Dasar
@@ -428,6 +526,199 @@ TOTAL: 620.000.000 = 157.000.000 + 463.000.000 ✅
 
 ---
 
+## 7. Contoh Struktur COA Lengkap untuk Perusahaan Dagang
+
+Berikut struktur Chart of Accounts (COA) yang direkomendasikan untuk sistem ERP Anda:
+
+### Format: `[Nomor] - [Nama Akun]` | Root Type | Account Type | Is Group
+
+---
+
+### 📊 AKTIVA (ASSET)
+
+#### **1000 - Aktiva Lancar** | Asset | - | ✅ Group
+- **1100 - Kas & Bank** | Asset | - | ✅ Group
+  - `1110 - Kas Toko` | Asset | Cash | ❌
+  - `1120 - Kas Kecil (Petty Cash)` | Asset | Cash | ❌
+  - `1130 - Bank BCA - Operasional` | Asset | Bank | ❌
+  - `1131 - Bank BRI - Giro` | Asset | Bank | ❌
+  - `1132 - Bank Mandiri - Payroll` | Asset | Bank | ❌
+
+- **1200 - Piutang** | Asset | - | ✅ Group
+  - `1210 - Piutang Usaha` | Asset | Receivable | ❌
+  - `1220 - Piutang Karyawan` | Asset | Receivable | ❌
+  - `1230 - Piutang Lain-lain` | Asset | Receivable | ❌
+  - `1240 - Giro Dalam Proses (Cek Belum Cair)` | Asset | Bank | ❌ ⬅️ **BARU**
+
+- **1300 - Persediaan** | Asset | - | ✅ Group
+  - `1310 - Persediaan Barang Dagang` | Asset | Stock | ❌
+  - `1320 - Persediaan Barang Dalam Transit` | Asset | Stock | ❌
+
+- **1400 - Aset Lancar Lainnya** | Asset | - | ✅ Group
+  - `1410 - Pajak Dibayar Dimuka` | Asset | Tax Asset | ❌
+  - `1420 - Uang Muka Pembelian` | Asset | - | ❌
+  - `1430 - Biaya Dibayar Dimuka` | Asset | - | ❌
+
+#### **1500 - Aktiva Tetap** | Asset | - | ✅ Group
+- **1510 - Tanah** | Asset | Fixed Asset | ❌
+- **1520 - Bangunan** | Asset | Fixed Asset | ❌
+- **1521 - Akumulasi Penyusutan Bangunan** | Asset | Accumulated Depreciation | ❌
+- **1530 - Kendaraan** | Asset | Fixed Asset | ❌
+- **1531 - Akumulasi Penyusutan Kendaraan** | Asset | Accumulated Depreciation | ❌
+- **1540 - Peralatan Kantor** | Asset | Fixed Asset | ❌
+- **1541 - Akumulasi Penyusutan Peralatan** | Asset | Accumulated Depreciation | ❌
+- **1550 - Komputer & Elektronik** | Asset | Fixed Asset | ❌
+- **1551 - Akumulasi Penyusutan Komputer** | Asset | Accumulated Depreciation | ❌
+
+---
+
+### 📊 KEWAJIBAN (LIABILITY)
+
+#### **2000 - Kewajiban Lancar** | Liability | - | ✅ Group
+- **2100 - Hutang Usaha** | Liability | - | ✅ Group
+  - `2110 - Hutang Usaha (Supplier)` | Liability | Payable | ❌
+  - `2120 - Hutang Komisi Sales` | Liability | Payable | ❌ ⬅️ **BARU**
+  - `2130 - Giro Diterbitkan (Cek Belum Dicairkan)` | Liability | Payable | ❌ ⬅️ **BARU**
+
+- **2200 - Hutang Pajak** | Liability | - | ✅ Group
+  - `2210 - Hutang PPN` | Liability | Tax | ❌
+  - `2220 - Hutang PPh 21` | Liability | Tax | ❌
+  - `2230 - Hutang PPh 23` | Liability | Tax | ❌
+  - `2240 - Hutang PPh 4(2) Final` | Liability | Tax | ❌
+
+- **2300 - Hutang Lainnya** | Liability | - | ✅ Group
+  - `2310 - Hutang Karyawan (Gaji)` | Liability | Payable | ❌
+  - `2320 - Uang Muka Penjualan` | Liability | - | ❌
+
+#### **2400 - Kewajiban Jangka Panjang** | Liability | - | ✅ Group
+- **2410 - Hutang Bank** | Liability | Payable | ❌
+- **2420 - Hutang Leasing** | Liability | Payable | ❌
+
+---
+
+### 📊 EKUITAS (EQUITY)
+
+#### **3000 - Ekuitas** | Equity | - | ✅ Group
+- **3100 - Modal Pemilik** | Equity | Equity | ❌
+- **3200 - Laba Ditahan** | Equity | Equity | ❌
+- **3300 - Laba Tahun Berjalan** | Equity | Equity | ❌
+- **3400 - Prive/Drawings** | Equity | Equity | ❌
+- **3500 - Stock Adjustment** | Equity | Equity | ❌
+
+---
+
+### 📊 PENDAPATAN (INCOME)
+
+#### **4000 - Pendapatan Usaha** | Income | - | ✅ Group
+- **4100 - Pendapatan Penjualan** | Income | Income Account | ❌
+- **4200 - Retur Penjualan** | Income | Income Account | ❌ (contra-income, nilai negatif)
+- **4300 - Potongan Penjualan** | Income | Income Account | ❌ (contra-income, nilai negatif)
+
+#### **4500 - Pendapatan Lain-lain** | Income | - | ✅ Group
+- **4510 - Pendapatan Bunga** | Income | Income Account | ❌
+- **4520 - Keuntungan Selisih Kurs** | Income | Income Account | ❌
+- **4530 - Pendapatan Lain-lain** | Income | Income Account | ❌
+
+---
+
+### 📊 BEBAN (EXPENSE)
+
+#### **5000 - Harga Pokok Penjualan (HPP)** | Expense | - | ✅ Group
+- **5100 - HPP Barang Dagang** | Expense | Cost of Goods Sold | ❌
+- **5200 - Retur Pembelian** | Expense | Cost of Goods Sold | ❌ (contra-COGS, nilai negatif)
+- **5300 - Potongan Pembelian** | Expense | Cost of Goods Sold | ❌ (contra-COGS, nilai negatif)
+- **5400 - Ongkir & Biaya Perolehan (Masuk HPP)** | Expense | Expenses Included In Asset Valuation | ❌ ⬅️ **PENTING**
+
+#### **6000 - Beban Operasional** | Expense | - | ✅ Group
+- **6100 - Beban Gaji & Upah** | Expense | - | ✅ Group
+  - `6110 - Gaji Karyawan` | Expense | Expense Account | ❌
+  - `6120 - Upah Harian` | Expense | Expense Account | ❌
+  - `6130 - Tunjangan` | Expense | Expense Account | ❌
+  - `6140 - Lembur` | Expense | Expense Account | ❌
+  - `6150 - THR & Bonus` | Expense | Expense Account | ❌
+
+- **6200 - Beban Penjualan** | Expense | - | ✅ Group
+  - `6210 - Beban Komisi Sales` | Expense | Expense Account | ❌ ⬅️ **BARU**
+  - `6220 - Beban Iklan & Promosi` | Expense | Expense Account | ❌
+  - `6230 - Beban Pengiriman (Ongkir Bukan HPP)` | Expense | Expense Account | ❌
+  - `6240 - Beban Entertaint & Jamuan` | Expense | Expense Account | ❌
+
+- **6300 - Beban Kantor & Umum** | Expense | - | ✅ Group
+  - `6310 - Beban Sewa Kantor` | Expense | Expense Account | ❌
+  - `6320 - Beban Listrik & Air` | Expense | Expense Account | ❌
+  - `6330 - Beban Telepon & Internet` | Expense | Expense Account | ❌
+  - `6340 - Beban Alat Tulis Kantor` | Expense | Expense Account | ❌
+  - `6350 - Beban Pemeliharaan & Perbaikan` | Expense | Expense Account | ❌
+  - `6360 - Beban Perjalanan Dinas` | Expense | Expense Account | ❌
+  - `6370 - Beban Asuransi` | Expense | Expense Account | ❌
+
+- **6400 - Beban Penyusutan** | Expense | - | ✅ Group
+  - `6410 - Beban Penyusutan Bangunan` | Expense | Depreciation | ❌
+  - `6420 - Beban Penyusutan Kendaraan` | Expense | Depreciation | ❌
+  - `6430 - Beban Penyusutan Peralatan` | Expense | Depreciation | ❌
+  - `6440 - Beban Penyusutan Komputer` | Expense | Depreciation | ❌
+
+- **6500 - Beban Keuangan & Bank** | Expense | - | ✅ Group
+  - `6510 - Beban Bunga Bank` | Expense | Expense Account | ❌
+  - `6520 - Beban Admin Bank` | Expense | Expense Account | ❌ ⬅️ **Termasuk fee giro tolak**
+  - `6530 - Beban Provisi & Fee` | Expense | Expense Account | ❌
+
+- **6600 - Beban Lain-lain** | Expense | - | ✅ Group
+  - `6610 - Beban Pajak & Perizinan` | Expense | Expense Account | ❌
+  - `6620 - Kerugian Selisih Kurs` | Expense | Expense Account | ❌
+  - `6630 - Beban Denda & Sanksi` | Expense | Expense Account | ❌
+  - `6640 - Beban Lain-lain` | Expense | Expense Account | ❌
+
+---
+
+## 8. Mapping Khusus untuk Fitur Sistem
+
+### A. Komisi Sales
+- **Akun Beban:** `6210 - Beban Komisi Sales`
+- **Akun Hutang:** `2120 - Hutang Komisi Sales` (jika accrual)
+- **Root Type:** Expense (untuk beban), Liability (untuk hutang)
+- **Account Type:** Expense Account, Payable
+
+### B. Giro/Warkat Management
+**Receive Payment (Terima dari Customer):**
+- **Akun Peralihan:** `1240 - Giro Dalam Proses`
+- **Root Type:** Asset
+- **Account Type:** Bank
+- **Status Tracking:** Dalam Proses → Cair / Tolak / Batal
+
+**Pay Payment (Bayar ke Supplier):**
+- **Akun Peralihan:** `2130 - Giro Diterbitkan`
+- **Root Type:** Liability
+- **Account Type:** Payable
+- **Status Tracking:** Diterbitkan → Cair / Tolak / Batal
+
+### C. Ongkir/Biaya Perolehan
+**Masuk HPP:**
+- Akun: `5400 - Ongkir & Biaya Perolehan (Masuk HPP)`
+- Account Type: **Expenses Included In Asset Valuation**
+- Centang "Include in Valuation" di Purchase Invoice
+
+**Tidak Masuk HPP (Beban Operasional):**
+- Akun: `6230 - Beban Pengiriman (Ongkir Bukan HPP)`
+- Account Type: **Expense Account**
+
+---
+
+## 9. Checklist Setup COA
+
+- [ ] Buat semua akun induk (is_group = Yes) terlebih dahulu
+- [ ] Buat akun detail (is_group = No) di bawah parent masing-masing
+- [ ] Set nomor akun secara konsisten (1xxx = Asset, 2xxx = Liability, dst)
+- [ ] Pastikan **Root Type** dan **Account Type** sesuai mapping di atas
+- [ ] Buat akun khusus: `1240 - Giro Dalam Proses` dan `2130 - Giro Diterbitkan`
+- [ ] Buat akun khusus: `6210 - Beban Komisi Sales` dan `2120 - Hutang Komisi Sales`
+- [ ] Pisahkan ongkir masuk HPP (5400) vs ongkir beban (6230)
+- [ ] Set default accounts di Company Settings (Sales, Purchase, Cash, Bank, Cost Center)
+- [ ] Test transaksi dummy untuk validasi auto-journal
+
+---
+
 **Tanggal Dokumen:** {{ CURRENT_DATE }}  
-**Versi:** 1.0  
-**Status:** Production Ready ✅
+**Versi:** 2.0  
+**Status:** Production Ready ✅  
+**Update:** Ditambahkan analisa komisi sales, warkat tolak/batal/cair, dan contoh struktur COA lengkap
