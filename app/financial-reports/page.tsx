@@ -326,6 +326,34 @@ export default function FinancialReportsPage() {
         </button>
       </div>
 
+      <div className="grid gap-4 md:grid-cols-2 mb-6">
+        <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-8 h-8 flex items-center justify-center rounded-full bg-indigo-100 text-indigo-700 text-sm font-semibold">A4</div>
+            <div>
+              <p className="font-semibold text-gray-900">Cetak Dokumen</p>
+              <p className="text-xs text-gray-600">Gunakan tombol "Cetak {tabLabel}" di atas untuk pratinjau & cetak A4.</p>
+            </div>
+          </div>
+          <ul className="text-sm text-gray-700 list-disc list-inside space-y-1">
+            <li>Format A4 dengan header perusahaan & periode.</li>
+            <li>Subtotal & total dicetak tebal sesuai standar.</li>
+            <li>Angka negatif ditampilkan dalam tanda kurung.</li>
+          </ul>
+        </div>
+
+        <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+          <p className="font-semibold text-gray-900 mb-2">Cek Cepat HPP</p>
+          <ol className="text-sm text-gray-700 space-y-1 list-decimal list-inside">
+            <li>Ledger HPP Barang Dagang → sortir terbesar, drill transaksi.</li>
+            <li>Bandingkan harga beli rata-rata vs harga jual rata-rata.</li>
+            <li>Cek penyesuaian/stock opname periode ini.</li>
+            <li>Pastikan ongkir/biaya perolehan di HPP; kalau tidak, pindah ke beban.</li>
+            <li>Retur jual/beli harus mengurangi HPP dengan benar.</li>
+          </ol>
+        </div>
+      </div>
+
       {showPrint && (
         <PrintPreviewModal title={`${tabLabel} — ${company}`} onClose={() => setShowPrint(false)}>
           <>
