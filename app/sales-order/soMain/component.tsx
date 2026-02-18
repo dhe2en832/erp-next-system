@@ -222,7 +222,7 @@ export default function SalesOrderMain() {
       if (!response.ok) {
         return;
       }
-      console.log('Customer detail response:', response);
+      // console.log('Customer detail response:', response);
       const result = await response.json();
       
       if (result.success && result.data) {
@@ -269,7 +269,7 @@ export default function SalesOrderMain() {
       // await getFallbackSalesPerson(customerName);
     } catch (error) {
       console.error('Error fetching customer detail:', error);
-      await getFallbackSalesPerson(customerName);
+      // await getFallbackSalesPerson(customerName);
     }
   };
 
