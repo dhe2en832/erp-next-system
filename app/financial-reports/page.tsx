@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import Pagination from '../components/Pagination';
 import BrowserStyleDatePicker from '../../components/BrowserStyleDatePicker';
 import LoadingSpinner from '../components/LoadingSpinner';
+import PrintPreviewModal from '../../components/PrintPreviewModal';
 
 interface TrialBalanceEntry {
   account: string;
@@ -32,6 +33,7 @@ interface ProfitLossEntry {
 
 export default function FinancialReportsPage() {
   const [activeTab, setActiveTab] = useState<'trial-balance' | 'balance-sheet' | 'profit-loss'>('trial-balance');
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [trialBalance, setTrialBalance] = useState<TrialBalanceEntry[]>([]);
   const [balanceSheet, setBalanceSheet] = useState<BalanceSheetEntry[]>([]);
   const [profitLoss, setProfitLoss] = useState<ProfitLossEntry[]>([]);
@@ -360,6 +362,152 @@ export default function FinancialReportsPage() {
     return { totalIncome, totalExpense, netProfit, count: entries.length };
   };
 
+  const tabLabel = activeTab === 'trial-balance' ? 'Neraca Saldo' : activeTab === 'balance-sheet' ? 'Neraca' : 'Laporan Laba Rugi';
+
+  const renderPrintContent = () => {
+    const fromDate = dateFilter.from_date;
+    const toDate = dateFilter.to_date;
+    const formatCur = (v: number) => `Rp ${Math.abs(v).toLocaleString('id-ID')}`;
+
+    if (activeTab === 'trial-balance') {
+      const data = getFilteredData(trialBalance);
+      const totals = calculateTotals(data);
+      return (
+        <div>
+          <div className="doc-header">
+            <div>
+              <div className="doc-company">{selectedCompany}</div>
+              <div className="doc-meta">Periode: {fromDate} s/d {toDate}</div>
+            </div>
+            <div className="doc-title">Neraca Saldo</div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th style={{width:'120px'}}>Kode Akun</th>
+                <th>Nama Akun</th>
+                <th className="right" style={{width:'130px'}}>Debit</th>
+                <th className="right" style={{width:'130px'}}>Kredit</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.map((e) => (
+                <tr key={e.account}>
+                  <td>{e.account}</td>
+                  <td>{e.account_name}</td>
+                  <td className="right">{e.debit > 0 ? formatCur(e.debit) : '-'}</td>
+                  <td className="right">{e.credit > 0 ? formatCur(e.credit) : '-'}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="total-row">
+                <td colSpan={2}><strong>Total</strong></td>
+                <td className="right"><strong>{formatCur(totals.debit)}</strong></td>
+                <td className="right"><strong>{formatCur(totals.credit)}</strong></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      );
+    }
+
+    if (activeTab === 'balance-sheet') {
+      const grouped = groupByParent(getFilteredData(balanceSheet));
+      return (
+        <div>
+          <div className="doc-header">
+            <div>
+              <div className="doc-company">{selectedCompany}</div>
+              <div className="doc-meta">Periode: {fromDate} s/d {toDate}</div>
+            </div>
+            <div className="doc-title">Neraca</div>
+          </div>
+          {Object.entries(grouped).map(([parent, entries]) => (
+            <div key={parent}>
+              <div className="section-header">{parent}</div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Nama Akun</th>
+                    <th className="right" style={{width:'150px'}}>Saldo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {entries.map((e) => (
+                    <tr key={e.account}>
+                      <td>{e.account_name}</td>
+                      <td className="right">{formatCur((e as BalanceSheetEntry).balance)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="subtotal-row">
+                    <td>Subtotal {parent}</td>
+                    <td className="right">{formatCur(entries.reduce((s, e) => s + Math.abs((e as BalanceSheetEntry).balance || 0), 0))}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    if (activeTab === 'profit-loss') {
+      const grouped = groupByParent(getFilteredData(profitLoss));
+      const stats = getProfitLossStats(getFilteredData(profitLoss));
+      return (
+        <div>
+          <div className="doc-header">
+            <div>
+              <div className="doc-company">{selectedCompany}</div>
+              <div className="doc-meta">Periode: {fromDate} s/d {toDate}</div>
+            </div>
+            <div className="doc-title">Laporan Laba Rugi</div>
+          </div>
+          {Object.entries(grouped).map(([parent, entries]) => (
+            <div key={parent}>
+              <div className="section-header">{parent}</div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Nama Akun</th>
+                    <th className="right" style={{width:'150px'}}>Jumlah</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {entries.map((e) => (
+                    <tr key={e.account}>
+                      <td>{e.account_name}</td>
+                      <td className="right">{formatCur((e as ProfitLossEntry).amount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="subtotal-row">
+                    <td>Subtotal {parent}</td>
+                    <td className="right">{formatCur(entries.reduce((s, e) => s + Math.abs((e as ProfitLossEntry).amount || 0), 0))}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          ))}
+          <table style={{marginTop:'12px'}}>
+            <tbody>
+              <tr className="total-row">
+                <td><strong>{stats.netProfit >= 0 ? 'Laba Bersih' : 'Rugi Bersih'}</strong></td>
+                <td className="right"><strong>{formatCur(stats.netProfit)}</strong></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
   if (loading) {
     return <LoadingSpinner message="Memuat Laporan Keuangan..." />;
   }
@@ -372,7 +520,30 @@ export default function FinancialReportsPage() {
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Laporan Keuangan</h1>
           <p className="mt-1 text-sm text-gray-600">Neraca Saldo, Neraca, dan Laporan Laba Rugi</p>
         </div>
+        <button
+          onClick={() => setShowPrintPreview(true)}
+          className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors text-sm font-medium"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+          </svg>
+          Cetak {tabLabel}
+        </button>
       </div>
+
+      {showPrintPreview && (
+        <PrintPreviewModal
+          title={`${tabLabel} — ${selectedCompany}`}
+          onClose={() => setShowPrintPreview(false)}
+        >
+          <>
+            {renderPrintContent()}
+            <div style={{ marginTop: '20px', borderTop: '1px solid #d1d5db', paddingTop: '4px', fontSize: '8px', color: '#9ca3af', textAlign: 'center' }}>
+              Dicetak oleh sistem &mdash; {new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}
+            </div>
+          </>
+        </PrintPreviewModal>
+      )}
 
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
