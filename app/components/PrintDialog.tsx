@@ -13,7 +13,7 @@ interface PrintDialogProps {
 const printRouteMap: Record<string, string> = {
   'Sales Order': '/print/sales-order',
   'Delivery Note': '/print/delivery-note',
-  'Sales Invoice': '/print/sales-invoice',
+  'Sales Invoice': '/print/invoice',
   'Purchase Order': '/print/purchase-order',
   'Purchase Receipt': '/print/purchase-receipt',
   'Purchase Invoice': '/print/purchase-invoice',

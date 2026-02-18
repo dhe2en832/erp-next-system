@@ -2,8 +2,19 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import PrintLayout from '../../components/PrintLayout';
+import PrintLayout, { PrintColumn } from '../../components/PrintLayout';
 import LoadingSpinner from '../../components/LoadingSpinner';
+
+const FJ_COLUMNS: PrintColumn[] = [
+  { key: 'no', label: 'No', width: '28px', align: 'center' },
+  { key: 'item_code', label: 'Kode', width: '75px' },
+  { key: 'item_name', label: 'Nama Barang' },
+  { key: 'qty', label: 'Qty', width: '40px', align: 'right' },
+  { key: 'uom', label: 'Sat', width: '32px' },
+  { key: 'rate', label: 'Harga', width: '80px', align: 'right', format: (v) => (v || 0).toLocaleString('id-ID') },
+  { key: 'discount_percentage', label: 'Disc%', width: '40px', align: 'right', format: (v) => v ? `${v}%` : '-' },
+  { key: 'amount', label: 'Jumlah', width: '90px', align: 'right', format: (v) => (v || 0).toLocaleString('id-ID') },
+];
 
 function InvoicePrint() {
   const searchParams = useSearchParams();
@@ -30,10 +41,12 @@ function InvoicePrint() {
   };
 
   if (loading) return <LoadingSpinner message="Memuat data cetak..." />;
-  if (error) return <div className="p-6 text-red-600">{error}</div>;
-  if (!data) return <div className="p-6">Data tidak ditemukan</div>;
+  if (error) return <div style={{ padding: '20px', color: 'red' }}>{error}</div>;
+  if (!data) return <div style={{ padding: '20px' }}>Data tidak ditemukan</div>;
 
-  const company = localStorage.getItem('selected_company') || '';
+  const company = typeof window !== 'undefined' ? localStorage.getItem('selected_company') || '' : '';
+  const taxAmount = data.total_taxes_and_charges || 0;
+  const subtotal = data.net_total || data.total || 0;
 
   return (
     <PrintLayout
@@ -50,16 +63,21 @@ function InvoicePrint() {
         qty: item.qty,
         uom: item.uom || item.stock_uom,
         rate: item.rate,
+        discount_percentage: item.discount_percentage,
         amount: item.amount,
       }))}
+      columns={FJ_COLUMNS}
       showPrice={true}
+      subtotal={subtotal}
+      taxAmount={taxAmount > 0 ? taxAmount : undefined}
       totalAmount={data.grand_total || 0}
       notes={data.custom_notes_si || ''}
-      status={data.status}
-      extraFields={[
+      metaRight={[
         ...(data.due_date ? [{ label: 'Jatuh Tempo', value: data.due_date }] : []),
-        ...(data.outstanding_amount ? [{ label: 'Sisa', value: `Rp ${Number(data.outstanding_amount).toLocaleString('id-ID')}` }] : []),
+        ...(data.payment_terms_template ? [{ label: 'Syarat Bayar', value: data.payment_terms_template }] : []),
+        ...(data.outstanding_amount ? [{ label: 'Sisa Tagihan', value: `Rp ${Number(data.outstanding_amount).toLocaleString('id-ID')}` }] : []),
       ]}
+      status={data.status}
     />
   );
 }

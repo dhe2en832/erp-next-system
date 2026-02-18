@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import ItemDialog from '../../components/ItemDialog';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import PrintDialog from '../../components/PrintDialog';
 import { formatAddress } from '../../../utils';
 
 interface Supplier {
@@ -62,6 +63,8 @@ export default function PurchaseOrderMain() {
   const [selectedCompany, setSelectedCompany] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [showPrintDialog, setShowPrintDialog] = useState(false);
+  const [printDocName, setPrintDocName] = useState('');
   const [isEditMode, setIsEditMode] = useState(false);
   const [isViewMode, setIsViewMode] = useState(false);
   const [poId, setPoId] = useState('');
@@ -862,7 +865,8 @@ export default function PurchaseOrderMain() {
         if (!isEditMode) createdDocName.current = data.data?.name || existingId || null;
         const successMessage = isUpdate ? 'Pesanan Pembelian berhasil diperbarui!' : 'Pesanan Pembelian berhasil dibuat!';
         setSuccess(successMessage);
-        setTimeout(() => { router.push('/purchase-orders/poList'); }, 3000);
+        const savedName = data.data?.name || existingId || '';
+        if (savedName) { setShowPrintDialog(true); setPrintDocName(savedName); } else { setTimeout(() => { router.push('/purchase-orders/poList'); }, 3000); }
       } else {
         setError(data.message || `Gagal ${isUpdate ? 'memperbarui' : 'membuat'} pesanan pembelian`);
       }
@@ -880,6 +884,14 @@ export default function PurchaseOrderMain() {
   }
 
   return (
+    <>
+    <PrintDialog
+      isOpen={showPrintDialog}
+      onClose={() => { setShowPrintDialog(false); router.push('/purchase-orders/poList'); }}
+      documentType="Purchase Order"
+      documentName={printDocName}
+      documentLabel="Pesanan Pembelian"
+    />
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-white shadow">
@@ -1427,5 +1439,6 @@ export default function PurchaseOrderMain() {
         onSelect={handleItemSelect}
       />
     </div>
+    </>
   );
 }

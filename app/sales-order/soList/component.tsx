@@ -402,7 +402,7 @@ export default function SalesOrderList() {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        window.open(`/print/Sales%20Order?name=${order.name}`, '_blank');
+                        window.open(`/print/sales-order?name=${encodeURIComponent(order.name)}`, '_blank');
                       }}
                       className="p-2 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
                       title="Cetak"

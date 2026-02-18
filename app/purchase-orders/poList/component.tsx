@@ -483,7 +483,7 @@ export default function PurchaseOrderList() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          window.open(`/print/Purchase%20Order?name=${order.name}`, '_blank');
+                          window.open(`/print/purchase-order?name=${encodeURIComponent(order.name)}`, '_blank');
                         }}
                         className="ml-2 p-2 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
                         title="Cetak"

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import PrintDialog from '../../components/PrintDialog';
 
 interface PurchaseReceipt {
   name: string;
@@ -83,6 +84,8 @@ export default function PurchaseInvoiceMain() {
   const [formLoading, setFormLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [showPrintDialog, setShowPrintDialog] = useState(false);
+  const [printDocName, setPrintDocName] = useState('');
 
   // Edit/View mode states
   const [isEditMode, setIsEditMode] = useState(false);
@@ -539,7 +542,8 @@ export default function PurchaseInvoiceMain() {
           const successMessage = isEditMode ? 'Faktur Pembelian berhasil diperbarui!' : 'Faktur Pembelian berhasil dibuat!';
           setSuccessMessage(successMessage);
           setShowSuccessDialog(true);
-          setTimeout(() => { router.push('/purchase-invoice/piList'); }, 3000);
+          const savedName = data.data?.name || existingId || '';
+          if (savedName) { setShowPrintDialog(true); setPrintDocName(savedName); } else { setTimeout(() => { router.push('/purchase-invoice/piList'); }, 3000); }
         } else {
           // Parse ERPNext error into user-friendly message
           const userFriendlyError = parseERPNextError(data.message);
@@ -578,6 +582,14 @@ export default function PurchaseInvoiceMain() {
   }
 
   return (
+    <>
+    <PrintDialog
+      isOpen={showPrintDialog}
+      onClose={() => { setShowPrintDialog(false); router.push('/purchase-invoice/piList'); }}
+      documentType="Purchase Invoice"
+      documentName={printDocName}
+      documentLabel="Faktur Pembelian"
+    />
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-white shadow">
@@ -1188,5 +1200,7 @@ export default function PurchaseInvoiceMain() {
         </div>
       )}
     </div>
+  
+    </>
   );
 }

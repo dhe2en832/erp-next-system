@@ -345,7 +345,7 @@ export default function SalesInvoiceList() {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        window.open(`/print/Sales%20Invoice?name=${invoice.name}`, '_blank');
+                        window.open(`/print/invoice?name=${encodeURIComponent(invoice.name)}`, '_blank');
                       }}
                       className="ml-2 p-2 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
                       title="Cetak"

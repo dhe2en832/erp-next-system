@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import PrintDialog from '../../components/PrintDialog';
 
 interface Supplier {
   name: string;
@@ -136,6 +137,8 @@ export default function PurchaseReceiptMain() {
   const [validationMessage, setValidationMessage] = useState('');
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  const [showPrintDialog, setShowPrintDialog] = useState(false);
+  const [printDocName, setPrintDocName] = useState('');
   
   // Supplier Dialog States
   const [showSupplierDialog, setShowSupplierDialog] = useState(false);
@@ -633,7 +636,8 @@ export default function PurchaseReceiptMain() {
         setSuccess(successMessage);
         setSuccessMessage(successMessage);
         setShowSuccessDialog(true);
-        setTimeout(() => { router.push('/purchase-receipts/prList'); }, 3000);
+        const savedName = data.data?.name || existingId || '';
+        if (savedName) { setShowPrintDialog(true); setPrintDocName(savedName); } else { setTimeout(() => { router.push('/purchase-receipts/prList'); }, 3000); }
       } else {
         const userFriendlyError = parseERPNextError(data.message);
         setValidationMessage(userFriendlyError);
@@ -747,6 +751,14 @@ export default function PurchaseReceiptMain() {
   }
 
   return (
+    <>
+    <PrintDialog
+      isOpen={showPrintDialog}
+      onClose={() => { setShowPrintDialog(false); router.push('/purchase-receipts/prList'); }}
+      documentType="Purchase Receipt"
+      documentName={printDocName}
+      documentLabel="Penerimaan Barang"
+    />
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-white shadow">
@@ -1496,6 +1508,7 @@ export default function PurchaseReceiptMain() {
         </div>
       )}
     </div>
+    </>
   );
 
 }

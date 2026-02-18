@@ -321,7 +321,7 @@ export default function DeliveryNoteList() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          window.open(`/print/Delivery%20Note?name=${deliveryNote.name}`, '_blank');
+                          window.open(`/print/delivery-note?name=${encodeURIComponent(deliveryNote.name)}`, '_blank');
                         }}
                         className="p-2 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
                         title="Cetak"

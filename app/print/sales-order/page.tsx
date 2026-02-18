@@ -2,8 +2,18 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import PrintLayout from '../../components/PrintLayout';
+import PrintLayout, { PrintColumn } from '../../components/PrintLayout';
 import LoadingSpinner from '../../components/LoadingSpinner';
+
+const SO_COLUMNS: PrintColumn[] = [
+  { key: 'no', label: 'No', width: '28px', align: 'center' },
+  { key: 'item_code', label: 'Kode', width: '80px' },
+  { key: 'item_name', label: 'Nama Barang' },
+  { key: 'qty', label: 'Qty', width: '45px', align: 'right' },
+  { key: 'uom', label: 'Sat', width: '35px' },
+  { key: 'rate', label: 'Harga', width: '90px', align: 'right', format: (v) => (v || 0).toLocaleString('id-ID') },
+  { key: 'amount', label: 'Jumlah', width: '95px', align: 'right', format: (v) => (v || 0).toLocaleString('id-ID') },
+];
 
 function SalesOrderPrint() {
   const searchParams = useSearchParams();
@@ -30,14 +40,14 @@ function SalesOrderPrint() {
   };
 
   if (loading) return <LoadingSpinner message="Memuat data cetak..." />;
-  if (error) return <div className="p-6 text-red-600">{error}</div>;
-  if (!data) return <div className="p-6">Data tidak ditemukan</div>;
+  if (error) return <div style={{ padding: '20px', color: 'red' }}>{error}</div>;
+  if (!data) return <div style={{ padding: '20px' }}>Data tidak ditemukan</div>;
 
-  const company = localStorage.getItem('selected_company') || '';
+  const company = typeof window !== 'undefined' ? localStorage.getItem('selected_company') || '' : '';
 
   return (
     <PrintLayout
-      documentTitle="PESANAN PENJUALAN"
+      documentTitle="SALES ORDER"
       documentNumber={data.name}
       documentDate={data.transaction_date || data.posting_date || ''}
       companyName={company}
@@ -52,10 +62,15 @@ function SalesOrderPrint() {
         rate: item.rate,
         amount: item.amount,
       }))}
+      columns={SO_COLUMNS}
       showPrice={true}
       totalAmount={data.grand_total || data.total || 0}
       notes={data.custom_notes_so || ''}
       salesPerson={data.sales_team?.[0]?.sales_person || ''}
+      metaRight={[
+        ...(data.delivery_date ? [{ label: 'Tgl Kirim', value: data.delivery_date }] : []),
+        ...(data.payment_terms_template ? [{ label: 'Syarat Bayar', value: data.payment_terms_template }] : []),
+      ]}
       status={data.status}
     />
   );

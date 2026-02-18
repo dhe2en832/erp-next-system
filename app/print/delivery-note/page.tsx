@@ -2,8 +2,22 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import PrintLayout from '../../components/PrintLayout';
+import PrintLayout, { PrintColumn, PrintSignature } from '../../components/PrintLayout';
 import LoadingSpinner from '../../components/LoadingSpinner';
+
+const DN_COLUMNS: PrintColumn[] = [
+  { key: 'no', label: 'No', width: '28px', align: 'center' },
+  { key: 'item_code', label: 'Kode', width: '90px' },
+  { key: 'item_name', label: 'Nama Barang' },
+  { key: 'qty', label: 'Qty', width: '55px', align: 'right' },
+  { key: 'uom', label: 'Sat', width: '45px' },
+];
+
+const DN_SIGS: PrintSignature[] = [
+  { label: 'Pengirim' },
+  { label: 'Pengemudi' },
+  { label: 'Penerima' },
+];
 
 function DeliveryNotePrint() {
   const searchParams = useSearchParams();
@@ -30,10 +44,10 @@ function DeliveryNotePrint() {
   };
 
   if (loading) return <LoadingSpinner message="Memuat data cetak..." />;
-  if (error) return <div className="p-6 text-red-600">{error}</div>;
-  if (!data) return <div className="p-6">Data tidak ditemukan</div>;
+  if (error) return <div style={{ padding: '20px', color: 'red' }}>{error}</div>;
+  if (!data) return <div style={{ padding: '20px' }}>Data tidak ditemukan</div>;
 
-  const company = localStorage.getItem('selected_company') || '';
+  const company = typeof window !== 'undefined' ? localStorage.getItem('selected_company') || '' : '';
 
   return (
     <PrintLayout
@@ -50,10 +64,15 @@ function DeliveryNotePrint() {
         qty: item.qty,
         uom: item.uom || item.stock_uom,
       }))}
+      columns={DN_COLUMNS}
       showPrice={false}
       notes={data.custom_notes_dn || ''}
       referenceDoc={data.sales_order || ''}
       referenceLabel="No. SO"
+      metaRight={[
+        ...(data.lr_no ? [{ label: 'No. LR', value: data.lr_no }] : []),
+      ]}
+      signatures={DN_SIGS}
       status={data.status}
     />
   );

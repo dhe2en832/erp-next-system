@@ -2,8 +2,24 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import PrintLayout from '../../components/PrintLayout';
+import PrintLayout, { PrintColumn, PrintSignature } from '../../components/PrintLayout';
 import LoadingSpinner from '../../components/LoadingSpinner';
+
+const PO_COLUMNS: PrintColumn[] = [
+  { key: 'no', label: 'No', width: '28px', align: 'center' },
+  { key: 'item_code', label: 'Kode', width: '80px' },
+  { key: 'item_name', label: 'Nama Barang' },
+  { key: 'qty', label: 'Qty', width: '45px', align: 'right' },
+  { key: 'uom', label: 'Sat', width: '35px' },
+  { key: 'rate', label: 'Est. Harga', width: '90px', align: 'right', format: (v) => (v || 0).toLocaleString('id-ID') },
+  { key: 'amount', label: 'Jumlah', width: '95px', align: 'right', format: (v) => (v || 0).toLocaleString('id-ID') },
+];
+
+const PO_SIGS: PrintSignature[] = [
+  { label: 'Dibuat oleh' },
+  { label: 'Disetujui oleh' },
+  { label: 'Pemasok' },
+];
 
 function PurchaseOrderPrint() {
   const searchParams = useSearchParams();
@@ -30,14 +46,14 @@ function PurchaseOrderPrint() {
   };
 
   if (loading) return <LoadingSpinner message="Memuat data cetak..." />;
-  if (error) return <div className="p-6 text-red-600">{error}</div>;
-  if (!data) return <div className="p-6">Data tidak ditemukan</div>;
+  if (error) return <div style={{ padding: '20px', color: 'red' }}>{error}</div>;
+  if (!data) return <div style={{ padding: '20px' }}>Data tidak ditemukan</div>;
 
-  const company = localStorage.getItem('selected_company') || '';
+  const company = typeof window !== 'undefined' ? localStorage.getItem('selected_company') || '' : '';
 
   return (
     <PrintLayout
-      documentTitle="PESANAN PEMBELIAN"
+      documentTitle="PURCHASE ORDER"
       documentNumber={data.name}
       documentDate={data.transaction_date || ''}
       companyName={company}
@@ -52,8 +68,14 @@ function PurchaseOrderPrint() {
         rate: item.rate,
         amount: item.amount,
       }))}
+      columns={PO_COLUMNS}
       showPrice={true}
       totalAmount={data.grand_total || 0}
+      metaRight={[
+        ...(data.schedule_date ? [{ label: 'Tgl Kirim', value: data.schedule_date }] : []),
+        ...(data.payment_terms_template ? [{ label: 'Syarat Bayar', value: data.payment_terms_template }] : []),
+      ]}
+      signatures={PO_SIGS}
       status={data.status}
     />
   );

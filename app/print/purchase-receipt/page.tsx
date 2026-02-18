@@ -2,8 +2,23 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import PrintLayout from '../../components/PrintLayout';
+import PrintLayout, { PrintColumn, PrintSignature } from '../../components/PrintLayout';
 import LoadingSpinner from '../../components/LoadingSpinner';
+
+const PR_COLUMNS: PrintColumn[] = [
+  { key: 'no', label: 'No', width: '28px', align: 'center' },
+  { key: 'item_code', label: 'Kode', width: '90px' },
+  { key: 'item_name', label: 'Nama Barang' },
+  { key: 'qty', label: 'Qty', width: '55px', align: 'right' },
+  { key: 'uom', label: 'Sat', width: '45px' },
+  { key: 'schedule_date', label: 'Tgl Butuh', width: '75px' },
+];
+
+const PR_SIGS: PrintSignature[] = [
+  { label: 'Pemohon' },
+  { label: 'Disetujui oleh' },
+  { label: 'Diterima oleh' },
+];
 
 function PurchaseReceiptPrint() {
   const searchParams = useSearchParams();
@@ -30,10 +45,10 @@ function PurchaseReceiptPrint() {
   };
 
   if (loading) return <LoadingSpinner message="Memuat data cetak..." />;
-  if (error) return <div className="p-6 text-red-600">{error}</div>;
-  if (!data) return <div className="p-6">Data tidak ditemukan</div>;
+  if (error) return <div style={{ padding: '20px', color: 'red' }}>{error}</div>;
+  if (!data) return <div style={{ padding: '20px' }}>Data tidak ditemukan</div>;
 
-  const company = localStorage.getItem('selected_company') || '';
+  const company = typeof window !== 'undefined' ? localStorage.getItem('selected_company') || '' : '';
 
   return (
     <PrintLayout
@@ -49,8 +64,13 @@ function PurchaseReceiptPrint() {
         item_name: item.item_name,
         qty: item.qty,
         uom: item.uom || item.stock_uom,
+        schedule_date: item.schedule_date || '-',
       }))}
+      columns={PR_COLUMNS}
       showPrice={false}
+      referenceDoc={data.purchase_order || ''}
+      referenceLabel="No. PO"
+      signatures={PR_SIGS}
       status={data.status}
     />
   );
