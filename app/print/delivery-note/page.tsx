@@ -32,7 +32,7 @@ function DeliveryNotePrint() {
 
   const fetchData = async (docName: string) => {
     try {
-      const response = await fetch(`/api/sales/delivery-notes/detail?name=${encodeURIComponent(docName)}`, { credentials: 'include' });
+      const response = await fetch(`/api/sales/delivery-notes/${encodeURIComponent(docName)}`, { credentials: 'include' });
       const result = await response.json();
       if (result.success && result.data) {
         setData(result.data);
@@ -42,6 +42,10 @@ function DeliveryNotePrint() {
     } catch { setError('Gagal memuat data'); }
     finally { setLoading(false); }
   };
+
+  useEffect(() => {
+    if (!loading && !error && data) setTimeout(() => window.print(), 500);
+  }, [loading, error, data]);
 
   if (loading) return <LoadingSpinner message="Memuat data cetak..." />;
   if (error) return <div style={{ padding: '20px', color: 'red' }}>{error}</div>;

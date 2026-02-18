@@ -33,7 +33,9 @@ function PurchaseReceiptPrint() {
 
   const fetchData = async (docName: string) => {
     try {
-      const response = await fetch(`/api/purchase/receipts?name=${encodeURIComponent(docName)}`, { credentials: 'include' });
+      const company = typeof window !== 'undefined' ? localStorage.getItem('selected_company') || '' : '';
+      const params = new URLSearchParams({ company });
+      const response = await fetch(`/api/purchase/receipts/${encodeURIComponent(docName)}?${params}`, { credentials: 'include' });
       const result = await response.json();
       if (result.success && result.data) {
         setData(result.data);
@@ -43,6 +45,10 @@ function PurchaseReceiptPrint() {
     } catch { setError('Gagal memuat data'); }
     finally { setLoading(false); }
   };
+
+  useEffect(() => {
+    if (!loading && !error && data) setTimeout(() => window.print(), 500);
+  }, [loading, error, data]);
 
   if (loading) return <LoadingSpinner message="Memuat data cetak..." />;
   if (error) return <div style={{ padding: '20px', color: 'red' }}>{error}</div>;

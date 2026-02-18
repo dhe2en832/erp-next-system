@@ -5,6 +5,13 @@ import { useSearchParams } from 'next/navigation';
 import PrintLayout, { PrintColumn } from '../../components/PrintLayout';
 import LoadingSpinner from '../../components/LoadingSpinner';
 
+function fixTerbilang(raw: string): string {
+  if (!raw) return '';
+  return raw
+    .replace(/^IDR\s+/i, 'Rp ')
+    .replace(/\s+saja\.?$/i, ' rupiah');
+}
+
 const FJ_COLUMNS: PrintColumn[] = [
   { key: 'no', label: 'No', width: '28px', align: 'center' },
   { key: 'item_code', label: 'Kode', width: '75px' },
@@ -29,7 +36,7 @@ function InvoicePrint() {
 
   const fetchData = async (docName: string) => {
     try {
-      const response = await fetch(`/api/sales/invoices/details?name=${encodeURIComponent(docName)}`, { credentials: 'include' });
+      const response = await fetch(`/api/sales/invoices/details?invoice_name=${encodeURIComponent(docName)}`, { credentials: 'include' });
       const result = await response.json();
       if (result.success && result.data) {
         setData(result.data);
@@ -39,6 +46,10 @@ function InvoicePrint() {
     } catch { setError('Gagal memuat data'); }
     finally { setLoading(false); }
   };
+
+  useEffect(() => {
+    if (!loading && !error && data) setTimeout(() => window.print(), 500);
+  }, [loading, error, data]);
 
   if (loading) return <LoadingSpinner message="Memuat data cetak..." />;
   if (error) return <div style={{ padding: '20px', color: 'red' }}>{error}</div>;
@@ -71,6 +82,7 @@ function InvoicePrint() {
       subtotal={subtotal}
       taxAmount={taxAmount > 0 ? taxAmount : undefined}
       totalAmount={data.grand_total || 0}
+      terbilang={fixTerbilang(data.base_in_words || data.in_words || '')}
       notes={data.custom_notes_si || ''}
       metaRight={[
         ...(data.due_date ? [{ label: 'Jatuh Tempo', value: data.due_date }] : []),
