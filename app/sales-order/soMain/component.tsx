@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import CustomerDialog from '../../components/CustomerDialog';
 import ItemDialog from '../../components/ItemDialog';
@@ -41,6 +41,8 @@ export default function SalesOrderMain() {
   const [formLoading, setFormLoading] = useState(false);
   const [showPrintDialog, setShowPrintDialog] = useState(false);
   const [savedDocName, setSavedDocName] = useState('');
+  const createdDocName = useRef<string | null>(orderName || null);
+  const isSubmittingRef = useRef(false);
 
   const [formData, setFormData] = useState({
     customer: '',
@@ -402,6 +404,8 @@ export default function SalesOrderMain() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     setFormLoading(true);
     setError('');
 
@@ -482,18 +486,21 @@ export default function SalesOrderMain() {
         grand_total: validItems.reduce((sum, item) => sum + item.amount, 0),
       };
 
-      const response = await fetch('/api/sales/orders', {
-        method: editingOrder ? 'PUT' : 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(editingOrder ? { ...orderPayload, name: editingOrder.name } : orderPayload),
+      // Use PUT if editing OR if doc was already created in this session (retry guard)
+      const existingName = editingOrder?.name || createdDocName.current;
+      const isUpdate = !!existingName;
+      const url = isUpdate ? '/api/sales/orders' : '/api/sales/orders';
+      const response = await fetch(url, {
+        method: isUpdate ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(isUpdate ? { ...orderPayload, name: existingName } : orderPayload),
       });
 
       const result = await response.json();
 
       if (result.success) {
-        const soName = result.data?.name || 'Unknown';
+        const soName = result.data?.name || existingName || 'Unknown';
+        if (!editingOrder) createdDocName.current = soName;
         setSavedDocName(soName);
         setShowPrintDialog(true);
       } else {
@@ -505,6 +512,7 @@ export default function SalesOrderMain() {
       setError('Terjadi kesalahan yang tidak terduga');
     } finally {
       setFormLoading(false);
+      isSubmittingRef.current = false;
     }
   };
 

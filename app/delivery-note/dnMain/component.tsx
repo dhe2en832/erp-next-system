@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import SalesOrderDialog from '../../components/SalesOrderDialog';
 import CustomerDialog from '../../components/CustomerDialog';
@@ -67,6 +67,9 @@ export default function DeliveryNoteMain() {
   const [successMessage, setSuccessMessage] = useState('');
   const [showPrintDialog, setShowPrintDialog] = useState(false);
   const [savedDocName, setSavedDocName] = useState('');
+  // Track the doc name created in this session to avoid duplicate POST on retry
+  const createdDocName = useRef<string | null>(dnName || null);
+  const isSubmitting = useRef(false);
 
   const [formData, setFormData] = useState<DeliveryNoteFormData>({
     customer: '',
@@ -199,6 +202,9 @@ export default function DeliveryNoteMain() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Prevent double-submit
+    if (isSubmitting.current) return;
+    isSubmitting.current = true;
     setFormLoading(true);
     setError('');
 
@@ -232,19 +238,27 @@ export default function DeliveryNoteMain() {
         }))
       };
 
-      console.log('[DEBUG] DN Payload:', deliveryNotePayload);
+      // If doc was already created in this session (or we're editing), use PUT to avoid duplicate
+      const existingName = createdDocName.current;
+      const isUpdate = !!existingName;
 
-      const response = await fetch('/api/sales/delivery-notes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(deliveryNotePayload),
-      });
+      console.log('[DEBUG] DN Payload:', deliveryNotePayload, 'isUpdate:', isUpdate, 'name:', existingName);
+
+      const response = await fetch(
+        isUpdate ? `/api/sales/delivery-notes/${existingName}` : '/api/sales/delivery-notes',
+        {
+          method: isUpdate ? 'PUT' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(isUpdate ? { name: existingName, ...deliveryNotePayload } : deliveryNotePayload),
+        }
+      );
 
       const data = await response.json();
 
       if (data.success) {
-        const dnName = data.data?.name || '';
-        setSavedDocName(dnName);
+        const docName = data.data?.name || existingName || '';
+        createdDocName.current = docName;
+        setSavedDocName(docName);
         setShowPrintDialog(true);
       } else {
         setError(data.message || 'Gagal menyimpan surat jalan');
@@ -254,6 +268,7 @@ export default function DeliveryNoteMain() {
       setError('Gagal membuat surat jalan');
     } finally {
       setFormLoading(false);
+      isSubmitting.current = false;
     }
   };
 

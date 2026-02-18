@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { parseErpError } from '../../../../../../utils/erp-error';
 
 const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
 
@@ -97,17 +98,11 @@ export async function POST(
     console.log('Submit Response Data:', result);
 
     if (response.ok) {
-      return NextResponse.json({
-        success: true,
-        message: `Sales Invoice ${invoiceName} berhasil di-submit`,
-        data: result
-      });
+      return NextResponse.json({ success: true, message: `Sales Invoice ${invoiceName} berhasil diajukan`, data: result });
     } else {
-      return NextResponse.json({
-        success: false,
-        message: result.exc_type || result.message || 'Failed to submit Sales Invoice',
-        error: result
-      }, { status: 400 });
+      const errorMessage = parseErpError(result, 'Gagal mengajukan Sales Invoice');
+      console.error('Submit SI error:', { status: response.status, errorMessage });
+      return NextResponse.json({ success: false, message: errorMessage }, { status: response.status });
     }
 
   } catch (error: any) {

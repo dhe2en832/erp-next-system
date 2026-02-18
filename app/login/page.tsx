@@ -38,6 +38,7 @@ export default function LoginPage() {
           full_name: data.full_name,
           companies: data.companies,
           needs_company_selection: data.needs_company_selection,
+          roles: data.roles || [],
         }));
 
         // Redirect to company selection

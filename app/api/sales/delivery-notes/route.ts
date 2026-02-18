@@ -17,31 +17,14 @@ export async function GET(request: NextRequest) {
     const fromDate = searchParams.get('from_date');
     const toDate = searchParams.get('to_date');
 
-    // Try session authentication first
+    const _apiKey = process.env.ERP_API_KEY;
+    const _apiSecret = process.env.ERP_API_SECRET;
     const sessionCookie = request.headers.get('cookie') || '';
-    
-    let headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-
-    // Check if we have session cookie
-    if (sessionCookie) {
-      console.log('Using session authentication');
+    let headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (_apiKey && _apiSecret) {
+      headers['Authorization'] = `token ${_apiKey}:${_apiSecret}`;
+    } else if (sessionCookie) {
       headers['Cookie'] = sessionCookie;
-    } else {
-      // Fallback to API key authentication
-      console.log('Using API key authentication');
-      const apiKey = process.env.ERP_API_KEY;
-      const apiSecret = process.env.ERP_API_SECRET;
-      
-      if (apiKey && apiSecret) {
-        headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-      } else {
-        return NextResponse.json(
-          { success: false, message: 'No authentication available' },
-          { status: 401 }
-        );
-      }
     }
 
     // Build filters

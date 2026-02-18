@@ -7,6 +7,7 @@ import Pagination from '../../components/Pagination';
 import { formatDate, parseDate } from '../../../utils/format';
 import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
 import { Printer } from 'lucide-react';
+import ErrorDialog from '../../../components/ErrorDialog';
 
 interface SalesOrder {
   name: string;
@@ -33,6 +34,7 @@ export default function SalesOrderList() {
   const [documentNumberFilter, setDocumentNumberFilter] = useState('');
   const [selectedCompany, setSelectedCompany] = useState('');
   const [error, setError] = useState('');
+  const [submitError, setSubmitError] = useState('');
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -175,25 +177,19 @@ export default function SalesOrderList() {
   // Submit Sales Order untuk mengubah status dari Draft ke Submitted
   const handleSubmitSalesOrder = async (orderName: string) => {
     try {
-      
       const response = await fetch(`/api/sales/orders/${orderName}/submit`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
       });
-
       const result = await response.json();
-
       if (result.success) {
-        alert(`✅ Sales Order ${orderName} submitted successfully!\n\n📋 Status: Draft → Submitted\n\n🔔 Next Steps:\n• Create Delivery Note (untuk pengiriman & stok)\n• Create Sales Invoice (untuk jurnal akuntansi)`);
         fetchOrders();
       } else {
-        alert(`❌ Failed to submit Sales Order: ${result.message}`);
+        setSubmitError(result.message || 'Gagal mengajukan Sales Order');
       }
-    } catch (error) {
-      console.error('Error submitting sales order:', error);
-      alert('❌ An error occurred while submitting Sales Order');
+    } catch (err) {
+      console.error('Error submitting sales order:', err);
+      setSubmitError('Terjadi kesalahan saat mengajukan Sales Order');
     }
   };
 
@@ -253,6 +249,7 @@ export default function SalesOrderList() {
 
   return (
     <div className="container mx-auto px-4 py-8">
+      <ErrorDialog isOpen={!!submitError} title="Gagal Mengajukan" message={submitError} onClose={() => setSubmitError('')} />
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Pesanan Penjualan</h1>
         <button

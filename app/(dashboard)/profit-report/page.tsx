@@ -187,7 +187,8 @@ export default function ProfitReportPage() {
         const res = await fetch(`/api/sales/customers?${qs.toString()}`);
         const json = await res.json();
         if (json.success) {
-          setCustomerList((json.data || []).map((c: any) => c.customer_name || c.name));
+          const names: string[] = (json.data || []).map((c: any) => String(c.customer_name || c.name));
+          setCustomerList([...new Set(names)]);
         }
       } catch (err) {
         console.error("Fetch customers error", err);

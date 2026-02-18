@@ -60,29 +60,13 @@ export async function GET(request: NextRequest) {
     console.log('Filters being applied:', filters);
     console.log('Final URL:', erpNextUrl);
 
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-
-    // Try session-based authentication first
-    if (sid) {
+    const _ak = process.env.ERP_API_KEY;
+    const _as = process.env.ERP_API_SECRET;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (_ak && _as) {
+      headers['Authorization'] = `token ${_ak}:${_as}`;
+    } else if (sid) {
       headers['Cookie'] = `sid=${sid}`;
-      console.log('Using session authentication');
-    } else {
-      // Fallback to API key authentication
-      const apiKey = process.env.ERP_API_KEY;
-      const apiSecret = process.env.ERP_API_SECRET;
-      
-      if (apiKey && apiSecret) {
-        headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-        console.log('Using API key authentication');
-      } else {
-        console.log('No authentication available');
-        return NextResponse.json(
-          { success: false, message: 'No authentication available' },
-          { status: 401 }
-        );
-      }
     }
 
     const response = await fetch(erpNextUrl, {

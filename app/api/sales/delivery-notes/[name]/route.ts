@@ -2,6 +2,52 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
 
+function getAuthHeaders(): Record<string, string> {
+  const apiKey = process.env.ERP_API_KEY;
+  const apiSecret = process.env.ERP_API_SECRET;
+  const h: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (apiKey && apiSecret) h['Authorization'] = `token ${apiKey}:${apiSecret}`;
+  return h;
+}
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ name: string }> }
+) {
+  try {
+    const { name } = await params;
+    if (!name || name === 'undefined') {
+      return NextResponse.json({ success: false, message: 'Delivery Note name is required' }, { status: 400 });
+    }
+
+    const body = await request.json();
+    // Remove name from body to avoid conflicts
+    const { name: _n, ...updateData } = body;
+
+    const response = await fetch(
+      `${ERPNEXT_API_URL}/api/resource/Delivery Note/${encodeURIComponent(name)}`,
+      { method: 'PUT', headers: getAuthHeaders(), body: JSON.stringify(updateData) }
+    );
+
+    const data = await response.json();
+
+    if (response.ok) {
+      return NextResponse.json({ success: true, data: data.data });
+    } else {
+      const errMsg = data._server_messages
+        ? (() => { try { return JSON.parse(JSON.parse(data._server_messages)[0]).message; } catch { return null; } })()
+        : null;
+      return NextResponse.json(
+        { success: false, message: errMsg || data.message || data.exc || 'Failed to update delivery note' },
+        { status: response.status }
+      );
+    }
+  } catch (error) {
+    console.error('Delivery Note PUT error:', error);
+    return NextResponse.json({ success: false, message: 'Internal server error' }, { status: 500 });
+  }
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ name: string }> }

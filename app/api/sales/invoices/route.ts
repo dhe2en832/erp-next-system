@@ -174,6 +174,7 @@ export async function POST(request: NextRequest) {
       docstatus: invoiceData.docstatus || 0,
       // Custom fields
       custom_total_komisi_sales: invoiceData.custom_total_komisi_sales || 0,
+      custom_notes_si: invoiceData.custom_notes_si || '',
       // Write-off amount to prevent TypeError (must be 0, not null)
       write_off_amount: 0,
       base_write_off_amount: 0

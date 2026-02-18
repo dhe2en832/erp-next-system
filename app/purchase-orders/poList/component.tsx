@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { formatDate, parseDate } from '../../../utils/format';
 import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
 import { Printer } from 'lucide-react';
+import ErrorDialog from '../../../components/ErrorDialog';
 
 interface PurchaseOrder {
   name: string;
@@ -35,6 +36,7 @@ export default function PurchaseOrderList() {
   const [successMessage, setSuccessMessage] = useState('');
   const [selectedCompany, setSelectedCompany] = useState('');
   const [error, setError] = useState('');
+  const [submitError, setSubmitError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [documentNumber, setDocumentNumber] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -237,10 +239,10 @@ export default function PurchaseOrderList() {
           router.push(`/purchase-orders/poMain?name=${poName}`);
         }, 2000);
       } else {
-        setError(data.message || 'Gagal mengajukan PO');
+        setSubmitError(data.message || 'Gagal mengajukan PO');
       }
     } catch (err) {
-      setError('Gagal mengajukan PO');
+      setSubmitError('Gagal mengajukan PO');
     } finally {
       setActionLoading(false);
     }
@@ -296,6 +298,7 @@ export default function PurchaseOrderList() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <ErrorDialog isOpen={!!submitError} title="Gagal Mengajukan" message={submitError} onClose={() => setSubmitError('')} />
       {/* Header */}
       <div className="bg-white shadow">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

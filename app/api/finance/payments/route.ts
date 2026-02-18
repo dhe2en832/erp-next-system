@@ -19,31 +19,14 @@ export async function GET(request: NextRequest) {
     const modeOfPayment = searchParams.get('mode_of_payment');
     const documentNumber = searchParams.get('documentNumber');
 
-    // Try session authentication first
+    const apiKey0 = process.env.ERP_API_KEY;
+    const apiSecret0 = process.env.ERP_API_SECRET;
     const sessionCookie = request.headers.get('cookie') || '';
-    
-    let headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-
-    // Check if we have session cookie
-    if (sessionCookie) {
-      console.log('Using session authentication');
+    let headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (apiKey0 && apiSecret0) {
+      headers['Authorization'] = `token ${apiKey0}:${apiSecret0}`;
+    } else if (sessionCookie) {
       headers['Cookie'] = sessionCookie;
-    } else {
-      // Fallback to API key authentication
-      console.log('Using API key authentication');
-      const apiKey = process.env.ERP_API_KEY;
-      const apiSecret = process.env.ERP_API_SECRET;
-      
-      if (apiKey && apiSecret) {
-        headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-      } else {
-        return NextResponse.json(
-          { success: false, message: 'No authentication available' },
-          { status: 401 }
-        );
-      }
     }
 
     // Build filters
@@ -194,6 +177,43 @@ export async function GET(request: NextRequest) {
       { success: false, message: 'Internal server error' },
       { status: 500 }
     );
+  }
+}
+
+export async function PUT(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { name, ...updateData } = body;
+    if (!name) {
+      return NextResponse.json({ success: false, message: 'Payment Entry name is required' }, { status: 400 });
+    }
+    const apiKey = process.env.ERP_API_KEY;
+    const apiSecret = process.env.ERP_API_SECRET;
+    const sid = request.cookies.get('sid')?.value;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (apiKey && apiSecret) {
+      headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
+    } else if (sid) {
+      headers['Cookie'] = `sid=${sid}`;
+    } else {
+      return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
+    }
+    const response = await fetch(`${ERPNEXT_API_URL}/api/resource/Payment Entry/${encodeURIComponent(name)}`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify(updateData),
+    });
+    const data = await response.json();
+    if (response.ok) {
+      return NextResponse.json({ success: true, data: data.data });
+    } else {
+      const { parseErpError } = await import('../../../../utils/erp-error');
+      const msg = parseErpError(data, 'Gagal memperbarui Payment Entry');
+      return NextResponse.json({ success: false, message: msg }, { status: response.status });
+    }
+  } catch (error) {
+    console.error('Payment PUT error:', error);
+    return NextResponse.json({ success: false, message: 'Internal server error' }, { status: 500 });
   }
 }
 

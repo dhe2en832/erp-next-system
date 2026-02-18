@@ -10,15 +10,14 @@ export async function GET(request: NextRequest) {
     const fromDate = searchParams.get('from_date');
     const toDate = searchParams.get('to_date');
 
-    const cookies = request.cookies;
-    const sid = cookies.get('sid')?.value;
-
+    const sid = request.cookies.get('sid')?.value;
     if (!sid) {
-      return NextResponse.json(
-        { success: false, message: 'Unauthorized' },
-        { status: 401 }
-      );
+      return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
     }
+    const _ak = process.env.ERP_API_KEY;
+    const _as = process.env.ERP_API_SECRET;
+    const _h: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (_ak && _as) { _h['Authorization'] = `token ${_ak}:${_as}`; } else { _h['Cookie'] = `sid=${sid}`; }
 
     if (!company || !report) {
       return NextResponse.json(
@@ -58,10 +57,7 @@ export async function GET(request: NextRequest) {
       erpNextUrl,
       {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Cookie': `sid=${sid}`,
-        },
+        headers: _h,
       }
     );
 

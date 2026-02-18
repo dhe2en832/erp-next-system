@@ -12,15 +12,15 @@ export async function GET(request: NextRequest) {
     const fromDate = searchParams.get('from_date');
     const toDate = searchParams.get('to_date');
 
-    const cookies = request.cookies;
-    const sid = cookies.get('sid')?.value;
-
+    const sid = request.cookies.get('sid')?.value;
     if (!sid) {
-      return NextResponse.json(
-        { success: false, message: 'Unauthorized' },
-        { status: 401 }
-      );
+      return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
     }
+    const _ak = process.env.ERP_API_KEY;
+    const _as = process.env.ERP_API_SECRET;
+    const _authHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (_ak && _as) { _authHeaders['Authorization'] = `token ${_ak}:${_as}`; }
+    else { _authHeaders['Cookie'] = `sid=${sid}`; }
 
     if (!company) {
       return NextResponse.json(
@@ -62,10 +62,7 @@ export async function GET(request: NextRequest) {
       erpNextUrl,
       {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Cookie': `sid=${sid}`,
-        },
+        headers: _authHeaders,
       }
     );
 
@@ -94,15 +91,15 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const cookies = request.cookies;
-    const sid = cookies.get('sid')?.value;
-
+    const sid = request.cookies.get('sid')?.value;
     if (!sid) {
-      return NextResponse.json(
-        { success: false, message: 'Unauthorized' },
-        { status: 401 }
-      );
+      return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
     }
+    const _ak2 = process.env.ERP_API_KEY;
+    const _as2 = process.env.ERP_API_SECRET;
+    const _postHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (_ak2 && _as2) { _postHeaders['Authorization'] = `token ${_ak2}:${_as2}`; }
+    else { _postHeaders['Cookie'] = `sid=${sid}`; }
 
     const body = await request.json();
     const { warehouse, posting_date, posting_time, purpose, items, company } = body;
@@ -142,10 +139,7 @@ export async function POST(request: NextRequest) {
 
     const response = await fetch(`${ERPNEXT_API_URL}/api/resource/Stock Reconciliation`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Cookie': `sid=${sid}`
-      },
+      headers: _postHeaders,
       body: JSON.stringify(reconciliationData),
     });
 

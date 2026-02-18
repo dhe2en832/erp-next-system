@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import LoadingSpinner from '../../components/LoadingSpinner';
 
@@ -83,6 +83,8 @@ export default function PurchaseReceiptMain() {
   const [isEditMode, setIsEditMode] = useState(false);
   const [isViewMode, setIsViewMode] = useState(false);
   const [prId, setPrId] = useState('');
+  const createdDocName = useRef<string | null>(null);
+  const isSubmittingRef = useRef(false);
 
   // Form states
   const [supplier, setSupplier] = useState('');
@@ -611,32 +613,28 @@ export default function PurchaseReceiptMain() {
       };
 
 
-      // Determine API endpoint and method based on edit mode
-      const apiUrl = isEditMode ? `/api/purchase/receipts/${prId}` : '/api/purchase/receipts';
-      const method = isEditMode ? 'PUT' : 'POST';
+      // Use PUT if editing OR if doc was already created in this session (retry guard)
+      const existingId = isEditMode ? prId : createdDocName.current;
+      const isUpdate = isEditMode || !!createdDocName.current;
+      const apiUrl = isUpdate && existingId ? `/api/purchase/receipts/${existingId}` : '/api/purchase/receipts';
+      const method = isUpdate && existingId ? 'PUT' : 'POST';
 
       const response = await fetch(apiUrl, {
-        method: method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        method,
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(receiptData),
       });
 
       const data = await response.json();
 
       if (data.success) {
-        const successMessage = isEditMode ? 'Penerimaan Barang berhasil diperbarui!' : 'Penerimaan Barang berhasil dibuat!';
+        if (!isEditMode) createdDocName.current = data.data?.name || existingId || null;
+        const successMessage = isUpdate ? 'Penerimaan Barang berhasil diperbarui!' : 'Penerimaan Barang berhasil dibuat!';
         setSuccess(successMessage);
         setSuccessMessage(successMessage);
         setShowSuccessDialog(true);
-        
-        // Start countdown for redirect
-        setTimeout(() => {
-          router.push('/purchase-receipts/prList');
-        }, 3000); // Start countdown from 3
+        setTimeout(() => { router.push('/purchase-receipts/prList'); }, 3000);
       } else {
-        // Parse ERPNext error into user-friendly message
         const userFriendlyError = parseERPNextError(data.message);
         setValidationMessage(userFriendlyError);
         setShowValidationAlert(true);
@@ -646,6 +644,7 @@ export default function PurchaseReceiptMain() {
       setError(`Gagal ${isEditMode ? 'memperbarui' : 'membuat'} penerimaan barang`);
     } finally {
       setLoading(false);
+      isSubmittingRef.current = false;
     }
   };
 

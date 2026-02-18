@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import ItemDialog from '../../components/ItemDialog';
 import LoadingSpinner from '../../components/LoadingSpinner';
@@ -65,6 +65,8 @@ export default function PurchaseOrderMain() {
   const [isEditMode, setIsEditMode] = useState(false);
   const [isViewMode, setIsViewMode] = useState(false);
   const [poId, setPoId] = useState('');
+  const createdDocName = useRef<string | null>(null);
+  const isSubmittingRef = useRef(false);
   
   // Form states
   const [supplier, setSupplier] = useState('');
@@ -842,34 +844,34 @@ export default function PurchaseOrderMain() {
 
       console.log('Sending PO data:', purchaseOrderData);
 
-      // Determine API endpoint and method based on edit mode
-      const apiUrl = isEditMode ? `/api/purchase/orders/${poId}` : '/api/purchase/orders';
-      const method = isEditMode ? 'PUT' : 'POST';
+      // Use PUT if editing OR if doc was already created in this session (retry guard)
+      const existingId = isEditMode ? poId : createdDocName.current;
+      const isUpdate = isEditMode || !!createdDocName.current;
+      const apiUrl = isUpdate && existingId ? `/api/purchase/orders/${existingId}` : '/api/purchase/orders';
+      const method = isUpdate && existingId ? 'PUT' : 'POST';
 
       const response = await fetch(apiUrl, {
-        method: method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        method,
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(purchaseOrderData),
       });
 
       const data = await response.json();
 
       if (data.success) {
-        const successMessage = isEditMode ? 'Pesanan Pembelian berhasil diperbarui!' : 'Pesanan Pembelian berhasil dibuat!';
+        if (!isEditMode) createdDocName.current = data.data?.name || existingId || null;
+        const successMessage = isUpdate ? 'Pesanan Pembelian berhasil diperbarui!' : 'Pesanan Pembelian berhasil dibuat!';
         setSuccess(successMessage);
-        setTimeout(() => {
-          router.push('/purchase-orders/poList');
-        }, 3000); // Start countdown from 3
+        setTimeout(() => { router.push('/purchase-orders/poList'); }, 3000);
       } else {
-        setError(data.message || `Gagal ${isEditMode ? 'memperbarui' : 'membuat'} pesanan pembelian`);
+        setError(data.message || `Gagal ${isUpdate ? 'memperbarui' : 'membuat'} pesanan pembelian`);
       }
     } catch (err) {
       console.error('PO creation error:', err);
       setError(`Gagal ${isEditMode ? 'memperbarui' : 'membuat'} pesanan pembelian`);
     } finally {
       setLoading(false);
+      isSubmittingRef.current = false;
     }
   };
 

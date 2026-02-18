@@ -13,6 +13,7 @@ interface Company {
 interface MenuItem {
   name: string;
   href: string;
+  allowedRoles?: string[];
 }
 
 interface MenuCategory {
@@ -23,7 +24,8 @@ interface MenuCategory {
 
 export default function Navbar() {
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
-  const [user, setUser] = useState<{ full_name: string } | null>(null);
+  const [user, setUser] = useState<{ full_name: string; roles?: string[] } | null>(null);
+  const [roles, setRoles] = useState<string[]>([]);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const router = useRouter();
@@ -43,14 +45,37 @@ export default function Navbar() {
       setSelectedCompany(companyData);
     }
 
-    // Get user data from localStorage
+    // Get user data from localStorage (fallback)
     const loginData = localStorage.getItem('loginData');
     if (loginData) {
       try {
         const data = JSON.parse(loginData);
-        setUser({ full_name: data.full_name });
+        setUser({ full_name: data.full_name, roles: data.roles || [] });
+        if (data.roles) setRoles(data.roles);
       } catch { /* ignore invalid data */ }
     }
+
+    // Fetch current user info with roles — always overrides stale localStorage
+    (async () => {
+      try {
+        const res = await fetch('/api/setup/auth/me', { credentials: 'include' });
+        const data = await res.json();
+        if (data.success && data.data) {
+          const freshRoles = data.data.roles || [];
+          setUser({ full_name: data.data.full_name, roles: freshRoles });
+          setRoles(freshRoles);
+          // Update localStorage so it's fresh for next render
+          try {
+            const stored = JSON.parse(localStorage.getItem('loginData') || '{}');
+            localStorage.setItem('loginData', JSON.stringify({
+              ...stored,
+              full_name: data.data.full_name,
+              roles: freshRoles,
+            }));
+          } catch { /* ignore */ }
+        }
+      } catch { /* ignore */ }
+    })();
 
     // Listen for storage changes (for cross-tab synchronization)
     const handleStorageChange = () => {
@@ -177,13 +202,13 @@ export default function Navbar() {
       name: 'Laporan',
       icon: '📈',
       items: [
-        { name: 'Laporan Keuangan', href: '/financial-reports' },
-        { name: 'Piutang Usaha', href: '/reports/accounts-receivable' },
-        { name: 'Hutang Usaha', href: '/reports/accounts-payable' },
-        { name: 'Alur Kas', href: '/reports/cash-flow' },
-        { name: 'Laporan Penjualan', href: '/reports/sales' },
-        { name: 'Laporan Pembelian', href: '/reports/purchases' },
-        { name: 'Stok per Gudang', href: '/reports/stock-balance' }
+        { name: 'Laporan Keuangan', href: '/financial-reports', allowedRoles: ['System Manager', 'Accounts User', 'Accounts Manager', 'Report Manager'] },
+        { name: 'Piutang Usaha', href: '/reports/accounts-receivable', allowedRoles: ['System Manager', 'Accounts User', 'Accounts Manager', 'Report Manager', 'Sales Manager', 'Sales Master Manager'] },
+        { name: 'Hutang Usaha', href: '/reports/accounts-payable', allowedRoles: ['System Manager', 'Accounts User', 'Accounts Manager', 'Report Manager', 'Purchase Manager', 'Purchase Master Manager'] },
+        { name: 'Alur Kas', href: '/reports/cash-flow', allowedRoles: ['System Manager', 'Accounts User', 'Accounts Manager', 'Report Manager'] },
+        { name: 'Laporan Penjualan', href: '/reports/sales', allowedRoles: ['System Manager', 'Sales User', 'Sales Manager', 'Sales Master Manager', 'Report Manager'] },
+        { name: 'Laporan Pembelian', href: '/reports/purchases', allowedRoles: ['System Manager', 'Purchase User', 'Purchase Manager', 'Purchase Master Manager', 'Report Manager'] },
+        { name: 'Stok per Gudang', href: '/reports/stock-balance', allowedRoles: ['System Manager', 'Stock User', 'Stock Manager', 'Item Manager', 'Report Manager'] },
       ]
     },
     {
@@ -214,6 +239,79 @@ export default function Navbar() {
       ]
     }
   ];
+
+  const roleLabel = (role?: string) => {
+    const map: Record<string, string> = {
+      'System Manager': 'Manajer Sistem',
+      'Sales User': 'Pengguna Penjualan',
+      'Sales Manager': 'Manajer Penjualan',
+      'Sales Master Manager': 'Manajer Utama Penjualan',
+      'Purchase User': 'Pengguna Pembelian',
+      'Purchase Manager': 'Manajer Pembelian',
+      'Purchase Master Manager': 'Manajer Utama Pembelian',
+      'Stock User': 'Pengguna Persediaan',
+      'Stock Manager': 'Manajer Persediaan',
+      'Item Manager': 'Manajer Barang',
+      'Accounts User': 'Pengguna Akuntansi',
+      'Accounts Manager': 'Manajer Akuntansi',
+      'HR User': 'Pengguna SDM',
+      'HR Manager': 'Manajer SDM',
+      'Report Manager': 'Manajer Laporan',
+      'Projects User': 'Pengguna Proyek',
+      'Projects Manager': 'Manajer Proyek',
+      'Administrator': 'Administrator',
+    };
+    return map[role || ''] || role || 'Pengguna';
+  };
+
+  const roleCategoryMap: Record<string, string[]> = {
+    'System Manager': ['*'],
+    'Accounts User': ['Dashboard', 'Kas & Bank', 'Akunting', 'Laporan'],
+    'Accounts Manager': ['Dashboard', 'Kas & Bank', 'Akunting', 'Laporan'],
+    'Sales User': ['Dashboard', 'Penjualan', 'Master Data'],
+    'Sales Manager': ['Dashboard', 'Penjualan', 'Komisi', 'Laporan', 'Master Data'],
+    'Sales Master Manager': ['Dashboard', 'Penjualan', 'Komisi', 'Laporan', 'Master Data'],
+    'Purchase User': ['Dashboard', 'Pembelian', 'Master Data'],
+    'Purchase Manager': ['Dashboard', 'Pembelian', 'Laporan', 'Master Data'],
+    'Purchase Master Manager': ['Dashboard', 'Pembelian', 'Laporan', 'Master Data'],
+    'Stock User': ['Dashboard', 'Persediaan', 'Master Data'],
+    'Stock Manager': ['Dashboard', 'Persediaan', 'Laporan', 'Master Data'],
+    'Item Manager': ['Dashboard', 'Persediaan', 'Laporan', 'Master Data'],
+    'HR User': ['Dashboard', 'Master Data'],
+    'HR Manager': ['Dashboard', 'Master Data', 'Laporan'],
+    'Report Manager': ['Dashboard', 'Laporan', 'Akunting'],
+    'Projects User': ['Dashboard', 'Master Data'],
+    'Projects Manager': ['Dashboard', 'Master Data', 'Laporan'],
+  };
+
+  const canSeeCategory = (category: MenuCategory) => {
+    if (!roles || roles.length === 0) return true;
+    if (roles.includes('System Manager')) return true;
+    const allowed = new Set<string>();
+    roles.forEach(r => {
+      (roleCategoryMap[r] || []).forEach(c => allowed.add(c));
+    });
+    // For Laporan: show category if user has access to at least one sub-item
+    if (category.name === 'Laporan') {
+      return category.items.some(item =>
+        !item.allowedRoles || item.allowedRoles.some(r => roles.includes(r))
+      );
+    }
+    return allowed.has('*') || allowed.has(category.name);
+  };
+
+  const filterItems = (items: MenuItem[]) => {
+    if (!roles || roles.length === 0) return items;
+    if (roles.includes('System Manager')) return items;
+    return items.filter(item =>
+      !item.allowedRoles || item.allowedRoles.some(r => roles.includes(r))
+    );
+  };
+
+  const visibleCategories = menuCategories.filter(canSeeCategory).map(cat => ({
+    ...cat,
+    items: filterItems(cat.items),
+  }));
 
   // Don't show navbar on login and company selection pages
   if (pathname === '/login' || pathname === '/select-company') {
@@ -275,7 +373,7 @@ export default function Navbar() {
                   </div>
                   <div className="text-left hidden sm:block">
                     <p className="text-sm font-medium text-gray-900">{user?.full_name}</p>
-                    <p className="text-xs text-gray-500">Administrator</p>
+                    <p className="text-xs text-gray-500">{roleLabel(user?.roles?.[0])}</p>
                   </div>
                   <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -288,7 +386,7 @@ export default function Navbar() {
                     <div className="py-1">
                       <div className="px-4 py-2 text-sm text-gray-700 border-b">
                         <p className="font-medium">{user?.full_name}</p>
-                        <p className="text-xs text-gray-500">Administrator</p>
+                        <p className="text-xs text-gray-500">{roleLabel(user?.roles?.[0])}</p>
                       </div>
                       <button
                         onClick={handleLogout}
@@ -311,7 +409,7 @@ export default function Navbar() {
           <div className="flex items-center justify-between py-2">
             {/* Desktop Navigation - hidden on mobile */}
             <div className="hidden md:flex items-center space-x-1 flex-wrap">
-              {menuCategories.map((category, catIdx) => (
+              {visibleCategories.map((category, catIdx) => (
                 <div key={category.name} className="relative dropdown-container">
                   {category.items.length === 1 ? (
                     <a
@@ -427,7 +525,7 @@ export default function Navbar() {
                 </button>
               </div>
               
-              {menuCategories.map((category) => (
+              {visibleCategories.map((category) => (
                 <div key={category.name} className="mb-5">
                   <div className="flex items-center mb-2">
                     <span className="mr-2">{category.icon}</span>

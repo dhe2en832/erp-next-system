@@ -9,15 +9,14 @@ export async function GET(request: NextRequest) {
     const limit = searchParams.get('limit') || '20';
     const start = searchParams.get('start') || '0';
 
-    const cookies = request.cookies;
-    const sid = cookies.get('sid')?.value;
-
+    const sid = request.cookies.get('sid')?.value;
     if (!sid) {
-      return NextResponse.json(
-        { success: false, message: 'Unauthorized' },
-        { status: 401 }
-      );
+      return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
     }
+    const _ak = process.env.ERP_API_KEY;
+    const _as = process.env.ERP_API_SECRET;
+    const _h: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (_ak && _as) { _h['Authorization'] = `token ${_ak}:${_as}`; } else { _h['Cookie'] = `sid=${sid}`; }
 
     // Build ERPNext URL sesuai pattern yang berhasil (seperti companies dan login)
     let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Journal Entry?fields=["name","voucher_type","posting_date","total_debit","total_credit","user_remark"]&limit_page_length=${limit}&start=${start}`;
@@ -33,10 +32,7 @@ export async function GET(request: NextRequest) {
       erpNextUrl,
       {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Cookie': `sid=${sid}`,
-        },
+        headers: _h,
       }
     );
 
@@ -66,22 +62,18 @@ export async function POST(request: NextRequest) {
   try {
     const journalData = await request.json();
 
-    const cookies = request.cookies;
-    const sid = cookies.get('sid')?.value;
-
-    if (!sid) {
-      return NextResponse.json(
-        { success: false, message: 'Unauthorized' },
-        { status: 401 }
-      );
+    const sid2 = request.cookies.get('sid')?.value;
+    if (!sid2) {
+      return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
     }
+    const _ak2 = process.env.ERP_API_KEY;
+    const _as2 = process.env.ERP_API_SECRET;
+    const _h2: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (_ak2 && _as2) { _h2['Authorization'] = `token ${_ak2}:${_as2}`; } else { _h2['Cookie'] = `sid=${sid2}`; }
 
     const response = await fetch(`${ERPNEXT_API_URL}/api/resource/Journal Entry`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Cookie': `sid=${sid}`,
-      },
+      headers: _h2,
       body: JSON.stringify(journalData),
     });
 

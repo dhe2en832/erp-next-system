@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { parseErpError } from '../../../../../../utils/erp-error';
 
 const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
 
@@ -55,60 +56,12 @@ export async function POST(
     }
 
     if (response.ok) {
-      // ERPNext REST API returns different structure
       const receiptData = data.docs?.[0] || data.doc || data.data || data;
-      
-      console.log('Purchase Receipt submitted successfully:', receiptData);
-      
-      return NextResponse.json({
-        success: true,
-        data: receiptData,
-        message: 'Purchase Receipt berhasil di submit'
-      });
+      return NextResponse.json({ success: true, data: receiptData, message: 'Purchase Receipt berhasil diajukan' });
     } else {
-      let errorMessage = 'Failed to submit Purchase Receipt';
-      
-      console.log('Full Error Response:', data);
-      
-      // Comprehensive error parsing
-      if (data.exc) {
-        try {
-          const excData = JSON.parse(data.exc);
-          console.log('Parsed Exception Data:', excData);
-          errorMessage = `${excData.exc_type}: ${excData.message}`;
-        } catch (e) {
-          console.log('Failed to parse exception, using raw data');
-          errorMessage = data.message || data.exc || 'Failed to submit Purchase Receipt';
-        }
-      } else if (data.message) {
-        errorMessage = data.message;
-      } else if (data._server_messages) {
-        try {
-          const serverMessages = JSON.parse(data._server_messages);
-          console.log('Parsed Server Messages:', serverMessages);
-          errorMessage = serverMessages[0]?.message || serverMessages[0] || errorMessage;
-        } catch (e) {
-          console.log('Failed to parse server messages, using raw data');
-          errorMessage = data._server_messages;
-        }
-      } else if (data.error) {
-        errorMessage = data.error;
-      } else if (typeof data === 'string') {
-        errorMessage = data;
-      } else {
-        errorMessage = `Unknown error occurred. Response: ${JSON.stringify(data)}`;
-      }
-      
-      console.error('Submit Purchase Receipt Error Details:', {
-        status: response.status,
-        data: data,
-        errorMessage: errorMessage
-      });
-      
-      return NextResponse.json(
-        { success: false, message: errorMessage },
-        { status: response.status }
-      );
+      const errorMessage = parseErpError(data, 'Gagal mengajukan Purchase Receipt');
+      console.error('Submit PR error:', { status: response.status, errorMessage });
+      return NextResponse.json({ success: false, message: errorMessage }, { status: response.status });
     }
   } catch (error) {
     console.error('Purchase Receipt submit error:', error);

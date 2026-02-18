@@ -76,6 +76,8 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
   const [isEditMode, setIsEditMode] = useState(false);
   const isEditModeRef = useRef(false);
   const [editingPaymentId, setEditingPaymentId] = useState('');
+  const createdDocName = useRef<string | null>(null);
+  const isSubmittingRef = useRef(false);
   const [outstandingInvoices, setOutstandingInvoices] = useState<SalesInvoice[]>([]);
   const [outstandingPurchaseInvoices, setOutstandingPurchaseInvoices] = useState<PurchaseInvoice[]>([]);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
@@ -797,28 +799,35 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
         })),
       };
 
-      const response = await fetch('/api/finance/payments', {
-        method: 'POST',
+      // Determine method: PUT if editing OR if doc was already created in this session (retry guard)
+      const existingName = editingPaymentId || createdDocName.current;
+      const isUpdate = isEditMode || !!createdDocName.current;
+      const url = isUpdate && existingName
+        ? `/api/finance/payments/${existingName}`
+        : '/api/finance/payments';
+      const method = isUpdate && existingName ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(paymentPayload),
+        body: JSON.stringify(isUpdate && existingName ? { name: existingName, ...paymentPayload } : paymentPayload),
       });
 
       const data = await response.json();
 
       if (response.ok) {
-        let msg = `Payment Entry ${data.data?.name || ''} berhasil dibuat!\n\nTotal: Rp ${paymentAmount.toLocaleString('id-ID')}`;
+        const docName = data.data?.name || existingName || '';
+        if (!isUpdate) createdDocName.current = docName;
+        const action = isUpdate ? 'diperbarui' : 'dibuat';
+        let msg = `Payment Entry ${docName} berhasil ${action}!\n\nTotal: Rp ${paymentAmount.toLocaleString('id-ID')}`;
         if (formData.party_type === 'Customer' && paymentAmount > totalOutstanding && totalOutstanding > 0) {
           msg += `\nKredit Pelanggan: Rp ${(paymentAmount - totalOutstanding).toLocaleString('id-ID')}`;
         }
-        msg += `\n\nERPNext akan otomatis mengalokasikan pembayaran ke invoice yang outstanding.`;
         setSuccessMessage(msg);
-        setTimeout(() => {
-          onBack();
-        }, 2000);
-        // Don't setFormLoading(false) here - keep button disabled until navigation
+        setTimeout(() => { onBack(); }, 2000);
         return;
       } else {
-        setError(data.message || 'Gagal membuat pembayaran');
+        setError(data.message || `Gagal ${isUpdate ? 'memperbarui' : 'membuat'} pembayaran`);
       }
     } catch (err) {
       setError('Terjadi kesalahan. Silakan coba lagi.');

@@ -7,6 +7,7 @@ import Pagination from '../../components/Pagination';
 import { formatDate, parseDate } from '../../../utils/format';
 import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
 import { Printer } from 'lucide-react';
+import ErrorDialog from '../../../components/ErrorDialog';
 
 interface PurchaseInvoice {
   name: string;
@@ -34,6 +35,7 @@ export default function PurchaseInvoiceList() {
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [error, setError] = useState('');
+  const [submitError, setSubmitError] = useState('');
   const [selectedCompany, setSelectedCompany] = useState('');
   const [searchTerm, setSearchTerm] = useState(''); // Search by PI name
   const [documentNumber, setDocumentNumber] = useState(''); // Tambahkan document number filter
@@ -277,10 +279,10 @@ export default function PurchaseInvoiceList() {
           setShowSuccessDialog(false);
         }, 3000);
       } else {
-        setError(data.message || 'Gagal mengajukan Faktur Pembelian');
+        setSubmitError(data.message || 'Gagal mengajukan Faktur Pembelian');
       }
     } catch (err) {
-      setError('Gagal mengajukan Faktur Pembelian');
+      setSubmitError('Gagal mengajukan Faktur Pembelian');
     } finally {
       setActionLoading(false);
     }
@@ -288,6 +290,7 @@ export default function PurchaseInvoiceList() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <ErrorDialog isOpen={!!submitError} title="Gagal Mengajukan" message={submitError} onClose={() => setSubmitError('')} />
       {/* Header */}
       <div className="bg-white shadow">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

@@ -5,6 +5,7 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 import Pagination from '../../components/Pagination';
 import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
 import { formatDate, parseDate } from '../../../utils/format';
+import ErrorDialog from '../../../components/ErrorDialog';
 
 interface PaymentEntry {
   name: string;
@@ -55,6 +56,7 @@ export default function PaymentList({ onEdit, onCreate, selectedCompany }: Payme
   const [payments, setPayments] = useState<PaymentEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [submitError, setSubmitError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
   const [pageSize] = useState(20);
@@ -161,15 +163,15 @@ export default function PaymentList({ onEdit, onCreate, selectedCompany }: Payme
       const data = await response.json();
 
       if (data.success) {
-        setSuccessMessage(`Payment ${paymentName} berhasil di-submit!`);
+        setSuccessMessage(`Payment ${paymentName} berhasil diajukan!`);
         fetchPayments();
         setTimeout(() => setSuccessMessage(''), 5000);
       } else {
-        setError(data.message || 'Gagal submit pembayaran');
+        setSubmitError(data.message || 'Gagal mengajukan pembayaran');
       }
     } catch (error) {
       console.error('Payment submit error:', error);
-      setError('Terjadi kesalahan saat submit pembayaran');
+      setSubmitError('Terjadi kesalahan saat mengajukan pembayaran');
     } finally {
       setSubmittingPayment('');
     }
@@ -244,10 +246,10 @@ export default function PaymentList({ onEdit, onCreate, selectedCompany }: Payme
           setCreatedJournalEntry('');
         }, 5000);
       } else {
-        setError(data.message || 'Gagal mencairkan warkat');
+        setSubmitError(data.message || 'Gagal mencairkan warkat');
       }
     } catch (err) {
-      setError('Terjadi kesalahan saat mencairkan warkat');
+      setSubmitError('Terjadi kesalahan saat mencairkan warkat');
     } finally {
       setWarkatLoading(false);
     }
@@ -270,15 +272,15 @@ export default function PaymentList({ onEdit, onCreate, selectedCompany }: Payme
       });
       const data = await response.json();
       if (data.success) {
-        setSuccessMessage(`Warkat ${selectedWarkatPayment} berhasil ditolak! Journal Entry: ${data.journal_entry || '-'}`);
+        setSuccessMessage(`Warkat ${selectedWarkatPayment} berhasil ditolak!`);
         setShowBounceWarkatDialog(false);
         fetchPayments();
         setTimeout(() => setSuccessMessage(''), 5000);
       } else {
-        setError(data.message || 'Gagal menolak warkat');
+        setSubmitError(data.message || 'Gagal menolak warkat');
       }
     } catch (err) {
-      setError('Terjadi kesalahan saat menolak warkat');
+      setSubmitError('Terjadi kesalahan saat menolak warkat');
     } finally {
       setWarkatLoading(false);
     }
@@ -290,6 +292,7 @@ export default function PaymentList({ onEdit, onCreate, selectedCompany }: Payme
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <ErrorDialog isOpen={!!submitError} title="Gagal" message={submitError} onClose={() => setSubmitError('')} />
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Manajemen Pembayaran</h1>

@@ -40,8 +40,8 @@ export default function ItemMain() {
     item_code: '',
     item_name: '',
     description: '',
-    item_group: 'All Item Groups',
-    stock_uom: 'Nos',
+    item_group: '',
+    stock_uom: '',
     opening_stock: 0,
     valuation_rate: 0,
     standard_rate: 0,
@@ -89,8 +89,12 @@ export default function ItemMain() {
         const groupsResponse = await fetch('/api/inventory/dropdowns/item-groups', { credentials: 'include' });
         const groupsData = await groupsResponse.json();
         if (groupsResponse.ok && groupsData.success) {
-          setItemGroups(groupsData.data || []);
-          console.log('Item groups loaded:', groupsData.data?.length || 0);
+          const groups = groupsData.data || [];
+          setItemGroups(groups);
+          console.log('Item groups loaded:', groups.length);
+          if (!itemCode && groups.length > 0) {
+            setFormData(prev => ({ ...prev, item_group: prev.item_group || groups[0].name }));
+          }
         } else {
           console.log('Failed to load item groups:', groupsData);
         }
@@ -99,8 +103,12 @@ export default function ItemMain() {
         const uomsResponse = await fetch('/api/inventory/dropdowns/uoms', { credentials: 'include' });
         const uomsData = await uomsResponse.json();
         if (uomsResponse.ok && uomsData.success) {
-          setUoms(uomsData.data || []);
-          console.log('UOMs loaded:', uomsData.data?.length || 0);
+          const uomList = uomsData.data || [];
+          setUoms(uomList);
+          console.log('UOMs loaded:', uomList.length);
+          if (!itemCode && uomList.length > 0) {
+            setFormData(prev => ({ ...prev, stock_uom: prev.stock_uom || uomList[0].name }));
+          }
         } else {
           console.log('Failed to load UOMs:', uomsData);
         }
@@ -114,19 +122,8 @@ export default function ItemMain() {
           { name: 'INDOPLAS' },
           { name: 'TOTO' }
         ]);
-        setItemGroups([
-          { name: 'All Item Groups' },
-          { name: 'HOLLO' },
-          { name: 'BESI BETON' },
-          { name: 'KAYU' }
-        ]);
-        setUoms([
-          { name: 'Nos' },
-          { name: 'KG' },
-          { name: 'M' },
-          { name: 'L' },
-          { name: 'BTG' }
-        ]);
+        setItemGroups([]);
+        setUoms([]);
       }
     };
     fetchDropdownData();

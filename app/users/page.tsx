@@ -7,6 +7,7 @@ interface User {
   name: string;
   full_name: string;
   email: string;
+  username?: string;
   enabled: number;
   user_type: string;
   last_login?: string;
@@ -22,13 +23,21 @@ export default function UserManagementPage() {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [creating, setCreating] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [editingName, setEditingName] = useState<string | null>(null);
 
-  const [newUser, setNewUser] = useState({
+  const emptyUser = {
+    username: '',
     email: '',
     full_name: '',
     new_password: '',
     roles: [] as string[],
-  });
+    enabled: 1 as 0 | 1,
+  };
+
+  const [newUser, setNewUser] = useState(emptyUser);
 
   const AVAILABLE_ROLES = [
     'System Manager',
@@ -36,10 +45,17 @@ export default function UserManagementPage() {
     'Sales Manager',
     'Purchase User',
     'Purchase Manager',
+    'Purchase Master Manager',
     'Stock User',
     'Stock Manager',
+    'Item Manager',
     'Accounts User',
     'Accounts Manager',
+    'HR User',
+    'HR Manager',
+    'Report Manager',
+    'Projects User',
+    'Projects Manager',
   ];
 
   const fetchUsers = useCallback(async () => {
@@ -70,28 +86,60 @@ export default function UserManagementPage() {
     setError('');
     setSuccessMessage('');
 
-    if (!newUser.email || !newUser.full_name) {
-      setError('Email dan nama lengkap wajib diisi');
+    const formatError = (msg: string) => {
+      if (!msg) return 'Gagal membuat pengguna';
+      if (msg.toLowerCase().includes('common words are easy to guess')) {
+        return 'Kata sandi terlalu mudah ditebak. Gunakan kombinasi kata unik, angka, atau karakter khusus.';
+      }
+      if (msg.toLowerCase().includes('names and surnames are easy to guess')) {
+        return 'Kata sandi mirip dengan nama lengkap. Gunakan kata lain yang tidak mengandung nama Anda, tambah angka/simbol.';
+      }
+      return msg;
+    };
+
+    if (!newUser.email) {
+      setError('Email wajib diisi');
+      setCreating(false);
+      return;
+    }
+
+    if (!newUser.full_name || newUser.full_name.trim().length < 3) {
+      setError('Nama lengkap minimal 3 karakter');
+      setCreating(false);
+      return;
+    }
+
+    if (!newUser.roles || newUser.roles.length === 0) {
+      setError('Pilih minimal satu peran');
+      setCreating(false);
+      return;
+    }
+
+    if (newUser.new_password && newUser.new_password !== confirmPassword) {
+      setError('Password dan konfirmasi tidak sama');
       setCreating(false);
       return;
     }
 
     try {
+      const isEdit = Boolean(editingName);
       const response = await fetch('/api/setup/users', {
-        method: 'POST',
+        method: isEdit ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify(newUser),
+        body: JSON.stringify({ ...newUser, name: editingName || undefined }),
       });
 
       const data = await response.json();
       if (data.success) {
-        setSuccessMessage(data.message || 'Pengguna berhasil dibuat');
+        setSuccessMessage(data.message || (isEdit ? 'Pengguna diperbarui' : 'Pengguna berhasil dibuat'));
         setShowCreateDialog(false);
-        setNewUser({ email: '', full_name: '', new_password: '', roles: [] });
+        setNewUser(emptyUser);
+        setConfirmPassword('');
+        setEditingName(null);
         fetchUsers();
       } else {
-        setError(data.message || 'Gagal membuat pengguna');
+        setError(formatError(data.message));
       }
     } catch {
       setError('Terjadi kesalahan saat membuat pengguna');
@@ -107,6 +155,31 @@ export default function UserManagementPage() {
         ? prev.roles.filter(r => r !== role)
         : [...prev.roles, role],
     }));
+  };
+
+  const openCreateDialog = () => {
+    setNewUser(emptyUser);
+    setConfirmPassword('');
+    setEditingName(null);
+    setError('');
+    setSuccessMessage('');
+    setShowCreateDialog(true);
+  };
+
+  const openEditDialog = (user: User) => {
+    setNewUser({
+      username: user.username || '',
+      email: user.email || '',
+      full_name: user.full_name || '',
+      new_password: '',
+      roles: user.roles || [],
+      enabled: user.enabled ? 1 : 0,
+    });
+    setConfirmPassword('');
+    setEditingName(user.name);
+    setError('');
+    setSuccessMessage('');
+    setShowCreateDialog(true);
   };
 
   const filteredUsers = users.filter(u =>
@@ -125,7 +198,7 @@ export default function UserManagementPage() {
           <p className="text-sm text-gray-500">Kelola pengguna dan hak akses sistem</p>
         </div>
         <button
-          onClick={() => setShowCreateDialog(true)}
+          onClick={openCreateDialog}
           className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium"
         >
           + Tambah Pengguna
@@ -161,7 +234,11 @@ export default function UserManagementPage() {
               <tr><td colSpan={5} className="px-6 py-8 text-center text-gray-500">Tidak ada pengguna ditemukan</td></tr>
             ) : (
               filteredUsers.map((user) => (
-                <tr key={user.name} className="hover:bg-gray-50">
+                <tr
+                  key={user.name}
+                  className="hover:bg-gray-50 cursor-pointer"
+                  onClick={() => openEditDialog(user)}
+                >
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center">
@@ -204,8 +281,13 @@ export default function UserManagementPage() {
       {showCreateDialog && (
         <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Tambah Pengguna Baru</h3>
-            <form onSubmit={handleCreateUser} className="space-y-4">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">{editingName ? 'Edit Pengguna' : 'Tambah Pengguna Baru'}</h3>
+            <form onSubmit={handleCreateUser} autoComplete="off" className="space-y-4">
+              {error && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                  {error}
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Nama Lengkap <span className="text-red-500">*</span></label>
                 <input
@@ -214,6 +296,7 @@ export default function UserManagementPage() {
                   value={newUser.full_name}
                   onChange={(e) => setNewUser({ ...newUser, full_name: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  autoComplete="off"
                   placeholder="Masukkan nama lengkap"
                 />
               </div>
@@ -223,20 +306,94 @@ export default function UserManagementPage() {
                   type="email"
                   required
                   value={newUser.email}
-                  onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                  onChange={(e) => {
+                    const email = e.target.value;
+                    setNewUser(prev => ({
+                      ...prev,
+                      email,
+                      username: prev.username || email,
+                    }));
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  autoComplete="off"
                   placeholder="user@example.com"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
                 <input
-                  type="password"
-                  value={newUser.new_password}
-                  onChange={(e) => setNewUser({ ...newUser, new_password: e.target.value })}
+                  type="text"
+                  value={newUser.username}
+                  onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                  placeholder="Kosongkan untuk kirim email reset"
+                  autoComplete="new-password"
+                  placeholder="Gunakan email atau username khusus"
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                <div className="flex items-center space-x-3">
+                  <label className="flex items-center space-x-2 text-sm">
+                    <input
+                      type="radio"
+                      checked={newUser.enabled === 1}
+                      onChange={() => setNewUser(prev => ({ ...prev, enabled: 1 }))}
+                      className="text-indigo-600"
+                    />
+                    <span>Aktif</span>
+                  </label>
+                  <label className="flex items-center space-x-2 text-sm">
+                    <input
+                      type="radio"
+                      checked={newUser.enabled === 0}
+                      onChange={() => setNewUser(prev => ({ ...prev, enabled: 0 }))}
+                      className="text-indigo-600"
+                    />
+                    <span>Nonaktif</span>
+                  </label>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={newUser.new_password}
+                    onChange={(e) => setNewUser({ ...newUser, new_password: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm pr-10"
+                    autoComplete="new-password"
+                    placeholder="Kosongkan untuk kirim email reset"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(prev => !prev)}
+                    className="absolute inset-y-0 right-0 px-3 flex items-center text-gray-500 text-sm"
+                    aria-label="Toggle password visibility"
+                  >
+                    {showPassword ? '🙈' : '👁️'}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Konfirmasi Password</label>
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm pr-10"
+                    autoComplete="new-password"
+                    placeholder="Ulangi password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(prev => !prev)}
+                    className="absolute inset-y-0 right-0 px-3 flex items-center text-gray-500 text-sm"
+                    aria-label="Toggle confirm password visibility"
+                  >
+                    {showConfirmPassword ? '🙈' : '👁️'}
+                  </button>
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Peran (Roles)</label>
@@ -268,7 +425,7 @@ export default function UserManagementPage() {
                   className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm disabled:opacity-50 flex items-center gap-2"
                 >
                   {creating && <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>}
-                  {creating ? 'Membuat...' : 'Buat Pengguna'}
+                  {creating ? (editingName ? 'Menyimpan...' : 'Membuat...') : (editingName ? 'Simpan Perubahan' : 'Buat Pengguna')}
                 </button>
               </div>
             </form>

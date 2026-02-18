@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { parseErpError } from '../../../../../../utils/erp-error';
 
 const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
 
@@ -63,36 +64,12 @@ export async function POST(
     }
 
     if (response.ok) {
-      // ERPNext REST API returns different structure
       const invoiceData = data.docs?.[0] || data.doc || data.data || data;
-      console.log('Purchase Invoice submitted successfully:', invoiceData);
-      
-      return NextResponse.json({
-        success: true,
-        message: `Purchase Invoice ${piName} berhasil di submit`,
-        data: invoiceData
-      });
+      return NextResponse.json({ success: true, message: `Purchase Invoice ${piName} berhasil diajukan`, data: invoiceData });
     } else {
-      console.error('ERPNext Submit Error:', data);
-      
-      let errorMessage = 'Failed to submit Purchase Invoice';
-      if (data.exc) {
-        // Parse ERPNext exception
-        if (data.exc.includes('PermissionError')) {
-          errorMessage = 'Anda tidak memiliki izin untuk submit Purchase Invoice ini';
-        } else if (data.exc.includes('mandatory')) {
-          errorMessage = 'Ada field wajib yang belum diisi';
-        } else {
-          errorMessage = data.exc.split('\n')[0]; // Get first line of exception
-        }
-      } else {
-        errorMessage = data.message || data.exc || 'Failed to submit Purchase Invoice';
-      }
-      
-      return NextResponse.json(
-        { success: false, message: errorMessage },
-        { status: response.status }
-      );
+      const errorMessage = parseErpError(data, 'Gagal mengajukan Purchase Invoice');
+      console.error('Submit PI error:', { status: response.status, errorMessage });
+      return NextResponse.json({ success: false, message: errorMessage }, { status: response.status });
     }
   } catch (error) {
     console.error('Purchase Invoice submit error:', error);

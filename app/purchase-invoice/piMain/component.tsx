@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import LoadingSpinner from '../../components/LoadingSpinner';
 
@@ -88,6 +88,8 @@ export default function PurchaseInvoiceMain() {
   const [isEditMode, setIsEditMode] = useState(false);
   const [isViewMode, setIsViewMode] = useState(false);
   const [invoiceId, setInvoiceId] = useState('');
+  const createdDocName = useRef<string | null>(null);
+  const isSubmittingRef = useRef(false);
 
   // Dialog states
   const [showPurchaseReceiptDialog, setShowPurchaseReceiptDialog] = useState(false);
@@ -426,6 +428,8 @@ export default function PurchaseInvoiceMain() {
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     setFormLoading(true);
     setError('');
 
@@ -505,23 +509,23 @@ export default function PurchaseInvoiceMain() {
       let isSuccess = false;  // Track success state - declare outside try block
       
       try {
-        // Use different API for create vs update
-        const apiUrl = isEditMode ? `/api/purchase/invoices?id=${invoiceId}` : '/api/purchase/invoices';
-        const method = isEditMode ? 'PUT' : 'POST';
-        
-        console.log(`${isEditMode ? 'Updating' : 'Creating'} Purchase Invoice with ${method} ${apiUrl}`);
-        
+        // Use PUT if editing OR if doc was already created in this session (retry guard)
+        const existingId = isEditMode ? invoiceId : createdDocName.current;
+        const isUpdate = isEditMode || !!createdDocName.current;
+        const apiUrl = isUpdate && existingId ? `/api/purchase/invoices?id=${existingId}` : '/api/purchase/invoices';
+        const method = isUpdate && existingId ? 'PUT' : 'POST';
+
+        console.log(`${isUpdate ? 'Updating' : 'Creating'} Purchase Invoice with ${method} ${apiUrl}`);
+
         // For update, don't include doctype in payload
-        if (isEditMode) {
+        if (isUpdate) {
           const { doctype, ...updateData } = invoiceData;
-          invoiceData = updateData as any; // Type assertion for update payload
+          invoiceData = updateData as any;
         }
 
         const response = await fetch(apiUrl, {
-          method: method,
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          method,
+          headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
           body: JSON.stringify(invoiceData),
         });
@@ -531,15 +535,11 @@ export default function PurchaseInvoiceMain() {
         
         if (data.success) {
           isSuccess = true;
+          if (!isEditMode && !createdDocName.current) createdDocName.current = data.data?.name || existingId || null;
           const successMessage = isEditMode ? 'Faktur Pembelian berhasil diperbarui!' : 'Faktur Pembelian berhasil dibuat!';
           setSuccessMessage(successMessage);
           setShowSuccessDialog(true);
-          
-          // Keep form loading = true to prevent multiple submissions
-          // Redirect after 3 seconds
-          setTimeout(() => {
-            router.push('/purchase-invoice/piList');
-          }, 3000);
+          setTimeout(() => { router.push('/purchase-invoice/piList'); }, 3000);
         } else {
           // Parse ERPNext error into user-friendly message
           const userFriendlyError = parseERPNextError(data.message);
@@ -564,12 +564,13 @@ export default function PurchaseInvoiceMain() {
         // Reset form loading state
         setFormLoading(false);
       }
-    } catch (error) {  // <-- BARIS INI YANG DITAMBAHKAN (closing brace untuk outer try + catch block)
+    } catch (error) {
       console.error('Error in handleSubmit:', error);
       setError(`Gagal ${isEditMode ? 'mengupdate' : 'membuat'} Purchase Invoice`);
       setFormLoading(false);
+    } finally {
+      isSubmittingRef.current = false;
     }
-
   };
 
   if (loading) {

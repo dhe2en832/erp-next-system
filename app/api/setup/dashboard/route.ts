@@ -2,102 +2,132 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
 
+function getHeaders(): Record<string, string> {
+  const apiKey = process.env.ERP_API_KEY;
+  const apiSecret = process.env.ERP_API_SECRET;
+  const h: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (apiKey && apiSecret) {
+    h['Authorization'] = `token ${apiKey}:${apiSecret}`;
+  }
+  return h;
+}
+
 export async function GET(request: NextRequest) {
   try {
-    const cookies = request.cookies;
-    const sid = cookies.get('sid')?.value;
-
+    const sid = request.cookies.get('sid')?.value;
     if (!sid) {
-      return NextResponse.json(
-        { success: false, message: 'Unauthorized' },
-        { status: 401 }
-      );
+      return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
     }
 
-    console.log('Testing Dashboard stats without filters...');
+    const company = request.cookies.get('selected_company')?.value || '';
+    const headers = getHeaders();
 
-    // Test 1: Items count
-    const itemsResponse = await fetch(`${ERPNEXT_API_URL}/api/resource/Item?fields=["name"]&limit_page_length=5`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Cookie': `sid=${sid}`,
-      },
-    });
+    const cf = company ? JSON.stringify([['company', '=', company]]) : '[]';
+    const cfAnd = (extra: [string, string, string][]) =>
+      company
+        ? JSON.stringify([['company', '=', company], ...extra])
+        : JSON.stringify(extra);
 
-    // Test 2: Sales Orders count
-    const ordersResponse = await fetch(`${ERPNEXT_API_URL}/api/resource/Sales Order?fields=["name"]&limit_page_length=5`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Cookie': `sid=${sid}`,
-      },
-    });
-
-    // Test 3: Sales Invoices count
-    const invoicesResponse = await fetch(`${ERPNEXT_API_URL}/api/resource/Sales Invoice?fields=["name"]&limit_page_length=5`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Cookie': `sid=${sid}`,
-      },
-    });
-
-    // Test 4: Payments count
-    const paymentsResponse = await fetch(`${ERPNEXT_API_URL}/api/resource/Payment Entry?fields=["name"]&limit_page_length=5`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Cookie': `sid=${sid}`,
-      },
-    });
-
-    const itemsData = await itemsResponse.json();
-    const ordersData = await ordersResponse.json();
-    const invoicesData = await invoicesResponse.json();
-    const paymentsData = await paymentsResponse.json();
-
-    console.log('Dashboard Stats Test - Status:', {
-      items: itemsResponse.status,
-      orders: ordersResponse.status,
-      invoices: invoicesResponse.status,
-      payments: paymentsResponse.status
-    });
-
-    console.log('Dashboard Stats Test - Data:', {
-      items: itemsData,
-      orders: ordersData,
-      invoices: invoicesData,
-      payments: paymentsData
-    });
-
-    // Return combined stats
-    const stats = {
-      total_items: itemsData.data?.length || 0,
-      total_sales_orders: ordersData.data?.length || 0,
-      total_invoices: invoicesData.data?.length || 0,
-      total_payments: paymentsData.data?.length || 0,
+    const safeJson = async (res: Response) => {
+      try { return await res.json(); } catch { return { data: [] }; }
     };
 
-    console.log('Dashboard Stats:', stats);
-
-    if (itemsResponse.ok && ordersResponse.ok && invoicesResponse.ok && paymentsResponse.ok) {
-      return NextResponse.json({
-        success: true,
-        data: stats,
-        message: 'Dashboard stats retrieved successfully'
-      });
-    } else {
-      return NextResponse.json(
-        { success: false, message: 'Some dashboard API calls failed' },
-        { status: 500 }
+    const q = (path: string, filters: string, fields: string, limit = 500) =>
+      fetch(
+        `${ERPNEXT_API_URL}/api/resource/${path}?fields=${encodeURIComponent(fields)}&filters=${encodeURIComponent(filters)}&limit_page_length=${limit}`,
+        { headers }
       );
+
+    // Run all queries in parallel
+    const [
+      itemsRes,
+      soAllRes,
+      soPendingRes,
+      siAllRes,
+      siOutstandingRes,
+      payRes,
+      poAllRes,
+      poPendingRes,
+      monthlySalesRes,
+    ] = await Promise.all([
+      q('Item', '[]', '["name"]', 1000),
+      q('Sales Order', cf, '["name"]'),
+      q('Sales Order', cfAnd([['status', 'in', 'Draft,To Deliver and Bill,To Bill,To Deliver']]), '["name"]'),
+      q('Sales Invoice', cf, '["name"]'),
+      q('Sales Invoice', cfAnd([['outstanding_amount', '>', '0'], ['docstatus', '=', '1']]), '["name","outstanding_amount"]'),
+      q('Payment Entry', cfAnd([['docstatus', '=', '1']]), '["name"]'),
+      q('Purchase Order', cf, '["name"]'),
+      q('Purchase Order', cfAnd([['status', 'in', 'Draft,To Receive and Bill,To Bill,To Receive']]), '["name"]'),
+      // Monthly sales: last 6 months of submitted invoices
+      q('Sales Invoice', cfAnd([['docstatus', '=', '1']]), '["name","posting_date","grand_total"]', 2000),
+    ]);
+
+    const [
+      itemsData,
+      soAllData,
+      soPendingData,
+      siAllData,
+      siOutstandingData,
+      payData,
+      poAllData,
+      poPendingData,
+      monthlySalesData,
+    ] = await Promise.all([
+      safeJson(itemsRes),
+      safeJson(soAllRes),
+      safeJson(soPendingRes),
+      safeJson(siAllRes),
+      safeJson(siOutstandingRes),
+      safeJson(payRes),
+      safeJson(poAllRes),
+      safeJson(poPendingRes),
+      safeJson(monthlySalesRes),
+    ]);
+
+    // Calculate outstanding amount
+    const outstandingAmount = (siOutstandingData.data || []).reduce(
+      (sum: number, inv: { outstanding_amount?: number }) => sum + (inv.outstanding_amount || 0),
+      0
+    );
+
+    // Build monthly sales for last 6 months
+    const now = new Date();
+    const monthlyMap: Record<string, number> = {};
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      monthlyMap[key] = 0;
     }
 
-  } catch (error: any) {
-    console.error('Dashboard stats test error:', error);
+    (monthlySalesData.data || []).forEach((inv: { posting_date?: string; grand_total?: number }) => {
+      if (!inv.posting_date) return;
+      const key = inv.posting_date.substring(0, 7);
+      if (key in monthlyMap) {
+        monthlyMap[key] += inv.grand_total || 0;
+      }
+    });
+
+    const monthly_sales = Object.entries(monthlyMap).map(([month, total]) => ({ month, total }));
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        total_items: itemsData.data?.length || 0,
+        total_sales_orders: soAllData.data?.length || 0,
+        pending_orders: soPendingData.data?.length || 0,
+        total_invoices: siAllData.data?.length || 0,
+        outstanding_invoices: siOutstandingData.data?.length || 0,
+        outstanding_amount: outstandingAmount,
+        total_payments: payData.data?.length || 0,
+        total_purchase_orders: poAllData.data?.length || 0,
+        pending_purchase_orders: poPendingData.data?.length || 0,
+        monthly_sales,
+      },
+    });
+  } catch (error: unknown) {
+    console.error('Dashboard error:', error);
     return NextResponse.json(
-      { success: false, message: 'Internal server error', error: error.toString() },
+      { success: false, message: 'Internal server error' },
       { status: 500 }
     );
   }

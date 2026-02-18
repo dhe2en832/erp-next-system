@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { parseErpError } from '../../../../../../utils/erp-error';
 
 const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
 
@@ -71,28 +72,11 @@ export async function POST(
     console.log('Payment Submit Response Data:', data);
 
     if (response.ok) {
-      return NextResponse.json({
-        success: true,
-        data: data.data,
-        message: `Payment Entry ${name} submitted successfully`
-      });
+      return NextResponse.json({ success: true, data: data.data, message: `Payment Entry ${name} berhasil diajukan` });
     } else {
-      // Provide more detailed error information
-      let errorMessage = data.exc_type || data.message || 'Failed to submit payment entry';
-      
-      // Handle specific ERPNext validation errors
-      if (data.exc_type === 'ValidationError') {
-        errorMessage = `Validation Error: ${data.message}`;
-      } else if (data.exc_type === 'MandatoryError') {
-        errorMessage = `Missing Required Field: ${data.message}`;
-      }
-      
-      return NextResponse.json({
-        success: false,
-        message: errorMessage,
-        error: data,
-        status: response.status
-      }, { status: response.status });
+      const errorMessage = parseErpError(data, 'Gagal mengajukan Payment Entry');
+      console.error('Submit Payment error:', { status: response.status, errorMessage });
+      return NextResponse.json({ success: false, message: errorMessage }, { status: response.status });
     }
 
   } catch (error: unknown) {

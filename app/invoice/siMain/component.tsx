@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import dayjs from 'dayjs';
 import LoadingSpinner from '../../components/LoadingSpinner';
@@ -52,6 +52,8 @@ export default function SalesInvoiceMain() {
   const [showPrintDialog, setShowPrintDialog] = useState(false);
   const [savedDocName, setSavedDocName] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const createdDocName = useRef<string | null>(invoiceName || null);
+  const isSubmittingRef = useRef(false);
 
   // Delivery Note Dialog
   const [showDeliveryNoteDialog, setShowDeliveryNoteDialog] = useState(false);
@@ -416,6 +418,8 @@ export default function SalesInvoiceMain() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     setFormLoading(true);
     setError('');
 
@@ -499,9 +503,10 @@ export default function SalesInvoiceMain() {
 
       console.log('[DEBUG] SI Payload:', JSON.stringify(invoicePayload, null, 2));
 
-      // Determine if this is create or update
-      const isUpdate = !!editingInvoice;
-      const url = isUpdate ? `/api/sales/invoices/${encodeURIComponent(editingInvoice)}` : '/api/sales/invoices';
+      // Use PUT if editing OR if doc was already created in this session (retry guard)
+      const existingName = editingInvoice || createdDocName.current;
+      const isUpdate = !!existingName;
+      const url = isUpdate ? `/api/sales/invoices/${encodeURIComponent(existingName!)}` : '/api/sales/invoices';
       const method = isUpdate ? 'PUT' : 'POST';
 
       const response = await fetch(url, {
@@ -513,12 +518,11 @@ export default function SalesInvoiceMain() {
       const data = await response.json();
 
       if (data.success) {
-        const siName = isUpdate ? editingInvoice : (data.data?.name || '');
+        const siName = isUpdate ? existingName! : (data.data?.name || '');
+        if (!editingInvoice) createdDocName.current = siName;
         setSavedDocName(siName);
         setShowPrintDialog(true);
-        if (isUpdate) {
-          setSuccessMessage('Faktur Penjualan berhasil diperbarui');
-        }
+        if (isUpdate) setSuccessMessage('Faktur Penjualan berhasil diperbarui');
       } else {
         const action = isUpdate ? 'memperbarui' : 'menyimpan';
         setError(`Gagal ${action} Faktur Penjualan: ${data.message}`);
@@ -528,6 +532,7 @@ export default function SalesInvoiceMain() {
       setError('Terjadi kesalahan. Silakan coba lagi.');
     } finally {
       setFormLoading(false);
+      isSubmittingRef.current = false;
     }
   };
 

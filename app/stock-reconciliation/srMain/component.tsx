@@ -197,7 +197,7 @@ export default function StockReconciliationMain() {
                             <td className="px-4 py-2">
                               <select className="block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm" value={item.item_code} onChange={(e) => updateItemRow(index, 'item_code', e.target.value)}>
                                 <option value="">Pilih Barang</option>
-                                {items.map((it) => (<option key={it.name} value={it.item_code}>{it.item_name} ({it.item_code})</option>))}
+                                {items.map((it) => (<option key={it.item_code} value={it.item_code}>{it.item_name} ({it.item_code})</option>))}
                               </select>
                             </td>
                             <td className="px-4 py-2">

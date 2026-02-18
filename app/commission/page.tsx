@@ -1,35 +1,28 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import CommissionDashboard from '../../components/CommissionDashboard';
 
 export default function CommissionPage() {
-  // Get company from localStorage on initial render
-  const getInitialCompany = () => {
-    if (typeof window !== 'undefined') {
-      let savedCompany = localStorage.getItem('selected_company');
-      
-      if (!savedCompany) {
-        // Fallback to cookie if localStorage is empty
-        const cookies = document.cookie.split(';');
-        const companyCookie = cookies.find(cookie => cookie.trim().startsWith('selected_company='));
-        if (companyCookie) {
-          savedCompany = companyCookie.split('=')[1];
-          // Store in localStorage for future use
-          if (savedCompany) {
-            localStorage.setItem('selected_company', savedCompany);
-          }
-        }
-      }
-      
-      return savedCompany;
-    }
-    return null;
-  };
-
-  const [selectedCompany] = useState<string | null>(getInitialCompany());
+  const [selectedCompany, setSelectedCompany] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
   const router = useRouter();
+
+  useEffect(() => {
+    let company = localStorage.getItem('selected_company');
+    if (!company) {
+      const companyCookie = document.cookie.split(';').find(c => c.trim().startsWith('selected_company='));
+      if (companyCookie) {
+        company = companyCookie.split('=')[1];
+        if (company) localStorage.setItem('selected_company', company);
+      }
+    }
+    setSelectedCompany(company);
+    setMounted(true);
+  }, []);
+
+  if (!mounted) return null;
 
   if (!selectedCompany) {
     return (

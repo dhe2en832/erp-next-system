@@ -28,33 +28,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Try session authentication first
+    const _ak = process.env.ERP_API_KEY;
+    const _as = process.env.ERP_API_SECRET;
     const sessionCookie = request.headers.get('cookie') || '';
-    
     let erpNextResponse: Response;
-    let headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-
-    // Check if we have session cookie
-    if (sessionCookie) {
-      console.log('Using session authentication');
+    let headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (_ak && _as) {
+      headers['Authorization'] = `token ${_ak}:${_as}`;
+    } else if (sessionCookie) {
       headers['Cookie'] = sessionCookie;
-    } else {
-      // Fallback to API key authentication
-      console.log('Using API key authentication');
-      const apiKey = process.env.ERP_API_KEY;
-      const apiSecret = process.env.ERP_API_SECRET;
-
-      if (!apiKey || !apiSecret) {
-        console.log('ERROR: No authentication available');
-        return NextResponse.json(
-          { success: false, message: 'No authentication available - please login first' },
-          { status: 401 }
-        );
-      }
-
-      headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
     }
 
     // Build filters

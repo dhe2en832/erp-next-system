@@ -7,6 +7,7 @@ import Pagination from '../../components/Pagination';
 import { formatDate, parseDate } from '../../../utils/format';
 import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
 import { Printer } from 'lucide-react';
+import ErrorDialog from '../../../components/ErrorDialog';
 
 interface InvoiceItem {
   item_code: string;
@@ -55,6 +56,7 @@ export default function SalesInvoiceList() {
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [submittingInvoice, setSubmittingInvoice] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState('');
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -156,15 +158,15 @@ export default function SalesInvoiceList() {
       });
       const result = await response.json();
       if (result.success) {
-        setSuccessMessage(`✅ Faktur Penjualan ${invoiceName} berhasil diajukan!\n\n📄 Status: Draft → Belum Lunas\n💰 Dampak Akuntansi:\n• Faktur masuk ke sistem akuntansi\n• Jurnal penjualan otomatis terbuat\n• Piutang pelanggan tercatat`);
+        setSuccessMessage(`✅ Faktur Penjualan ${invoiceName} berhasil diajukan!`);
         fetchInvoices();
         setTimeout(() => setSuccessMessage(''), 5000);
       } else {
-        setError(`Gagal mengajukan Faktur Penjualan: ${result.message}`);
+        setSubmitError(result.message || 'Gagal mengajukan Faktur Penjualan');
       }
     } catch (error) {
       console.error('Error submitting sales invoice:', error);
-      setError('Terjadi kesalahan saat mengajukan Faktur Penjualan');
+      setSubmitError('Terjadi kesalahan saat mengajukan Faktur Penjualan');
     } finally {
       setSubmittingInvoice(null);
     }
@@ -176,6 +178,7 @@ export default function SalesInvoiceList() {
 
   return (
     <div className="container mx-auto px-4 py-8">
+      <ErrorDialog isOpen={!!submitError} title="Gagal Mengajukan" message={submitError} onClose={() => setSubmitError('')} />
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Faktur Penjualan</h1>
         <div className="flex w-full sm:w-auto">

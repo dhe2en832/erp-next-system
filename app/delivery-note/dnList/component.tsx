@@ -7,6 +7,7 @@ import Pagination from '../../components/Pagination';
 import { formatDate, parseDate } from '../../../utils/format';
 import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
 import { Printer } from 'lucide-react';
+import ErrorDialog from '../../../components/ErrorDialog';
 
 interface DeliveryNote {
   name: string;
@@ -32,6 +33,7 @@ export default function DeliveryNoteList() {
   const [statusFilter, setStatusFilter] = useState('');
   const [selectedCompany, setSelectedCompany] = useState('');
   const [error, setError] = useState('');
+  const [submitError, setSubmitError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
   // Pagination states
@@ -136,15 +138,15 @@ export default function DeliveryNoteList() {
       });
       const result = await response.json();
       if (result.success) {
-        setSuccessMessage(`✅ Surat Jalan ${deliveryNoteName} berhasil diajukan!\n\n📦 Status: Draft → Diajukan\n📉 Dampak Stok:\n• Stok telah berkurang dari gudang\n• Barang telah dikirim`);
+        setSuccessMessage(`✅ Surat Jalan ${deliveryNoteName} berhasil diajukan!`);
         fetchDeliveryNotes();
         setTimeout(() => setSuccessMessage(''), 5000);
       } else {
-        setError(result.message || 'Gagal mengajukan Surat Jalan');
+        setSubmitError(result.message || 'Gagal mengajukan Surat Jalan');
       }
     } catch (error) {
       console.error('Error submitting delivery note:', error);
-      setError('Terjadi kesalahan saat mengajukan Surat Jalan');
+      setSubmitError('Terjadi kesalahan saat mengajukan Surat Jalan');
     }
   };
 
@@ -154,6 +156,7 @@ export default function DeliveryNoteList() {
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
+      <ErrorDialog isOpen={!!submitError} title="Gagal Mengajukan" message={submitError} onClose={() => setSubmitError('')} />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Surat Jalan</h1>

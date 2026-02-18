@@ -37,21 +37,12 @@ export async function GET(request: NextRequest) {
     };
 
     // Try session-based authentication first
-    if (sid) {
+    const apiKey = process.env.ERP_API_KEY;
+    const apiSecret = process.env.ERP_API_SECRET;
+    if (apiKey && apiSecret) {
+      headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
+    } else if (sid) {
       headers['Cookie'] = `sid=${sid}`;
-    } else {
-      // Fallback to API key authentication
-      const apiKey = process.env.ERP_API_KEY;
-      const apiSecret = process.env.ERP_API_SECRET;
-      
-      if (apiKey && apiSecret) {
-        headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-      } else {
-        return NextResponse.json(
-          { success: false, message: 'No authentication available' },
-          { status: 401 }
-        );
-      }
     }
 
     const response = await fetch(erpNextUrl, {
@@ -91,6 +82,52 @@ export async function GET(request: NextRequest) {
       { success: false, message: 'Internal server error' },
       { status: 500 }
     );
+  }
+}
+
+export async function PUT(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { name, ...updateData } = body;
+
+    if (!name) {
+      return NextResponse.json({ success: false, message: 'Employee name is required' }, { status: 400 });
+    }
+
+    const sid = request.cookies.get('sid')?.value;
+    const apiKey = process.env.ERP_API_KEY;
+    const apiSecret = process.env.ERP_API_SECRET;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (apiKey && apiSecret) {
+      headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
+    } else if (sid) {
+      headers['Cookie'] = `sid=${sid}`;
+    } else {
+      return NextResponse.json({ success: false, message: 'No authentication available' }, { status: 401 });
+    }
+
+    const response = await fetch(`${ERPNEXT_API_URL}/api/resource/Employee/${encodeURIComponent(name)}`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify(updateData),
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+      return NextResponse.json({ success: true, data: data.data });
+    } else {
+      const errMsg = data._server_messages
+        ? (() => { try { return JSON.parse(JSON.parse(data._server_messages)[0]).message; } catch { return null; } })()
+        : null;
+      return NextResponse.json(
+        { success: false, message: errMsg || data.message || data.exc || 'Failed to update employee' },
+        { status: response.status }
+      );
+    }
+  } catch (error) {
+    console.error('Employee PUT API Error:', error);
+    return NextResponse.json({ success: false, message: 'Internal server error' }, { status: 500 });
   }
 }
 
