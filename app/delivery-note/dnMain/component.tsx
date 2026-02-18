@@ -303,6 +303,7 @@ export default function DeliveryNoteMain() {
           rate: item.rate,
           amount: item.amount,
           uom: item.uom || 'Nos',
+          stock_uom: item.stock_uom || item.uom || 'Nos',
           so_detail: item.name,
           warehouse: item.warehouse || 'Stores - EN',
           delivered_qty: item.qty,
@@ -324,12 +325,6 @@ export default function DeliveryNoteMain() {
         })) || [];
         setSalesTeam(loadedSalesTeam);
         
-        // Debug logging
-        console.log('[DEBUG] SO Data loaded:', {
-          salesOrder: order.name,
-          payment_terms_template: order.payment_terms_template,
-          sales_team: order.sales_team
-        });
       } else {
         setError('Gagal memuat detail pesanan penjualan');
       }

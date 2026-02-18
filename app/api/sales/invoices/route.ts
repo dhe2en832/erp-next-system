@@ -8,6 +8,7 @@ export async function GET(request: NextRequest) {
     
     const { searchParams } = new URL(request.url);
     const company = searchParams.get('company');
+    const order_by = searchParams.get('order_by') || 'creation desc';
     const search = searchParams.get('search');
     const documentNumber = searchParams.get('documentNumber');
     const status = searchParams.get('status');
@@ -59,7 +60,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Build URL with filters
-    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Sales Invoice?fields=["name","customer","customer_name","posting_date","due_date","grand_total","outstanding_amount","paid_amount","status","items","custom_total_komisi_sales","custom_notes_si"]&limit_page_length=${limit}&start=${start}&order_by=posting_date desc`;
+    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Sales Invoice?fields=["name","customer","customer_name","posting_date","grand_total","status","docstatus","custom_total_komisi_sales","creation"]&limit_page_length=${limit}&limit_start=${start}&order_by=${order_by}`;
     
     if (filtersArray.length > 0) {
       erpNextUrl += `&filters=${encodeURIComponent(JSON.stringify(filtersArray))}`;

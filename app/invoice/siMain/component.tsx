@@ -60,6 +60,7 @@ export default function SalesInvoiceMain() {
   const [deliveryNotes, setDeliveryNotes] = useState<any[]>([]);
   const [deliveryNotesLoading, setDeliveryNotesLoading] = useState(false);
   const [deliveryNotesError, setDeliveryNotesError] = useState('');
+  const [deliveryNoteSearch, setDeliveryNoteSearch] = useState('');
 
   const [salesTeam, setSalesTeam] = useState<SalesTeamMember[]>([]);
 
@@ -822,33 +823,49 @@ export default function SalesInvoiceMain() {
                 </div>
               ) : (
                 <div className="bg-white shadow overflow-hidden sm:rounded-md">
+                  <div className="p-4 border-b border-gray-200">
+                    <input
+                      type="text"
+                      value={deliveryNoteSearch}
+                      onChange={(e) => setDeliveryNoteSearch(e.target.value)}
+                      placeholder="Cari nomor surat jalan atau pelanggan..."
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                  </div>
                   <ul className="divide-y divide-gray-200 max-h-96 overflow-y-auto">
-                    {deliveryNotes.map((dn: { name: string; customer: string; customer_name?: string; status: string; grand_total?: number; posting_date?: string }) => (
-                      <li key={dn.name} onClick={() => handleSelectDeliveryNote(dn.name)} className="cursor-pointer hover:bg-gray-50 transition-colors">
-                        <div className="px-4 py-4 sm:px-6">
-                          <div className="flex items-center justify-between">
-                            <div className="flex-1">
-                              <p className="text-sm font-medium text-indigo-600 truncate">{dn.name}</p>
-                              <p className="mt-1 text-sm text-gray-900">Pelanggan: {dn.customer_name || dn.customer}</p>
+                    {deliveryNotes
+                      .filter((dn: { name: string; customer: string; customer_name?: string }) => {
+                        const term = deliveryNoteSearch.trim().toLowerCase();
+                        if (!term) return true;
+                        const customerLabel = (dn.customer_name || dn.customer || '').toLowerCase();
+                        return dn.name.toLowerCase().includes(term) || customerLabel.includes(term);
+                      })
+                      .map((dn: { name: string; customer: string; customer_name?: string; status: string; grand_total?: number; posting_date?: string }) => (
+                        <li key={dn.name} onClick={() => handleSelectDeliveryNote(dn.name)} className="cursor-pointer hover:bg-gray-50 transition-colors">
+                          <div className="px-4 py-4 sm:px-6">
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1">
+                                <p className="text-sm font-medium text-indigo-600 truncate">{dn.name}</p>
+                                <p className="mt-1 text-sm text-gray-900">Pelanggan: {dn.customer_name || dn.customer}</p>
+                              </div>
+                              <div className="ml-4 flex-shrink-0">
+                                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                  dn.status === 'To Bill' ? 'bg-green-100 text-green-800'
+                                  : dn.status === 'Submitted' ? 'bg-blue-100 text-blue-800'
+                                  : dn.status === 'Completed' ? 'bg-purple-100 text-purple-800'
+                                  : 'bg-gray-100 text-gray-800'
+                                }`}>
+                                  {dn.status}
+                                </span>
+                              </div>
                             </div>
-                            <div className="ml-4 flex-shrink-0">
-                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                dn.status === 'To Bill' ? 'bg-green-100 text-green-800'
-                                : dn.status === 'Submitted' ? 'bg-blue-100 text-blue-800'
-                                : dn.status === 'Completed' ? 'bg-purple-100 text-purple-800'
-                                : 'bg-gray-100 text-gray-800'
-                              }`}>
-                                {dn.status}
-                              </span>
+                            <div className="mt-2 sm:flex sm:justify-between">
+                              <p className="flex items-center text-sm text-gray-500">Tanggal: {dn.posting_date}</p>
+                              <span className="font-medium text-sm text-gray-500">Total: Rp {dn.grand_total ? dn.grand_total.toLocaleString('id-ID') : '0'}</span>
                             </div>
                           </div>
-                          <div className="mt-2 sm:flex sm:justify-between">
-                            <p className="flex items-center text-sm text-gray-500">Tanggal: {dn.posting_date}</p>
-                            <span className="font-medium text-sm text-gray-500">Total: Rp {dn.grand_total ? dn.grand_total.toLocaleString('id-ID') : '0'}</span>
-                          </div>
-                        </div>
-                      </li>
-                    ))}
+                        </li>
+                      ))}
                   </ul>
                 </div>
               )}
