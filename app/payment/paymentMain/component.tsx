@@ -428,12 +428,15 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
 
               if (data.success && data.data) {
                 const invoice = data.data;
+                // Draft payments don't reduce ERPNext outstanding, so use outstanding as-is.
+                // Cap at grand_total to avoid exceeding invoice value.
+                const editableOutstanding = Math.min(invoice.outstanding_amount || 0, invoice.grand_total || 0);
                 return {
                   name: ref.reference_name,
                   invoice_name: ref.reference_name,
                   invoice_total: invoice.grand_total || 0,
-                  outstanding_amount: invoice.outstanding_amount || 0,
-                  visual_outstanding: (invoice.outstanding_amount || 0) - (ref.allocated_amount || 0),
+                  outstanding_amount: editableOutstanding,
+                  visual_outstanding: editableOutstanding,
                   allocated_amount: ref.allocated_amount || 0,
                   grand_total: invoice.grand_total || 0,
                   due_date: invoice.due_date || '',
@@ -445,7 +448,7 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
                 return {
                   name: ref.reference_name, invoice_name: ref.reference_name,
                   invoice_total: 0, outstanding_amount: ref.allocated_amount || 0,
-                  visual_outstanding: 0, allocated_amount: ref.allocated_amount || 0,
+                  visual_outstanding: ref.allocated_amount || 0, allocated_amount: ref.allocated_amount || 0,
                   grand_total: 0, due_date: '', customer: '', posting_date: '', status: 'Unknown'
                 };
               }
@@ -453,7 +456,7 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
               return {
                 name: ref.reference_name, invoice_name: ref.reference_name,
                 invoice_total: 0, outstanding_amount: ref.allocated_amount || 0,
-                visual_outstanding: 0, allocated_amount: ref.allocated_amount || 0,
+                visual_outstanding: ref.allocated_amount || 0, allocated_amount: ref.allocated_amount || 0,
                 grand_total: 0, due_date: '', customer: '', posting_date: '', status: 'Unknown'
               };
             }
@@ -476,10 +479,13 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
 
               if (data.success && data.data) {
                 const invoice = data.data;
+                // Draft payments don't reduce ERPNext outstanding, so use outstanding as-is.
+                // Cap at grand_total to avoid exceeding invoice value.
+                const editableOutstanding = Math.min(invoice.outstanding_amount || 0, invoice.grand_total || 0);
                 return {
                   name: ref.reference_name, invoice_name: ref.reference_name,
-                  invoice_total: invoice.grand_total || 0, outstanding_amount: invoice.outstanding_amount || 0,
-                  visual_outstanding: (invoice.outstanding_amount || 0) - (ref.allocated_amount || 0),
+                  invoice_total: invoice.grand_total || 0, outstanding_amount: editableOutstanding,
+                  visual_outstanding: editableOutstanding,
                   allocated_amount: ref.allocated_amount || 0, grand_total: invoice.grand_total || 0,
                   due_date: invoice.due_date || '', supplier: invoice.supplier || '',
                   supplier_name: invoice.supplier_name || '', posting_date: invoice.posting_date || '',
@@ -489,7 +495,7 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
                 return {
                   name: ref.reference_name, invoice_name: ref.reference_name,
                   invoice_total: 0, outstanding_amount: ref.allocated_amount || 0,
-                  visual_outstanding: 0, allocated_amount: ref.allocated_amount || 0,
+                  visual_outstanding: ref.allocated_amount || 0, allocated_amount: ref.allocated_amount || 0,
                   grand_total: 0, due_date: '', supplier: '', supplier_name: '',
                   posting_date: '', status: 'Unknown'
                 };
@@ -498,7 +504,7 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
               return {
                 name: ref.reference_name, invoice_name: ref.reference_name,
                 invoice_total: 0, outstanding_amount: ref.allocated_amount || 0,
-                visual_outstanding: 0, allocated_amount: ref.allocated_amount || 0,
+                visual_outstanding: ref.allocated_amount || 0, allocated_amount: ref.allocated_amount || 0,
                 grand_total: 0, due_date: '', supplier: '', supplier_name: '',
                 posting_date: '', status: 'Unknown'
               };

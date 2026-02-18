@@ -194,7 +194,7 @@ export default function Navbar() {
         { name: 'Barang', href: '/items' },
         { name: 'Gudang', href: '/warehouse' },
         { name: 'Entri Stok', href: '/stock-entry' },
-        { name: 'Rekonsiliasi Stok', href: '/stock-reconciliation' },
+        // { name: 'Rekonsiliasi Stok', href: '/stock-reconciliation' },
         // { name: 'Manajemen Stok', href: '/stock-management' }
       ]
     },

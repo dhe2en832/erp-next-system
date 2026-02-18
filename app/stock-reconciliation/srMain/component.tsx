@@ -19,13 +19,13 @@ export default function StockReconciliationMain() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const entryName = searchParams.get('name');
+  const isEditMode = !!entryName;
 
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [items, setItems] = useState<Item[]>([]);
   const [selectedCompany, setSelectedCompany] = useState('');
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
-  const [isViewMode] = useState(!!entryName);
   const [newReconciliation, setNewReconciliation] = useState({
     warehouse: '',
     posting_date: new Date().toISOString().split('T')[0],
@@ -33,6 +33,35 @@ export default function StockReconciliationMain() {
     purpose: 'Stock Reconciliation',
     items: [{ item_code: '', current_qty: 0, qty: 0 }]
   });
+
+  // Fetch detail when editing
+  const fetchDetail = useCallback(async () => {
+    if (!entryName) return;
+    try {
+      const response = await fetch(`/api/inventory/reconciliation?name=${encodeURIComponent(entryName)}`);
+      const data = await response.json();
+      if (data.success && data.data) {
+        const rec = data.data;
+        setSelectedCompany(rec.company || selectedCompany);
+        setNewReconciliation({
+          warehouse: rec.warehouse || '',
+          posting_date: rec.posting_date || new Date().toISOString().split('T')[0],
+          posting_time: (rec.posting_time || new Date().toTimeString().split(' ')[0]).substring(0, 5),
+          purpose: rec.purpose || 'Stock Reconciliation',
+          items: (rec.items || []).map((it: any) => ({
+            item_code: it.item_code || '',
+            current_qty: it.current_qty || 0,
+            qty: it.qty || 0,
+          }))
+        });
+      } else {
+        setError(data.message || 'Gagal memuat detail rekonsiliasi');
+      }
+    } catch (err) {
+      console.error('Gagal memuat detail rekonsiliasi:', err);
+      setError('Gagal memuat detail rekonsiliasi');
+    }
+  }, [entryName, selectedCompany]);
 
   useEffect(() => {
     const savedCompany = localStorage.getItem('selected_company');
@@ -42,6 +71,12 @@ export default function StockReconciliationMain() {
       router.push('/select-company');
     }
   }, [router]);
+
+  useEffect(() => {
+    if (entryName) {
+      fetchDetail();
+    }
+  }, [entryName, fetchDetail]);
 
   const fetchWarehouses = useCallback(async () => {
     if (!selectedCompany) return;
@@ -92,26 +127,28 @@ export default function StockReconciliationMain() {
     }));
   };
 
-  const handleCreateReconciliation = async () => {
+  const handleSave = async () => {
     if (!selectedCompany || !newReconciliation.warehouse) {
       setError('Gudang harus dipilih');
       return;
     }
     try {
-      const response = await fetch('/api/inventory/reconciliation', {
-        method: 'POST',
+      const payload = { ...newReconciliation, company: selectedCompany };
+      const response = await fetch('/api/inventory/reconciliation' + (isEditMode ? '' : ''), {
+        method: isEditMode ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...newReconciliation, company: selectedCompany }),
+        body: JSON.stringify(isEditMode ? { name: entryName, ...payload } : payload),
       });
       const data = await response.json();
       if (data.success) {
-        setSuccessMessage(`Rekonsiliasi Stok ${data.data?.name || ''} berhasil dibuat!`);
+        const name = data.data?.name || entryName || '';
+        setSuccessMessage(`Rekonsiliasi Stok ${name} berhasil ${isEditMode ? 'diperbarui' : 'dibuat'}!`);
         setTimeout(() => router.push('/stock-reconciliation/srList'), 2000);
       } else {
-        setError(data.message || 'Gagal membuat rekonsiliasi stok');
+        setError(data.message || `Gagal ${isEditMode ? 'memperbarui' : 'membuat'} rekonsiliasi stok`);
       }
     } catch {
-      setError('Terjadi kesalahan saat membuat rekonsiliasi stok');
+      setError(`Terjadi kesalahan saat ${isEditMode ? 'memperbarui' : 'membuat'} rekonsiliasi stok`);
     }
   };
 
@@ -122,10 +159,10 @@ export default function StockReconciliationMain() {
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 py-6">
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
-                {isViewMode ? `Lihat Rekonsiliasi: ${entryName}` : 'Buat Rekonsiliasi Stok Baru'}
+                {isEditMode ? `Edit Rekonsiliasi: ${entryName}` : 'Buat Rekonsiliasi Stok Baru'}
               </h1>
               <p className="mt-1 text-sm text-gray-600">
-                {isViewMode ? 'Detail rekonsiliasi stok' : 'Sesuaikan kuantitas stok'}
+                {isEditMode ? 'Perbarui rekonsiliasi stok' : 'Sesuaikan kuantitas stok'}
               </p>
             </div>
             <button onClick={() => router.push('/stock-reconciliation/srList')} className="w-full sm:w-auto bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 min-h-[44px]">
@@ -146,7 +183,7 @@ export default function StockReconciliationMain() {
         </div>
       )}
 
-      {!isViewMode && (
+      {(
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
           <div className="bg-white shadow rounded-lg p-6">
             <div className="space-y-4">
@@ -224,7 +261,7 @@ export default function StockReconciliationMain() {
 
               <div className="flex flex-col sm:flex-row justify-end gap-2 pt-4">
                 <button type="button" onClick={() => router.push('/stock-reconciliation/srList')} className="w-full sm:w-auto bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400 min-h-[44px]">Batal</button>
-                <button type="button" onClick={handleCreateReconciliation} className="w-full sm:w-auto bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 min-h-[44px]">Buat Rekonsiliasi</button>
+                <button type="button" onClick={handleSave} className="w-full sm:w-auto bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 min-h-[44px]">{isEditMode ? 'Simpan Perubahan' : 'Buat Rekonsiliasi'}</button>
               </div>
             </div>
           </div>

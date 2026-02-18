@@ -689,7 +689,7 @@ function TableSimple({ title, columns, rows }: { title: string; columns: TableCo
           </thead>
           <tbody className="divide-y divide-gray-100">
             {rows.map((row, idx) => (
-              <tr key={row[columns[0]?.key] ?? idx} className="hover:bg-gray-50">
+              <tr key={idx} className="hover:bg-gray-50">
                 {columns.map((col) => (
                   <td key={col.key} className="px-3 py-2">
                     {Array.isArray(row[col.key])

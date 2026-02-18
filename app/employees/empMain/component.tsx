@@ -53,6 +53,8 @@ export default function EmployeeMain() {
     personal_email: '',
     status: 'Active',
   });
+  const [designations, setDesignations] = useState<string[]>([]);
+  const [departments, setDepartments] = useState<string[]>([]);
 
   // set default company if available from local storage or query (best effort)
   useEffect(() => {
@@ -120,6 +122,38 @@ export default function EmployeeMain() {
       fetchEmployee();
     }
   }, [isEdit, fetchEmployee]);
+
+  // Fetch available designations to prevent invalid link errors
+  useEffect(() => {
+    const fetchDesignations = async () => {
+      try {
+        const res = await fetch('/api/hr/designations', { credentials: 'include' });
+        const data = await res.json();
+        if (data.success && Array.isArray(data.data)) {
+          setDesignations(data.data);
+        }
+      } catch (err) {
+        console.warn('Gagal memuat daftar jabatan:', err);
+      }
+    };
+    fetchDesignations();
+  }, []);
+
+  // Fetch available departments
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      try {
+        const res = await fetch('/api/hr/departments', { credentials: 'include' });
+        const data = await res.json();
+        if (data.success && Array.isArray(data.data)) {
+          setDepartments(data.data);
+        }
+      } catch (err) {
+        console.warn('Gagal memuat daftar departemen:', err);
+      }
+    };
+    fetchDepartments();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -291,27 +325,33 @@ export default function EmployeeMain() {
           {/* Department */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
-            <input
-              type="text"
+            <select
               name="department"
               value={formData.department}
               onChange={handleChange}
               className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              placeholder="Contoh: Sales, Marketing"
-            />
+            >
+              <option value="">Pilih departemen (opsional)</option>
+              {departments.map((d) => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
           </div>
 
           {/* Designation */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Jabatan</label>
-            <input
-              type="text"
+            <select
               name="designation"
               value={formData.designation}
               onChange={handleChange}
               className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              placeholder="Contoh: Sales Executive"
-            />
+            >
+              <option value="">Pilih jabatan (opsional)</option>
+              {designations.map((d) => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
           </div>
 
           {/* Gender */}
