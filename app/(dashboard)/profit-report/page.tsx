@@ -13,6 +13,7 @@ import {
 } from "recharts";
 import * as XLSX from "xlsx";
 import BrowserStyleDatePicker from "@/components/BrowserStyleDatePicker";
+import PrintPreviewModal from "@/components/PrintPreviewModal";
 
 interface ProfitParams {
   from_date: string;
@@ -55,6 +56,7 @@ export default function ProfitReportPage() {
   const [customerList, setCustomerList] = useState<string[]>([]);
   const [showSalesPicker, setShowSalesPicker] = useState(false);
   const [showCustomerPicker, setShowCustomerPicker] = useState(false);
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [searchSales, setSearchSales] = useState("");
   const [searchCustomer, setSearchCustomer] = useState("");
 
@@ -159,6 +161,15 @@ export default function ProfitReportPage() {
   const salesOptions = useMemo(() => salesList.filter(Boolean), [salesList]);
   const customerOptions = useMemo(() => customerList.filter(Boolean), [customerList]);
 
+  const printParams = useMemo(() => {
+    const p = new URLSearchParams({ mode: params.mode });
+    if (params.company) p.set("company", params.company);
+    if (params.from_date) p.set("from_date", params.from_date);
+    if (params.to_date) p.set("to_date", params.to_date);
+    return p;
+  }, [params.mode, params.company, params.from_date, params.to_date]);
+  const printUrl = `/reports/profit/print?${printParams.toString()}`;
+
   // Fetch master Sales Person list
   useEffect(() => {
     const fetchSales = async () => {
@@ -233,13 +244,7 @@ export default function ProfitReportPage() {
             {loading ? "Memuat..." : "Refresh"}
           </button>
           <button
-            onClick={() => {
-              const p = new URLSearchParams({ mode: params.mode });
-              if (params.company) p.set('company', params.company);
-              if (params.from_date) p.set('from_date', params.from_date);
-              if (params.to_date) p.set('to_date', params.to_date);
-              window.open(`/reports/profit/print?${p}`, '_blank');
-            }}
+            onClick={() => setShowPrintPreview(true)}
             className="px-4 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-800 flex items-center gap-2"
             disabled={!data}
           >
@@ -255,6 +260,22 @@ export default function ProfitReportPage() {
           </button>
         </div>
       </div>
+
+      {showPrintPreview && (
+        <PrintPreviewModal
+          title={`Laporan Profit & Komisi — ${params.company || 'Perusahaan'}`}
+          onClose={() => setShowPrintPreview(false)}
+          printUrl={printUrl}
+          useContentFrame={false}
+          allowPaperSettings={false}
+        >
+          <iframe
+            src={printUrl}
+            title="Pratinjau Laporan Profit & Komisi"
+            style={{ width: '210mm', height: '297mm', border: 0, background: '#fff', boxShadow: '0 8px 40px rgba(0,0,0,0.45)' }}
+          />
+        </PrintPreviewModal>
+      )}
 
       {/* Filter */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-white p-4 rounded-md shadow">

@@ -2,6 +2,8 @@ export default function ReportPrintLayout({ children }: { children: React.ReactN
   return (
     <>
       <style>{`
+        nav { display: none !important; }
+        aside { display: none !important; }
         header { display: none !important; }
         main { padding: 0 !important; background: #e5e7eb !important; min-height: 100vh; }
         body { margin: 0 !important; padding: 0 !important; }

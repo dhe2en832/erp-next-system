@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import PrintPreviewModal from '../../../components/PrintPreviewModal';
 
 interface CashFlowEntry {
   account: string;
@@ -17,6 +18,7 @@ export default function CashFlowPage() {
   const [data, setData] = useState<CashFlowEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState('');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
@@ -80,6 +82,11 @@ export default function CashFlowPage() {
   const totalDebit = filteredData.reduce((sum, e) => sum + (e.debit || 0), 0);
   const totalCredit = filteredData.reduce((sum, e) => sum + (e.credit || 0), 0);
 
+  const printParams = new URLSearchParams({ company: selectedCompany });
+  if (fromDate) printParams.set('from_date', fromDate);
+  if (toDate) printParams.set('to_date', toDate);
+  const printUrl = `/reports/cash-flow/print?${printParams.toString()}`;
+
   if (loading) return <LoadingSpinner message="Memuat data alur kas..." />;
 
   return (
@@ -90,18 +97,29 @@ export default function CashFlowPage() {
           <p className="text-sm text-gray-500">Pergerakan kas masuk dan keluar</p>
         </div>
         <button
-          onClick={() => {
-            const params = new URLSearchParams({ company: selectedCompany });
-            if (fromDate) params.set('from_date', fromDate);
-            if (toDate) params.set('to_date', toDate);
-            window.open(`/reports/cash-flow/print?${params}`, '_blank');
-          }}
+          onClick={() => setShowPrintPreview(true)}
           className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm flex items-center gap-2"
         >
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
           Cetak Laporan
         </button>
       </div>
+
+      {showPrintPreview && (
+        <PrintPreviewModal
+          title={`Laporan Alur Kas — ${selectedCompany}`}
+          onClose={() => setShowPrintPreview(false)}
+          printUrl={printUrl}
+          useContentFrame={false}
+          allowPaperSettings={false}
+        >
+          <iframe
+            src={printUrl}
+            title="Pratinjau Laporan Alur Kas"
+            style={{ width: '210mm', height: '297mm', border: 0, background: '#fff', boxShadow: '0 8px 40px rgba(0,0,0,0.45)' }}
+          />
+        </PrintPreviewModal>
+      )}
 
       {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{error}</div>}
 

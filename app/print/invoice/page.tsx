@@ -116,7 +116,13 @@ function InvoicePrint() {
         </div>
       </div>
       {showPreview && (
-        <PrintPreviewModal title={docTitle} onClose={() => setShowPreview(false)}>
+        <PrintPreviewModal
+          title={docTitle}
+          onClose={() => setShowPreview(false)}
+          fixedPageSizeMm={{ width: 215, height: 140 }}
+          allowPaperSettings={false}
+          contentFramePadding="14px 16px"
+        >
           {layoutContent}
         </PrintPreviewModal>
       )}

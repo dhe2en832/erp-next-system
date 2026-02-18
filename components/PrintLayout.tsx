@@ -97,7 +97,6 @@ export default function PrintLayout({
     <>
       <style>{`
         @media print {
-          @page { size: A4; margin: 10mm 12mm; }
           body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           .no-print { display: none !important; }
         }
@@ -106,9 +105,10 @@ export default function PrintLayout({
           font-size: 10px;
           color: #111;
           background: #fff;
-          max-width: 794px;
+          width: 100%;
+          max-width: 100%;
           margin: 0 auto;
-          padding: 14px 20px 16px;
+          padding: 10px 12px 12px;
           box-sizing: border-box;
         }
         .print-header {

@@ -43,12 +43,20 @@ function PurchaseOrderPrint() {
 
   const fetchData = async (docName: string) => {
     try {
-      const response = await fetch(`/api/purchase/orders/${encodeURIComponent(docName)}`, { credentials: 'include' });
+      const companyFromQuery = searchParams.get('company') || '';
+      const companyFromStorage = typeof window !== 'undefined' ? localStorage.getItem('selected_company') || '' : '';
+      const company = companyFromQuery || companyFromStorage;
+
+      const qs = new URLSearchParams();
+      if (company) qs.set('company', company);
+      const endpoint = `/api/purchase/orders/${encodeURIComponent(docName)}${qs.toString() ? `?${qs.toString()}` : ''}`;
+
+      const response = await fetch(endpoint, { credentials: 'include' });
       const result = await response.json();
       if (result.success && result.data) {
         setData(result.data);
       } else {
-        setError('Gagal memuat data pesanan pembelian');
+        setError(result.message || 'Gagal memuat data pesanan pembelian');
       }
     } catch { setError('Gagal memuat data'); }
     finally { setLoading(false); }
@@ -115,7 +123,13 @@ function PurchaseOrderPrint() {
         </div>
       </div>
       {showPreview && (
-        <PrintPreviewModal title={docTitle} onClose={() => setShowPreview(false)}>
+        <PrintPreviewModal
+          title={docTitle}
+          onClose={() => setShowPreview(false)}
+          fixedPageSizeMm={{ width: 215, height: 140 }}
+          allowPaperSettings={false}
+          contentFramePadding="14px 16px"
+        >
           {layoutContent}
         </PrintPreviewModal>
       )}

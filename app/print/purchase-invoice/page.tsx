@@ -39,10 +39,13 @@ function PurchaseInvoicePrint() {
     try {
       const response = await fetch(`/api/purchase/invoices/detail?pi=${encodeURIComponent(docName)}`, { credentials: 'include' });
       const result = await response.json();
-      if (result.success && result.data) {
-        setData(result.data);
+      const payload = result?.data || result?.message?.data;
+      const ok = Boolean(result?.success || result?.message?.success);
+
+      if (ok && payload) {
+        setData(payload);
       } else {
-        setError('Gagal memuat data faktur pembelian');
+        setError(result?.message?.message || result?.message || 'Gagal memuat data faktur pembelian');
       }
     } catch { setError('Gagal memuat data'); }
     finally { setLoading(false); }
@@ -112,7 +115,13 @@ function PurchaseInvoicePrint() {
         </div>
       </div>
       {showPreview && (
-        <PrintPreviewModal title={docTitle} onClose={() => setShowPreview(false)}>
+        <PrintPreviewModal
+          title={docTitle}
+          onClose={() => setShowPreview(false)}
+          fixedPageSizeMm={{ width: 215, height: 140 }}
+          allowPaperSettings={false}
+          contentFramePadding="14px 16px"
+        >
           {layoutContent}
         </PrintPreviewModal>
       )}

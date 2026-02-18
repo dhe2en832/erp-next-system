@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import PrintPreviewModal from '../../../components/PrintPreviewModal';
 import { formatDate } from '../../../utils/format';
 import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
 
@@ -31,6 +32,7 @@ export default function AccountsReceivablePage() {
   const [data, setData] = useState<AREntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState('');
   const [filterCustomer, setFilterCustomer] = useState('');
   const [filterInvoice, setFilterInvoice] = useState('');
@@ -83,6 +85,11 @@ export default function AccountsReceivablePage() {
 
   const totalOutstanding = filteredData.reduce((sum, entry) => sum + (entry.outstanding_amount || 0), 0);
 
+  const printParams = new URLSearchParams({ company: selectedCompany });
+  if (dateFilter.from_date) printParams.set('from_date', dateFilter.from_date);
+  if (dateFilter.to_date) printParams.set('to_date', dateFilter.to_date);
+  const printUrl = `/reports/accounts-receivable/print?${printParams.toString()}`;
+
   if (loading) return <LoadingSpinner message="Memuat data piutang usaha..." />;
 
   return (
@@ -93,18 +100,29 @@ export default function AccountsReceivablePage() {
           <p className="text-sm text-gray-500">Daftar piutang usaha (Accounts Receivable)</p>
         </div>
         <button
-          onClick={() => {
-            const params = new URLSearchParams({ company: selectedCompany });
-            if (dateFilter.from_date) params.set('from_date', dateFilter.from_date);
-            if (dateFilter.to_date) params.set('to_date', dateFilter.to_date);
-            window.open(`/reports/accounts-receivable/print?${params}`, '_blank');
-          }}
+          onClick={() => setShowPrintPreview(true)}
           className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm flex items-center gap-2"
         >
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
           Cetak Laporan
         </button>
       </div>
+
+      {showPrintPreview && (
+        <PrintPreviewModal
+          title={`Piutang Usaha — ${selectedCompany}`}
+          onClose={() => setShowPrintPreview(false)}
+          printUrl={printUrl}
+          useContentFrame={false}
+          allowPaperSettings={false}
+        >
+          <iframe
+            src={printUrl}
+            title="Pratinjau Piutang Usaha"
+            style={{ width: '210mm', height: '297mm', border: 0, background: '#fff', boxShadow: '0 8px 40px rgba(0,0,0,0.45)' }}
+          />
+        </PrintPreviewModal>
+      )}
 
       {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{error}</div>}
 

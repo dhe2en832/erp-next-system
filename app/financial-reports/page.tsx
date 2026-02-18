@@ -148,7 +148,7 @@ export default function FinancialReportsPage() {
 
     if (activeTab === 'trial-balance') {
       return (
-        <div>
+        <div className="fin-print">
           <div className="doc-header">
             <div className="doc-company">{company}</div>
             <div className="doc-title">NERACA SALDO</div>
@@ -198,7 +198,7 @@ export default function FinancialReportsPage() {
                 {rows.map(e => (
                   <tr key={e.account}>
                     <td style={{paddingLeft:'16px'}}>{e.account_name}</td>
-                    <td className="right">{fmtCurPrint(isCredit ? Math.abs(e.balance) : e.balance)}</td>
+                    <td className="right" style={{ width: '36%' }}>{fmtCurPrint(isCredit ? Math.abs(e.balance) : e.balance)}</td>
                   </tr>
                 ))}
               </tbody><tfoot>
@@ -212,7 +212,7 @@ export default function FinancialReportsPage() {
         });
 
       return (
-        <div>
+        <div className="fin-print">
           <div className="doc-header">
             <div className="doc-company">{company}</div>
             <div className="doc-title">NERACA</div>
@@ -263,7 +263,7 @@ export default function FinancialReportsPage() {
       const totOpex = opexEntries.reduce((s, e) => s + e.amount, 0);
       const net = gross - totOpex;
       return (
-        <div>
+        <div className="fin-print">
           <div className="doc-header">
             <div className="doc-company">{company}</div>
             <div className="doc-title">LAPORAN LABA RUGI</div>
@@ -272,7 +272,7 @@ export default function FinancialReportsPage() {
           <div className="section-header">PENDAPATAN</div>
           <table>
             <tbody>{incomeEntries.map(e => (
-              <tr key={e.account}><td style={{paddingLeft:'16px'}}>{e.account_name}</td><td className="right">{fmtCurPrint(e.amount)}</td></tr>
+              <tr key={e.account}><td style={{paddingLeft:'16px'}}>{e.account_name}</td><td className="right" style={{ width: '36%' }}>{fmtCurPrint(e.amount)}</td></tr>
             ))}</tbody>
             <tfoot><tr className="subtotal-row"><td><strong>Jumlah Pendapatan</strong></td><td className="right"><strong>{fmtCurPrint(totInc)}</strong></td></tr></tfoot>
           </table>
@@ -280,7 +280,7 @@ export default function FinancialReportsPage() {
             <div className="section-header" style={{marginTop:'8px'}}>HARGA POKOK PENJUALAN</div>
             <table>
               <tbody>{hppEntries.map(e => (
-                <tr key={e.account}><td style={{paddingLeft:'16px'}}>{e.account_name}</td><td className="right">{fmtCurPrint(e.amount)}</td></tr>
+                <tr key={e.account}><td style={{paddingLeft:'16px'}}>{e.account_name}</td><td className="right" style={{ width: '36%' }}>{fmtCurPrint(e.amount)}</td></tr>
               ))}</tbody>
               <tfoot><tr className="subtotal-row"><td><strong>Jumlah HPP</strong></td><td className="right"><strong>{fmtCurPrint(totHPP)}</strong></td></tr></tfoot>
             </table>
@@ -292,7 +292,7 @@ export default function FinancialReportsPage() {
             <div className="section-header" style={{marginTop:'8px'}}>BEBAN OPERASIONAL</div>
             <table>
               <tbody>{opexEntries.map(e => (
-                <tr key={e.account}><td style={{paddingLeft:'16px'}}>{e.account_name}</td><td className="right">{fmtCurPrint(e.amount)}</td></tr>
+                <tr key={e.account}><td style={{paddingLeft:'16px'}}>{e.account_name}</td><td className="right" style={{ width: '36%' }}>{fmtCurPrint(e.amount)}</td></tr>
               ))}</tbody>
               <tfoot><tr className="subtotal-row"><td><strong>Jumlah Beban Operasional</strong></td><td className="right"><strong>{fmtCurPrint(totOpex)}</strong></td></tr></tfoot>
             </table>
@@ -325,6 +325,12 @@ export default function FinancialReportsPage() {
       {showPrint && (
         <PrintPreviewModal title={`${tabLabel} — ${company}`} onClose={() => setShowPrint(false)}>
           <>
+            <style>{`
+              .fin-print table { table-layout: auto !important; width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+              .fin-print th, .fin-print td { padding: 4px 6px; vertical-align: top; }
+              .fin-print .doc-header { margin-bottom: 12px; }
+              .fin-print .section-header { margin-top: 10px; margin-bottom: 4px; }
+            `}</style>
             {renderPrint()}
             <div style={{marginTop:'20px',borderTop:'1px solid #d1d5db',paddingTop:'4px',fontSize:'8px',color:'#9ca3af',textAlign:'center'}}>
               Dicetak oleh sistem &mdash; {new Date().toLocaleDateString('id-ID', {day:'2-digit',month:'long',year:'numeric'})}

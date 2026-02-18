@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import Pagination from '../../components/Pagination';
+import PrintPreviewModal from '../../../components/PrintPreviewModal';
 import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
 
 interface StockEntry {
@@ -23,6 +24,7 @@ export default function StockBalancePage() {
   const [data, setData] = useState<StockEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState('');
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   
@@ -125,6 +127,9 @@ export default function StockBalancePage() {
   const totalQty = filteredData.reduce((sum, e) => sum + (e.actual_qty || 0), 0);
   const totalValue = filteredData.reduce((sum, e) => sum + (e.stock_value || 0), 0);
 
+  const printParams = new URLSearchParams({ company: selectedCompany });
+  const printUrl = `/reports/stock-balance/print?${printParams.toString()}`;
+
   // Memoized handlers to prevent input losing focus
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(e.target.value);
@@ -171,16 +176,29 @@ export default function StockBalancePage() {
           <p className="text-sm text-gray-500">Ringkasan saldo stok per gudang</p>
         </div>
         <button
-          onClick={() => {
-            const params = new URLSearchParams({ company: selectedCompany });
-            window.open(`/reports/stock-balance/print?${params}`, '_blank');
-          }}
+          onClick={() => setShowPrintPreview(true)}
           className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm flex items-center gap-2"
         >
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
           Cetak Laporan
         </button>
       </div>
+
+      {showPrintPreview && (
+        <PrintPreviewModal
+          title={`Stok per Gudang — ${selectedCompany}`}
+          onClose={() => setShowPrintPreview(false)}
+          printUrl={printUrl}
+          useContentFrame={false}
+          allowPaperSettings={false}
+        >
+          <iframe
+            src={printUrl}
+            title="Pratinjau Stok per Gudang"
+            style={{ width: '210mm', height: '297mm', border: 0, background: '#fff', boxShadow: '0 8px 40px rgba(0,0,0,0.45)' }}
+          />
+        </PrintPreviewModal>
+      )}
 
       {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{error}</div>}
 
