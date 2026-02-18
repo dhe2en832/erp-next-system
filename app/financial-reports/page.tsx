@@ -39,9 +39,12 @@ interface ProfitLossEntry {
 }
 
 const fmtCur = (v: number) =>
-  new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(Math.abs(v));
+  new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0, signDisplay: 'always' }).format(v);
 
-const fmtCurPrint = (v: number) => `Rp ${Math.abs(v).toLocaleString('id-ID')}`;
+const fmtCurPrint = (v: number) => {
+  const abs = Math.abs(v).toLocaleString('id-ID');
+  return v < 0 ? `(Rp ${abs})` : `Rp ${abs}`;
+};
 
 function groupByRootType<T extends { root_type: string }>(entries: T[]): Record<string, T[]> {
   const order = ['Asset', 'Liability', 'Equity', 'Income', 'Expense'];
@@ -262,6 +265,7 @@ export default function FinancialReportsPage() {
       const gross = totInc - totHPP;
       const totOpex = opexEntries.reduce((s, e) => s + e.amount, 0);
       const net = gross - totOpex;
+      const netLabel = net >= 0 ? 'LABA BERSIH' : 'RUGI BERSIH';
       return (
         <div className="fin-print">
           <div className="doc-header">
@@ -286,7 +290,7 @@ export default function FinancialReportsPage() {
             </table>
           </>}
           <table style={{marginTop:'4px'}}><tbody>
-            <tr className="total-row"><td><strong>LABA KOTOR</strong></td><td className="right"><strong>{fmtCurPrint(gross)}</strong></td></tr>
+            <tr className="total-row gross-row"><td><strong>LABA KOTOR</strong></td><td className="right"><strong>{fmtCurPrint(gross)}</strong></td></tr>
           </tbody></table>
           {opexEntries.length > 0 && <>
             <div className="section-header" style={{marginTop:'8px'}}>BEBAN OPERASIONAL</div>
@@ -298,7 +302,7 @@ export default function FinancialReportsPage() {
             </table>
           </>}
           <table style={{marginTop:'8px'}}><tbody>
-            <tr className="total-row"><td><strong>{net >= 0 ? 'LABA BERSIH' : 'RUGI BERSIH'}</strong></td><td className="right"><strong>{fmtCurPrint(net)}</strong></td></tr>
+            <tr className="total-row net-row"><td><strong>{netLabel}</strong></td><td className="right"><strong>{fmtCurPrint(net)}</strong></td></tr>
           </tbody></table>
         </div>
       );
@@ -330,6 +334,9 @@ export default function FinancialReportsPage() {
               .fin-print th, .fin-print td { padding: 4px 6px; vertical-align: top; }
               .fin-print .doc-header { margin-bottom: 12px; }
               .fin-print .section-header { margin-top: 10px; margin-bottom: 4px; }
+              .fin-print .section-sub { font-weight: 700; color: #1e293b; }
+              .fin-print .subtotal-row td { font-weight: 700; }
+              .fin-print .total-row td { font-weight: 800; }
             `}</style>
             {renderPrint()}
             <div style={{marginTop:'20px',borderTop:'1px solid #d1d5db',paddingTop:'4px',fontSize:'8px',color:'#9ca3af',textAlign:'center'}}>
