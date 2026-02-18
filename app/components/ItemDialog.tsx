@@ -30,7 +30,8 @@ interface ItemDialogProps {
 export default function ItemDialog({ isOpen, onClose, onSelect, showStock = false }: ItemDialogProps) {
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [itemCodeFilter, setItemCodeFilter] = useState('');
+  const [itemNameFilter, setItemNameFilter] = useState('');
   const [stockInfo, setStockInfo] = useState<{ [key: string]: StockInfo[] }>({});
   const [selectedWarehouse, setSelectedWarehouse] = useState('');
 
@@ -38,7 +39,7 @@ export default function ItemDialog({ isOpen, onClose, onSelect, showStock = fals
     if (isOpen) {
       fetchItems();
     }
-  }, [isOpen, searchTerm]);
+  }, [isOpen, itemCodeFilter, itemNameFilter]);
 
   const checkStock = async (itemCode: string) => {
     if (!showStock) return;
@@ -59,9 +60,12 @@ export default function ItemDialog({ isOpen, onClose, onSelect, showStock = fals
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (searchTerm) {
-        params.append('filters', JSON.stringify([["item_name", "like", `%${searchTerm}%`]]));
-      }
+      const filters: any[] = [];
+      const codeTerm = itemCodeFilter.trim();
+      const nameTerm = itemNameFilter.trim();
+      if (codeTerm) filters.push(["item_code", "like", `%${codeTerm}%`]);
+      if (nameTerm) filters.push(["item_name", "like", `%${nameTerm}%`]);
+      if (filters.length > 0) params.append('filters', JSON.stringify(filters));
       
       const response = await fetch(`/api/inventory/items?${params.toString()}`);
       const data = await response.json();
@@ -85,7 +89,8 @@ export default function ItemDialog({ isOpen, onClose, onSelect, showStock = fals
   const handleSelect = (item: Item) => {
     onSelect(item);
     onClose();
-    setSearchTerm('');
+    setItemCodeFilter('');
+    setItemNameFilter('');
   };
 
   if (!isOpen) return null;
@@ -105,14 +110,25 @@ export default function ItemDialog({ isOpen, onClose, onSelect, showStock = fals
           </button>
         </div>
 
-        <div className="mb-4">
-          <input
-            type="text"
-            className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-            placeholder="Search items..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+        <div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <input
+              type="text"
+              className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              placeholder="Cari kode barang..."
+              value={itemCodeFilter}
+              onChange={(e) => setItemCodeFilter(e.target.value)}
+            />
+          </div>
+          <div>
+            <input
+              type="text"
+              className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              placeholder="Cari nama barang..."
+              value={itemNameFilter}
+              onChange={(e) => setItemNameFilter(e.target.value)}
+            />
+          </div>
         </div>
 
         <div className="max-h-96 overflow-y-auto">
