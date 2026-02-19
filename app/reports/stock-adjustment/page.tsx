@@ -84,8 +84,26 @@ export default function StockAdjustmentPage() {
       </div>
 
       {showPrint && (
-        <PrintPreviewModal title={`Penyesuaian Stok — ${selectedCompany}`} onClose={() => setShowPrint(false)} printUrl={printUrl} useContentFrame={false} allowPaperSettings={false}>
-          <iframe src={printUrl} title="Pratinjau" style={{ width: '210mm', height: '297mm', border: 0, background: '#fff', boxShadow: '0 8px 40px rgba(0,0,0,0.45)' }} />
+        <PrintPreviewModal title={`Penyesuaian Stok — ${selectedCompany}`} onClose={() => setShowPrint(false)} allowPaperSettings={false}>
+          <>
+            <style>{`
+              .fin-print table { table-layout: auto !important; width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+              .fin-print th, .fin-print td { padding: 4px 6px; vertical-align: top; }
+              .fin-print .doc-header { margin-bottom: 12px; }
+              .fin-print .section-header { margin-top: 10px; margin-bottom: 4px; }
+              .fin-print .section-sub { font-weight: 700; color: #1e293b; }
+              .fin-print .subtotal-row td { font-weight: 700; }
+              .fin-print .total-row td { font-weight: 800; }
+            `}</style>
+            <iframe
+              src={printUrl}
+              title="Pratinjau"
+              style={{ width: '210mm', height: '297mm', border: 0, background: '#fff', boxShadow: '0 8px 40px rgba(0,0,0,0.45)' }}
+            />
+            <div style={{marginTop:'20px',borderTop:'1px solid #d1d5db',paddingTop:'4px',fontSize:'8px',color:'#9ca3af',textAlign:'center'}}>
+              Dicetak oleh sistem — {new Date().toLocaleDateString('id-ID', {day:'2-digit',month:'long',year:'numeric'})}
+            </div>
+          </>
         </PrintPreviewModal>
       )}
 

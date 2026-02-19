@@ -39,25 +39,29 @@ function ReturnsPrintContent() {
   return (
     <>
       <style>{`
-        @page { size: A4; margin: 15mm; }
-        body { font-family: Arial, sans-serif; font-size: 9px; color: #111; }
-        .report-header { text-align: center; margin-bottom: 12px; border-bottom: 2px solid #111; padding-bottom: 6px; }
-        .report-title { font-size: 15px; font-weight: 700; text-transform: uppercase; }
-        .report-company { font-size: 13px; font-weight: 600; margin-top: 3px; }
-        .report-period { font-size: 9px; color: #555; margin-top: 2px; }
-        .section-title { font-size: 11px; font-weight: 700; margin-top: 12px; margin-bottom: 6px; padding: 4px 6px; background: #f1f5f9; border-left: 3px solid #dc2626; }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
-        th { background: #1e293b; color: #fff; padding: 5px 6px; text-align: left; font-size: 8px; text-transform: uppercase; }
-        td { padding: 4px 6px; border-bottom: 1px solid #e5e7eb; font-size: 8px; }
-        tr:nth-child(even) { background: #f8fafc; }
-        .text-right { text-align: right; }
-        .total-row { font-weight: 700; background: #f1f5f9 !important; border-top: 2px solid #111; }
+        @page { size: A4; margin: 12mm; }
+        body { font-family: "Inter", Arial, sans-serif; font-size: 9px; color: #111; background: #fff; }
+        header, nav, .no-print, .app-navbar { display: none !important; }
+        main { padding: 0 !important; }
+        .fin-print { width: 210mm; margin: 0 auto; }
+        .fin-print table { table-layout: auto !important; width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+        .fin-print th, .fin-print td { padding: 4px 6px; vertical-align: top; }
+        .fin-print th { background: #1e293b; color: #fff; font-size: 8px; text-transform: uppercase; }
+        .fin-print td { font-size: 8px; border-bottom: 1px solid #e5e7eb; }
+        .fin-print .doc-header { margin-bottom: 12px; border-bottom: 1px solid #cbd5e1; padding-bottom: 6px; }
+        .fin-print .doc-company { font-size: 13px; font-weight: 700; color: #0f172a; }
+        .fin-print .doc-title { font-size: 15px; font-weight: 800; letter-spacing: 0.3px; color: #111827; }
+        .fin-print .doc-meta { font-size: 9px; color: #475569; margin-top: 2px; }
+        .fin-print .section-title { font-size: 11px; font-weight: 800; margin: 10px 0 6px; padding: 4px 6px; background: #f8fafc; border-left: 3px solid #dc2626; color: #0f172a; }
+        .fin-print .total-row td { font-weight: 800; background: #f8fafc; }
+        .fin-print .right { text-align: right; }
       `}</style>
-      <div className="report-header">
-        <div className="report-title">Retur Penjualan & Pembelian</div>
-        <div className="report-company">{company}</div>
-        <div className="report-period">Periode: {from_date} s/d {to_date}</div>
-      </div>
+      <div className="fin-print">
+        <div className="doc-header">
+          <div className="doc-company">{company}</div>
+          <div className="doc-title">RETUR PENJUALAN & PEMBELIAN</div>
+          <div className="doc-meta">Periode: {from_date} s/d {to_date}</div>
+        </div>
 
       <div className="section-title">Retur Penjualan (Sales Return)</div>
       <table>
@@ -124,6 +128,7 @@ function ReturnsPrintContent() {
           </tr>
         </tbody>
       </table>
+      </div>
     </>
   );
 }
