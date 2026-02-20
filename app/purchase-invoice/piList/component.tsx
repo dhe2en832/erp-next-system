@@ -19,6 +19,8 @@ interface PurchaseInvoice {
   outstanding_amount: number;
   status: string;
   currency: string;
+  discount_amount?: number;
+  total_taxes_and_charges?: number;
 }
 
 interface Supplier {
@@ -476,14 +478,24 @@ export default function PurchaseInvoiceList() {
                         )}
                       </div>
                       <div className="mt-2 flex items-center justify-between sm:mt-0">
-                        <span className="font-medium text-sm text-gray-500">
-                          Total: {invoice.currency} {invoice.grand_total.toLocaleString('id-ID')}
-                        </span>
-                        {invoice.outstanding_amount !== undefined && (
-                          <span className="ml-4 text-sm text-gray-500">
-                            Sisa: {invoice.currency} {invoice.outstanding_amount.toLocaleString('id-ID')}
+                        <div className="text-right">
+                          <span className="font-medium text-sm text-gray-900">
+                            Total: {invoice.currency} {invoice.grand_total.toLocaleString('id-ID')}
                           </span>
-                        )}
+                          <div className="flex items-center space-x-4 mt-1">
+                            <span className="text-xs text-gray-600">
+                              Diskon: {invoice.currency} {(invoice.discount_amount || 0).toLocaleString('id-ID')}
+                            </span>
+                            <span className="text-xs text-gray-600">
+                              Pajak: {invoice.currency} {(invoice.total_taxes_and_charges || 0).toLocaleString('id-ID')}
+                            </span>
+                          </div>
+                          {invoice.outstanding_amount !== undefined && (
+                            <span className="text-xs text-orange-600 block mt-1">
+                              Sisa: {invoice.currency} {invoice.outstanding_amount.toLocaleString('id-ID')}
+                            </span>
+                          )}
+                        </div>
 
                         {/* Print button */}
                         <button

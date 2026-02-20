@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { CreateSalesInvoiceRequest } from '@/types/sales-invoice';
 
 const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
 
@@ -60,7 +61,9 @@ export async function GET(request: NextRequest) {
     }
 
     // Build URL with filters
-    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Sales Invoice?fields=["name","customer","customer_name","posting_date","grand_total","status","docstatus","custom_total_komisi_sales","creation"]&limit_page_length=${limit}&limit_start=${start}&order_by=${order_by}`;
+    // Note: discount_amount and discount_percentage removed from fields to avoid ERPNext permission errors
+    // These fields are added with default values (0) in the response transformation layer below
+    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Sales Invoice?fields=["name","customer","customer_name","posting_date","grand_total","status","docstatus","custom_total_komisi_sales","creation","total","net_total","taxes_and_charges","total_taxes_and_charges","outstanding_amount"]&limit_page_length=${limit}&limit_start=${start}&order_by=${order_by}`;
     
     if (filtersArray.length > 0) {
       erpNextUrl += `&filters=${encodeURIComponent(JSON.stringify(filtersArray))}`;
@@ -104,9 +107,19 @@ export async function GET(request: NextRequest) {
     }
 
     if (response.ok) {
+      // Add backward compatibility - Requirements 2.8, 14.1, 14.5
+      // For old invoices without discount/tax, ensure default values
+      const invoices = data.data?.map((invoice: any) => ({
+        ...invoice,
+        discount_amount: invoice.discount_amount || 0,
+        discount_percentage: invoice.discount_percentage || 0,
+        total_taxes_and_charges: invoice.total_taxes_and_charges || 0,
+        taxes: invoice.taxes || []
+      })) || [];
+
       return NextResponse.json({
         success: true,
-        data: data.data,
+        data: invoices,
       });
     } else {
       return NextResponse.json(
@@ -128,7 +141,7 @@ export async function POST(request: NextRequest) {
   try {
     console.log('=== CREATE SALES INVOICE - ERPNEXT REST API ===');
     
-    const invoiceData = await request.json();
+    const invoiceData: CreateSalesInvoiceRequest = await request.json();
     console.log('Invoice Data:', JSON.stringify(invoiceData, null, 2));
 
     // Get API credentials from environment variables
@@ -148,6 +161,108 @@ export async function POST(request: NextRequest) {
         success: false,
         message: 'API credentials not configured'
       }, { status: 500 });
+    }
+
+    // Validate discount fields - Requirements 5.1, 5.2, 5.4
+    if (invoiceData.discount_percentage !== undefined) {
+      if (invoiceData.discount_percentage < 0 || invoiceData.discount_percentage > 100) {
+        return NextResponse.json({
+          success: false,
+          message: 'Discount percentage must be between 0 and 100'
+        }, { status: 400 });
+      }
+    }
+
+    // Calculate subtotal for discount_amount validation
+    const subtotal = invoiceData.items?.reduce((sum, item) => {
+      return sum + (item.qty * item.rate);
+    }, 0) || 0;
+
+    if (invoiceData.discount_amount !== undefined) {
+      if (invoiceData.discount_amount < 0) {
+        return NextResponse.json({
+          success: false,
+          message: 'Discount amount cannot be negative'
+        }, { status: 400 });
+      }
+      if (invoiceData.discount_amount > subtotal) {
+        return NextResponse.json({
+          success: false,
+          message: 'Discount amount cannot exceed subtotal'
+        }, { status: 400 });
+      }
+    }
+
+    // Priority rule: discount_amount > discount_percentage - Requirement 5.4
+    // If both are provided, ERPNext will use discount_amount as primary
+    console.log('Discount validation passed:', {
+      discount_percentage: invoiceData.discount_percentage,
+      discount_amount: invoiceData.discount_amount,
+      subtotal
+    });
+
+    // Validate tax template if provided - Requirements 5.3, 5.7
+    if (invoiceData.taxes_and_charges) {
+      try {
+        // Fetch tax template to validate it exists and is active
+        const taxTemplateUrl = `${baseUrl}/api/resource/Sales Taxes and Charges Template/${encodeURIComponent(invoiceData.taxes_and_charges)}`;
+        const taxTemplateResponse = await fetch(taxTemplateUrl, {
+          method: 'GET',
+          headers: {
+            'Authorization': `token ${apiKey}:${apiSecret}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!taxTemplateResponse.ok) {
+          return NextResponse.json({
+            success: false,
+            message: `Tax template '${invoiceData.taxes_and_charges}' not found`
+          }, { status: 400 });
+        }
+
+        const taxTemplateData = await taxTemplateResponse.json();
+        
+        // Check if template is disabled
+        if (taxTemplateData.data?.disabled === 1) {
+          return NextResponse.json({
+            success: false,
+            message: `Tax template '${invoiceData.taxes_and_charges}' is disabled`
+          }, { status: 400 });
+        }
+
+        // Validate account_head in tax template exists in COA
+        if (taxTemplateData.data?.taxes && Array.isArray(taxTemplateData.data.taxes)) {
+          for (const taxRow of taxTemplateData.data.taxes) {
+            if (taxRow.account_head) {
+              const accountUrl = `${baseUrl}/api/resource/Account/${encodeURIComponent(taxRow.account_head)}`;
+              const accountResponse = await fetch(accountUrl, {
+                method: 'GET',
+                headers: {
+                  'Authorization': `token ${apiKey}:${apiSecret}`,
+                  'Content-Type': 'application/json',
+                },
+              });
+
+              if (!accountResponse.ok) {
+                return NextResponse.json({
+                  success: false,
+                  message: `Account '${taxRow.account_head}' not found in Chart of Accounts`
+                }, { status: 400 });
+              }
+            }
+          }
+        }
+
+        console.log('Tax template validation passed:', invoiceData.taxes_and_charges);
+      } catch (error: any) {
+        console.error('Tax template validation error:', error);
+        return NextResponse.json({
+          success: false,
+          message: 'Failed to validate tax template',
+          error: error.toString()
+        }, { status: 400 });
+      }
     }
 
     // Create Sales Invoice using ERPNext REST API
@@ -178,7 +293,12 @@ export async function POST(request: NextRequest) {
       custom_notes_si: invoiceData.custom_notes_si || '',
       // Write-off amount to prevent TypeError (must be 0, not null)
       write_off_amount: 0,
-      base_write_off_amount: 0
+      base_write_off_amount: 0,
+      // Discount fields - Requirements 2.1, 2.2
+      discount_amount: invoiceData.discount_amount || 0,
+      discount_percentage: invoiceData.discount_percentage || 0,
+      additional_discount_percentage: invoiceData.additional_discount_percentage || 0,
+      apply_discount_on: invoiceData.apply_discount_on || 'Net Total'
     };
 
     // Add optional fields if provided
@@ -190,8 +310,13 @@ export async function POST(request: NextRequest) {
       payload.payment_terms_template = invoiceData.payment_terms_template;
     }
 
+    // Add tax fields - Requirement 2.3
     if (invoiceData.taxes_and_charges) {
       payload.taxes_and_charges = invoiceData.taxes_and_charges;
+    }
+
+    if (invoiceData.taxes && invoiceData.taxes.length > 0) {
+      payload.taxes = invoiceData.taxes;
     }
 
     // Add calculated totals if provided

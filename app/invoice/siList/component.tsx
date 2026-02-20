@@ -39,6 +39,8 @@ interface Invoice {
   items?: InvoiceItem[];
   custom_total_komisi_sales?: number;
   custom_notes_si?: string;
+  discount_amount?: number;
+  total_taxes_and_charges?: number;
 }
 
 export default function SalesInvoiceList() {
@@ -317,6 +319,14 @@ export default function SalesInvoiceList() {
                   <div className="mt-2 flex items-center justify-between sm:mt-0">
                     <div className="text-right">
                       <div className="font-medium text-sm text-gray-900">Total: Rp {invoice.grand_total ? invoice.grand_total.toLocaleString('id-ID') : '0'}</div>
+                      <div className="flex items-center space-x-4 mt-1">
+                        <span className="text-xs text-gray-600">
+                          Diskon: Rp {(invoice.discount_amount || 0).toLocaleString('id-ID')}
+                        </span>
+                        <span className="text-xs text-gray-600">
+                          Pajak: Rp {(invoice.total_taxes_and_charges || 0).toLocaleString('id-ID')}
+                        </span>
+                      </div>
                       <div className="flex items-center space-x-4 mt-1">
                         <span className="text-xs text-green-600">
                           Dibayar: Rp {(invoice.paid_amount || (invoice.grand_total - invoice.outstanding_amount) || 0).toLocaleString('id-ID')}

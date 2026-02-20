@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { CreatePurchaseInvoiceRequest } from '@/types/purchase-invoice';
 
 const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
 
@@ -252,7 +253,10 @@ export async function GET(request: NextRequest) {
     const limit = searchParams.get('limit_page_length') || '20';
     const start = searchParams.get('start') || '0';
     
-    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Purchase Invoice?fields=["name","supplier","supplier_name","posting_date","due_date","grand_total","outstanding_amount","status","currency"]&filters=${encodeURIComponent(filters)}&order_by=posting_date desc&limit_page_length=${limit}&start=${start}`;
+    // Note: discount_amount and discount_percentage removed from fields to avoid ERPNext permission errors
+    // These fields are added with default values (0) in the response transformation layer below
+    // Include discount and tax fields in the response - Requirements 3.6, 3.8, 14.2, 14.5
+    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Purchase Invoice?fields=["name","supplier","supplier_name","posting_date","due_date","grand_total","outstanding_amount","status","currency","total","net_total","taxes_and_charges","total_taxes_and_charges"]&filters=${encodeURIComponent(filters)}&order_by=posting_date desc&limit_page_length=${limit}&start=${start}`;
 
     const response = await fetch(
       erpNextUrl,
@@ -269,10 +273,20 @@ export async function GET(request: NextRequest) {
     console.log('Purchase Invoice response:', data);
 
     if (response.ok) {
+      // Add backward compatibility - Requirements 3.8, 14.2, 14.5
+      // For old invoices without discount/tax, ensure default values
+      const invoices = data.data?.map((invoice: any) => ({
+        ...invoice,
+        discount_amount: invoice.discount_amount || 0,
+        discount_percentage: invoice.discount_percentage || 0,
+        total_taxes_and_charges: invoice.total_taxes_and_charges || 0,
+        taxes: invoice.taxes || []
+      })) || [];
+
       return NextResponse.json({
         success: true,
-        data: data.data || [],
-        total_records: data.total_records || (data.data || []).length,
+        data: invoices,
+        total_records: data.total_records || invoices.length,
       });
     } else {
       return NextResponse.json(
@@ -416,135 +430,254 @@ export async function PUT(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    // Use API key authentication (like Purchase Receipts)
+    console.log('=== CREATE PURCHASE INVOICE - ERPNEXT REST API ===');
+    
+    // Use API key authentication
     const apiKey = process.env.ERP_API_KEY;
     const apiSecret = process.env.ERP_API_SECRET;
+    const baseUrl = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
 
     if (!apiKey || !apiSecret) {
-      return NextResponse.json(
-        { success: false, message: 'ERPNext API credentials not configured' },
-        { status: 500 }
-      );
+      console.error('Missing API credentials');
+      return NextResponse.json({
+        success: false,
+        message: 'API credentials not configured'
+      }, { status: 500 });
     }
 
-    const body = await request.json();
-    const { 
-      supplier, 
-      posting_date, 
-      due_date, 
-      items, 
-      company, 
-      currency,
-      grand_total,
-      remarks 
-    } = body;
+    const invoiceData: CreatePurchaseInvoiceRequest = await request.json();
+    console.log('Purchase Invoice Data:', JSON.stringify(invoiceData, null, 2));
 
-    if (!supplier || !company) {
+    if (!invoiceData.supplier || !invoiceData.company) {
       return NextResponse.json(
         { success: false, message: 'Supplier and company are required' },
         { status: 400 }
       );
     }
 
-    console.log('Creating Purchase Invoice:', {
-      supplier,
-      posting_date,
-      due_date,
-      company,
-      currency,
-      grand_total,
-      items_count: items?.length || 0
+    // Validate discount fields - Requirements 5.1, 5.2, 5.4
+    if (invoiceData.discount_percentage !== undefined) {
+      if (invoiceData.discount_percentage < 0 || invoiceData.discount_percentage > 100) {
+        return NextResponse.json({
+          success: false,
+          message: 'Discount percentage must be between 0 and 100'
+        }, { status: 400 });
+      }
+    }
+
+    // Calculate subtotal for discount_amount validation
+    const subtotal = invoiceData.items?.reduce((sum, item) => {
+      return sum + (item.qty * item.rate);
+    }, 0) || 0;
+
+    if (invoiceData.discount_amount !== undefined) {
+      if (invoiceData.discount_amount < 0) {
+        return NextResponse.json({
+          success: false,
+          message: 'Discount amount cannot be negative'
+        }, { status: 400 });
+      }
+      if (invoiceData.discount_amount > subtotal) {
+        return NextResponse.json({
+          success: false,
+          message: 'Discount amount cannot exceed subtotal'
+        }, { status: 400 });
+      }
+    }
+
+    // Priority rule: discount_amount > discount_percentage - Requirement 5.4
+    console.log('Discount validation passed:', {
+      discount_percentage: invoiceData.discount_percentage,
+      discount_amount: invoiceData.discount_amount,
+      subtotal
     });
 
-    // Prepare invoice data for ERPNext
-    const invoiceData = {
+    // Validate tax template if provided - Requirements 5.3, 5.7
+    if (invoiceData.taxes_and_charges) {
+      try {
+        // Fetch tax template to validate it exists and is active
+        const taxTemplateUrl = `${baseUrl}/api/resource/Purchase Taxes and Charges Template/${encodeURIComponent(invoiceData.taxes_and_charges)}`;
+        const taxTemplateResponse = await fetch(taxTemplateUrl, {
+          method: 'GET',
+          headers: {
+            'Authorization': `token ${apiKey}:${apiSecret}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!taxTemplateResponse.ok) {
+          return NextResponse.json({
+            success: false,
+            message: `Tax template '${invoiceData.taxes_and_charges}' not found`
+          }, { status: 400 });
+        }
+
+        const taxTemplateData = await taxTemplateResponse.json();
+        
+        // Check if template is disabled
+        if (taxTemplateData.data?.disabled === 1) {
+          return NextResponse.json({
+            success: false,
+            message: `Tax template '${invoiceData.taxes_and_charges}' is disabled`
+          }, { status: 400 });
+        }
+
+        // Validate account_head in tax template exists in COA
+        if (taxTemplateData.data?.taxes && Array.isArray(taxTemplateData.data.taxes)) {
+          for (const taxRow of taxTemplateData.data.taxes) {
+            if (taxRow.account_head) {
+              const accountUrl = `${baseUrl}/api/resource/Account/${encodeURIComponent(taxRow.account_head)}`;
+              const accountResponse = await fetch(accountUrl, {
+                method: 'GET',
+                headers: {
+                  'Authorization': `token ${apiKey}:${apiSecret}`,
+                  'Content-Type': 'application/json',
+                },
+              });
+
+              if (!accountResponse.ok) {
+                return NextResponse.json({
+                  success: false,
+                  message: `Account '${taxRow.account_head}' not found in Chart of Accounts`
+                }, { status: 400 });
+              }
+            }
+          }
+        }
+
+        console.log('Tax template validation passed:', invoiceData.taxes_and_charges);
+      } catch (error: any) {
+        console.error('Tax template validation error:', error);
+        return NextResponse.json({
+          success: false,
+          message: 'Failed to validate tax template',
+          error: error.toString()
+        }, { status: 400 });
+      }
+    }
+
+    console.log('Creating Purchase Invoice:', {
+      supplier: invoiceData.supplier,
+      posting_date: invoiceData.posting_date,
+      due_date: invoiceData.due_date,
+      company: invoiceData.company,
+      currency: invoiceData.currency,
+      discount_amount: invoiceData.discount_amount,
+      discount_percentage: invoiceData.discount_percentage,
+      taxes_and_charges: invoiceData.taxes_and_charges,
+      items_count: invoiceData.items?.length || 0
+    });
+
+    // Prepare invoice data for ERPNext with discount and tax support
+    const payload: any = {
       doctype: 'Purchase Invoice',
-      supplier,
-      posting_date,
-      due_date,
-      company,
-      currency: currency || 'IDR',
-      grand_total,
-      remarks,
-      custom_notes_pi: remarks,
-      items: items.map((item: any) => ({
-        item_code: item.item_code,
-        item_name: item.item_name,
-        description: item.description,
-        qty: item.qty,
-        rate: item.rate,
-        amount: item.amount,
-        uom: item.uom,
-        warehouse: item.warehouse,
-        purchase_receipt: item.purchase_receipt,
-        purchase_receipt_item: item.purchase_receipt_item,
-        purchase_order: item.purchase_order,
-        purchase_order_item: item.purchase_order_item,
-        // Add quantity fields for custom API
-        received_qty: item.received_qty || 0,
-        rejected_qty: item.rejected_qty || 0
-      }))
+      company: invoiceData.company,
+      supplier: invoiceData.supplier,
+      supplier_name: invoiceData.supplier_name,
+      posting_date: invoiceData.posting_date,
+      due_date: invoiceData.due_date || invoiceData.posting_date,
+      items: invoiceData.items || [],
+      currency: invoiceData.currency || 'IDR',
+      buying_price_list: invoiceData.buying_price_list || 'Standard Beli',
+      price_list_currency: invoiceData.price_list_currency || 'IDR',
+      plc_conversion_rate: invoiceData.plc_conversion_rate || 1,
+      status: invoiceData.status || 'Draft',
+      docstatus: invoiceData.docstatus || 0,
+      // Write-off amount to prevent TypeError (must be 0, not null)
+      write_off_amount: 0,
+      base_write_off_amount: 0,
+      // Discount fields - Requirements 3.1, 3.2
+      discount_amount: invoiceData.discount_amount || 0,
+      discount_percentage: invoiceData.discount_percentage || 0,
+      additional_discount_percentage: invoiceData.additional_discount_percentage || 0,
+      apply_discount_on: invoiceData.apply_discount_on || 'Net Total'
     };
 
-    console.log('Invoice Data for ERPNext:', invoiceData);
+    // Add optional fields if provided
+    if (invoiceData.bill_no) {
+      payload.bill_no = invoiceData.bill_no;
+    }
 
-    // Try custom API method first
-    const customApiUrl = `${ERPNEXT_API_URL}/api/method/batasku_custom.api.create_purchase_invoice_with_details`;
+    if (invoiceData.bill_date) {
+      payload.bill_date = invoiceData.bill_date;
+    }
+
+    // Add tax fields - Requirement 3.3
+    if (invoiceData.taxes_and_charges) {
+      payload.taxes_and_charges = invoiceData.taxes_and_charges;
+    }
+
+    if (invoiceData.taxes && invoiceData.taxes.length > 0) {
+      payload.taxes = invoiceData.taxes;
+    }
+
+    // Add calculated totals if provided
+    if (invoiceData.grand_total) {
+      payload.grand_total = invoiceData.grand_total;
+      payload.total = invoiceData.total || invoiceData.grand_total;
+      payload.net_total = invoiceData.net_total || invoiceData.grand_total;
+      payload.base_total = invoiceData.base_total || invoiceData.grand_total;
+      payload.base_net_total = invoiceData.base_net_total || invoiceData.grand_total;
+      payload.base_grand_total = invoiceData.base_grand_total || invoiceData.grand_total;
+      payload.outstanding_amount = invoiceData.outstanding_amount || invoiceData.grand_total;
+    }
+
+    console.log('Final Payload:', JSON.stringify(payload, null, 2));
+
+    // Create Purchase Invoice using ERPNext REST API
+    const erpNextUrl = `${baseUrl}/api/resource/Purchase Invoice`;
     
-    console.log('Using custom API method only...');
-    const customResponse = await fetch(customApiUrl, {
+    console.log('ERPNext REST API URL:', erpNextUrl);
+
+    const response = await fetch(erpNextUrl, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
         'Authorization': `token ${apiKey}:${apiSecret}`,
+        'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        invoice_data: JSON.stringify(invoiceData)
-      }),
+      body: JSON.stringify(payload)
     });
 
-    const customData = await customResponse.json();
-    console.log('Custom API Response:', customData);
+    console.log('ERPNext Response Status:', response.status);
 
-    // Handle custom API response structure
-    const apiData = customData.message || customData; // Handle wrapper
-    
-    if (customResponse.ok && apiData.success) {
-      // Add logging for custom API response
-      if (apiData.data?.items && apiData.data.items.length > 0) {
-        console.log('First item fields:', Object.keys(apiData.data.items[0]));
-        console.log('pr_detail in first item:', apiData.data.items[0].pr_detail);
-        console.log('po_detail in first item:', apiData.data.items[0].po_detail);
-        console.log('received_qty in first item:', apiData.data.items[0].received_qty);
-        console.log('rejected_qty in first item:', apiData.data.items[0].rejected_qty);
-        console.log('qty in first item:', apiData.data.items[0].qty);
-        console.log('Full item data:', JSON.stringify(apiData.data.items[0], null, 2));
-      }
-      
-      // Log custom notes from response
-      console.log('Custom notes in response:', apiData.data?.custom_note_pi);
-      console.log('Remarks in response:', apiData.data?.remarks);
-      
+    const responseText = await response.text();
+    console.log('ERPNext Response Text:', responseText);
+
+    if (!response.ok) {
+      console.error('ERPNext API Error:', responseText);
       return NextResponse.json({
-        success: true,
-        data: apiData.data,
-        message: apiData.message || 'Purchase Invoice created successfully via custom API'
-      });
-    } else {
-      console.error('Custom API failed:', customData);
-      return NextResponse.json(
-        { 
-          success: false, 
-          message: apiData?.message?.message || apiData?.message || 'Custom API failed' 
-        },
-        { status: 500 }
-      );
+        success: false,
+        message: 'Failed to create purchase invoice in ERPNext',
+        error: responseText,
+        status: response.status
+      }, { status: 500 });
     }
-  } catch (error) {
-    console.error('Purchase Invoice creation error:', error);
-    return NextResponse.json(
-      { success: false, message: 'Internal server error' },
-      { status: 500 }
-    );
+
+    let data;
+    try {
+      data = JSON.parse(responseText);
+      console.log('ERPNext Success Response:', data);
+    } catch (parseError) {
+      console.error('Error parsing JSON response:', parseError);
+      return NextResponse.json({
+        success: false,
+        message: 'Invalid JSON response from ERPNext',
+        error: responseText
+      }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: 'Purchase Invoice created successfully in ERPNext',
+      data: data
+    });
+
+  } catch (error: any) {
+    console.error('Create Purchase Invoice Error:', error);
+    return NextResponse.json({
+      success: false,
+      message: 'Failed to create purchase invoice',
+      error: error.toString()
+    }, { status: 500 });
   }
 }

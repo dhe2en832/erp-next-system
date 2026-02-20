@@ -95,6 +95,9 @@ This API has been restructured into logical modules to improve maintainability a
   - `POST /api/setup/auth/logout` - User logout
   - `POST /api/setup/auth/set-company` - Set selected company
 
+- **Tax Templates** - Tax template management
+  - `GET /api/setup/tax-templates` - Get tax templates (Sales or Purchase)
+
 - **Dashboard** - Dashboard data
   - `GET /api/setup/dashboard` - Get dashboard statistics
 
@@ -201,3 +204,94 @@ Example:
 ```
 GET /api/purchase/orders?limit=50&start=100&search=supplier&filters=[["status","=","Submitted"]]
 ```
+
+
+## Tax Template API
+
+### GET /api/setup/tax-templates
+
+Fetch tax templates from ERPNext for use in invoice forms.
+
+**Query Parameters:**
+- `type` (required): "Sales" or "Purchase"
+- `company` (required): Company name
+
+**Request Example:**
+```bash
+GET /api/setup/tax-templates?type=Sales&company=Berkat%20Abadi%20Cirebon
+```
+
+**Response Format:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "name": "PPN 11%",
+      "title": "PPN 11%",
+      "company": "Berkat Abadi Cirebon",
+      "disabled": 0,
+      "taxes": [
+        {
+          "charge_type": "On Net Total",
+          "account_head": "2210 - Hutang PPN - Berkat Abadi Cirebon",
+          "description": "PPN 11%",
+          "rate": 11
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Filtering Rules:**
+- Only returns templates where `disabled = 0` (active templates)
+- Filters by `type` (Sales Taxes and Charges Template or Purchase Taxes and Charges Template)
+- Filters by `company`
+
+**Error Responses:**
+
+Missing required parameter:
+```json
+{
+  "success": false,
+  "message": "Query parameter \"type\" is required (Sales or Purchase)"
+}
+```
+
+Invalid type parameter:
+```json
+{
+  "success": false,
+  "message": "Query parameter \"type\" must be either \"Sales\" or \"Purchase\""
+}
+```
+
+**Use Cases:**
+
+1. **Populate tax dropdown in Sales Invoice form:**
+```javascript
+const response = await fetch('/api/setup/tax-templates?type=Sales&company=Berkat%20Abadi%20Cirebon');
+const { data: templates } = await response.json();
+// Use templates to populate dropdown
+```
+
+2. **Populate tax dropdown in Purchase Invoice form:**
+```javascript
+const response = await fetch('/api/setup/tax-templates?type=Purchase&company=Berkat%20Abadi%20Cirebon');
+const { data: templates } = await response.json();
+// Use templates to populate dropdown
+```
+
+**Available Tax Templates:**
+
+**Sales Templates:**
+- PPN 11%
+- PPN 11% + PPh 23 (2%)
+- PPN 11% + PPh 22 (1.5%)
+
+**Purchase Templates:**
+- PPN Masukan 11% (PKP)
+- PPN Masukan 11% (Non-PKP)
+
+**Requirements:** Validates Requirements 1.6

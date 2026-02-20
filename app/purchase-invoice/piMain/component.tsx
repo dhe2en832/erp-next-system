@@ -4,6 +4,9 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import PrintDialog from '../../components/PrintDialog';
+import DiscountInput from '@/components/invoice/DiscountInput';
+import TaxTemplateSelect from '@/components/invoice/TaxTemplateSelect';
+import InvoiceSummary from '@/components/invoice/InvoiceSummary';
 
 interface PurchaseReceipt {
   name: string;
@@ -115,6 +118,11 @@ export default function PurchaseInvoiceMain() {
     currency: 'IDR',
     items: [] // Start with empty array, will be populated when PR is selected
   });
+
+  // Discount and Tax state
+  const [discountPercentage, setDiscountPercentage] = useState<number>(0);
+  const [discountAmount, setDiscountAmount] = useState<number>(0);
+  const [selectedTaxTemplate, setSelectedTaxTemplate] = useState<any>(null);
 
   // Get company from localStorage/cookie and check for edit mode
   useEffect(() => {
@@ -465,6 +473,50 @@ export default function PurchaseInvoiceMain() {
     }
 
     try {
+      // Calculate totals with discount and taxes
+      const total = validItems.reduce((sum, item) => sum + item.amount, 0);
+      
+      // Calculate net total and grand total with discount and taxes
+      const finalDiscountAmount = discountAmount > 0 ? discountAmount : (discountPercentage / 100) * total;
+      const netTotal = total - finalDiscountAmount;
+      
+      // Calculate taxes
+      let totalTaxes = 0;
+      const taxesPayload: any[] = [];
+      
+      if (selectedTaxTemplate && selectedTaxTemplate.taxes) {
+        let runningTotal = netTotal;
+        
+        for (const taxRow of selectedTaxTemplate.taxes) {
+          const rate = taxRow.rate || 0;
+          let taxAmount = 0;
+          
+          if (taxRow.charge_type === 'On Net Total') {
+            taxAmount = (rate / 100) * netTotal;
+          } else if (taxRow.charge_type === 'On Previous Row Total') {
+            taxAmount = (rate / 100) * runningTotal;
+          }
+          
+          runningTotal += taxAmount;
+          totalTaxes += taxAmount;
+          
+          taxesPayload.push({
+            charge_type: taxRow.charge_type,
+            account_head: taxRow.account_head,
+            description: taxRow.description,
+            rate: rate,
+            tax_amount: Math.round(taxAmount * 100) / 100,
+          });
+        }
+      }
+      
+      const grandTotal = netTotal + totalTaxes;
+
+      console.log('[DEBUG] Submitting PI with discount and taxes');
+      console.log('[DEBUG] Discount:', { amount: finalDiscountAmount, percentage: discountPercentage });
+      console.log('[DEBUG] Taxes:', taxesPayload);
+      console.log('[DEBUG] Totals:', { total, netTotal, totalTaxes, grandTotal });
+
       // ERPNext compliant payload for Purchase Invoice
       let invoiceData = {
         doctype: "Purchase Invoice",
@@ -476,6 +528,7 @@ export default function PurchaseInvoiceMain() {
         conversion_rate: 1,
         remarks: formData.custom_notes_pi || "",
         custom_notes_pi: formData.custom_notes_pi || "",
+        taxes_and_charges: selectedTaxTemplate?.name || '',
         items: validItems.map(item => ({
           doctype: "Purchase Invoice Item",
           item_code: item.item_code,
@@ -493,7 +546,21 @@ export default function PurchaseInvoiceMain() {
           // Add quantity fields for custom API
           received_qty: item.received_qty || 0,
           rejected_qty: item.rejected_qty || 0,
-        }))
+        })),
+        // Discount fields
+        discount_amount: finalDiscountAmount,
+        discount_percentage: discountPercentage,
+        // Tax fields
+        taxes: taxesPayload,
+        // Totals
+        total: total,
+        net_total: netTotal,
+        grand_total: grandTotal,
+        base_total: total,
+        base_net_total: netTotal,
+        base_grand_total: grandTotal,
+        outstanding_amount: grandTotal,
+        total_taxes_and_charges: totalTaxes,
       };
 
       console.log('=== FINAL PAYLOAD DEBUG ===');
@@ -981,6 +1048,43 @@ export default function PurchaseInvoiceMain() {
                   </div>
                 )}
               </div>
+            </div>
+
+            {/* Discount Section */}
+            <div className="mb-6">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Diskon</h3>
+              <DiscountInput
+                subtotal={formData.items.reduce((sum, item) => sum + item.amount, 0)}
+                discountPercentage={discountPercentage}
+                discountAmount={discountAmount}
+                onDiscountPercentageChange={setDiscountPercentage}
+                onDiscountAmountChange={setDiscountAmount}
+                disabled={isViewMode}
+              />
+            </div>
+
+            {/* Tax Section */}
+            <div className="mb-6">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Pajak</h3>
+              <TaxTemplateSelect
+                company={selectedCompany}
+                type="Purchase"
+                value={selectedTaxTemplate?.name || ''}
+                onChange={(template) => {
+                  setSelectedTaxTemplate(template);
+                }}
+                disabled={isViewMode}
+              />
+            </div>
+
+            {/* Invoice Summary */}
+            <div className="mb-6">
+              <InvoiceSummary
+                items={formData.items}
+                discountAmount={discountAmount}
+                discountPercentage={discountPercentage}
+                taxes={selectedTaxTemplate?.taxes || []}
+              />
             </div>
 
             {/* Tombol Submit */}

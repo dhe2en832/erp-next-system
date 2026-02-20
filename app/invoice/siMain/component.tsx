@@ -7,6 +7,9 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 import PrintDialog from '../../components/PrintDialog';
 import { formatDate, parseDate } from '../../../utils/format';
 import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
+import DiscountInput from '../../../components/invoice/DiscountInput';
+import TaxTemplateSelect from '../../../components/invoice/TaxTemplateSelect';
+import InvoiceSummary from '../../../components/invoice/InvoiceSummary';
 
 interface InvoiceItem {
   item_code: string;
@@ -38,6 +41,18 @@ interface SalesTeamMember {
   allocated_percentage: number;
 }
 
+interface TaxTemplate {
+  name: string;
+  title: string;
+  company: string;
+  taxes: {
+    charge_type: string;
+    account_head: string;
+    description: string;
+    rate: number;
+  }[];
+}
+
 export default function SalesInvoiceMain() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -63,6 +78,12 @@ export default function SalesInvoiceMain() {
   const [deliveryNoteSearch, setDeliveryNoteSearch] = useState('');
 
   const [salesTeam, setSalesTeam] = useState<SalesTeamMember[]>([]);
+
+  // Discount and Tax state
+  const [discountPercentage, setDiscountPercentage] = useState(0);
+  const [discountAmount, setDiscountAmount] = useState(0);
+  const [selectedTaxTemplate, setSelectedTaxTemplate] = useState<TaxTemplate | null>(null);
+  const [taxes, setTaxes] = useState<any[]>([]);
 
   const [formData, setFormData] = useState({
     customer: '',
@@ -106,6 +127,8 @@ export default function SalesInvoiceMain() {
     custom_total_komisi_sales: 0,
     custom_notes_si: '',
     payment_terms_template: '',
+    discount_amount: 0,
+    discount_percentage: 0,
   });
 
   // Get company on mount
@@ -190,7 +213,30 @@ export default function SalesInvoiceMain() {
           outstanding_amount: invoice.outstanding_amount || 0,
           custom_total_komisi_sales: totalKomisiSales,
           custom_notes_si: invoice.custom_notes_si || '',
+          discount_amount: invoice.discount_amount || 0,
+          discount_percentage: invoice.discount_percentage || 0,
         });
+        
+        // Set discount state
+        setDiscountAmount(invoice.discount_amount || 0);
+        setDiscountPercentage(invoice.discount_percentage || 0);
+        
+        // Set tax state if tax template exists
+        if (invoice.taxes_and_charges) {
+          // Fetch tax template details
+          fetch(`/api/setup/tax-templates?type=Sales&company=${encodeURIComponent(selectedCompany)}`)
+            .then(res => res.json())
+            .then(data => {
+              if (data.success) {
+                const template = data.data.find((t: TaxTemplate) => t.name === invoice.taxes_and_charges);
+                if (template) {
+                  setSelectedTaxTemplate(template);
+                }
+              }
+            })
+            .catch(err => console.error('Error fetching tax template:', err));
+        }
+        
         setEditingInvoice(name);
         setEditingInvoiceStatus(invoice.docstatus === 1 ? 'Submitted' : invoice.status || 'Draft');
         setError('');
@@ -447,9 +493,48 @@ export default function SalesInvoiceMain() {
       }
 
       const total = formData.items.reduce((sum, item) => sum + (item.amount || 0), 0);
+      
+      // Calculate net total and grand total with discount and taxes
+      const finalDiscountAmount = discountAmount > 0 ? discountAmount : (discountPercentage / 100) * total;
+      const netTotal = total - finalDiscountAmount;
+      
+      // Calculate taxes
+      let totalTaxes = 0;
+      const taxesPayload: any[] = [];
+      
+      if (selectedTaxTemplate && selectedTaxTemplate.taxes) {
+        let runningTotal = netTotal;
+        
+        for (const taxRow of selectedTaxTemplate.taxes) {
+          const rate = taxRow.rate || 0;
+          let taxAmount = 0;
+          
+          if (taxRow.charge_type === 'On Net Total') {
+            taxAmount = (rate / 100) * netTotal;
+          } else if (taxRow.charge_type === 'On Previous Row Total') {
+            taxAmount = (rate / 100) * runningTotal;
+          }
+          
+          runningTotal += taxAmount;
+          totalTaxes += taxAmount;
+          
+          taxesPayload.push({
+            charge_type: taxRow.charge_type,
+            account_head: taxRow.account_head,
+            description: taxRow.description,
+            rate: rate,
+            tax_amount: Math.round(taxAmount * 100) / 100,
+          });
+        }
+      }
+      
+      const grandTotal = netTotal + totalTaxes;
 
       console.log('[DEBUG] Submitting SI with sales_team:', salesTeam);
       console.log('[DEBUG] FormData dates:', { posting: formData.posting_date, due: formData.due_date });
+      console.log('[DEBUG] Discount:', { amount: finalDiscountAmount, percentage: discountPercentage });
+      console.log('[DEBUG] Taxes:', taxesPayload);
+      console.log('[DEBUG] Totals:', { total, netTotal, totalTaxes, grandTotal });
 
       const invoicePayload = {
         company: selectedCompany,
@@ -463,7 +548,7 @@ export default function SalesInvoiceMain() {
         customer_address: formData.customer_address || '',
         shipping_address: formData.shipping_address || '',
         contact_person: formData.contact_person || '',
-        taxes_and_charges: formData.taxes_and_charges || '',
+        taxes_and_charges: selectedTaxTemplate?.name || '',
         update_stock: 0,
         remarks: formData.items.find(item => item.delivery_note)
           ? `Generated from Delivery Note: ${formData.items.find(item => item.delivery_note)?.delivery_note}`
@@ -493,13 +578,20 @@ export default function SalesInvoiceMain() {
         docstatus: 0,
         custom_total_komisi_sales: formData.custom_total_komisi_sales,
         custom_notes_si: formData.custom_notes_si || '',
-        grand_total: total,
+        // Discount fields
+        discount_amount: finalDiscountAmount,
+        discount_percentage: discountPercentage,
+        // Tax fields
+        taxes: taxesPayload,
+        // Totals
         total: total,
-        net_total: total,
+        net_total: netTotal,
+        grand_total: grandTotal,
         base_total: total,
-        base_net_total: total,
-        base_grand_total: total,
-        outstanding_amount: total,
+        base_net_total: netTotal,
+        base_grand_total: grandTotal,
+        outstanding_amount: grandTotal,
+        total_taxes_and_charges: totalTaxes,
       };
 
       console.log('[DEBUG] SI Payload:', JSON.stringify(invoicePayload, null, 2));
@@ -732,7 +824,7 @@ export default function SalesInvoiceMain() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-gray-600">Total Jumlah:</div>
+                      <div className="text-gray-600">Subtotal:</div>
                       <div className="font-semibold text-lg text-gray-900">
                         Rp {formData.items.reduce((sum, item) => sum + item.amount, 0).toLocaleString('id-ID')}
                       </div>
@@ -740,6 +832,48 @@ export default function SalesInvoiceMain() {
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* Discount Section */}
+            <div className="mb-4">
+              <h4 className="text-md font-medium text-gray-900 mb-3">Diskon</h4>
+              <DiscountInput
+                subtotal={formData.items.reduce((sum, item) => sum + item.amount, 0)}
+                discountPercentage={discountPercentage}
+                discountAmount={discountAmount}
+                onDiscountPercentageChange={setDiscountPercentage}
+                onDiscountAmountChange={setDiscountAmount}
+                disabled={isReadOnly}
+              />
+            </div>
+
+            {/* Tax Section */}
+            <div className="mb-4">
+              <h4 className="text-md font-medium text-gray-900 mb-3">Pajak</h4>
+              <TaxTemplateSelect
+                company={selectedCompany}
+                type="Sales"
+                value={selectedTaxTemplate?.name || ''}
+                onChange={(template) => {
+                  setSelectedTaxTemplate(template);
+                  if (template) {
+                    setFormData({ ...formData, taxes_and_charges: template.name });
+                  } else {
+                    setFormData({ ...formData, taxes_and_charges: '' });
+                  }
+                }}
+                disabled={isReadOnly}
+              />
+            </div>
+
+            {/* Invoice Summary */}
+            <div className="mb-4">
+              <InvoiceSummary
+                items={formData.items}
+                discountAmount={discountAmount}
+                discountPercentage={discountPercentage}
+                taxes={selectedTaxTemplate?.taxes || []}
+              />
             </div>
 
             <div className="mb-4">
