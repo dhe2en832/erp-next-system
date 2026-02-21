@@ -36,7 +36,23 @@
     "test:e2e-sales-invoice": "ts-node --project tsconfig.scripts.json tests/e2e-sales-invoice-flow.test.ts",
     "test:e2e-purchase-invoice": "ts-node --project tsconfig.scripts.json tests/e2e-purchase-invoice-flow.test.ts",
     "test:e2e-discount-multiple-taxes": "ts-node --project tsconfig.scripts.json tests/e2e-discount-multiple-taxes.test.ts",
-    "test:e2e-backward-compatibility": "ts-node --project tsconfig.scripts.json tests/e2e-backward-compatibility.test.ts"
+    "test:e2e-backward-compatibility": "ts-node --project tsconfig.scripts.json tests/e2e-backward-compatibility.test.ts",
+    "test:accounting-period-roundtrip": "ts-node --project tsconfig.scripts.json tests/accounting-period-creation-roundtrip.test.ts",
+    "check-period-notifications": "ts-node --project tsconfig.scripts.json scripts/check-period-notifications.ts",
+    "test:accounting-period-creation": "ts-node --project tsconfig.scripts.json tests/accounting-period-creation.test.ts",
+    "test:accounting-period-validation": "ts-node --project tsconfig.scripts.json tests/accounting-period-validation-unit.test.ts",
+    "test:accounting-period-validation-simple": "ts-node --project tsconfig.scripts.json tests/accounting-period-validation-simple.test.ts",
+    "test:accounting-period-closing-journal": "ts-node --project tsconfig.scripts.json tests/accounting-period-closing-journal.pbt.test.ts",
+    "test:accounting-period-closing-journal-unit": "ts-node --project tsconfig.scripts.json tests/accounting-period-closing-journal-unit.test.ts",
+    "test:accounting-period-restrictions": "ts-node --project tsconfig.scripts.json tests/accounting-period-restrictions.pbt.test.ts",
+    "test:accounting-period-restrictions-unit": "ts-node --project tsconfig.scripts.json tests/accounting-period-restrictions-unit.test.ts",
+    "test:accounting-period-reports": "ts-node --project tsconfig.scripts.json tests/accounting-period-reports.pbt.test.ts",
+    "test:accounting-period-audit-log": "ts-node --project tsconfig.scripts.json tests/accounting-period-audit-log-unit.test.ts",
+    "test:accounting-period-notifications": "ts-node --project tsconfig.scripts.json tests/accounting-period-notifications.pbt.test.ts",
+    "test:accounting-period-notifications-unit": "ts-node --project tsconfig.scripts.json tests/accounting-period-notifications-unit.test.ts",
+    "test:accounting-period-sales-validation": "ts-node --project tsconfig.scripts.json tests/accounting-period-sales-validation.test.ts",
+    "test:accounting-period-purchase-validation": "ts-node --project tsconfig.scripts.json tests/accounting-period-purchase-validation.test.ts",
+    "test:csrf-protection": "ts-node --project tsconfig.scripts.json __tests__/csrf-protection.test.ts"
   },
   "dependencies": {
     "@types/node-fetch": "^2.6.13",
@@ -50,7 +66,8 @@
     "react-dom": "19.2.3",
     "recharts": "^3.7.0",
     "ws": "^8.19.0",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

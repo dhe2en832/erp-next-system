@@ -670,13 +670,13 @@ Dokumen ini berisi rencana implementasi untuk fitur diskon dan pajak pada sistem
 
 
 - [ ] 20. User Acceptance Testing (UAT)
-  - [~] 20.1 Prepare UAT environment dan test data
+  - [ ] 20.1 Prepare UAT environment dan test data
     - Setup UAT environment (copy dari staging)
     - Prepare test scenarios untuk Finance team
     - Prepare test data: customers, suppliers, items
     - _Requirements: 15.11_
 
-  - [~] 20.2 Conduct UAT session dengan Finance team
+  - [ ] 20.2 Conduct UAT session dengan Finance team
     - Train Finance team tentang fitur baru
     - Guide mereka untuk test semua scenarios
     - Scenario 1: Create Sales Invoice dengan discount percentage
@@ -689,14 +689,14 @@ Dokumen ini berisi rencana implementasi untuk fitur diskon dan pajak pada sistem
     - Scenario 8: Edit old invoice (backward compatibility)
     - _Requirements: 15.11_
 
-  - [~] 20.3 Collect feedback dan fix issues
+  - [ ] 20.3 Collect feedback dan fix issues
     - Document semua feedback dari Finance team
     - Prioritize issues: critical, high, medium, low
     - Fix critical dan high priority issues
     - Re-test setelah fix
     - _Requirements: 15.11_
 
-  - [~] 20.4 UAT sign-off
+  - [ ] 20.4 UAT sign-off
     - Get approval dari Finance Manager
     - Document UAT results
     - Prepare UAT report
@@ -704,7 +704,7 @@ Dokumen ini berisi rencana implementasi untuk fitur diskon dan pajak pada sistem
 
 
 - [ ] 21. Documentation
-  - [~] 21.1 Buat User Manual dalam Bahasa Indonesia
+  - [ ] 21.1 Buat User Manual dalam Bahasa Indonesia
     - Buat dokumen "Panduan Penggunaan Fitur Diskon dan Pajak"
     - Section 1: Cara input diskon di Sales Invoice (percentage dan amount)
     - Section 2: Cara input pajak di Sales Invoice (pilih template, lihat calculation)
@@ -715,7 +715,7 @@ Dokumen ini berisi rencana implementasi untuk fitur diskon dan pajak pada sistem
     - Sertakan screenshots untuk setiap step
     - _Requirements: 16.1, 16.2, 16.3, 16.4_
 
-  - [~] 21.2 Buat dokumentasi API
+  - [ ] 21.2 Buat dokumentasi API
     - Update API documentation dengan endpoints baru
     - Document request/response structure untuk Sales Invoice API
     - Document request/response structure untuk Purchase Invoice API
@@ -724,7 +724,7 @@ Dokumen ini berisi rencana implementasi untuk fitur diskon dan pajak pada sistem
     - Document error codes dan messages
     - _Requirements: 16.5_
 
-  - [~] 21.3 Buat contoh use cases
+  - [ ] 21.3 Buat contoh use cases
     - Use Case 1: Sales Invoice dengan discount 10%
     - Use Case 2: Sales Invoice dengan discount Rp 100.000
     - Use Case 3: Sales Invoice dengan PPN 11%
@@ -734,7 +734,7 @@ Dokumen ini berisi rencana implementasi untuk fitur diskon dan pajak pada sistem
     - Sertakan contoh data input dan expected output
     - _Requirements: 16.6_
 
-  - [~] 21.4 Buat troubleshooting guide
+  - [ ] 21.4 Buat troubleshooting guide
     - Common Error 1: "Discount amount cannot exceed subtotal" - penyebab dan solusi
     - Common Error 2: "Tax template not found" - penyebab dan solusi
     - Common Error 3: "GL Entry not balanced" - penyebab dan solusi
@@ -743,7 +743,7 @@ Dokumen ini berisi rencana implementasi untuk fitur diskon dan pajak pada sistem
     - FAQ: Kapan menggunakan PPN + PPh 23
     - _Requirements: 16.7_
 
-  - [~] 21.5 Buat dokumentasi teknis untuk developer
+  - [ ] 21.5 Buat dokumentasi teknis untuk developer
     - Document GL Entry logic untuk Sales Invoice dengan diskon
     - Document GL Entry logic untuk Purchase Invoice dengan diskon
     - Document GL Entry logic untuk PPN Output dan PPN Input
@@ -752,7 +752,7 @@ Dokumen ini berisi rencana implementasi untuk fitur diskon dan pajak pada sistem
     - Document ERPNext hooks dan custom scripts
     - _Requirements: 16.8_
 
-  - [~] 21.6 Buat video tutorial
+  - [ ] 21.6 Buat video tutorial
     - Video 1: Cara input diskon dan pajak di Sales Invoice (5 menit)
     - Video 2: Cara input diskon dan pajak di Purchase Invoice (5 menit)
     - Video 3: Cara membaca dan export Laporan PPN (5 menit)
@@ -761,14 +761,14 @@ Dokumen ini berisi rencana implementasi untuk fitur diskon dan pajak pada sistem
 
 
 - [ ] 22. Migration dan Deployment Preparation
-  - [~] 22.1 Buat migration script untuk Tax Templates
+  - [ ] 22.1 Buat migration script untuk Tax Templates
     - Buat Python script `migrations/create_tax_templates.py`
     - Script untuk create semua Tax Templates (PPN, PPh 23, PPh 22)
     - Validasi bahwa akun COA yang dibutuhkan sudah ada
     - Handle error jika template sudah exist (idempotent)
     - _Requirements: 17.1, 17.2_
 
-  - [~] 22.2 Buat pre-deployment checklist
+  - [ ] 22.2 Buat pre-deployment checklist
     - Checklist item 1: Backup database (full backup)
     - Checklist item 2: Test di staging dengan production data
     - Checklist item 3: Validasi semua akun COA exist (4300, 5300, 2210, 1410, 2230, 2240)
@@ -778,14 +778,14 @@ Dokumen ini berisi rencana implementasi untuk fitur diskon dan pajak pada sistem
     - Checklist item 7: Rollback plan prepared
     - _Requirements: 17.3, 17.4, 17.6_
 
-  - [~] 22.3 Buat rollback script
+  - [ ] 22.3 Buat rollback script
     - Buat script untuk rollback jika terjadi error
     - Script untuk delete Tax Templates yang dibuat
     - Script untuk restore database dari backup
     - Document rollback procedure
     - _Requirements: 17.5_
 
-  - [~] 22.4 Buat post-deployment checklist
+  - [ ] 22.4 Buat post-deployment checklist
     - Checklist item 1: Run smoke test (create 1 invoice dengan discount dan tax)
     - Checklist item 2: Verify GL Entry posted correctly
     - Checklist item 3: Verify reports displaying correct data
@@ -795,34 +795,34 @@ Dokumen ini berisi rencana implementasi untuk fitur diskon dan pajak pada sistem
     - Checklist item 7: Send deployment summary to admin
     - _Requirements: 17.7, 17.8_
 
-  - [~] 22.5 Execute database backup
+  - [ ] 22.5 Execute database backup
     - Run full database backup sebelum deployment
     - Verify backup file integrity
     - Store backup di secure location
     - Document backup location dan timestamp
     - _Requirements: 17.3_
 
-  - [~] 22.6 Execute migration script
+  - [ ] 22.6 Execute migration script
     - Run migration script di production
     - Verify Tax Templates created successfully
     - Verify no errors in migration log
     - _Requirements: 17.1, 17.2_
 
-  - [~] 22.7 Deploy code to production
+  - [ ] 22.7 Deploy code to production
     - Deploy Next.js frontend (API dan UI)
     - Deploy ERPNext custom app (Python backend)
     - Restart services
     - Verify deployment successful
     - _Requirements: 17.6_
 
-  - [~] 22.8 Execute post-deployment validation
+  - [ ] 22.8 Execute post-deployment validation
     - Run smoke test: create Sales Invoice dengan discount dan PPN
     - Verify GL Entry balanced
     - Verify reports displaying correct data
     - Monitor error logs
     - _Requirements: 17.7_
 
-  - [~] 22.9 Send deployment notification
+  - [ ] 22.9 Send deployment notification
     - Send email to admin dengan deployment summary
     - Include: deployment time, components deployed, test results
     - Include link to documentation dan troubleshooting guide

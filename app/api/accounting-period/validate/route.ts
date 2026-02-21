@@ -1,0 +1,428 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
+import { getERPNextClient } from '@/lib/erpnext';
+import { validatePeriodRequestSchema } from '@/lib/accounting-period-schemas';
+import type { ValidationResult, PeriodClosingConfig, AccountingPeriod } from '@/types/accounting-period';
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { period_name, company } = validatePeriodRequestSchema.parse(body);
+
+    const erpnext = getERPNextClient();
+
+    // Get period
+    const period = await erpnext.getDoc<AccountingPeriod>('Accounting Period', period_name);
+    
+    if (period.company !== company) {
+      return NextResponse.json(
+        { success: false, error: 'Period does not belong to specified company' },
+        { status: 400 }
+      );
+    }
+
+    // Get configuration
+    const config = await erpnext.getDoc<PeriodClosingConfig>('Period Closing Config', 'Period Closing Config');
+
+    // Run validations
+    const validations: ValidationResult[] = [];
+
+    if (config.enable_draft_transaction_check) {
+      validations.push(await validateNoDraftTransactions(erpnext, period));
+    }
+
+    if (config.enable_unposted_transaction_check) {
+      validations.push(await validateAllTransactionsPosted(erpnext, period));
+    }
+
+    if (config.enable_bank_reconciliation_check) {
+      validations.push(await validateBankReconciliation(erpnext, period));
+    }
+
+    if (config.enable_sales_invoice_check) {
+      validations.push(await validateSalesInvoices(erpnext, period));
+    }
+
+    if (config.enable_purchase_invoice_check) {
+      validations.push(await validatePurchaseInvoices(erpnext, period));
+    }
+
+    if (config.enable_inventory_check) {
+      validations.push(await validateInventoryTransactions(erpnext, period));
+    }
+
+    if (config.enable_payroll_check) {
+      validations.push(await validatePayrollEntries(erpnext, period));
+    }
+
+    const allPassed = validations.every(v => v.passed);
+
+    return NextResponse.json({
+      success: true,
+      all_passed: allPassed,
+      validations,
+    });
+  } catch (error: any) {
+    console.error('Validation error:', error);
+    
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { success: false, error: 'Validation error', details: error.errors },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json(
+      { success: false, error: error.message || 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+// Validation functions
+async function validateNoDraftTransactions(
+  erpnext: ReturnType<typeof getERPNextClient>,
+  period: AccountingPeriod
+): Promise<ValidationResult> {
+  const doctypes = ['Journal Entry', 'Sales Invoice', 'Purchase Invoice', 'Payment Entry'];
+  const draftDocs: any[] = [];
+
+  for (const doctype of doctypes) {
+    const filters = [
+      ['company', '=', period.company],
+      ['posting_date', '>=', period.start_date],
+      ['posting_date', '<=', period.end_date],
+      ['docstatus', '=', 0], // Draft
+    ];
+
+    try {
+      const docs = await erpnext.getList(doctype, {
+        filters,
+        fields: ['name', 'posting_date'],
+        limit_page_length: 100,
+      });
+
+      draftDocs.push(...docs.map((d: any) => ({ ...d, doctype })));
+    } catch (error) {
+      console.error(`Error checking ${doctype}:`, error);
+    }
+  }
+
+  return {
+    check_name: 'No Draft Transactions',
+    passed: draftDocs.length === 0,
+    message:
+      draftDocs.length === 0
+        ? 'All transactions are submitted'
+        : `Found ${draftDocs.length} draft transaction(s)`,
+    severity: 'error',
+    details: draftDocs,
+  };
+}
+
+async function validateAllTransactionsPosted(
+  erpnext: ReturnType<typeof getERPNextClient>,
+  period: AccountingPeriod
+): Promise<ValidationResult> {
+  const voucherTypes = ['Journal Entry', 'Sales Invoice', 'Purchase Invoice', 'Payment Entry'];
+  const unpostedVouchers: any[] = [];
+
+  for (const voucherType of voucherTypes) {
+    const voucherFilters = [
+      ['company', '=', period.company],
+      ['posting_date', '>=', period.start_date],
+      ['posting_date', '<=', period.end_date],
+      ['docstatus', '=', 1], // Submitted
+    ];
+
+    try {
+      const vouchers = await erpnext.getList(voucherType, {
+        filters: voucherFilters,
+        fields: ['name'],
+        limit_page_length: 1000,
+      });
+
+      for (const voucher of vouchers) {
+        const glFilters = [
+          ['voucher_type', '=', voucherType],
+          ['voucher_no', '=', voucher.name],
+        ];
+
+        const glEntries = await erpnext.getList('GL Entry', {
+          filters: glFilters,
+          fields: ['name'],
+          limit_page_length: 1,
+        });
+
+        if (glEntries.length === 0) {
+          unpostedVouchers.push({ doctype: voucherType, name: voucher.name });
+        }
+      }
+    } catch (error) {
+      console.error(`Error checking ${voucherType}:`, error);
+    }
+  }
+
+  return {
+    check_name: 'All Transactions Posted',
+    passed: unpostedVouchers.length === 0,
+    message:
+      unpostedVouchers.length === 0
+        ? 'All transactions have GL entries'
+        : `Found ${unpostedVouchers.length} unposted transaction(s)`,
+    severity: 'error',
+    details: unpostedVouchers,
+  };
+}
+
+async function validateBankReconciliation(
+  erpnext: ReturnType<typeof getERPNextClient>,
+  period: AccountingPeriod
+): Promise<ValidationResult> {
+  try {
+    const bankAccounts = await erpnext.getList('Account', {
+      filters: [
+        ['company', '=', period.company],
+        ['account_type', '=', 'Bank'],
+      ],
+      fields: ['name', 'account_name'],
+      limit_page_length: 1000,
+    });
+
+    const unreconciledAccounts: any[] = [];
+
+    for (const account of bankAccounts) {
+      const filters = [
+        ['account', '=', account.name],
+        ['posting_date', '<=', period.end_date],
+        ['clearance_date', 'is', 'not set'],
+      ];
+
+      const unreconciledEntries = await erpnext.getList('GL Entry', {
+        filters,
+        fields: ['name'],
+        limit_page_length: 1,
+      });
+
+      if (unreconciledEntries.length > 0) {
+        unreconciledAccounts.push({
+          account: account.name,
+          account_name: account.account_name,
+          unreconciled_count: unreconciledEntries.length,
+        });
+      }
+    }
+
+    return {
+      check_name: 'Bank Reconciliation Complete',
+      passed: unreconciledAccounts.length === 0,
+      message:
+        unreconciledAccounts.length === 0
+          ? 'All bank accounts are reconciled'
+          : `Found ${unreconciledAccounts.length} bank account(s) with unreconciled transactions`,
+      severity: 'warning',
+      details: unreconciledAccounts,
+    };
+  } catch (error) {
+    console.error('Error checking bank reconciliation:', error);
+    return {
+      check_name: 'Bank Reconciliation Complete',
+      passed: false,
+      message: 'Error checking bank reconciliation',
+      severity: 'error',
+      details: [],
+    };
+  }
+}
+
+/**
+ * Validate Sales Invoices are Processed
+ * Requirement 11.1: Check that all sales invoices in the period are processed (submitted)
+ * 
+ * This validation ensures that:
+ * - All sales invoices within the period date range are submitted (not draft)
+ * - No unprocessed sales invoices remain before period closing
+ * 
+ * @param erpnext - ERPNext client instance
+ * @param period - Accounting period to validate
+ * @returns ValidationResult with details of any unprocessed invoices
+ */
+async function validateSalesInvoices(
+  erpnext: ReturnType<typeof getERPNextClient>,
+  period: AccountingPeriod
+): Promise<ValidationResult> {
+  try {
+    // Query for draft (unprocessed) sales invoices in the period
+    // docstatus = 0: Draft (not submitted)
+    // docstatus = 1: Submitted (processed)
+    // docstatus = 2: Cancelled
+    const filters = [
+      ['company', '=', period.company],
+      ['posting_date', '>=', period.start_date],
+      ['posting_date', '<=', period.end_date],
+      ['docstatus', '=', 0], // Draft only
+    ];
+
+    const draftInvoices = await erpnext.getList('Sales Invoice', {
+      filters,
+      fields: ['name', 'customer', 'grand_total', 'posting_date'],
+      limit_page_length: 100,
+    });
+
+    return {
+      check_name: 'Sales Invoices Processed',
+      passed: draftInvoices.length === 0,
+      message:
+        draftInvoices.length === 0
+          ? 'All sales invoices are processed'
+          : `Found ${draftInvoices.length} unprocessed sales invoice(s) in period`,
+      severity: 'error',
+      details: draftInvoices,
+    };
+  } catch (error) {
+    console.error('Error checking sales invoices:', error);
+    return {
+      check_name: 'Sales Invoices Processed',
+      passed: false,
+      message: 'Error checking sales invoices',
+      severity: 'error',
+      details: [],
+    };
+  }
+}
+
+/**
+ * Validate Purchase Invoices are Processed
+ * Requirement 11.2: Check that all purchase invoices in the period are processed (submitted)
+ * 
+ * This validation ensures that:
+ * - All purchase invoices within the period date range are submitted (not draft)
+ * - No unprocessed purchase invoices remain before period closing
+ * 
+ * @param erpnext - ERPNext client instance
+ * @param period - Accounting period to validate
+ * @returns ValidationResult with details of any unprocessed invoices
+ */
+async function validatePurchaseInvoices(
+  erpnext: ReturnType<typeof getERPNextClient>,
+  period: AccountingPeriod
+): Promise<ValidationResult> {
+  try {
+    // Query for draft (unprocessed) purchase invoices in the period
+    // docstatus = 0: Draft (not submitted)
+    // docstatus = 1: Submitted (processed)
+    // docstatus = 2: Cancelled
+    const filters = [
+      ['company', '=', period.company],
+      ['posting_date', '>=', period.start_date],
+      ['posting_date', '<=', period.end_date],
+      ['docstatus', '=', 0], // Draft only
+    ];
+
+    const draftInvoices = await erpnext.getList('Purchase Invoice', {
+      filters,
+      fields: ['name', 'supplier', 'grand_total', 'posting_date'],
+      limit_page_length: 100,
+    });
+
+    return {
+      check_name: 'Purchase Invoices Processed',
+      passed: draftInvoices.length === 0,
+      message:
+        draftInvoices.length === 0
+          ? 'All purchase invoices are processed'
+          : `Found ${draftInvoices.length} unprocessed purchase invoice(s) in period`,
+      severity: 'error',
+      details: draftInvoices,
+    };
+  } catch (error) {
+    console.error('Error checking purchase invoices:', error);
+    return {
+      check_name: 'Purchase Invoices Processed',
+      passed: false,
+      message: 'Error checking purchase invoices',
+      severity: 'error',
+      details: [],
+    };
+  }
+}
+
+async function validateInventoryTransactions(
+  erpnext: ReturnType<typeof getERPNextClient>,
+  period: AccountingPeriod
+): Promise<ValidationResult> {
+  try {
+    const filters = [
+      ['company', '=', period.company],
+      ['posting_date', '>=', period.start_date],
+      ['posting_date', '<=', period.end_date],
+      ['docstatus', '=', 0], // Draft
+    ];
+
+    const draftStockEntries = await erpnext.getList('Stock Entry', {
+      filters,
+      fields: ['name', 'stock_entry_type'],
+      limit_page_length: 100,
+    });
+
+    return {
+      check_name: 'Inventory Transactions Posted',
+      passed: draftStockEntries.length === 0,
+      message:
+        draftStockEntries.length === 0
+          ? 'All inventory transactions are posted'
+          : `Found ${draftStockEntries.length} unposted inventory transaction(s)`,
+      severity: 'error',
+      details: draftStockEntries,
+    };
+  } catch (error) {
+    console.error('Error checking inventory transactions:', error);
+    return {
+      check_name: 'Inventory Transactions Posted',
+      passed: false,
+      message: 'Error checking inventory transactions',
+      severity: 'error',
+      details: [],
+    };
+  }
+}
+
+async function validatePayrollEntries(
+  erpnext: ReturnType<typeof getERPNextClient>,
+  period: AccountingPeriod
+): Promise<ValidationResult> {
+  try {
+    const filters = [
+      ['company', '=', period.company],
+      ['posting_date', '>=', period.start_date],
+      ['posting_date', '<=', period.end_date],
+      ['docstatus', '=', 0], // Draft
+    ];
+
+    const draftPayrollEntries = await erpnext.getList('Salary Slip', {
+      filters,
+      fields: ['name', 'employee', 'net_pay'],
+      limit_page_length: 100,
+    });
+
+    return {
+      check_name: 'Payroll Entries Recorded',
+      passed: draftPayrollEntries.length === 0,
+      message:
+        draftPayrollEntries.length === 0
+          ? 'All payroll entries are recorded'
+          : `Found ${draftPayrollEntries.length} unrecorded payroll entry(ies)`,
+      severity: 'error',
+      details: draftPayrollEntries,
+    };
+  } catch (error) {
+    console.error('Error checking payroll entries:', error);
+    return {
+      check_name: 'Payroll Entries Recorded',
+      passed: false,
+      message: 'Error checking payroll entries',
+      severity: 'error',
+      details: [],
+    };
+  }
+}

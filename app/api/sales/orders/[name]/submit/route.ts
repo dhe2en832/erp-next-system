@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseErpError } from '../../../../../../utils/erp-error';
 
-const ERPNEXT_API_URL = process.env.ERP_API_URL || 'http://localhost:8000';
+const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
 
 export async function POST(
   request: NextRequest,
