@@ -6,7 +6,10 @@ export interface DiscountInputProps {
   subtotal: number;
   discountPercentage?: number;
   discountAmount?: number;
-  onChange: (data: { discountPercentage: number; discountAmount: number }) => void;
+  onChange?: (data: { discountPercentage: number; discountAmount: number }) => void;
+  // Legacy props used by purchase invoice screen
+  onDiscountPercentageChange?: (value: number) => void;
+  onDiscountAmountChange?: (value: number) => void;
   type?: 'percentage' | 'amount';
   disabled?: boolean;
 }
@@ -16,6 +19,8 @@ export default function DiscountInput({
   discountPercentage = 0,
   discountAmount = 0,
   onChange,
+  onDiscountPercentageChange,
+  onDiscountAmountChange,
   type = 'percentage',
   disabled = false
 }: DiscountInputProps) {
@@ -23,6 +28,21 @@ export default function DiscountInput({
   const [percentageValue, setPercentageValue] = useState<string>(discountPercentage.toString());
   const [amountValue, setAmountValue] = useState<string>(discountAmount.toString());
   const [error, setError] = useState<string>('');
+
+  // Normalize handler to support both unified onChange and legacy separate handlers
+  const emitChange = (data: { discountPercentage: number; discountAmount: number }) => {
+    if (onChange) {
+      onChange(data);
+      return;
+    }
+    // Legacy fallbacks
+    if (onDiscountPercentageChange) {
+      onDiscountPercentageChange(data.discountPercentage);
+    }
+    if (onDiscountAmountChange) {
+      onDiscountAmountChange(data.discountAmount);
+    }
+  };
 
   useEffect(() => {
     setPercentageValue(discountPercentage.toString());
@@ -50,7 +70,7 @@ export default function DiscountInput({
     const calculatedAmount = (numValue / 100) * subtotal;
     setAmountValue(calculatedAmount.toFixed(2));
 
-    onChange({
+    emitChange({
       discountPercentage: numValue,
       discountAmount: calculatedAmount
     });
@@ -77,7 +97,7 @@ export default function DiscountInput({
     const calculatedPercentage = subtotal > 0 ? (numValue / subtotal) * 100 : 0;
     setPercentageValue(calculatedPercentage.toFixed(2));
 
-    onChange({
+    emitChange({
       discountPercentage: calculatedPercentage,
       discountAmount: numValue
     });

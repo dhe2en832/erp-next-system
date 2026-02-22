@@ -443,6 +443,8 @@ export default function SalesInvoiceMain() {
           total: 0, net_total: 0, grand_total: 0, outstanding_amount: 0,
           custom_notes_si: completeDnData.custom_notes_dn || '',
           payment_terms_template: paymentTermsTemplate,
+          discount_amount: completeDnData.discount_amount || 0,
+          discount_percentage: completeDnData.discount_percentage || 0,
         });
         
         console.log('[DEBUG] Setting formData dates:', { postingDate, dueDate });
@@ -620,16 +622,16 @@ export default function SalesInvoiceMain() {
         if (isUpdate) setSuccessMessage('Faktur Penjualan berhasil diperbarui');
       } else {
         const action = isUpdate ? 'memperbarui' : 'menyimpan';
-        
+
         // Use error handler utility to show alert popup
         handleERPNextError(
-          data.message || `Gagal ${action} Faktur Penjualan`,
+          data.message || `Gagal ${action} Faktur Penjualan (status ${response.status || 'unknown'})`,
           'Sales Invoice',
           formData.posting_date
         );
-        
+
         // Also set error state for banner
-        setError(data.message || `Gagal ${action} Faktur Penjualan`);
+        setError(data.message || `Gagal ${action} Faktur Penjualan (status ${response.status || 'unknown'})`);
       }
     } catch (error) {
       console.error('Error creating invoice:', error);
