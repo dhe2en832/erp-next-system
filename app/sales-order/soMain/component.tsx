@@ -371,15 +371,29 @@ export default function SalesOrderMain() {
     }
   };
 
-  const getDefaultWarehouse = async () => {
+  const getDefaultWarehouse = async (company: string) => {
     try {
-      const response = await fetch('/api/finance/company/settings');
+      const response = await fetch(`/api/finance/company/settings?company=${encodeURIComponent(company)}`);
       const data = await response.json();
       if (data.success && data.data?.default_warehouse) {
         return data.data.default_warehouse;
       }
     } catch (error: unknown) {
+      console.error('Failed to fetch company settings:', error);
     }
+
+    // Fallback: fetch available warehouses and pick the first one
+    try {
+      const whResponse = await fetch(`/api/inventory/warehouses?company=${encodeURIComponent(company)}`);
+      const whData = await whResponse.json();
+      if (whData.success && whData.data && whData.data.length > 0) {
+        return whData.data[0].name;
+      }
+    } catch (error: unknown) {
+      console.error('Failed to fetch warehouses:', error);
+    }
+
+    // Last resort fallback
     return 'Stores';
   };
 
@@ -408,7 +422,7 @@ export default function SalesOrderMain() {
           )
         }));
       } else {
-        const defaultWarehouse = await getDefaultWarehouse();
+        const defaultWarehouse = await getDefaultWarehouse(selectedCompany);
         const actualStock = data.length > 0 ? data[0].available : 0;
         
         const updatedItem = {

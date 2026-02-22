@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { CreateSalesInvoiceRequest } from '@/types/sales-invoice';
+import { handleERPNextAPIError } from '@/utils/erpnext-api-helper';
 
 const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
 
@@ -349,12 +350,23 @@ export async function POST(request: NextRequest) {
 
     if (!response.ok) {
       console.error('ERPNext API Error:', responseText);
+      
+      // Use the error handler utility to extract proper error message
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch {
+        data = { message: responseText };
+      }
+      
+      const errorResult = handleERPNextAPIError(response.status, data, JSON.stringify(payload));
+      
       return NextResponse.json({
         success: false,
-        message: 'Failed to create invoice in ERPNext',
+        message: errorResult.errorMessage,
         error: responseText,
         status: response.status
-      }, { status: 500 });
+      }, { status: response.status });
     }
 
     let data;

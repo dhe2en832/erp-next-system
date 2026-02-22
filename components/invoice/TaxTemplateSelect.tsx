@@ -20,13 +20,15 @@ export interface TaxTemplateSelectProps {
   value?: string;
   onChange: (template: TaxTemplate | null) => void;
   company: string;
+  disabled?: boolean;
 }
 
 export default function TaxTemplateSelect({
   type,
   value = '',
   onChange,
-  company
+  company,
+  disabled = false
 }: TaxTemplateSelectProps) {
   const [templates, setTemplates] = useState<TaxTemplate[]>([]);
   const [loading, setLoading] = useState(false);
@@ -64,6 +66,14 @@ export default function TaxTemplateSelect({
       const result = await response.json();
       
       if (result.success) {
+        console.log('[TaxTemplateSelect] Loaded templates:', {
+          count: result.data?.length || 0,
+          templates: result.data?.map((t: TaxTemplate) => ({
+            name: t.name,
+            title: t.title,
+            taxesCount: t.taxes?.length || 0
+          }))
+        });
         setTemplates(result.data || []);
       } else {
         throw new Error(result.error || 'Gagal mengambil data template pajak');
@@ -81,13 +91,22 @@ export default function TaxTemplateSelect({
     setSelectedValue(templateName);
 
     if (!templateName) {
+      console.log('[TaxTemplateSelect] Cleared template selection');
       onChange(null);
       return;
     }
 
     const selectedTemplate = templates.find(t => t.name === templateName);
     if (selectedTemplate) {
+      console.log('[TaxTemplateSelect] Selected template:', {
+        name: selectedTemplate.name,
+        title: selectedTemplate.title,
+        taxesCount: selectedTemplate.taxes?.length || 0,
+        taxes: selectedTemplate.taxes
+      });
       onChange(selectedTemplate);
+    } else {
+      console.warn('[TaxTemplateSelect] Template not found:', templateName);
     }
   };
 
@@ -130,7 +149,8 @@ export default function TaxTemplateSelect({
           <select
             value={selectedValue}
             onChange={handleChange}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            disabled={disabled}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
           >
             <option value="">-- Pilih Template Pajak --</option>
             {templates.map((template) => (

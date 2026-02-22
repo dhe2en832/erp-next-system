@@ -76,6 +76,15 @@ export async function POST(request: NextRequest) {
       updateData.permanently_closed_on = null;
     }
 
+    // CRITICAL: Set all closed_documents[].closed = 0 to allow transactions
+    // This is required because ERPNext checks both status AND closed_documents flags
+    if (period.closed_documents && Array.isArray(period.closed_documents)) {
+      updateData.closed_documents = period.closed_documents.map((doc: any) => ({
+        ...doc,
+        closed: 0
+      }));
+    }
+
     await erpnextClient.update('Accounting Period', period_name, updateData);
 
     // Create audit log with appropriate reason

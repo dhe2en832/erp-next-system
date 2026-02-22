@@ -10,6 +10,7 @@ import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
 import DiscountInput from '../../../components/invoice/DiscountInput';
 import TaxTemplateSelect from '../../../components/invoice/TaxTemplateSelect';
 import InvoiceSummary from '../../../components/invoice/InvoiceSummary';
+import { handleERPNextError } from '../../../utils/erpnext-error-handler';
 
 interface InvoiceItem {
   item_code: string;
@@ -214,12 +215,12 @@ export default function SalesInvoiceMain() {
           custom_total_komisi_sales: totalKomisiSales,
           custom_notes_si: invoice.custom_notes_si || '',
           discount_amount: invoice.discount_amount || 0,
-          discount_percentage: invoice.discount_percentage || 0,
+          discount_percentage: invoice.additional_discount_percentage || 0,
         });
         
-        // Set discount state
+        // Set discount state - use additional_discount_percentage from ERPNext
         setDiscountAmount(invoice.discount_amount || 0);
-        setDiscountPercentage(invoice.discount_percentage || 0);
+        setDiscountPercentage(invoice.additional_discount_percentage || 0);
         
         // Set tax state if tax template exists
         if (invoice.taxes_and_charges) {
@@ -578,9 +579,10 @@ export default function SalesInvoiceMain() {
         docstatus: 0,
         custom_total_komisi_sales: formData.custom_total_komisi_sales,
         custom_notes_si: formData.custom_notes_si || '',
-        // Discount fields
+        // Discount fields - ERPNext uses additional_discount_percentage, not discount_percentage
         discount_amount: finalDiscountAmount,
-        discount_percentage: discountPercentage,
+        additional_discount_percentage: discountPercentage,
+        apply_discount_on: 'Net Total',
         // Tax fields
         taxes: taxesPayload,
         // Totals
@@ -618,11 +620,26 @@ export default function SalesInvoiceMain() {
         if (isUpdate) setSuccessMessage('Faktur Penjualan berhasil diperbarui');
       } else {
         const action = isUpdate ? 'memperbarui' : 'menyimpan';
-        setError(`Gagal ${action} Faktur Penjualan: ${data.message}`);
+        
+        // Use error handler utility to show alert popup
+        handleERPNextError(
+          data.message || `Gagal ${action} Faktur Penjualan`,
+          'Sales Invoice',
+          formData.posting_date
+        );
+        
+        // Also set error state for banner
+        setError(data.message || `Gagal ${action} Faktur Penjualan`);
       }
     } catch (error) {
       console.error('Error creating invoice:', error);
-      setError('Terjadi kesalahan. Silakan coba lagi.');
+      const errorMessage = 'Terjadi kesalahan. Silakan coba lagi.';
+      
+      // Show alert popup for unexpected errors
+      handleERPNextError(errorMessage, 'Sales Invoice', formData.posting_date);
+      
+      // Also set error state for banner
+      setError(errorMessage);
     } finally {
       setFormLoading(false);
       isSubmittingRef.current = false;
@@ -841,8 +858,10 @@ export default function SalesInvoiceMain() {
                 subtotal={formData.items.reduce((sum, item) => sum + item.amount, 0)}
                 discountPercentage={discountPercentage}
                 discountAmount={discountAmount}
-                onDiscountPercentageChange={setDiscountPercentage}
-                onDiscountAmountChange={setDiscountAmount}
+                onChange={(data) => {
+                  setDiscountPercentage(data.discountPercentage);
+                  setDiscountAmount(data.discountAmount);
+                }}
                 disabled={isReadOnly}
               />
             </div>
@@ -855,6 +874,7 @@ export default function SalesInvoiceMain() {
                 type="Sales"
                 value={selectedTaxTemplate?.name || ''}
                 onChange={(template) => {
+                  console.log('[DEBUG] Tax template selected:', template);
                   setSelectedTaxTemplate(template);
                   if (template) {
                     setFormData({ ...formData, taxes_and_charges: template.name });
@@ -864,6 +884,14 @@ export default function SalesInvoiceMain() {
                 }}
                 disabled={isReadOnly}
               />
+              {selectedTaxTemplate && (
+                <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm">
+                  <p className="font-medium">Template terpilih: {selectedTaxTemplate.title}</p>
+                  <p className="text-xs text-gray-600">
+                    {selectedTaxTemplate.taxes.length} baris pajak
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Invoice Summary */}

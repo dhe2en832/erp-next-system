@@ -8,6 +8,7 @@ export interface DiscountInputProps {
   discountAmount?: number;
   onChange: (data: { discountPercentage: number; discountAmount: number }) => void;
   type?: 'percentage' | 'amount';
+  disabled?: boolean;
 }
 
 export default function DiscountInput({
@@ -15,7 +16,8 @@ export default function DiscountInput({
   discountPercentage = 0,
   discountAmount = 0,
   onChange,
-  type = 'percentage'
+  type = 'percentage',
+  disabled = false
 }: DiscountInputProps) {
   const [inputType, setInputType] = useState<'percentage' | 'amount'>(type);
   const [percentageValue, setPercentageValue] = useState<string>(discountPercentage.toString());
@@ -98,6 +100,7 @@ export default function DiscountInput({
             type="radio"
             checked={inputType === 'percentage'}
             onChange={() => setInputType('percentage')}
+            disabled={disabled}
             className="w-4 h-4"
           />
           <span className="text-sm font-medium">Persentase (%)</span>
@@ -107,6 +110,7 @@ export default function DiscountInput({
             type="radio"
             checked={inputType === 'amount'}
             onChange={() => setInputType('amount')}
+            disabled={disabled}
             className="w-4 h-4"
           />
           <span className="text-sm font-medium">Jumlah (Rp)</span>
@@ -123,10 +127,11 @@ export default function DiscountInput({
               type="number"
               value={percentageValue}
               onChange={handlePercentageChange}
+              disabled={disabled}
               min="0"
               max="100"
               step="0.01"
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
               placeholder="0.00"
             />
             <span className="text-sm text-gray-600">%</span>
@@ -146,10 +151,11 @@ export default function DiscountInput({
               type="number"
               value={amountValue}
               onChange={handleAmountChange}
+              disabled={disabled}
               min="0"
               max={subtotal}
               step="0.01"
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
               placeholder="0.00"
             />
           </div>

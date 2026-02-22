@@ -7,6 +7,7 @@ import CustomerDialog from '../../components/CustomerDialog';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import PrintDialog from '../../components/PrintDialog';
 import { formatDate, parseDate } from '../../../utils/format';
+import { handleERPNextError } from '../../../utils/erpnext-error-handler';
 import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
 
 interface SalesOrder {
@@ -261,7 +262,13 @@ export default function DeliveryNoteMain() {
         setSavedDocName(docName);
         setShowPrintDialog(true);
       } else {
-        setError(data.message || 'Gagal menyimpan surat jalan');
+        const { bannerMessage } = handleERPNextError(
+          data,
+          formData.posting_date,
+          'Surat Jalan',
+          'Gagal menyimpan surat jalan'
+        );
+        setError(bannerMessage);
       }
     } catch (err) {
       console.error('Error creating delivery note:', err);
@@ -272,21 +279,43 @@ export default function DeliveryNoteMain() {
     }
   };
 
+  const getDefaultWarehouse = async (company: string) => {
+    try {
+      const response = await fetch(`/api/finance/company/settings?company=${encodeURIComponent(company)}`);
+      const data = await response.json();
+      if (data.success && data.data?.default_warehouse) {
+        return data.data.default_warehouse;
+      }
+    } catch (error: unknown) {
+      console.error('Failed to fetch company settings:', error);
+    }
+
+    // Fallback: fetch available warehouses and pick the first one
+    try {
+      const whResponse = await fetch(`/api/inventory/warehouses?company=${encodeURIComponent(company)}`);
+      const whData = await whResponse.json();
+      if (whData.success && whData.data && whData.data.length > 0) {
+        return whData.data[0].name;
+      }
+    } catch (error: unknown) {
+      console.error('Failed to fetch warehouses:', error);
+    }
+
+    // Last resort fallback
+    return 'Stores';
+  };
+
   const resetForm = () => {
     setFormData({
       customer: '',
       customer_name: '',
-      posting_date: new Date().toISOString().split('T')[0],
+      posting_date: formatDate(new Date()),
       sales_order: '',
       custom_notes_dn: '',
-      payment_terms_template: '',
       items: [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0, uom: 'Nos' }],
     });
     setSalesTeam([]);
     setError('');
-    setFormLoading(false);
-    setEditingDeliveryNote(null);
-    setCurrentDeliveryNoteStatus('');
   };
 
   const handleSalesOrderSelect = async (salesOrder: SalesOrder) => {
@@ -296,6 +325,7 @@ export default function DeliveryNoteMain() {
       const data = await response.json();
       if (data.success) {
         const order = data.data;
+        const defaultWarehouse = await getDefaultWarehouse(selectedCompany);
         const deliveryNoteItems = order.items ? order.items.map((item: any) => ({
           item_code: item.item_code,
           item_name: item.item_name,
@@ -305,7 +335,7 @@ export default function DeliveryNoteMain() {
           uom: item.uom || 'Nos',
           stock_uom: item.stock_uom || item.uom || 'Nos',
           so_detail: item.name,
-          warehouse: item.warehouse || 'Stores - EN',
+          warehouse: item.warehouse || defaultWarehouse,
           delivered_qty: item.qty,
         })) : [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0, uom: 'Nos' }];
 

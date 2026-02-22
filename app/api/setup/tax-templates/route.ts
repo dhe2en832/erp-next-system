@@ -76,7 +76,8 @@ export async function GET(request: NextRequest) {
     ];
 
     // Build ERPNext API URL
-    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/${encodeURIComponent(docType)}?fields=["name","title","company","disabled","taxes"]&filters=${encodeURIComponent(JSON.stringify(filters))}`;
+    // Note: We need to fetch full documents to get child table data
+    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/${encodeURIComponent(docType)}?filters=${encodeURIComponent(JSON.stringify(filters))}`;
     
     console.log('Tax Template ERPNext URL:', erpNextUrl);
 
@@ -90,7 +91,6 @@ export async function GET(request: NextRequest) {
 
     const data = await response.json();
     console.log('Tax Template Response Status:', response.status);
-    console.log('Tax Template Response Data:', JSON.stringify(data, null, 2));
 
     if (!response.ok) {
       return NextResponse.json({
@@ -99,16 +99,53 @@ export async function GET(request: NextRequest) {
       }, { status: response.status });
     }
 
-    // Transform data to match API specification
-    const templates = data.data?.map((template: any) => ({
-      name: template.name,
-      title: template.title,
-      company: template.company,
-      disabled: template.disabled,
-      taxes: template.taxes || []
-    })) || [];
+    // Fetch full details for each template to get child table data
+    const templateNames = data.data || [];
+    const templates = [];
+
+    console.log(`Fetching details for ${templateNames.length} templates...`);
+
+    for (const templateName of templateNames) {
+      try {
+        const detailUrl = `${ERPNEXT_API_URL}/api/resource/${encodeURIComponent(docType)}/${encodeURIComponent(templateName.name)}`;
+        console.log(`Fetching template detail: ${detailUrl}`);
+        
+        const detailResponse = await fetch(detailUrl, {
+          method: 'GET',
+          headers: {
+            'Authorization': `token ${apiKey}:${apiSecret}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (detailResponse.ok) {
+          const detailData = await detailResponse.json();
+          const template = detailData.data;
+          
+          console.log(`Template ${template.name} has ${(template.taxes || []).length} tax rows`);
+          
+          templates.push({
+            name: template.name,
+            title: template.title,
+            company: template.company,
+            is_default: template.is_default || 0,
+            taxes: (template.taxes || []).map((tax: any) => ({
+              charge_type: tax.charge_type,
+              account_head: tax.account_head,
+              description: tax.description || tax.charge_type,
+              rate: tax.rate || 0,
+            }))
+          });
+        } else {
+          console.error(`Failed to fetch template ${templateName.name}: ${detailResponse.status}`);
+        }
+      } catch (err) {
+        console.error(`Error fetching details for template ${templateName.name}:`, err);
+      }
+    }
 
     console.log(`Found ${templates.length} active tax templates for ${type}`);
+    console.log('Templates with taxes:', JSON.stringify(templates, null, 2));
 
     return NextResponse.json({
       success: true,
