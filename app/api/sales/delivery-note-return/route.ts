@@ -326,6 +326,11 @@ export async function POST(request: NextRequest) {
     returnTemplate.posting_date = returnData.posting_date;
     returnTemplate.return_notes = returnData.return_notes || returnData.custom_notes;
     
+    // Ensure company is set (should be inherited from template, but set explicitly if provided)
+    if (returnData.company) {
+      returnTemplate.company = returnData.company;
+    }
+    
     // Update items with user's return quantities and reasons
     const userItemsMap = new Map();
     returnData.items.forEach((item: any) => {
@@ -337,15 +342,70 @@ export async function POST(request: NextRequest) {
       .filter((item: any) => userItemsMap.has(item.item_code))
       .map((item: any) => {
         const userItem = userItemsMap.get(item.item_code);
+        const returnQty = -Math.abs(userItem.qty); // Negative for return
         return {
           ...item,
-          qty: -Math.abs(userItem.qty), // Negative for return
+          qty: returnQty,
+          rate: item.rate || userItem.rate || 0, // Ensure rate is set
+          amount: returnQty * (item.rate || userItem.rate || 0), // Calculate amount
+          warehouse: userItem.warehouse || item.warehouse, // Use user's warehouse or template warehouse
           return_reason: userItem.return_reason,
           return_item_notes: userItem.return_item_notes || '',
         };
       });
 
-    console.log('Customized return template:', JSON.stringify(returnTemplate).substring(0, 300));
+    // Log important fields for debugging
+    console.log('Return template fields check:', {
+      company: returnTemplate.company,
+      customer: returnTemplate.customer,
+      is_return: returnTemplate.is_return,
+      return_against: returnTemplate.return_against,
+      items_count: returnTemplate.items?.length,
+      has_totals: {
+        total: returnTemplate.total,
+        grand_total: returnTemplate.grand_total,
+      },
+      first_item_warehouse: returnTemplate.items?.[0]?.warehouse,
+    });
+    
+    // Validate that all items have warehouse
+    const itemsWithoutWarehouse = returnTemplate.items.filter((item: any) => !item.warehouse);
+    if (itemsWithoutWarehouse.length > 0) {
+      console.warn('WARNING: Some items missing warehouse:', itemsWithoutWarehouse.map((i: any) => i.item_code));
+    }
+    
+    console.log('Customized return template:', JSON.stringify(returnTemplate).substring(0, 500));
+
+    // Fetch stock levels for each item before saving
+    console.log('Fetching stock levels for items...');
+    for (const item of returnTemplate.items) {
+      if (item.item_code && item.warehouse) {
+        try {
+          const stockResponse = await fetch(
+            `${ERPNEXT_API_URL}/api/resource/Bin?` + new URLSearchParams({
+              fields: JSON.stringify(['actual_qty', 'projected_qty']),
+              filters: JSON.stringify([
+                ['item_code', '=', item.item_code],
+                ['warehouse', '=', item.warehouse]
+              ]),
+              limit_page_length: '1'
+            }),
+            { headers }
+          );
+          
+          if (stockResponse.ok) {
+            const stockData = await stockResponse.json();
+            if (stockData.data && stockData.data.length > 0) {
+              item.actual_qty = stockData.data[0].actual_qty || 0;
+              console.log(`Stock for ${item.item_code} at ${item.warehouse}: ${item.actual_qty}`);
+            }
+          }
+        } catch (stockError) {
+          console.warn(`Failed to fetch stock for ${item.item_code}:`, stockError);
+          // Continue without stock data
+        }
+      }
+    }
 
     // Now save the customized return document
     const saveResponse = await fetch(`${ERPNEXT_API_URL}/api/resource/Delivery Note`, {
@@ -373,9 +433,97 @@ export async function POST(request: NextRequest) {
     console.log('Delivery Note Return Save Response Data:', saveData);
 
     if (saveResponse.ok) {
+      const savedDocName = saveData.data?.name;
+      
+      // CRITICAL: Update company_total_stock for each item after save
+      // This is a workaround because the Python validation hook doesn't seem to be triggered
+      if (savedDocName && saveData.data?.items) {
+        console.log('Updating company_total_stock for each item...');
+        
+        for (const item of saveData.data.items) {
+          if (item.name && item.item_code && item.warehouse) {
+            try {
+              // Get stock from Bin
+              const stockResponse = await fetch(
+                `${ERPNEXT_API_URL}/api/resource/Bin?` + new URLSearchParams({
+                  fields: JSON.stringify(['actual_qty']),
+                  filters: JSON.stringify([
+                    ['item_code', '=', item.item_code],
+                    ['warehouse', '=', item.warehouse]
+                  ]),
+                  limit_page_length: '1'
+                }),
+                { headers }
+              );
+              
+              if (stockResponse.ok) {
+                const stockData = await stockResponse.json();
+                if (stockData.data && stockData.data.length > 0) {
+                  const actualQty = stockData.data[0].actual_qty || 0;
+                  
+                  // Update the item with company_total_stock
+                  const updateResponse = await fetch(
+                    `${ERPNEXT_API_URL}/api/resource/Delivery Note Item/${item.name}`,
+                    {
+                      method: 'PUT',
+                      headers,
+                      body: JSON.stringify({
+                        company_total_stock: actualQty
+                      })
+                    }
+                  );
+                  
+                  if (updateResponse.ok) {
+                    console.log(`✓ Updated company_total_stock for ${item.item_code}: ${actualQty}`);
+                    item.company_total_stock = actualQty; // Update in memory
+                  } else {
+                    console.warn(`⚠ Failed to update company_total_stock for ${item.item_code}`);
+                  }
+                }
+              }
+            } catch (stockError) {
+              console.warn(`Failed to update stock for ${item.item_code}:`, stockError);
+            }
+          }
+        }
+      }
+      
+      // Refresh document using frappe.desk.form.load.getdoc to get all calculated fields
+      if (savedDocName) {
+        console.log('Refreshing document with getdoc to get all fields...');
+        try {
+          const refreshResponse = await fetch(
+            `${ERPNEXT_API_URL}/api/method/frappe.desk.form.load.getdoc?` + new URLSearchParams({
+              doctype: 'Delivery Note',
+              name: savedDocName
+            }),
+            { headers }
+          );
+          
+          if (refreshResponse.ok) {
+            const refreshData = await refreshResponse.json();
+            console.log('Document refreshed with getdoc successfully');
+            
+            // getdoc returns data in message.docs[0]
+            const refreshedDoc = refreshData.message?.docs?.[0];
+            if (refreshedDoc) {
+              return NextResponse.json({
+                success: true,
+                data: refreshedDoc, // Return refreshed data with company_total_stock
+                message: 'Retur penjualan berhasil disimpan',
+              });
+            }
+          }
+        } catch (refreshError) {
+          console.warn('Failed to refresh document with getdoc, returning updated data:', refreshError);
+        }
+      }
+      
+      // Fallback: return updated save data
       return NextResponse.json({
         success: true,
         data: saveData.data,
+        message: 'Retur penjualan berhasil disimpan',
       });
     } else {
       return handleERPNextAPIError(saveResponse, saveData, 'Failed to create delivery note return', returnTemplate);
