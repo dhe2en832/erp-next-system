@@ -1,0 +1,432 @@
+'use client';
+
+import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import LoadingSpinner from '../../components/LoadingSpinner';
+import Pagination from '../../components/Pagination';
+import { formatDate, parseDate } from '../../../utils/format';
+import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
+import { Printer, RotateCcw } from 'lucide-react';
+import ErrorDialog from '../../../components/ErrorDialog';
+import { SalesReturn } from '../../../types/sales-return';
+
+export default function SalesReturnList() {
+  const router = useRouter();
+  const [returns, setReturns] = useState<SalesReturn[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dateFilter, setDateFilter] = useState({
+    from_date: formatDate(new Date(Date.now() - 86400000)),
+    to_date: formatDate(new Date()),
+  });
+  const [customerFilter, setCustomerFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [documentNumberFilter, setDocumentNumberFilter] = useState('');
+  const [selectedCompany, setSelectedCompany] = useState('');
+  const [error, setError] = useState('');
+  const [submitError, setSubmitError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [pageSize] = useState(20);
+
+  // Debounce timer for search
+  const [searchDebounceTimer, setSearchDebounceTimer] = useState<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    let savedCompany = localStorage.getItem('selected_company');
+    if (!savedCompany) {
+      const cookies = document.cookie.split(';');
+      const companyCookie = cookies.find(cookie => cookie.trim().startsWith('selected_company='));
+      if (companyCookie) {
+        savedCompany = companyCookie.split('=')[1];
+        if (savedCompany) localStorage.setItem('selected_company', savedCompany);
+      }
+    }
+    if (savedCompany) setSelectedCompany(savedCompany);
+  }, []);
+
+  const fetchReturns = useCallback(async () => {
+    setError('');
+    let companyToUse = selectedCompany;
+    if (!companyToUse) {
+      const storedCompany = localStorage.getItem('selected_company');
+      if (storedCompany) {
+        companyToUse = storedCompany;
+      } else {
+        const cookies = document.cookie.split(';');
+        const companyCookie = cookies.find(cookie => cookie.trim().startsWith('selected_company='));
+        if (companyCookie) {
+          const cookieValue = companyCookie.split('=')[1];
+          if (cookieValue) companyToUse = cookieValue;
+        }
+      }
+    }
+    if (!companyToUse) {
+      setError('Perusahaan belum dipilih. Silakan pilih perusahaan terlebih dahulu.');
+      setLoading(false);
+      return;
+    }
+    if (!selectedCompany && companyToUse) setSelectedCompany(companyToUse);
+
+    try {
+      const params = new URLSearchParams();
+      params.append('limit_page_length', pageSize.toString());
+      params.append('start', ((currentPage - 1) * pageSize).toString());
+      
+      if (customerFilter) params.append('search', customerFilter);
+      if (documentNumberFilter) params.append('documentNumber', documentNumberFilter);
+      if (statusFilter) params.append('status', statusFilter);
+      
+      if (dateFilter.from_date) {
+        const parsedDate = parseDate(dateFilter.from_date);
+        if (parsedDate) params.append('from_date', parsedDate);
+      }
+      if (dateFilter.to_date) {
+        const parsedDate = parseDate(dateFilter.to_date);
+        if (parsedDate) params.append('to_date', parsedDate);
+      }
+      
+      params.append('filters', JSON.stringify([["company", "=", companyToUse]]));
+
+      const response = await fetch(`/api/sales/delivery-note-return?${params.toString()}`);
+      const data = await response.json();
+
+      if (data.success) {
+        const returnsData = data.data || [];
+        setReturns(returnsData);
+        if (data.total_records !== undefined) {
+          setTotalRecords(data.total_records);
+          setTotalPages(Math.ceil(data.total_records / pageSize));
+        } else {
+          setTotalRecords(returnsData.length);
+          setTotalPages(1);
+        }
+        setError('');
+      } else {
+        setError(data.message || 'Gagal memuat retur penjualan');
+      }
+    } catch (err) {
+      console.error('Error fetching sales returns:', err);
+      setError('Gagal memuat retur penjualan');
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedCompany, dateFilter, customerFilter, documentNumberFilter, statusFilter, currentPage, pageSize]);
+
+  useEffect(() => {
+    fetchReturns();
+  }, [fetchReturns]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [dateFilter, statusFilter]);
+
+  // Debounced search for customer and document number
+  useEffect(() => {
+    if (searchDebounceTimer) {
+      clearTimeout(searchDebounceTimer);
+    }
+    
+    const timer = setTimeout(() => {
+      setCurrentPage(1);
+      fetchReturns();
+    }, 300);
+    
+    setSearchDebounceTimer(timer);
+    
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [customerFilter, documentNumberFilter]);
+
+  // Submit Sales Return to change status from Draft to Submitted
+  const handleSubmitReturn = async (returnName: string) => {
+    if (!confirm(`Apakah Anda yakin ingin mengajukan retur ${returnName}? Stok akan diperbarui.`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/sales/delivery-note-return/${returnName}/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: returnName }),
+      });
+      const result = await response.json();
+      if (result.success) {
+        setSuccessMessage(`✅ Retur ${returnName} berhasil diajukan!`);
+        fetchReturns();
+        setTimeout(() => setSuccessMessage(''), 5000);
+      } else {
+        setSubmitError(result.message || 'Gagal mengajukan retur');
+      }
+    } catch (error) {
+      console.error('Error submitting sales return:', error);
+      setSubmitError('Terjadi kesalahan saat mengajukan retur');
+    }
+  };
+
+  const handleClearFilters = () => {
+    setDateFilter({ 
+      from_date: formatDate(new Date(Date.now() - 86400000)),
+      to_date: formatDate(new Date()),
+    });
+    setCustomerFilter('');
+    setStatusFilter('');
+    setDocumentNumberFilter('');
+  };
+
+  if (loading) {
+    return <LoadingSpinner message="Memuat Retur Penjualan..." />;
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 py-8">
+      <ErrorDialog 
+        isOpen={!!submitError} 
+        title="Gagal Mengajukan" 
+        message={submitError} 
+        onClose={() => setSubmitError('')} 
+      />
+      
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Retur Penjualan</h1>
+          <button
+            onClick={() => router.push('/sales-return/srMain')}
+            className="w-full sm:w-auto bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 min-h-[44px] flex items-center justify-center gap-2"
+          >
+            <RotateCcw className="h-4 w-4" />
+            Buat Retur
+          </button>
+        </div>
+
+        {/* Success Message Alert */}
+        {successMessage && (
+          <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-md">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-green-800">Berhasil!</h3>
+                <div className="mt-2 text-sm text-green-700">
+                  <pre className="whitespace-pre-wrap font-sans">{successMessage}</pre>
+                </div>
+              </div>
+              <div className="ml-auto pl-3">
+                <button
+                  onClick={() => setSuccessMessage('')}
+                  className="inline-flex bg-green-50 rounded-md p-1.5 text-green-500 hover:bg-green-100"
+                >
+                  <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Error Message Alert */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-md">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-red-800">Kesalahan</h3>
+                <div className="mt-2 text-sm text-red-700">
+                  <pre className="whitespace-pre-wrap font-sans">{error}</pre>
+                </div>
+              </div>
+              <div className="ml-auto pl-3">
+                <button
+                  onClick={() => setError('')}
+                  className="inline-flex bg-red-50 rounded-md p-1.5 text-red-500 hover:bg-red-100"
+                >
+                  <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="bg-white shadow rounded-lg">
+          <div className="px-4 py-5 sm:p-6 border-b border-gray-200">
+            <p className="text-sm text-gray-500">Kelola retur barang dari pelanggan</p>
+          </div>
+        </div>
+
+        {/* Filters */}
+        <div className="bg-white shadow rounded-lg p-4 mb-6 mt-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Cari Pelanggan</label>
+              <input 
+                type="text" 
+                className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" 
+                placeholder="Cari nama pelanggan..." 
+                value={customerFilter} 
+                onChange={(e) => setCustomerFilter(e.target.value)} 
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">No. Dokumen</label>
+              <input 
+                type="text" 
+                className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" 
+                placeholder="Cari nomor retur..." 
+                value={documentNumberFilter} 
+                onChange={(e) => setDocumentNumberFilter(e.target.value)} 
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+              <select 
+                className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" 
+                value={statusFilter} 
+                onChange={(e) => setStatusFilter(e.target.value)}
+              >
+                <option value="">Semua Status</option>
+                <option value="Draft">Draft</option>
+                <option value="Submitted">Diajukan</option>
+                <option value="Cancelled">Dibatalkan</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Dari Tanggal</label>
+              <BrowserStyleDatePicker 
+                value={dateFilter.from_date} 
+                onChange={(value: string) => setDateFilter({ ...dateFilter, from_date: value })} 
+                className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" 
+                placeholder="DD/MM/YYYY" 
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Sampai Tanggal</label>
+              <BrowserStyleDatePicker 
+                value={dateFilter.to_date} 
+                onChange={(value: string) => setDateFilter({ ...dateFilter, to_date: value })} 
+                className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" 
+                placeholder="DD/MM/YYYY" 
+              />
+            </div>
+            <div className="flex items-end">
+              <button
+                onClick={handleClearFilters}
+                className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400 w-full"
+              >
+                Hapus Filter
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Returns List */}
+        <div className="bg-white shadow overflow-hidden sm:rounded-md">
+          <ul className="divide-y divide-gray-200">
+            {returns.map((returnDoc) => (
+              <li
+                key={returnDoc.name}
+                onClick={() => {
+                  if (returnDoc.name) {
+                    router.push(`/sales-return/srMain?name=${returnDoc.name}`);
+                  }
+                }}
+                className="cursor-pointer hover:bg-gray-50 transition-colors"
+              >
+                <div className="px-4 py-4 sm:px-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-indigo-600 truncate">{returnDoc.name}</p>
+                      <p className="mt-1 text-sm text-gray-900">Pelanggan: {returnDoc.customer_name}</p>
+                    </div>
+                    <div className="ml-4 flex-shrink-0">
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        returnDoc.status === 'Submitted' ? 'bg-green-100 text-green-800'
+                        : returnDoc.status === 'Draft' ? 'bg-yellow-100 text-yellow-800'
+                        : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {returnDoc.status}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="mt-2 sm:flex sm:justify-between">
+                    <div className="sm:flex">
+                      <p className="flex items-center text-sm text-gray-500">
+                        Tanggal: {returnDoc.posting_date}
+                      </p>
+                      {returnDoc.delivery_note && (
+                        <p className="mt-2 sm:mt-0 sm:ml-6 flex items-center text-sm text-gray-500">
+                          Surat Jalan: {returnDoc.delivery_note}
+                        </p>
+                      )}
+                      <p className="mt-2 sm:mt-0 sm:ml-6 flex items-center text-sm text-gray-500">
+                        Item: {returnDoc.items?.length || 0}
+                      </p>
+                    </div>
+                    <div className="mt-2 flex items-center gap-2 justify-between sm:mt-0">
+                      <span className="font-medium text-sm text-gray-500">
+                        Total: Rp {returnDoc.grand_total ? returnDoc.grand_total.toLocaleString('id-ID') : '0'}
+                      </span>
+                      
+                      {/* Print button */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          window.open(`/print/sales-return?name=${encodeURIComponent(returnDoc.name)}`, '_blank');
+                        }}
+                        className="p-2 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
+                        title="Cetak"
+                      >
+                        <Printer className="h-4 w-4" />
+                      </button>
+                      
+                      {returnDoc.status === 'Draft' && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSubmitReturn(returnDoc.name);
+                          }}
+                          className="ml-4 px-3 py-1 bg-green-600 text-white text-xs font-medium rounded hover:bg-green-700 transition-colors"
+                        >
+                          Ajukan
+                        </button>
+                      )}
+                    </div>
+                    {returnDoc.custom_notes && (
+                      <p className="mt-1 text-xs text-gray-400 truncate">Catatan: {returnDoc.custom_notes}</p>
+                    )}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+          {returns.length === 0 && (
+            <div className="text-center py-12">
+              <p className="text-gray-500">Tidak ada retur penjualan ditemukan</p>
+            </div>
+          )}
+          <Pagination 
+            currentPage={currentPage} 
+            totalPages={totalPages} 
+            totalRecords={totalRecords} 
+            pageSize={pageSize} 
+            onPageChange={setCurrentPage} 
+          />
+        </div>
+      </div>
+    </div>
+  );
+}

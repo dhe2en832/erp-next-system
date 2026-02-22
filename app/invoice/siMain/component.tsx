@@ -369,13 +369,19 @@ export default function SalesInvoiceMain() {
             const foundCommission = commissionData.items.find((p: any) => p.item_code === item.item_code);
             commission = foundCommission?.commission || 0;
           }
+          
+          // CRITICAL: Calculate billable qty = delivered qty - returned qty
+          const deliveredQty = item.qty || 0;
+          const returnedQty = item.returned_qty || 0;
+          const billableQty = deliveredQty - returnedQty;
+          
           return {
             item_code: item.item_code,
             item_name: item.item_name || item.description,
             description: item.description || item.item_name,
-            qty: item.qty,
+            qty: billableQty, // Use billable qty (delivered - returned)
             rate: item.rate || 0,
-            amount: item.amount || (item.qty * (item.rate || 0)),
+            amount: billableQty * (item.rate || 0), // Recalculate amount with billable qty
             delivery_note: completeDnData.name,
             dn_detail: item.name,
             sales_order: item.against_sales_order || item.sales_order || '',

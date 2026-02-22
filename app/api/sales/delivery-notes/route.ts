@@ -1,251 +1,141 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { handleERPNextAPIError } from '@/utils/erpnext-api-helper';
 
 const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+const ERP_API_KEY = process.env.ERP_API_KEY || '';
+const ERP_API_SECRET = process.env.ERP_API_SECRET || '';
 
 export async function GET(request: NextRequest) {
   try {
-    console.log('=== Delivery Notes API Called ===');
-    
     const { searchParams } = new URL(request.url);
-    const filters = searchParams.get('filters');
+    
+    // Get query parameters
     const limit = searchParams.get('limit') || '20';
     const start = searchParams.get('start') || '0';
-    const orderBy = searchParams.get('order_by');
-    const search = searchParams.get('search');
+    const filtersParam = searchParams.get('filters');
     const documentNumber = searchParams.get('documentNumber');
-    const status = searchParams.get('status');
     const fromDate = searchParams.get('from_date');
     const toDate = searchParams.get('to_date');
 
-    const _apiKey = process.env.ERP_API_KEY;
-    const _apiSecret = process.env.ERP_API_SECRET;
-    const sessionCookie = request.headers.get('cookie') || '';
-    let headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (_apiKey && _apiSecret) {
-      headers['Authorization'] = `token ${_apiKey}:${_apiSecret}`;
-    } else if (sessionCookie) {
-      headers['Cookie'] = sessionCookie;
-    }
-
-    // Build filters
-    let filtersArray: any[] = [];
-    
-    // Parse existing filters if provided
-    if (filters) {
+    // Parse filters
+    let filters: any[] = [];
+    if (filtersParam) {
       try {
-        // Handle URL-encoded filters
-        const decodedFilters = decodeURIComponent(filters);
-        filtersArray = JSON.parse(decodedFilters);
+        filters = JSON.parse(filtersParam);
       } catch (e) {
         console.error('Error parsing filters:', e);
-        // Try parsing directly if decoding fails
-        try {
-          filtersArray = JSON.parse(filters);
-        } catch (e2) {
-          console.error('Error parsing filters directly:', e2);
-        }
       }
     }
-    
-    // Add search filter
-    if (search) {
-      filtersArray.push(["customer_name", "like", `%${search}%`]);
-    }
-    
+
     // Add document number filter
     if (documentNumber) {
-      filtersArray.push(["name", "like", `%${documentNumber}%`]);
+      filters.push(['name', 'like', `%${documentNumber}%`]);
     }
-    
-    // Add status filter
-    if (status) {
-      filtersArray.push(["status", "=", status]);
-    }
-    
-    // Add date filters
+
+    // Add date range filters
     if (fromDate) {
-      filtersArray.push(["posting_date", ">=", fromDate]);
+      filters.push(['posting_date', '>=', fromDate]);
     }
-    
     if (toDate) {
-      filtersArray.push(["posting_date", "<=", toDate]);
+      filters.push(['posting_date', '<=', toDate]);
     }
 
-    // Build ERPNext URL
-    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Delivery Note?fields=["name","customer","customer_name","posting_date","status","grand_total","custom_notes_dn","creation"]&limit_page_length=${limit}&start=${start}`;
-    
-    if (filtersArray.length > 0) {
-      erpNextUrl += `&filters=${encodeURIComponent(JSON.stringify(filtersArray))}`;
-    }
-    
-    if (orderBy) {
-      erpNextUrl += `&order_by=${orderBy}`;
-    } else {
-      erpNextUrl += '&order_by=creation desc';
-    }
-
-    console.log('Delivery Note ERPNext URL:', erpNextUrl);
-
-    const response = await fetch(erpNextUrl, {
-      method: 'GET',
-      headers,
+    // Build ERPNext API URL
+    const params = new URLSearchParams({
+      fields: JSON.stringify([
+        'name',
+        'customer',
+        'customer_name',
+        'posting_date',
+        'posting_time',
+        'status',
+        'grand_total',
+        'company'
+      ]),
+      filters: JSON.stringify(filters),
+      limit_page_length: limit,
+      limit_start: start,
+      order_by: 'posting_date desc',
     });
 
-    const responseText = await response.text();
-    console.log('Delivery Note ERPNext Response Status:', response.status);
-    
-    let data;
-    try {
-      data = JSON.parse(responseText);
-    } catch (parseError) {
-      console.error('Failed to parse response as JSON:', parseError);
-      console.error('Response text:', responseText);
-      
+    const erpnextUrl = `${ERPNEXT_API_URL}/api/resource/Delivery Note?${params}`;
+
+    // Make request to ERPNext
+    const response = await fetch(erpnextUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `token ${ERP_API_KEY}:${ERP_API_SECRET}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('ERPNext API error:', errorText);
       return NextResponse.json(
-        { success: false, message: 'Invalid response from ERPNext server' },
+        { success: false, message: 'Gagal mengambil data surat jalan' },
         { status: response.status }
       );
     }
 
-    console.log('Delivery Note API Response:', { status: response.status, data });
+    const data = await response.json();
 
-    if (response.ok) {
-      return NextResponse.json({
-        success: true,
-        data: data.data,
-        total_records: data.total_records || (data.data || []).length,
-      });
-    } else {
-      let errorMessage = 'Failed to fetch delivery notes';
-      
-      if (data.exc) {
-        try {
-          const excData = JSON.parse(data.exc);
-          console.log('Parsed Exception Data:', excData);
-          errorMessage = excData.exc_type && excData.message 
-            ? `${excData.exc_type}: ${excData.message}`
-            : excData.exc_type || excData.message || 'Failed to fetch delivery notes';
-        } catch (e) {
-          console.log('Failed to parse exception, using raw data');
-          errorMessage = data.message || data.exc || 'Failed to fetch delivery notes';
-        }
-      } else if (data.message) {
-        errorMessage = data.message;
-      } else if (data._server_messages) {
-        try {
-          const serverMessages = JSON.parse(data._server_messages);
-          console.log('Parsed Server Messages:', serverMessages);
-          errorMessage = serverMessages[0]?.message || serverMessages[0] || errorMessage;
-        } catch (e) {
-          console.log('Failed to parse server messages, using raw data');
-          errorMessage = data._server_messages;
-        }
-      } else if (data.error) {
-        errorMessage = data.error;
-      } else if (typeof data === 'string') {
-        errorMessage = data;
-      } else {
-        errorMessage = `Unknown error occurred. Response: ${JSON.stringify(data)}`;
-      }
-      
-      console.error('Delivery Note Error Details:', {
-        status: response.status,
-        data: data,
-        errorMessage: errorMessage
-      });
-      
-      return NextResponse.json(
-        { success: false, message: errorMessage },
-        { status: response.status }
-      );
-    }
+    return NextResponse.json({
+      success: true,
+      data: data.data || [],
+      total_records: data.data?.length || 0,
+    });
+
   } catch (error) {
-    console.error('Delivery Note API Error:', error);
+    console.error('Error fetching delivery notes:', error);
     return NextResponse.json(
-      { success: false, message: 'Internal server error' },
+      { success: false, message: 'Terjadi kesalahan saat mengambil data' },
       { status: 500 }
     );
   }
 }
 
+
 export async function POST(request: NextRequest) {
   try {
-    const deliveryNoteData = await request.json();
-    console.log('Delivery Note POST Payload:', JSON.stringify(deliveryNoteData, null, 2));
-
-    const cookies = request.cookies;
-    const sid = cookies.get('sid')?.value;
-    console.log('Session ID (sid):', sid ? 'Present' : 'Missing');
-
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      'X-Requested-With': 'XMLHttpRequest',
-    };
-
-    // Prioritize API Key authentication to avoid CSRF issues
-    const apiKey = process.env.ERP_API_KEY;
-    const apiSecret = process.env.ERP_API_SECRET;
+    const body = await request.json();
     
-    if (apiKey && apiSecret) {
-      headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-      console.log('Using API key authentication (priority)');
-    } else if (sid) {
-      headers['Cookie'] = `sid=${sid}`;
-      console.log('Using session-based authentication');
-      
-      // Get CSRF token for ERPNext
-      try {
-        const csrfResponse = await fetch(`${ERPNEXT_API_URL}/api/method/frappe.core.csrf.get_token`, {
-          method: 'GET',
-          headers: {
-            'Cookie': `sid=${sid}`,
-          },
-        });
-        
-        if (csrfResponse.ok) {
-          const csrfData = await csrfResponse.json();
-          if (csrfData.message && csrfData.message.csrf_token) {
-            headers['X-Frappe-CSRF-Token'] = csrfData.message.csrf_token;
-            console.log('CSRF token added to headers');
-          }
-        }
-      } catch (csrfError) {
-        console.log('Failed to get CSRF token, continuing without it:', csrfError);
-      }
-    } else {
-      console.error('No authentication available - no session and no API keys');
+    console.log('=== Create Delivery Note API Called ===');
+    console.log('Request body:', JSON.stringify(body).substring(0, 200));
+
+    // Build ERPNext API URL for creating delivery note
+    const erpnextUrl = `${ERPNEXT_API_URL}/api/resource/Delivery Note`;
+
+    // Make request to ERPNext
+    const response = await fetch(erpnextUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `token ${ERP_API_KEY}:${ERP_API_SECRET}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('ERPNext API error:', errorText);
       return NextResponse.json(
-        { success: false, message: 'No authentication available. Please login or configure API keys.' },
-        { status: 401 }
+        { success: false, message: 'Gagal membuat surat jalan' },
+        { status: response.status }
       );
     }
 
-    console.log('Making request to ERPNext with headers:', { ...headers, Authorization: headers.Authorization ? '***' : 'None' });
+    const data = await response.json();
 
-    const response = await fetch(`${ERPNEXT_API_URL}/api/resource/Delivery Note`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(deliveryNoteData),
+    return NextResponse.json({
+      success: true,
+      data: data.data || data,
+      message: 'Surat jalan berhasil dibuat',
     });
 
-    const data = await response.json();
-    console.log('Delivery Note ERPNext Response Status:', response.status);
-    console.log('Delivery Note ERPNext Response Data:', data);
-
-    if (response.ok) {
-      return NextResponse.json({
-        success: true,
-        data: data.data,
-      });
-    } else {
-      return handleERPNextAPIError(response, data, 'Failed to create delivery note', deliveryNoteData);
-    }
   } catch (error) {
-    console.error('Delivery Note POST Error:', error);
+    console.error('Error creating delivery note:', error);
     return NextResponse.json(
-      { success: false, message: 'Internal server error' },
+      { success: false, message: 'Terjadi kesalahan saat membuat surat jalan' },
       { status: 500 }
     );
   }

@@ -52,7 +52,9 @@
     "test:accounting-period-notifications-unit": "ts-node --project tsconfig.scripts.json tests/accounting-period-notifications-unit.test.ts",
     "test:accounting-period-sales-validation": "ts-node --project tsconfig.scripts.json tests/accounting-period-sales-validation.test.ts",
     "test:accounting-period-purchase-validation": "ts-node --project tsconfig.scripts.json tests/accounting-period-purchase-validation.test.ts",
-    "test:csrf-protection": "ts-node --project tsconfig.scripts.json __tests__/csrf-protection.test.ts"
+    "test:csrf-protection": "ts-node --project tsconfig.scripts.json __tests__/csrf-protection.test.ts",
+    "test:sales-return-properties": "ts-node --project tsconfig.scripts.json __tests__/sales-return-api.test.ts",
+    "test:sales-return-ui": "ts-node --project tsconfig.scripts.json __tests__/sales-return-ui.test.ts"
   },
   "dependencies": {
     "@types/node-fetch": "^2.6.13",

@@ -8,13 +8,14 @@ export async function GET(request: NextRequest) {
   const ERP_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
 
   try {
-    // Get all submitted DN
+    // Get all submitted DN (exclude returns)
     const allDNRes = await fetch(`${ERP_URL}/api/resource/Delivery Note?` + new URLSearchParams({
         fields: '["name","customer","customer_name","grand_total","status"]',
         filters: JSON.stringify([
             ["docstatus", "=", 1],
             ["company", "=", company || ""],
-            ["status", "!=", "Closed"]
+            ["status", "!=", "Closed"],
+            ["is_return", "=", 0]
         ]),
         limit_page_length: 'None'
     }), { headers: { 'Authorization': AUTH } });
