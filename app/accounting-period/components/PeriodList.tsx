@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import Pagination from '../../components/Pagination';
+import GenerateMonthlyModal from './GenerateMonthlyModal';
 import type { AccountingPeriod } from '../../../types/accounting-period';
 
 const PAGE_SIZE = 20;
@@ -18,6 +19,7 @@ export default function PeriodList({ company }: PeriodListProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [showGenerateModal, setShowGenerateModal] = useState(false);
   
   // Filters
   const [statusFilter, setStatusFilter] = useState<string>('');
@@ -149,12 +151,20 @@ export default function PeriodList({ company }: PeriodListProps) {
           <h1 className="text-2xl font-bold text-gray-900">Periode Akuntansi</h1>
           <p className="text-sm text-gray-500">Kelola periode akuntansi dan penutupan</p>
         </div>
-        <button
-          onClick={() => router.push('/accounting-period/create')}
-          className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
-        >
-          + Buat Periode Baru
-        </button>
+        <div>
+          <button
+            onClick={() => router.push('/accounting-period/create')}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium mr-3"
+          >
+            + Buat Periode Baru
+          </button>
+          <button
+            onClick={() => setShowGenerateModal(true)}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+          >
+            📅 Generate Periode Bulanan
+          </button>
+        </div>
       </div>
 
       {error && (

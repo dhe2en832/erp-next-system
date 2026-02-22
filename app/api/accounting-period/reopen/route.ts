@@ -63,8 +63,12 @@ export async function POST(request: NextRequest) {
       status: 'Open',
       closed_by: null,
       closed_on: null,
-      closing_journal_entry: null,
     };
+
+    // Only clear closing_journal_entry if it exists and is not NO_CLOSING_JOURNAL
+    if (period.closing_journal_entry && period.closing_journal_entry !== 'NO_CLOSING_JOURNAL') {
+      updateData.closing_journal_entry = null;
+    }
 
     // If reopening permanently closed period, also clear permanent closure fields
     if (period.status === 'Permanently Closed') {
@@ -74,15 +78,17 @@ export async function POST(request: NextRequest) {
 
     await erpnextClient.update('Accounting Period', period_name, updateData);
 
-    // Create audit log
+    // Create audit log with appropriate reason
+    const auditReason = period.status === 'Permanently Closed' 
+      ? `Reopened from permanent closure: ${reason}` 
+      : reason;
+
     await erpnextClient.insert('Period Closing Log', {
       accounting_period: period_name,
       action_type: 'Reopened',
       action_by: 'Administrator',
       action_date: erpnextDatetime,
-      reason: period.status === 'Permanently Closed' 
-        ? `${reason} (Reopened from Permanent Closure)` 
-        : reason,
+      reason: auditReason,
       before_snapshot: JSON.stringify({ status: period.status }),
       after_snapshot: JSON.stringify({ status: 'Open' }),
     });
