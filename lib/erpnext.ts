@@ -42,7 +42,6 @@ export class ERPNextClient {
     }
   ): Promise<T[]> {
     const params = new URLSearchParams();
-    params.append('doctype', doctype);
     
     if (options?.filters) {
       params.append('filters', JSON.stringify(options.filters));
@@ -62,7 +61,12 @@ export class ERPNextClient {
       params.append('order_by', options.order_by);
     }
 
-    const res = await fetch(`${this.baseUrl}/api/resource/${doctype}?${params.toString()}`, {
+    const queryString = params.toString();
+    const url = queryString 
+      ? `${this.baseUrl}/api/resource/${doctype}?${queryString}`
+      : `${this.baseUrl}/api/resource/${doctype}`;
+
+    const res = await fetch(url, {
       method: 'GET',
       headers: this.getHeaders(),
     });
@@ -102,13 +106,17 @@ export class ERPNextClient {
    */
   async getCount(doctype: string, options?: { filters?: any[][] }): Promise<number> {
     const params = new URLSearchParams();
-    params.append('doctype', doctype);
     
     if (options?.filters) {
       params.append('filters', JSON.stringify(options.filters));
     }
 
-    const res = await fetch(`${this.baseUrl}/api/resource/${doctype}?${params.toString()}`, {
+    const queryString = params.toString();
+    const url = queryString 
+      ? `${this.baseUrl}/api/resource/${doctype}?${queryString}`
+      : `${this.baseUrl}/api/resource/${doctype}`;
+
+    const res = await fetch(url, {
       method: 'GET',
       headers: this.getHeaders(),
     });

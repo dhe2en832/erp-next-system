@@ -14,6 +14,7 @@ export default function ReviewBalancesPage() {
   const [accountBalances, setAccountBalances] = useState<AccountBalance[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [viewMode, setViewMode] = useState<'cumulative' | 'period_only'>('cumulative');
 
   useEffect(() => {
     if (periodName) {
@@ -49,7 +50,10 @@ export default function ReviewBalancesPage() {
       const balancesData = await balancesResponse.json();
 
       if (balancesData.success) {
-        setAccountBalances(balancesData.data || []);
+        // Set initial view to cumulative
+        setAccountBalances(balancesData.data.cumulative || []);
+        // Store both datasets in state for switching
+        (window as any).__balancesData = balancesData.data;
       } else {
         setError(balancesData.message || 'Gagal memuat saldo akun');
       }
@@ -68,6 +72,14 @@ export default function ReviewBalancesPage() {
   const handleProceed = () => {
     if (!period) return;
     router.push(`/accounting-period/close/${encodeURIComponent(period.name)}/preview`);
+  };
+
+  const handleViewModeChange = (mode: 'cumulative' | 'period_only') => {
+    setViewMode(mode);
+    const balancesData = (window as any).__balancesData;
+    if (balancesData) {
+      setAccountBalances(mode === 'cumulative' ? balancesData.cumulative : balancesData.period_only);
+    }
   };
 
   // Separate nominal and real accounts
@@ -169,7 +181,49 @@ export default function ReviewBalancesPage() {
 
       {/* Net Income/Loss Summary */}
       <div className="bg-white shadow rounded-lg p-6 mb-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Ringkasan Laba/Rugi</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-gray-900">Ringkasan Laba/Rugi</h2>
+          
+          {/* Toggle View Mode */}
+          <div className="flex items-center space-x-2 bg-gray-100 rounded-lg p-1">
+            <button
+              onClick={() => handleViewModeChange('cumulative')}
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                viewMode === 'cumulative'
+                  ? 'bg-white text-indigo-600 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Kumulatif
+            </button>
+            <button
+              onClick={() => handleViewModeChange('period_only')}
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                viewMode === 'period_only'
+                  ? 'bg-white text-indigo-600 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Periode Ini
+            </button>
+          </div>
+        </div>
+
+        {/* View Mode Description */}
+        <div className="mb-4 text-sm text-gray-600">
+          {viewMode === 'cumulative' ? (
+            <p>
+              📊 <span className="font-medium">Mode Kumulatif:</span> Menampilkan saldo dari awal waktu sampai akhir periode ini.
+              Cocok untuk melihat posisi keuangan keseluruhan.
+            </p>
+          ) : (
+            <p>
+              📅 <span className="font-medium">Mode Periode Ini:</span> Menampilkan saldo hanya untuk transaksi dalam periode ini saja.
+              Cocok untuk melihat performa periode berjalan.
+            </p>
+          )}
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-green-50 border border-green-200 rounded-lg p-4">
             <p className="text-sm text-green-600 font-medium">Total Pendapatan</p>

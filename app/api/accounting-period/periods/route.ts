@@ -137,12 +137,15 @@ export async function POST(request: NextRequest) {
       remarks: validatedData.remarks,
     });
 
-    // Create audit log entry
+    // Create audit log entry with ERPNext datetime format
+    const now = new Date();
+    const erpnextDatetime = now.toISOString().slice(0, 19).replace('T', ' '); // Format: YYYY-MM-DD HH:MM:SS
+    
     await erpnextClient.insert('Period Closing Log', {
       accounting_period: newPeriod.name,
       action_type: 'Created',
       action_by: 'Administrator', // TODO: Get from session
-      action_date: new Date().toISOString(),
+      action_date: erpnextDatetime,
       after_snapshot: JSON.stringify(newPeriod),
     });
 

@@ -39,6 +39,12 @@ export interface PeriodClosingLog {
 export interface PeriodClosingConfig {
   name: string;
   retained_earnings_account: string;
+  // Cascading profit accounts
+  current_period_profit_account?: string; // 3230 - Laba Periode Berjalan
+  current_year_profit_account?: string;   // 3220 - Laba Tahun Berjalan
+  retained_earnings_permanent_account?: string; // 3200 - Laba Ditahan
+  enable_cascading_profit_accounts?: boolean;
+  // Validation checks
   enable_bank_reconciliation_check: boolean;
   enable_draft_transaction_check: boolean;
   enable_unposted_transaction_check: boolean;

@@ -17,7 +17,13 @@ export default function ClosingSummaryReport({
   onExportExcel,
   onPrint
 }: ClosingSummaryReportProps) {
-  const { period, closing_journal, nominal_accounts, real_accounts, net_income } = data;
+  const { 
+    period, 
+    closing_journal, 
+    nominal_accounts = [], 
+    real_accounts = [], 
+    net_income = 0 
+  } = data || {};
 
   const getStatusBadge = (status: string) => {
     const badges = {

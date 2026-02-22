@@ -327,8 +327,8 @@ export default function Navbar() {
 
   return (
     <>
-      {/* Header Section */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
+      {/* Header Section - Hidden when printing */}
+      <header className="bg-white shadow-sm border-b border-gray-200 print:hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
             {/* Logo and System Name */}
@@ -410,8 +410,8 @@ export default function Navbar() {
         </div>
       </header>
 
-      {/* Sticky Navigation */}
-      <nav className="sticky top-0 z-40 bg-white border-b border-gray-200 shadow-sm">
+      {/* Sticky Navigation - Hidden when printing */}
+      <nav className="sticky top-0 z-40 bg-white border-b border-gray-200 shadow-sm print:hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between py-2">
             {/* Desktop Navigation - hidden on mobile */}
@@ -502,8 +502,8 @@ export default function Navbar() {
         </div>
       </nav>
 
-      {/* Mobile Menu Button - floating */}
-      <div className="md:hidden fixed bottom-4 right-4 z-50">
+      {/* Mobile Menu Button - floating - Hidden when printing */}
+      <div className="md:hidden fixed bottom-4 right-4 z-50 print:hidden">
         <button
           onClick={() => setIsMenuOpen(!isMenuOpen)}
           className="mobile-menu-button bg-indigo-600 text-white p-3 rounded-full shadow-lg hover:bg-indigo-700 transition-colors"
@@ -514,9 +514,9 @@ export default function Navbar() {
         </button>
       </div>
 
-      {/* Mobile Menu - slide-in drawer */}
+      {/* Mobile Menu - slide-in drawer - Hidden when printing */}
       {isMenuOpen && (
-        <div className="fixed inset-0 z-50 md:hidden">
+        <div className="fixed inset-0 z-50 md:hidden print:hidden">
           <div className="fixed inset-0 bg-black bg-opacity-50" onClick={() => setIsMenuOpen(false)} />
           <div className="fixed right-0 top-0 h-full w-80 bg-white shadow-xl overflow-y-auto">
             <div className="p-4">

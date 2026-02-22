@@ -144,6 +144,57 @@ export default function ClosingWizardPage() {
     );
   };
 
+  const getValidationExplanation = (checkName: string, passed: boolean, severity: string) => {
+    const explanations: Record<string, { error: string; warning: string; info: string }> = {
+      'No Draft Transactions': {
+        error: '❌ Ada transaksi yang masih dalam status draft (belum di-submit). Transaksi draft tidak akan tercatat dalam laporan keuangan dan harus di-submit terlebih dahulu sebelum periode ditutup.',
+        warning: '⚠️ Periksa apakah ada transaksi draft yang perlu di-submit.',
+        info: '✅ Semua transaksi sudah di-submit. Tidak ada transaksi draft yang tertinggal.'
+      },
+      'All Transactions Posted': {
+        error: '❌ Ada transaksi yang sudah di-submit tetapi belum memiliki GL Entry (General Ledger Entry). Ini berarti transaksi belum tercatat di buku besar dan akan menyebabkan laporan keuangan tidak akurat.',
+        warning: '⚠️ Periksa transaksi yang belum memiliki GL Entry.',
+        info: '✅ Semua transaksi sudah memiliki GL Entry. Semua transaksi tercatat dengan benar di buku besar.'
+      },
+      'Bank Reconciliation Complete': {
+        error: '❌ Sistem tidak dapat memeriksa rekonsiliasi bank. Ini mungkin karena tidak ada akun bank yang terdaftar atau terjadi error saat mengecek.',
+        warning: '⚠️ Ada transaksi bank yang belum direkonsiliasi (clearance_date belum diisi). Rekonsiliasi bank memastikan bahwa saldo di sistem sesuai dengan saldo di bank. Anda tetap bisa melanjutkan, tetapi disarankan untuk melakukan rekonsiliasi terlebih dahulu.',
+        info: '✅ Semua transaksi bank sudah direkonsiliasi. Saldo di sistem sesuai dengan saldo di bank.'
+      },
+      'Sales Invoices Processed': {
+        error: '❌ Ada Sales Invoice (Faktur Penjualan) yang masih draft. Faktur penjualan draft belum tercatat sebagai pendapatan dan piutang. Submit semua faktur penjualan sebelum menutup periode.',
+        warning: '⚠️ Periksa faktur penjualan yang masih draft.',
+        info: '✅ Semua faktur penjualan sudah diproses (di-submit).'
+      },
+      'Purchase Invoices Processed': {
+        error: '❌ Ada Purchase Invoice (Faktur Pembelian) yang masih draft. Faktur pembelian draft belum tercatat sebagai beban dan hutang. Submit semua faktur pembelian sebelum menutup periode.',
+        warning: '⚠️ Periksa faktur pembelian yang masih draft.',
+        info: '✅ Semua faktur pembelian sudah diproses (di-submit).'
+      },
+      'Inventory Transactions Posted': {
+        error: '❌ Ada Stock Entry (Transaksi Persediaan) yang masih draft. Transaksi persediaan draft belum mempengaruhi nilai persediaan dan HPP (Harga Pokok Penjualan). Submit semua transaksi persediaan sebelum menutup periode.',
+        warning: '⚠️ Periksa transaksi persediaan yang masih draft.',
+        info: '✅ Semua transaksi persediaan sudah diposting.'
+      },
+      'Payroll Entries Recorded': {
+        error: '❌ Sistem tidak dapat memeriksa entri payroll. Ini mungkin karena tidak ada data payroll atau terjadi error saat mengecek.',
+        warning: '⚠️ Ada Salary Slip (Slip Gaji) yang masih draft. Slip gaji draft belum tercatat sebagai beban gaji. Anda tetap bisa melanjutkan jika memang belum ada payroll di periode ini, tetapi jika ada, sebaiknya di-submit terlebih dahulu.',
+        info: '✅ Semua entri payroll sudah tercatat.'
+      }
+    };
+
+    const explanation = explanations[checkName];
+    if (!explanation) return 'Tidak ada penjelasan tersedia.';
+
+    // If validation passed, always show info (success) message
+    if (passed) return explanation.info;
+    
+    // If validation failed, show error or warning based on severity
+    if (severity === 'error') return explanation.error;
+    if (severity === 'warning') return explanation.warning;
+    return explanation.info;
+  };
+
   const errorValidations = validations.filter(v => !v.passed && v.severity === 'error');
   const warningValidations = validations.filter(v => !v.passed && v.severity === 'warning');
   const canProceed = allPassed || errorValidations.length === 0;
@@ -332,6 +383,37 @@ export default function ClosingWizardPage() {
                 </div>
               </div>
             ) : null}
+
+            {/* Info Box - Penjelasan Error vs Warning */}
+            {!validating && validations.length > 0 && (
+              <div className="bg-blue-50 border-l-4 border-blue-400 p-4 mb-6">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-blue-800">
+                      Perbedaan ERROR dan WARNING
+                    </h3>
+                    <div className="text-sm text-blue-700 mt-2 space-y-2">
+                      <p>
+                        <span className="font-semibold">🔴 ERROR:</span> Masalah kritis yang HARUS diselesaikan sebelum periode dapat ditutup. 
+                        Jika ada error, tombol "Lanjut" akan dinonaktifkan sampai semua error diperbaiki.
+                      </p>
+                      <p>
+                        <span className="font-semibold">🟡 WARNING:</span> Peringatan yang sebaiknya ditinjau, tetapi tidak menghalangi penutupan periode. 
+                        Anda tetap bisa melanjutkan jika yakin warning tersebut tidak masalah (misalnya memang belum ada payroll di periode ini).
+                      </p>
+                      <p>
+                        <span className="font-semibold">🟢 INFO:</span> Validasi berhasil, tidak ada masalah ditemukan.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>
@@ -354,15 +436,22 @@ export default function ClosingWizardPage() {
                       <h3 className="text-sm font-medium text-gray-900">
                         {validation.check_name}
                       </h3>
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getSeverityBadge(validation.severity)}`}>
-                        {validation.severity.toUpperCase()}
-                      </span>
+                      {!validation.passed && (
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getSeverityBadge(validation.severity)}`}>
+                          {validation.severity.toUpperCase()}
+                        </span>
+                      )}
                     </div>
                     <p className={`text-sm mt-1 ${
                       validation.passed ? 'text-green-600' : 'text-gray-700'
                     }`}>
                       {validation.message}
                     </p>
+                    
+                    {/* Explanation for each validation */}
+                    <div className="mt-2 text-sm text-gray-600 bg-gray-50 rounded p-3">
+                      {getValidationExplanation(validation.check_name, validation.passed, validation.severity)}
+                    </div>
                     
                     {/* Show details if validation failed */}
                     {!validation.passed && validation.details && validation.details.length > 0 && (

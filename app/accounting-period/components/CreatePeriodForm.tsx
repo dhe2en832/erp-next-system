@@ -3,7 +3,22 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { z } from 'zod';
+import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
 import type { CreatePeriodRequest } from '../../../types/accounting-period';
+
+// Helper function to convert DD/MM/YYYY to YYYY-MM-DD
+const convertToYYYYMMDD = (ddmmyyyy: string): string => {
+  if (!ddmmyyyy || !/^\d{2}\/\d{2}\/\d{4}$/.test(ddmmyyyy)) return '';
+  const [day, month, year] = ddmmyyyy.split('/');
+  return `${year}-${month}-${day}`;
+};
+
+// Helper function to convert YYYY-MM-DD to DD/MM/YYYY
+const convertToDDMMYYYY = (yyyymmdd: string): string => {
+  if (!yyyymmdd || !/^\d{4}-\d{2}-\d{2}$/.test(yyyymmdd)) return '';
+  const [year, month, day] = yyyymmdd.split('-');
+  return `${day}/${month}/${year}`;
+};
 
 // Zod schema for client-side validation
 const createPeriodSchema = z.object({
@@ -36,13 +51,13 @@ export default function CreatePeriodForm({ onSuccess, onCancel }: CreatePeriodFo
   const [error, setError] = useState('');
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   
-  // Form state
-  const [formData, setFormData] = useState<CreatePeriodRequest>({
+  // Form state (using DD/MM/YYYY format for display)
+  const [formData, setFormData] = useState({
     period_name: '',
     company: '',
-    start_date: '',
-    end_date: '',
-    period_type: 'Monthly',
+    start_date: '', // DD/MM/YYYY format
+    end_date: '', // DD/MM/YYYY format
+    period_type: 'Monthly' as 'Monthly' | 'Quarterly' | 'Yearly',
     fiscal_year: '',
     remarks: ''
   });
@@ -102,9 +117,16 @@ export default function CreatePeriodForm({ onSuccess, onCancel }: CreatePeriodFo
     setError('');
     setValidationErrors({});
 
+    // Convert DD/MM/YYYY to YYYY-MM-DD for API
+    const apiData: CreatePeriodRequest = {
+      ...formData,
+      start_date: convertToYYYYMMDD(formData.start_date),
+      end_date: convertToYYYYMMDD(formData.end_date),
+    };
+
     // Client-side validation with Zod
     try {
-      createPeriodSchema.parse(formData);
+      createPeriodSchema.parse(apiData);
     } catch (err) {
       if (err instanceof z.ZodError) {
         const errors: Record<string, string> = {};
@@ -125,7 +147,7 @@ export default function CreatePeriodForm({ onSuccess, onCancel }: CreatePeriodFo
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify(formData)
+        body: JSON.stringify(apiData)
       });
 
       const data = await response.json();
@@ -235,13 +257,20 @@ export default function CreatePeriodForm({ onSuccess, onCancel }: CreatePeriodFo
           <label htmlFor="start_date" className="block text-sm font-medium text-gray-700 mb-1">
             Tanggal Mulai <span className="text-red-500">*</span>
           </label>
-          <input
-            type="date"
-            id="start_date"
-            name="start_date"
+          <BrowserStyleDatePicker
             value={formData.start_date}
-            onChange={handleChange}
+            onChange={(value: string) => {
+              setFormData(prev => ({ ...prev, start_date: value }));
+              if (validationErrors.start_date) {
+                setValidationErrors(prev => {
+                  const newErrors = { ...prev };
+                  delete newErrors.start_date;
+                  return newErrors;
+                });
+              }
+            }}
             className={`block w-full border ${validationErrors.start_date ? 'border-red-300' : 'border-gray-300'} rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
+            placeholder="DD/MM/YYYY"
           />
           {validationErrors.start_date && (
             <p className="mt-1 text-sm text-red-600">{validationErrors.start_date}</p>
@@ -252,13 +281,20 @@ export default function CreatePeriodForm({ onSuccess, onCancel }: CreatePeriodFo
           <label htmlFor="end_date" className="block text-sm font-medium text-gray-700 mb-1">
             Tanggal Akhir <span className="text-red-500">*</span>
           </label>
-          <input
-            type="date"
-            id="end_date"
-            name="end_date"
+          <BrowserStyleDatePicker
             value={formData.end_date}
-            onChange={handleChange}
+            onChange={(value: string) => {
+              setFormData(prev => ({ ...prev, end_date: value }));
+              if (validationErrors.end_date) {
+                setValidationErrors(prev => {
+                  const newErrors = { ...prev };
+                  delete newErrors.end_date;
+                  return newErrors;
+                });
+              }
+            }}
             className={`block w-full border ${validationErrors.end_date ? 'border-red-300' : 'border-gray-300'} rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
+            placeholder="DD/MM/YYYY"
           />
           {validationErrors.end_date && (
             <p className="mt-1 text-sm text-red-600">{validationErrors.end_date}</p>

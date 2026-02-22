@@ -1,68 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getNominalAccountBalances } from '../../../../../lib/accounting-period-closing';
-import type { AccountingPeriod, ClosingJournalAccount } from '../../../../../types/accounting-period';
-
-const ERPNEXT_URL = process.env.ERPNEXT_URL || 'http://localhost:8000';
-const API_KEY = process.env.ERPNEXT_API_KEY || '';
-const API_SECRET = process.env.ERPNEXT_API_SECRET || '';
+import { erpnextClient } from '@/lib/erpnext';
+import type { AccountingPeriod, PeriodClosingConfig, AccountBalance, ClosingJournalAccount } from '@/types/accounting-period';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { name: string } }
+  context: { params: Promise<{ name: string }> }
 ) {
   try {
-    const periodName = decodeURIComponent(params.name);
+    const { name } = await context.params;
+    const periodName = decodeURIComponent(name);
 
-    // Fetch period details from ERPNext
-    const periodResponse = await fetch(
-      `${ERPNEXT_URL}/api/resource/Accounting Period/${encodeURIComponent(periodName)}`,
-      {
-        headers: {
-          'Authorization': `token ${API_KEY}:${API_SECRET}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
+    // Get period details
+    const period = await erpnextClient.get<AccountingPeriod>('Accounting Period', periodName);
 
-    if (!periodResponse.ok) {
-      if (periodResponse.status === 404) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: 'NOT_FOUND',
-            message: 'Periode akuntansi tidak ditemukan',
-          },
-          { status: 404 }
-        );
-      }
-      throw new Error(`ERPNext API error: ${periodResponse.statusText}`);
-    }
+    // Get configuration
+    const config = await erpnextClient.get<PeriodClosingConfig>('Period Closing Config', 'Period Closing Config');
 
-    const periodData = await periodResponse.json();
-    const period: AccountingPeriod = periodData.data;
-
-    // Get configuration for retained earnings account
-    const configResponse = await fetch(
-      `${ERPNEXT_URL}/api/resource/Period Closing Config/Period Closing Config`,
-      {
-        headers: {
-          'Authorization': `token ${API_KEY}:${API_SECRET}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-
-    if (!configResponse.ok) {
-      throw new Error('Failed to fetch period closing configuration');
-    }
-
-    const configData = await configResponse.json();
-    const retainedEarningsAccount = configData.data.retained_earnings_account;
-
-    // Get nominal accounts
+    // Get nominal account balances
     const nominalAccounts = await getNominalAccountBalances(period);
 
-    // Calculate totals
+    // Calculate net income/loss
     let totalIncome = 0;
     let totalExpense = 0;
 
@@ -76,106 +33,142 @@ export async function GET(
 
     const netIncome = totalIncome - totalExpense;
 
-    // Build preview journal entries
+    // Build journal entry preview
     const journalAccounts: ClosingJournalAccount[] = [];
 
-    // Close income accounts (debit income to zero it out)
+    // Close income accounts (debit income to zero out credit balance)
     for (const account of nominalAccounts) {
-      if (account.root_type === 'Income' && Math.abs(account.balance) > 0.01) {
+      if (account.root_type === 'Income' && account.balance !== 0) {
         journalAccounts.push({
           account: account.account,
+          account_name: account.account_name,
           debit_in_account_currency: Math.abs(account.balance),
           credit_in_account_currency: 0,
-          user_remark: `Closing ${account.account_name} for period ${period.period_name}`
+          user_remark: `Closing ${account.account_name} for period ${period.period_name}`,
         });
       }
     }
 
-    // Close expense accounts (credit expense to zero it out)
+    // Close expense accounts (credit expense to zero out debit balance)
     for (const account of nominalAccounts) {
-      if (account.root_type === 'Expense' && Math.abs(account.balance) > 0.01) {
+      if (account.root_type === 'Expense' && account.balance !== 0) {
         journalAccounts.push({
           account: account.account,
+          account_name: account.account_name,
           debit_in_account_currency: 0,
           credit_in_account_currency: Math.abs(account.balance),
-          user_remark: `Closing ${account.account_name} for period ${period.period_name}`
+          user_remark: `Closing ${account.account_name} for period ${period.period_name}`,
         });
       }
     }
 
     // Add retained earnings entry (balancing entry)
-    if (Math.abs(netIncome) > 0.01) {
-      if (netIncome > 0) {
-        // Profit: Credit retained earnings
-        journalAccounts.push({
-          account: retainedEarningsAccount,
-          debit_in_account_currency: 0,
-          credit_in_account_currency: netIncome,
-          user_remark: `Net income for period ${period.period_name}`
-        });
-      } else {
-        // Loss: Debit retained earnings
-        journalAccounts.push({
-          account: retainedEarningsAccount,
-          debit_in_account_currency: Math.abs(netIncome),
-          credit_in_account_currency: 0,
-          user_remark: `Net loss for period ${period.period_name}`
-        });
-      }
+    if (netIncome > 0) {
+      // Profit: Credit retained earnings
+      journalAccounts.push({
+        account: config.retained_earnings_account,
+        account_name: 'Retained Earnings',
+        debit_in_account_currency: 0,
+        credit_in_account_currency: netIncome,
+        user_remark: `Net income for period ${period.period_name}`,
+      });
+    } else if (netIncome < 0) {
+      // Loss: Debit retained earnings
+      journalAccounts.push({
+        account: config.retained_earnings_account,
+        account_name: 'Retained Earnings',
+        debit_in_account_currency: Math.abs(netIncome),
+        credit_in_account_currency: 0,
+        user_remark: `Net loss for period ${period.period_name}`,
+      });
     }
-
-    // Fetch account names for the journal entries
-    const accountNames = new Map<string, string>();
-    for (const entry of journalAccounts) {
-      if (!accountNames.has(entry.account)) {
-        try {
-          const accountResponse = await fetch(
-            `${ERPNEXT_URL}/api/resource/Account/${encodeURIComponent(entry.account)}?fields=["account_name"]`,
-            {
-              headers: {
-                'Authorization': `token ${API_KEY}:${API_SECRET}`,
-                'Content-Type': 'application/json',
-              },
-            }
-          );
-          if (accountResponse.ok) {
-            const accountData = await accountResponse.json();
-            accountNames.set(entry.account, accountData.data.account_name);
-          }
-        } catch (error) {
-          console.error(`Error fetching account name for ${entry.account}:`, error);
-        }
-      }
-    }
-
-    // Add account names to journal entries
-    const enrichedJournalAccounts = journalAccounts.map(entry => ({
-      ...entry,
-      account_name: accountNames.get(entry.account) || entry.account,
-    }));
 
     return NextResponse.json({
       success: true,
       data: {
         period,
-        journal_accounts: enrichedJournalAccounts,
+        journal_accounts: journalAccounts,
         total_income: totalIncome,
         total_expense: totalExpense,
         net_income: netIncome,
-        retained_earnings_account: retainedEarningsAccount,
+        retained_earnings_account: config.retained_earnings_account,
       },
     });
   } catch (error: any) {
-    console.error('Error generating closing journal preview:', error);
-
+    console.error('Error generating closing preview:', error);
     return NextResponse.json(
-      {
-        success: false,
-        error: 'INTERNAL_ERROR',
-        message: 'Gagal membuat preview jurnal penutup',
-        details: process.env.NODE_ENV === 'development' ? error.message : undefined,
-      },
+      { success: false, error: 'PREVIEW_ERROR', message: error.message || 'Failed to generate closing preview' },
       { status: 500 }
     );
   }
+}
+
+/**
+ * Get nominal account balances for the period
+ */
+async function getNominalAccountBalances(period: AccountingPeriod): Promise<AccountBalance[]> {
+  // Get all GL entries for the period
+  const filters = [
+    ['company', '=', period.company],
+    ['posting_date', '>=', period.start_date],
+    ['posting_date', '<=', period.end_date],
+    ['is_cancelled', '=', 0],
+  ];
+
+  const glEntries = await erpnextClient.getList('GL Entry', {
+    filters,
+    fields: ['account', 'debit', 'credit'],
+    limit_page_length: 999999,
+  });
+
+  // Aggregate by account
+  const accountMap = new Map<string, { debit: number; credit: number }>();
+
+  for (const entry of glEntries) {
+    const existing = accountMap.get(entry.account) || { debit: 0, credit: 0 };
+    accountMap.set(entry.account, {
+      debit: existing.debit + (entry.debit || 0),
+      credit: existing.credit + (entry.credit || 0),
+    });
+  }
+
+  // Get account details for nominal accounts only
+  const accounts = await erpnextClient.getList('Account', {
+    filters: [
+      ['name', 'in', Array.from(accountMap.keys())],
+      ['root_type', 'in', ['Income', 'Expense']],
+      ['is_group', '=', 0],
+    ],
+    fields: ['name', 'account_name', 'account_type', 'root_type'],
+    limit_page_length: 999999,
+  });
+
+  // Build result
+  const result: AccountBalance[] = [];
+
+  for (const account of accounts) {
+    const totals = accountMap.get(account.name);
+    if (!totals) continue;
+
+    const balance =
+      account.root_type === 'Income'
+        ? totals.credit - totals.debit // Income has credit balance
+        : totals.debit - totals.credit; // Expense has debit balance
+
+    if (balance !== 0) {
+      result.push({
+        account: account.name,
+        account_name: account.account_name,
+        account_type: account.account_type,
+        root_type: account.root_type as 'Income' | 'Expense',
+        is_group: false,
+        debit: totals.debit,
+        credit: totals.credit,
+        balance: balance,
+        is_nominal: true,
+      });
+    }
+  }
+
+  return result;
 }

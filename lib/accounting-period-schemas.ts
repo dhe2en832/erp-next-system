@@ -104,8 +104,8 @@ export const getPeriodsRequestSchema = z.object({
 });
 
 export const createPeriodRequestSchema = z.object({
-  period_name: sanitizedStringSchema.min(1, 'Period name is required'),
-  company: sanitizedStringSchema.min(1, 'Company is required'),
+  period_name: z.string().min(1, 'Period name is required').transform((val) => sanitizeString(val)),
+  company: z.string().min(1, 'Company is required').transform((val) => sanitizeString(val)),
   start_date: dateStringSchema,
   end_date: dateStringSchema,
   period_type: periodTypeSchema,
@@ -124,25 +124,25 @@ export const createPeriodRequestSchema = z.object({
 );
 
 export const validatePeriodRequestSchema = z.object({
-  period_name: sanitizedStringSchema.min(1, 'Period name is required'),
-  company: sanitizedStringSchema.min(1, 'Company is required'),
+  period_name: z.string().min(1, 'Period name is required').transform((val) => sanitizeString(val)),
+  company: z.string().min(1, 'Company is required').transform((val) => sanitizeString(val)),
 });
 
 export const closePeriodRequestSchema = z.object({
-  period_name: sanitizedStringSchema.min(1, 'Period name is required'),
-  company: sanitizedStringSchema.min(1, 'Company is required'),
+  period_name: z.string().min(1, 'Period name is required').transform((val) => sanitizeString(val)),
+  company: z.string().min(1, 'Company is required').transform((val) => sanitizeString(val)),
   force: z.boolean().optional(),
 });
 
 export const reopenPeriodRequestSchema = z.object({
-  period_name: sanitizedStringSchema.min(1, 'Period name is required'),
-  company: sanitizedStringSchema.min(1, 'Company is required'),
-  reason: sanitizedStringSchema.min(1, 'Reason is required for reopening a period'),
+  period_name: z.string().min(1, 'Period name is required').transform((val) => sanitizeString(val)),
+  company: z.string().min(1, 'Company is required').transform((val) => sanitizeString(val)),
+  reason: z.string().min(1, 'Reason is required for reopening a period').transform((val) => sanitizeString(val)),
 });
 
 export const permanentClosePeriodRequestSchema = z.object({
-  period_name: sanitizedStringSchema.min(1, 'Period name is required'),
-  company: sanitizedStringSchema.min(1, 'Company is required'),
+  period_name: z.string().min(1, 'Period name is required').transform((val) => sanitizeString(val)),
+  company: z.string().min(1, 'Company is required').transform((val) => sanitizeString(val)),
   confirmation: z.literal('PERMANENT'),
 }).refine(
   (data) => data.confirmation === 'PERMANENT',
@@ -153,8 +153,8 @@ export const permanentClosePeriodRequestSchema = z.object({
 );
 
 export const closingSummaryRequestSchema = z.object({
-  period_name: sanitizedStringSchema.min(1, 'Period name is required'),
-  company: sanitizedStringSchema.min(1, 'Company is required'),
+  period_name: z.string().min(1, 'Period name is required').transform((val) => sanitizeString(val)),
+  company: z.string().min(1, 'Company is required').transform((val) => sanitizeString(val)),
   format: z.enum(['json', 'pdf', 'excel']).optional(),
 });
 
