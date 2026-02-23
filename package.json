@@ -54,7 +54,14 @@
     "test:accounting-period-purchase-validation": "ts-node --project tsconfig.scripts.json tests/accounting-period-purchase-validation.test.ts",
     "test:csrf-protection": "ts-node --project tsconfig.scripts.json __tests__/csrf-protection.test.ts",
     "test:sales-return-properties": "ts-node --project tsconfig.scripts.json __tests__/sales-return-api.test.ts",
-    "test:sales-return-ui": "ts-node --project tsconfig.scripts.json __tests__/sales-return-ui.test.ts"
+    "test:sales-return-ui": "ts-node --project tsconfig.scripts.json __tests__/sales-return-ui.test.ts",
+    "test:stock-card-summary": "ts-node --project tsconfig.scripts.json tests/stock-card-summary-calculations.test.ts",
+    "test:stock-card-summary-component": "ts-node --project tsconfig.scripts.json tests/stock-card-summary.test.tsx",
+    "test:stock-card-opening-balance": "ts-node --project tsconfig.scripts.json tests/stock-card-opening-balance.pbt.test.ts",
+    "test:stock-card-pagination": "ts-node --project tsconfig.scripts.json tests/stock-card-pagination.test.ts",
+    "test:stock-card-error-handling": "ts-node --project tsconfig.scripts.json tests/stock-card-error-handling.test.ts",
+    "test:stock-card-filter-state": "ts-node --project tsconfig.scripts.json tests/stock-card-filter-state.test.tsx",
+    "test:stock-card-filter-validation": "ts-node --project tsconfig.scripts.json tests/stock-card-filter-validation.test.tsx"
   },
   "dependencies": {
     "@types/node-fetch": "^2.6.13",
@@ -78,6 +85,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
+    "fast-check": "^4.5.3",
     "tailwindcss": "^4",
     "ts-node": "^10.9.2",
     "tsx": "^4.21.0",
