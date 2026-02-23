@@ -363,7 +363,7 @@ async function enrichStockLedgerEntries(
 async function calculateSummary(
   entries: StockLedgerEntry[],
   company: string,
-  item_code: string,
+  item_code: string | null,
   from_date: string | null,
   headers: Record<string, string>
 ): Promise<{
@@ -377,29 +377,33 @@ async function calculateSummary(
   uom: string;
 }> {
   // Get item name and UOM
-  let item_name = item_code;
+  let item_name = item_code || 'All Items';
   let uom = '';
   
-  try {
-    const itemUrl = `${ERPNEXT_API_URL}/api/resource/Item/${encodeURIComponent(item_code)}?` +
-      `fields=${encodeURIComponent(JSON.stringify(['item_name', 'stock_uom']))}`;
-    
-    const itemResponse = await fetch(itemUrl, { method: 'GET', headers });
-    
-    if (itemResponse.ok) {
-      const itemData = await itemResponse.json();
-      item_name = itemData.data.item_name || item_code;
-      uom = itemData.data.stock_uom || '';
+  // Only fetch item details if specific item is selected
+  if (item_code) {
+    try {
+      const itemUrl = `${ERPNEXT_API_URL}/api/resource/Item/${encodeURIComponent(item_code)}?` +
+        `fields=${encodeURIComponent(JSON.stringify(['item_name', 'stock_uom']))}`;
+      
+      const itemResponse = await fetch(itemUrl, { method: 'GET', headers });
+      
+      if (itemResponse.ok) {
+        const itemData = await itemResponse.json();
+        item_name = itemData.data.item_name || item_code;
+        uom = itemData.data.stock_uom || '';
+      }
+    } catch (error) {
+      console.error('Error fetching item details:', error);
     }
-  } catch (error) {
-    console.error('Error fetching item details:', error);
   }
   
   // Calculate opening balance (Requirement 1.5)
   // Opening balance is the qty_after_transaction of the last transaction before from_date
+  // Note: Opening balance only makes sense when filtering by specific item
   let opening_balance = 0;
   
-  if (from_date) {
+  if (from_date && item_code) {
     try {
       const openingFilters = [
         ['company', '=', company],
@@ -456,7 +460,7 @@ async function calculateSummary(
     total_in,
     total_out,
     transaction_count,
-    item_code,
+    item_code: item_code || 'All',
     item_name,
     uom
   };
@@ -469,7 +473,7 @@ async function calculateSummary(
  * 
  * Query Parameters:
  * - company (required): Company name
- * - item_code (required): Item code to fetch stock movements for
+ * - item_code (optional): Item code to fetch stock movements for (if empty, fetches all items)
  * - warehouse (optional): Filter by specific warehouse
  * - from_date (optional): Start date in YYYY-MM-DD format
  * - to_date (optional): End date in YYYY-MM-DD format
@@ -487,15 +491,15 @@ export async function GET(request: NextRequest) {
     
     // Extract and validate required parameters
     const company = searchParams.get('company');
-    const item_code = searchParams.get('item_code');
+    const item_code = searchParams.get('item_code'); // Now optional - can be empty for "All"
     
     // Validate required parameters (Requirement 12.3, 12.6)
-    if (!company || !item_code) {
-      console.error('Stock Card API: Missing required parameters', { company, item_code });
+    if (!company) {
+      console.error('Stock Card API: Missing required parameter company', { company });
       return NextResponse.json(
         { 
           success: false, 
-          message: 'Parameter company dan item_code wajib diisi' 
+          message: 'Parameter company wajib diisi' 
         },
         { status: 400 }
       );
@@ -582,9 +586,13 @@ export async function GET(request: NextRequest) {
     
     // Build ERPNext API filters (Requirement 8.2)
     const filters: any[] = [
-      ['company', '=', company],
-      ['item_code', '=', item_code]
+      ['company', '=', company]
     ];
+    
+    // Add item_code filter only if provided (support "All" items)
+    if (item_code) {
+      filters.push(['item_code', '=', item_code]);
+    }
     
     // Add optional filters
     if (warehouse) {

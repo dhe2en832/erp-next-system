@@ -32,22 +32,14 @@ export async function GET(request: NextRequest) {
       console.log('DEBUG - Filters after search:', filters);
     }
     
-    // Add company filter if provided - TEMPORARILY DISABLED FOR TESTING
-    // if (company) {
-    //   if (filters.length > 0) {
-    //     // Combine search and company filters with AND
-    //     const combinedFilter = [
-    //       "and",
-    //       ["customer_group", "=", company],
-    //       filters[0] // Get the search filter
-    //     ];
-    //     filters.length = 0; // Clear filters array
-    //     filters.push(combinedFilter);
-    //   } else {
-    //     // Only company filter
-    //     filters.push(["customer_group", "=", company]);
-    //   }
-    // }
+    // Add company filter if provided (for multi-entity support)
+    if (company) {
+      // In ERPNext, customers don't have a direct company field
+      // They are linked via customer_group or territory
+      // For now, we'll skip company filtering for customers
+      // as they are typically shared across companies
+      console.log('DEBUG - Company filter provided but not applied for customers:', company);
+    }
     
     if (filters.length > 0) {
       erpNextUrl += `&filters=${encodeURIComponent(JSON.stringify(filters))}`;

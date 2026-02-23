@@ -61,7 +61,9 @@
     "test:stock-card-pagination": "ts-node --project tsconfig.scripts.json tests/stock-card-pagination.test.ts",
     "test:stock-card-error-handling": "ts-node --project tsconfig.scripts.json tests/stock-card-error-handling.test.ts",
     "test:stock-card-filter-state": "ts-node --project tsconfig.scripts.json tests/stock-card-filter-state.test.tsx",
-    "test:stock-card-filter-validation": "ts-node --project tsconfig.scripts.json tests/stock-card-filter-validation.test.tsx"
+    "test:stock-card-filter-validation": "ts-node --project tsconfig.scripts.json tests/stock-card-filter-validation.test.tsx",
+    "test:bug-exploration-stock-card-page": "ts-node --project tsconfig.scripts.json tests/bug-exploration-stock-card-page-missing.test.ts",
+    "test:preservation-stock-card-page": "ts-node --project tsconfig.scripts.json tests/preservation-stock-card-page-missing.test.ts"
   },
   "dependencies": {
     "@types/node-fetch": "^2.6.13",

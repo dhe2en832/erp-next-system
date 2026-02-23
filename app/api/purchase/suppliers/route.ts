@@ -47,6 +47,13 @@ export async function GET(request: NextRequest) {
     // Always filter by supplier_type first
     filters.push(["supplier_type", "=", "Company"]);
     
+    // Note: In ERPNext, suppliers don't have a direct company field
+    // They are typically shared across companies
+    // Company parameter is accepted but not used for filtering
+    if (company) {
+      console.log('Suppliers API - Company parameter provided but not applied:', company);
+    }
+    
     if (search && search.trim()) {
       // Add search condition - search by name first (simple approach)
       const searchTrim = search.trim();

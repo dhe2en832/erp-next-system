@@ -95,22 +95,31 @@ export function formatStockCardDate(date: string, time?: string): string {
 }
 
 /**
- * Classify transaction direction based on quantity sign
+ * Classify transaction direction based on quantity sign and voucher type
  * 
  * Positive quantities indicate incoming stock (Masuk)
  * Negative quantities indicate outgoing stock (Keluar)
+ * Special case: Stock Reconciliation always counts as 'in' regardless of quantity
  * 
  * Requirements: 1.4
  * 
  * @param actual_qty - The quantity change (positive or negative)
- * @returns 'in' for positive quantities, 'out' for negative quantities
+ * @param voucher_type - The type of transaction (optional)
+ * @returns 'in' for positive quantities or Stock Reconciliation, 'out' for negative quantities
  * 
  * @example
  * classifyTransactionDirection(10);  // Returns: 'in'
  * classifyTransactionDirection(-5);  // Returns: 'out'
  * classifyTransactionDirection(0);   // Returns: 'in'
+ * classifyTransactionDirection(7, 'Stock Reconciliation');  // Returns: 'in'
+ * classifyTransactionDirection(-3, 'Stock Reconciliation'); // Returns: 'in'
  */
-export function classifyTransactionDirection(actual_qty: number): 'in' | 'out' {
+export function classifyTransactionDirection(actual_qty: number, voucher_type?: string): 'in' | 'out' {
+  // Stock Reconciliation always counts as 'in' (stock adjustment)
+  if (voucher_type === 'Stock Reconciliation') {
+    return 'in';
+  }
+  
   return actual_qty >= 0 ? 'in' : 'out';
 }
 

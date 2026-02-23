@@ -154,14 +154,14 @@ export default function StockCardFilters({
     setDateRangeError(error);
   }, [localFilters.dateRange.from_date, localFilters.dateRange.to_date, validateDateRange]);
 
-  // Transaction type options
+  // Transaction type options (Indonesian labels)
   const transactionTypes: { value: TransactionType | ''; label: string }[] = [
     { value: '', label: 'Semua Jenis Transaksi' },
-    { value: 'Sales Invoice', label: 'Sales Invoice' },
-    { value: 'Purchase Receipt', label: 'Purchase Receipt' },
-    { value: 'Delivery Note', label: 'Delivery Note' },
-    { value: 'Stock Entry', label: 'Stock Entry' },
-    { value: 'Stock Reconciliation', label: 'Stock Reconciliation' }
+    { value: 'Sales Invoice', label: 'Faktur Penjualan' },
+    { value: 'Purchase Receipt', label: 'Penerimaan Pembelian' },
+    { value: 'Delivery Note', label: 'Surat Jalan' },
+    { value: 'Stock Entry', label: 'Entri Stok' },
+    { value: 'Stock Reconciliation', label: 'Rekonsiliasi Stok' }
   ];
 
   // Filter dropdown options based on search

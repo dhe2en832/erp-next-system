@@ -1,0 +1,89 @@
+# Implementation Plan
+
+- [x] 1. Write bug condition exploration test
+  - **Property 1: Fault Condition** - Stock Card Page 404 Error
+  - **CRITICAL**: This test MUST FAIL on unfixed code - failure confirms the bug exists
+  - **DO NOT attempt to fix the test or the code when it fails**
+  - **NOTE**: This test encodes the expected behavior - it will validate the fix when it passes after implementation
+  - **GOAL**: Surface counterexamples that demonstrate the bug exists
+  - **Scoped PBT Approach**: Test the concrete failing case - navigation to `/reports/stock-card` returns 404
+  - Test that navigating to `/reports/stock-card` results in a 404 error (from Fault Condition in design)
+  - Verify that `app/reports/stock-card/page.tsx` does not exist
+  - Test with authenticated user session
+  - Run test on UNFIXED code
+  - **EXPECTED OUTCOME**: Test FAILS (this is correct - it proves the bug exists)
+  - Document counterexamples found: "Navigation to /reports/stock-card returns 404 instead of rendering Stock Card Report page"
+  - Mark task complete when test is written, run, and failure is documented
+  - _Requirements: 2.1, 2.2_
+
+- [x] 2. Write preservation property tests (BEFORE implementing fix)
+  - **Property 2: Preservation** - Other Report Pages Remain Functional
+  - **IMPORTANT**: Follow observation-first methodology
+  - Observe behavior on UNFIXED code for non-buggy navigation requests
+  - Test that `/reports/sales` page renders successfully
+  - Test that `/reports/purchases` page renders successfully (if exists)
+  - Test that `/financial-reports` page renders successfully (if exists)
+  - Test that API route `/api/inventory/reports/stock-card` returns data correctly
+  - Write property-based tests capturing observed behavior patterns from Preservation Requirements
+  - Run tests on UNFIXED code
+  - **EXPECTED OUTCOME**: Tests PASS (this confirms baseline behavior to preserve)
+  - Mark task complete when tests are written, run, and passing on unfixed code
+  - _Requirements: 3.1, 3.2, 3.3, 3.4_
+
+- [x] 3. Fix for Stock Card Page Missing
+
+  - [x] 3.1 Create the Stock Card Report page component
+    - Create file `app/reports/stock-card/page.tsx`
+    - Add `'use client'` directive for client-side rendering
+    - Import required types from `@/types/stock-card`
+    - Import existing components: StockCardFilters, StockCardTable, StockCardSummary
+    - Implement state management for filters, data, loading, errors, pagination
+    - Implement `fetchData` function to call `/api/inventory/reports/stock-card`
+    - Implement filter handlers: handleFilterChange, handleClearFilters, handleRefresh
+    - Implement pagination handlers: handlePageChange, handlePageSizeChange
+    - Add useEffect hooks for initial data load and filter changes
+    - Integrate StockCardFilters component with proper props and callbacks
+    - Integrate StockCardTable component with proper props and callbacks
+    - Integrate StockCardSummary component with conditional rendering
+    - Add loading spinner for data fetch states
+    - Add error message display for API errors
+    - Add empty state message when no item is selected
+    - Add page header "Laporan Kartu Stok"
+    - Follow pattern from `app/reports/sales/page.tsx`
+    - _Bug_Condition: isBugCondition(input) where input.url_path == '/reports/stock-card' AND NOT file_exists('app/reports/stock-card/page.tsx')_
+    - _Expected_Behavior: Page renders successfully with StockCardFilters, StockCardTable, and StockCardSummary components, and successfully fetches data from API_
+    - _Preservation: All existing report pages, API routes, and components remain unchanged_
+    - _Requirements: 2.1, 2.2, 3.1, 3.2, 3.3, 3.4_
+
+  - [x] 3.2 Verify bug condition exploration test now passes
+    - **Property 1: Expected Behavior** - Stock Card Page Displays Successfully
+    - **IMPORTANT**: Re-run the SAME test from task 1 - do NOT write a new test
+    - The test from task 1 encodes the expected behavior
+    - When this test passes, it confirms the expected behavior is satisfied
+    - Run bug condition exploration test from step 1
+    - Verify navigation to `/reports/stock-card` renders the page successfully
+    - Verify StockCardFilters component is displayed
+    - Verify StockCardTable component is displayed
+    - Verify StockCardSummary component is displayed
+    - Verify API call to `/api/inventory/reports/stock-card` succeeds
+    - **EXPECTED OUTCOME**: Test PASSES (confirms bug is fixed)
+    - _Requirements: 2.1, 2.2_
+
+  - [x] 3.3 Verify preservation tests still pass
+    - **Property 2: Preservation** - Other Pages Remain Functional
+    - **IMPORTANT**: Re-run the SAME tests from task 2 - do NOT write new tests
+    - Run preservation property tests from step 2
+    - Verify `/reports/sales` page still renders successfully
+    - Verify `/reports/purchases` page still renders successfully (if exists)
+    - Verify `/financial-reports` page still renders successfully (if exists)
+    - Verify API route `/api/inventory/reports/stock-card` still returns data correctly
+    - **EXPECTED OUTCOME**: Tests PASS (confirms no regressions)
+    - Confirm all tests still pass after fix (no regressions)
+    - _Requirements: 3.1, 3.2, 3.3, 3.4_
+
+- [x] 4. Checkpoint - Ensure all tests pass
+  - Run all tests (exploration + preservation)
+  - Verify no console errors in browser
+  - Verify page is responsive on mobile, tablet, and desktop
+  - Perform manual testing checklist from design document
+  - Ask the user if questions arise

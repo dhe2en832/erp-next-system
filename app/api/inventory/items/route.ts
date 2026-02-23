@@ -6,6 +6,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const filters = searchParams.get('filters');
+    const company = searchParams.get('company');
     const limit = searchParams.get('limit') || '20';
     const start = searchParams.get('start') || '0';
 
@@ -15,6 +16,15 @@ export async function GET(request: NextRequest) {
     // Build ERPNext URL
     let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Item?fields=["item_code","item_name","description","item_group","stock_uom","opening_stock"]&limit_page_length=${limit}&start=${start}`;
     
+    // Add company filter if provided (for multi-entity support)
+    // Note: Items in ERPNext don't have a direct company field
+    // They are typically shared across companies
+    // So we accept the parameter but don't filter by it
+    if (company) {
+      console.log('Items API - Company parameter provided but not applied:', company);
+    }
+    
+    // Add custom filters if provided
     if (filters) {
       erpNextUrl += `&filters=${filters}`;
     }
