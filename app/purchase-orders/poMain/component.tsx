@@ -6,6 +6,8 @@ import ItemDialog from '../../components/ItemDialog';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import PrintDialog from '../../components/PrintDialog';
 import { formatAddress } from '../../../utils';
+import PrintPreviewModal from '../../../components/print/PrintPreviewModal';
+import PurchaseOrderPrint from '../../../components/print/PurchaseOrderPrint';
 
 interface Supplier {
   name: string;
@@ -65,6 +67,7 @@ export default function PurchaseOrderMain() {
   const [success, setSuccess] = useState('');
   const [showPrintDialog, setShowPrintDialog] = useState(false);
   const [printDocName, setPrintDocName] = useState('');
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [isViewMode, setIsViewMode] = useState(false);
   const [poId, setPoId] = useState('');
@@ -905,12 +908,25 @@ export default function PurchaseOrderMain() {
                 {isViewMode ? 'Lihat pesanan pembelian (hanya baca)' : (isEditMode ? 'Perbarui pesanan pembelian yang ada' : 'Buat pesanan pembelian baru')}
               </p>
             </div>
-            <button
-              onClick={() => router.push('/purchase-orders/poList')}
-              className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700"
-            >
-              Kembali ke Daftar
-            </button>
+            <div className="flex gap-2">
+              {(isEditMode || isViewMode) && poId && (
+                <button
+                  onClick={() => setShowPrintPreview(true)}
+                  className="bg-emerald-600 text-white px-4 py-2 rounded-md hover:bg-emerald-700 flex items-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                  </svg>
+                  Print
+                </button>
+              )}
+              <button
+                onClick={() => router.push('/purchase-orders/poList')}
+                className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700"
+              >
+                Kembali ke Daftar
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -1424,6 +1440,39 @@ export default function PurchaseOrderMain() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Print Preview Modal */}
+      {showPrintPreview && (isEditMode || isViewMode) && (
+        <PrintPreviewModal
+          title={`Purchase Order - ${poId}`}
+          onClose={() => setShowPrintPreview(false)}
+          paperMode="continuous"
+        >
+          <PurchaseOrderPrint
+            data={{
+              name: poId,
+              transaction_date: transactionDate,
+              docstatus: isViewMode ? 1 : 0,
+              supplier: supplier,
+              supplier_name: suppliers.find(s => s.name === supplier)?.supplier_name,
+              schedule_date: scheduleDate,
+              set_warehouse: warehouse,
+              items: selectedItems.map(item => ({
+                item_code: item.item_code,
+                item_name: item.item_name,
+                qty: item.qty,
+                rate: item.rate,
+                amount: item.amount,
+              })),
+              total: subtotal,
+              total_taxes_and_charges: taxAmount,
+              grand_total: grandTotal,
+              remarks: remarks,
+            }}
+            companyName={selectedCompany}
+          />
+        </PrintPreviewModal>
       )}
       
       {/* Supplier Dialog */}

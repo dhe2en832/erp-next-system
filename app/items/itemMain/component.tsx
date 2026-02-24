@@ -82,7 +82,7 @@ export default function ItemMain() {
         const brandsData = await brandsResponse.json();
         if (brandsData.success) {
           setBrands(brandsData.data || []);
-          console.log('Brands loaded:', brandsData.data?.length || 0);
+          // console.log('Brands loaded:', brandsData.data?.length || 0);
         }
 
         // Fetch item groups via API route
@@ -91,12 +91,12 @@ export default function ItemMain() {
         if (groupsResponse.ok && groupsData.success) {
           const groups = groupsData.data || [];
           setItemGroups(groups);
-          console.log('Item groups loaded:', groups.length);
+          // console.log('Item groups loaded:', groups.length);
           if (!itemCode && groups.length > 0) {
             setFormData(prev => ({ ...prev, item_group: prev.item_group || groups[0].name }));
           }
         } else {
-          console.log('Failed to load item groups:', groupsData);
+          // console.log('Failed to load item groups:', groupsData);
         }
 
         // Fetch UOMs via API route
@@ -105,16 +105,16 @@ export default function ItemMain() {
         if (uomsResponse.ok && uomsData.success) {
           const uomList = uomsData.data || [];
           setUoms(uomList);
-          console.log('UOMs loaded:', uomList.length);
+          // console.log('UOMs loaded:', uomList.length);
           if (!itemCode && uomList.length > 0) {
             setFormData(prev => ({ ...prev, stock_uom: prev.stock_uom || uomList[0].name }));
           }
         } else {
-          console.log('Failed to load UOMs:', uomsData);
+          // console.log('Failed to load UOMs:', uomsData);
         }
         
       } catch (error) {
-        console.log('Error fetching dropdown data:', error);
+        // console.log('Error fetching dropdown data:', error);
         // Fallback data
         setBrands([
           { name: 'AURI' },

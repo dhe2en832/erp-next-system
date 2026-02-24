@@ -110,9 +110,9 @@ export default function AccountsPayablePage() {
         <PrintPreviewModal
           title={`Hutang Usaha — ${selectedCompany}`}
           onClose={() => setShowPrintPreview(false)}
+          paperMode="sheet"
           printUrl={printUrl}
           useContentFrame={false}
-          allowPaperSettings={false}
         >
           <iframe
             src={printUrl}

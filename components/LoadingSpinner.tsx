@@ -11,12 +11,14 @@ interface LoadingSpinnerProps {
   size?: 'sm' | 'md' | 'lg' | 'xl';
   variant?: 'primary' | 'secondary' | 'white';
   className?: string;
+  message?: string;  // ✅ TAMBAHAN: Optional prop untuk pesan loading
 }
 
 export default function LoadingSpinner({ 
   size = 'md', 
   variant = 'primary',
-  className = '' 
+  className = '',
+  message  // ✅ TAMBAHAN: Tidak wajib diisi
 }: LoadingSpinnerProps) {
   const sizeClasses = {
     sm: 'w-4 h-4 border-2',
@@ -34,15 +36,28 @@ export default function LoadingSpinner({
   return (
     <div
       className={`
-        ${sizeClasses[size]}
-        ${variantClasses[variant]}
-        rounded-full animate-spin
+        flex flex-col items-center justify-center
         ${className}
       `}
       role="status"
       aria-label="Loading"
     >
-      <span className="sr-only">Loading...</span>
+      <div
+        className={`
+          ${sizeClasses[size]}
+          ${variantClasses[variant]}
+          rounded-full animate-spin
+        `}
+      >
+        <span className="sr-only">Loading...</span>
+      </div>
+      
+      {/* ✅ TAMBAHAN: Render message hanya jika ada */}
+      {message && (
+        <p className="mt-3 text-sm text-gray-600 text-center max-w-xs">
+          {message}
+        </p>
+      )}
     </div>
   );
 }

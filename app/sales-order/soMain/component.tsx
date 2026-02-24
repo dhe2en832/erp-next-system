@@ -9,6 +9,8 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 import PrintDialog from '../../components/PrintDialog';
 import { formatDate, parseDate } from '../../../utils/format';
 import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
+import PrintPreviewModal from '../../../components/print/PrintPreviewModal';
+import SalesOrderPrint from '../../../components/print/SalesOrderPrint';
 
 interface SalesTeamMember {
   sales_person: string;
@@ -62,6 +64,7 @@ export default function SalesOrderMain() {
   const [currentItemIndex, setCurrentItemIndex] = useState<number | null>(null);
   const [salesTeam, setSalesTeam] = useState<SalesTeamMember[]>([]);
   const [paymentTermsList, setPaymentTermsList] = useState<{name: string}[]>([]);
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
 
   // Get company on mount
   useEffect(() => {
@@ -594,12 +597,25 @@ export default function SalesOrderMain() {
                   : 'Buat pesanan penjualan baru'}
               </p>
             </div>
-            <button
-              onClick={() => router.push('/sales-order/soList')}
-              className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700"
-            >
-              Kembali ke Daftar
-            </button>
+            <div className="flex gap-2">
+              {editingOrder && (
+                <button
+                  onClick={() => setShowPrintPreview(true)}
+                  className="bg-emerald-600 text-white px-4 py-2 rounded-md hover:bg-emerald-700 flex items-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                  </svg>
+                  Print
+                </button>
+              )}
+              <button
+                onClick={() => router.push('/sales-order/soList')}
+                className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700"
+              >
+                Kembali ke Daftar
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -1024,6 +1040,36 @@ export default function SalesOrderMain() {
         documentName={savedDocName}
         documentLabel="Pesanan Penjualan"
       />
+
+      {/* Print Preview Modal */}
+      {showPrintPreview && editingOrder && (
+        <PrintPreviewModal
+          title={`Sales Order - ${editingOrder.name}`}
+          onClose={() => setShowPrintPreview(false)}
+          paperMode="continuous"
+        >
+          <SalesOrderPrint
+            data={{
+              name: editingOrder.name,
+              transaction_date: editingOrder.transaction_date,
+              docstatus: editingOrder.docstatus || 0,
+              customer: editingOrder.customer,
+              customer_name: editingOrder.customer_name,
+              customer_address: editingOrder.address_display || editingOrder.customer_address || editingOrder.shipping_address_name || '',
+              delivery_date: editingOrder.delivery_date,
+              payment_terms_template: editingOrder.payment_terms_template,
+              sales_person: formData.sales_person,
+              items: editingOrder.items || [],
+              total: editingOrder.total || 0,
+              total_taxes_and_charges: editingOrder.total_taxes_and_charges,
+              grand_total: editingOrder.grand_total || 0,
+              in_words: editingOrder.in_words,
+              remarks: editingOrder.custom_notes_so || editingOrder.remarks,
+            }}
+            companyName={selectedCompany}
+          />
+        </PrintPreviewModal>
+      )}
     </div>
   );
 }

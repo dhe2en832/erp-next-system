@@ -1,14 +1,62 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import Pagination from '../../components/Pagination';
 import { formatDate, parseDate } from '../../../utils/format';
 import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
-import { Printer } from 'lucide-react';
+import { Printer, FileText, Send, ArrowUp, Loader2, CreditCard } from 'lucide-react';
 import ErrorDialog from '../../../components/ErrorDialog';
+import PrintPreviewModal from '../../../components/print/PrintPreviewModal';
+import SalesInvoicePrint from '../../../components/print/SalesInvoicePrint';
 
+// ─────────────────────────────────────────────────────────────
+// Hook: Deteksi mobile (breakpoint 768px)
+// ─────────────────────────────────────────────────────────────
+function useIsMobile(breakpoint = 768) {
+  const [isMobile, setIsMobile] = useState(false);
+  
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < breakpoint);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, [breakpoint]);
+  
+  return isMobile;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Status Mapping: ERPNext Value (EN) → Indonesian Label (UI)
+// Sales Invoice status: Draft, Submitted, Unpaid, Paid, Overdue, Cancelled
+// ─────────────────────────────────────────────────────────────
+const STATUS_LABELS: Record<string, string> = {
+  'Draft': 'Draft',
+  'Submitted': 'Diajukan',
+  'Unpaid': 'Belum Lunas',
+  'Paid': 'Lunas',
+  'Overdue': 'Jatuh Tempo',
+  'Cancelled': 'Dibatalkan',
+  'Internal Transfer': 'Transfer Internal',
+};
+
+const STATUS_COLORS: Record<string, string> = {
+  'Draft': 'bg-yellow-100 text-yellow-800 border-yellow-200',
+  'Submitted': 'bg-blue-100 text-blue-800 border-blue-200',
+  'Unpaid': 'bg-red-100 text-red-800 border-red-200',
+  'Paid': 'bg-green-100 text-green-800 border-green-200',
+  'Overdue': 'bg-orange-100 text-orange-800 border-orange-200',
+  'Cancelled': 'bg-gray-100 text-gray-800 border-gray-200',
+  'Internal Transfer': 'bg-purple-100 text-purple-800 border-purple-200',
+};
+
+const getStatusLabel = (status: string): string => STATUS_LABELS[status] || status;
+const getStatusBadgeClass = (status: string): string => STATUS_COLORS[status] || 'bg-gray-100 text-gray-800 border-gray-200';
+
+// ─────────────────────────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────────────────────────
 interface InvoiceItem {
   item_code: string;
   item_name: string;
@@ -35,18 +83,41 @@ interface Invoice {
   outstanding_amount: number;
   paid_amount: number;
   status: string;
-  delivery_note: string;
+  delivery_note?: string;
   items?: InvoiceItem[];
   custom_total_komisi_sales?: number;
   custom_notes_si?: string;
   discount_amount?: number;
   total_taxes_and_charges?: number;
+  is_return?: number;
 }
 
+// ─────────────────────────────────────────────────────────────
+// Helper: Format currency IDR
+// ─────────────────────────────────────────────────────────────
+const formatCurrency = (amount: number) => {
+  return new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    minimumFractionDigits: 0,
+  }).format(amount);
+};
+
+// ─────────────────────────────────────────────────────────────
+// Main Component
+// ─────────────────────────────────────────────────────────────
 export default function SalesInvoiceList() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isMobile = useIsMobile(768);
+  
+  // Dynamic pageSize: Mobile 10, Desktop 20
+  const pageSize = isMobile ? 10 : 20;
+  const useInfiniteScrollMode = isMobile;
+
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [dateFilter, setDateFilter] = useState({
     from_date: formatDate(new Date(Date.now() - 86400000)),
     to_date: formatDate(new Date()),
@@ -59,18 +130,49 @@ export default function SalesInvoiceList() {
   const [successMessage, setSuccessMessage] = useState('');
   const [submittingInvoice, setSubmittingInvoice] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState('');
-
-  // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalRecords, setTotalRecords] = useState(0);
-  const [pageSize] = useState(20);
+  const [showBackToTop, setShowBackToTop] = useState(false);
+  const [hasMoreData, setHasMoreData] = useState(true);
 
+  // Print preview states
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
+  const [printData, setPrintData] = useState<any>(null);
+  const [loadingPrintData, setLoadingPrintData] = useState(false);
+
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+  // ─────────────────────────────────────────────────────────
+  // Sync URL dengan page state (bookmark/share)
+  // ─────────────────────────────────────────────────────────
+  useEffect(() => {
+    const pageFromUrl = searchParams.get('page');
+    if (pageFromUrl && !isNaN(parseInt(pageFromUrl))) {
+      const pageNum = parseInt(pageFromUrl);
+      if (pageNum >= 1) setCurrentPage(pageNum);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    const newParams = new URLSearchParams(searchParams.toString());
+    if (currentPage > 1) {
+      newParams.set('page', currentPage.toString());
+    } else {
+      newParams.delete('page');
+    }
+    const newUrl = `${window.location.pathname}${newParams.toString() ? `?${newParams.toString()}` : ''}`;
+    window.history.replaceState({}, '', newUrl);
+  }, [currentPage, searchParams]);
+
+  // ─────────────────────────────────────────────────────────
+  // Company Selection from localStorage/cookies
+  // ─────────────────────────────────────────────────────────
   useEffect(() => {
     let savedCompany = localStorage.getItem('selected_company');
     if (!savedCompany) {
       const cookies = document.cookie.split(';');
-      const companyCookie = cookies.find(cookie => cookie.trim().startsWith('selected_company='));
+      const companyCookie = cookies.find(c => c.trim().startsWith('selected_company='));
       if (companyCookie) {
         savedCompany = companyCookie.split('=')[1];
         if (savedCompany) localStorage.setItem('selected_company', savedCompany);
@@ -79,329 +181,721 @@ export default function SalesInvoiceList() {
     if (savedCompany) setSelectedCompany(savedCompany);
   }, []);
 
-  const fetchInvoices = useCallback(async () => {
-    setError('');
+  // ─────────────────────────────────────────────────────────
+  // Fetch Data dari ERPNext API
+  // ─────────────────────────────────────────────────────────
+  const fetchInvoices = useCallback(async (reset = false) => {
+    if (reset) {
+      setLoading(true);
+      setError('');
+    } else {
+      setLoadingMore(true);
+    }
+
     let companyToUse = selectedCompany;
     if (!companyToUse) {
-      const storedCompany = localStorage.getItem('selected_company');
-      if (storedCompany) {
-        companyToUse = storedCompany;
-      } else {
+      const stored = localStorage.getItem('selected_company');
+      if (stored) companyToUse = stored;
+      else {
         const cookies = document.cookie.split(';');
-        const companyCookie = cookies.find(cookie => cookie.trim().startsWith('selected_company='));
-        if (companyCookie) {
-          const cookieValue = companyCookie.split('=')[1];
-          if (cookieValue) companyToUse = cookieValue;
-        }
+        const cookie = cookies.find(c => c.trim().startsWith('selected_company='));
+        if (cookie) companyToUse = cookie.split('=')[1];
       }
     }
+    
     if (!companyToUse) {
       setError('Perusahaan belum dipilih. Silakan pilih perusahaan terlebih dahulu.');
       setLoading(false);
+      setLoadingMore(false);
       return;
     }
+    
     if (!selectedCompany && companyToUse) setSelectedCompany(companyToUse);
-
+    
     try {
       const params = new URLSearchParams();
       params.append('limit_page_length', pageSize.toString());
       params.append('start', ((currentPage - 1) * pageSize).toString());
-      if (companyToUse) params.append('company', companyToUse);
-      if (searchTerm) params.append('search', searchTerm);
-      if (documentNumberFilter) params.append('documentNumber', documentNumberFilter);
-      if (statusFilter) params.append('status', statusFilter);
-      if (dateFilter.from_date) {
-        const parsedDate = parseDate(dateFilter.from_date);
-        if (parsedDate) params.append('from_date', parsedDate);
-      }
-      if (dateFilter.to_date) {
-        const parsedDate = parseDate(dateFilter.to_date);
-        if (parsedDate) params.append('to_date', parsedDate);
+      
+      // ✅ REQUEST FIELD SPESIFIK DARI ERPNext
+      params.append('fields', JSON.stringify([
+        'name',
+        'customer',
+        'customer_name',
+        'posting_date',
+        'due_date',
+        'grand_total',
+        'outstanding_amount',
+        'paid_amount',
+        'status',
+        'delivery_note',
+        'custom_notes_si',
+        'discount_amount',
+        'total_taxes_and_charges',
+        'is_return'
+      ]));
+      
+      // ✅ SORTING: Data terbaru paling atas
+      params.append('order_by', 'posting_date desc');
+      
+      // ✅ BUILD FILTERS ARRAY UNTUK ERPNext (Format JSON)
+      const filters: [string, string, string | number][] = [
+        ["company", "=", companyToUse],
+        ["is_return", "=", 0],  // ✅ EXCLUDE SALES RETURN
+      ];
+
+      // Filter status
+      if (statusFilter) {
+        filters.push(["status", "=", statusFilter]);
       }
 
-      const response = await fetch(`/api/sales/invoices?${params}`);
+      // Filter tanggal posting
+      if (dateFilter.from_date) {
+        const parsed = parseDate(dateFilter.from_date);
+        if (parsed) filters.push(["posting_date", ">=", parsed]);
+      }
+      if (dateFilter.to_date) {
+        const parsed = parseDate(dateFilter.to_date);
+        if (parsed) filters.push(["posting_date", "<=", parsed]);
+      }
+
+      // Filter search dengan LIKE (case-insensitive)
+      if (searchTerm) {
+        filters.push(["customer_name", "like", `%${searchTerm}%`]);
+      }
+      if (documentNumberFilter) {
+        filters.push(["name", "like", `%${documentNumberFilter}%`]);
+      }
+
+      // Append filters sebagai JSON string (ERPNext requirement)
+      params.append('filters', JSON.stringify(filters));
+
+      // 🔍 DEBUG: Log filters yang dikirim ke API
+      console.log('🔍 ERPNext Filters:', JSON.stringify(filters));
+
+      const response = await fetch(`/api/sales/invoices?${params.toString()}`);
       const data = await response.json();
 
       if (data.success) {
-        setInvoices(data.data || []);
+        const filteredData = data.data || [];
+        
         if (data.total_records !== undefined) {
           setTotalRecords(data.total_records);
           setTotalPages(Math.ceil(data.total_records / pageSize));
+          setHasMoreData(currentPage < Math.ceil(data.total_records / pageSize));
         } else {
-          setTotalRecords(data.data?.length || 0);
+          setTotalRecords(filteredData.length);
           setTotalPages(1);
+          setHasMoreData(false);
         }
-        setError('');
+        
+        if (reset) {
+          setInvoices(filteredData);
+        } else {
+          // Append untuk infinite scroll (hindari duplikat)
+          setInvoices(prev => {
+            const existingNames = new Set(prev.map((o: Invoice) => o.name));
+            const newItems = filteredData.filter((o: Invoice) => !existingNames.has(o.name));
+            return [...prev, ...newItems];
+          });
+        }
+        
+        setError(filteredData.length === 0 && reset ? `Tidak ada faktur untuk perusahaan: ${companyToUse}` : '');
       } else {
-        setError('Gagal memuat faktur: ' + data.message);
+        setError(data.message || 'Gagal memuat faktur penjualan');
       }
-    } catch {
+    } catch (err) {
+      console.error('❌ Error fetching invoices:', err);
       setError('Gagal memuat faktur penjualan');
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
-  }, [selectedCompany, currentPage, pageSize, dateFilter, searchTerm, statusFilter, documentNumberFilter]);
+  }, [selectedCompany, dateFilter, searchTerm, statusFilter, documentNumberFilter, currentPage, pageSize]);
+
+  // ─────────────────────────────────────────────────────────
+  // Effects
+  // ─────────────────────────────────────────────────────────
+  useEffect(() => {
+    fetchInvoices(true); // reset = true (ganti filter)
+  }, [dateFilter, searchTerm, statusFilter, documentNumberFilter]);
 
   useEffect(() => {
-    fetchInvoices();
-  }, [dateFilter, searchTerm, statusFilter, documentNumberFilter, fetchInvoices]);
+    fetchInvoices(false); // reset = false (ganti halaman/infinite scroll)
+  }, [currentPage]);
 
+  // Reset ke halaman 1 saat filter berubah
   useEffect(() => {
     setCurrentPage(1);
   }, [dateFilter, searchTerm, statusFilter, documentNumberFilter]);
 
-  // Submit Sales Invoice
-  const handleSubmitSalesInvoice = async (invoiceName: string) => {
+  // ─────────────────────────────────────────────────────────
+  // Infinite Scroll Handler (Mobile Only)
+  // ─────────────────────────────────────────────────────────
+  const loadMoreData = useCallback(() => {
+    if (!loadingMore && hasMoreData && useInfiniteScrollMode) {
+      setCurrentPage(prev => {
+        const nextPage = prev + 1;
+        if (nextPage <= totalPages) return nextPage;
+        return prev;
+      });
+    }
+  }, [loadingMore, hasMoreData, useInfiniteScrollMode, totalPages]);
+
+  // Setup Intersection Observer untuk infinite scroll
+  useEffect(() => {
+    if (!useInfiniteScrollMode || loading || loadingMore || !hasMoreData) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          loadMoreData();
+        }
+      },
+      { rootMargin: '100px' } // Trigger 100px sebelum bottom
+    );
+
+    if (sentinelRef.current) {
+      observer.observe(sentinelRef.current);
+    }
+
+    return () => {
+      if (observer) observer.disconnect();
+    };
+  }, [useInfiniteScrollMode, loading, loadingMore, hasMoreData, loadMoreData]);
+
+  // ─────────────────────────────────────────────────────────
+  // Back to Top Button
+  // ─────────────────────────────────────────────────────────
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowBackToTop(window.scrollY > 400);
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // ─────────────────────────────────────────────────────────
+  // Actions
+  // ─────────────────────────────────────────────────────────
+  const handleSubmitSalesInvoice = async (invoiceName: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
     try {
       setSubmittingInvoice(invoiceName);
-      const response = await fetch(`/api/sales/invoices/${invoiceName}/submit`, {
+      const res = await fetch(`/api/sales/invoices/${invoiceName}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
-      const result = await response.json();
+      const result = await res.json();
       if (result.success) {
         setSuccessMessage(`✅ Faktur Penjualan ${invoiceName} berhasil diajukan!`);
-        fetchInvoices();
+        fetchInvoices(true);
         setTimeout(() => setSuccessMessage(''), 5000);
       } else {
         setSubmitError(result.message || 'Gagal mengajukan Faktur Penjualan');
       }
-    } catch (error) {
-      console.error('Error submitting sales invoice:', error);
+    } catch {
       setSubmitError('Terjadi kesalahan saat mengajukan Faktur Penjualan');
     } finally {
       setSubmittingInvoice(null);
     }
   };
 
-  if (loading) {
+  const fetchDataForPrint = async (invoiceName: string) => {
+    setLoadingPrintData(true);
+    try {
+      const response = await fetch(`/api/sales/invoices/${invoiceName}`);
+      const result = await response.json();
+      
+      if (result.success) {
+        const invoiceData = result.data;
+        
+        // Fetch customer address separately if not available
+        let customerAddress = invoiceData.address_display || 
+                             invoiceData.customer_address || 
+                             invoiceData.shipping_address_name || 
+                             '';
+        
+        // If no address found, try to fetch from customer
+        if (!customerAddress && invoiceData.customer) {
+          try {
+            const customerResponse = await fetch(`/api/sales/customers/customer/${encodeURIComponent(invoiceData.customer)}`);
+            const customerResult = await customerResponse.json();
+            if (customerResult.success && customerResult.data) {
+              customerAddress = customerResult.data.primary_address || 
+                              customerResult.data.customer_primary_address ||
+                              '';
+            }
+          } catch (err) {
+            console.error('Failed to fetch customer address:', err);
+          }
+        }
+        
+        setPrintData({
+          ...invoiceData,
+          customer_address: customerAddress,
+        });
+      } else {
+        alert('Gagal memuat data untuk print');
+      }
+    } catch (error) {
+      console.error('Error fetching data for print:', error);
+      alert('Terjadi kesalahan saat memuat data');
+    } finally {
+      setLoadingPrintData(false);
+    }
+  };
+
+  const handlePrint = async (invoiceName: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    await fetchDataForPrint(invoiceName);
+    setShowPrintPreview(true);
+  };
+
+  const handleCardClick = (invoiceName: string) => {
+    if (invoiceName) router.push(`/invoice/siMain?name=${invoiceName}`);
+  };
+
+  const handleResetFilters = () => {
+    setDateFilter({
+      from_date: formatDate(new Date(Date.now() - 86400000)),
+      to_date: formatDate(new Date()),
+    });
+    setSearchTerm('');
+    setStatusFilter('');
+    setDocumentNumberFilter('');
+    setCurrentPage(1);
+  };
+
+  const handleLoadMoreClick = () => {
+    if (!loadingMore && hasMoreData) {
+      setCurrentPage(prev => Math.min(prev + 1, totalPages));
+    }
+  };
+
+  // Helper: Hitung jumlah yang sudah dibayar
+  const getPaidAmount = (invoice: Invoice): number => {
+    return invoice.paid_amount || (invoice.grand_total - invoice.outstanding_amount) || 0;
+  };
+
+  // Helper: Hitung persentase pembayaran
+  const getPaymentPercent = (invoice: Invoice): number => {
+    if (!invoice.grand_total || invoice.grand_total <= 0) return 0;
+    return Math.min((getPaidAmount(invoice) / invoice.grand_total) * 100, 100);
+  };
+
+  // ─────────────────────────────────────────────────────────
+  // Skeleton Loader Component (untuk infinite scroll)
+  // ─────────────────────────────────────────────────────────
+  const SkeletonCard = () => (
+    <li className="px-4 py-4 border-b border-gray-100">
+      <div className="space-y-3 animate-pulse">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1">
+            <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+            <div className="h-3 bg-gray-200 rounded w-1/2 mt-2"></div>
+          </div>
+          <div className="h-5 bg-gray-200 rounded w-16"></div>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="h-3 bg-gray-200 rounded"></div>
+          <div className="h-3 bg-gray-200 rounded"></div>
+        </div>
+        <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+          <div className="h-4 bg-gray-200 rounded w-24"></div>
+          <div className="flex gap-2">
+            <div className="h-8 w-8 bg-gray-200 rounded"></div>
+            <div className="h-8 w-8 bg-gray-200 rounded"></div>
+          </div>
+        </div>
+      </div>
+    </li>
+  );
+
+  // ─────────────────────────────────────────────────────────
+  // Initial Loading State
+  // ─────────────────────────────────────────────────────────
+  if (loading && invoices.length === 0) {
     return <LoadingSpinner message="Memuat Faktur Penjualan..." />;
   }
 
+  // ─────────────────────────────────────────────────────────
+  // Render UI
+  // ─────────────────────────────────────────────────────────
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="min-h-screen bg-gray-50">
       <ErrorDialog isOpen={!!submitError} title="Gagal Mengajukan" message={submitError} onClose={() => setSubmitError('')} />
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Faktur Penjualan</h1>
-        <div className="flex w-full sm:w-auto">
+      
+      {/* Header */}
+      <div className="bg-white border-b border-gray-200 px-4 py-4 sm:px-6 lg:px-8 sticky top-0 z-30">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <h1 className="text-2xl font-bold text-gray-900">Faktur Penjualan</h1>
           <button
             onClick={() => router.push('/invoice/siMain')}
-            className="w-full sm:w-auto bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 flex items-center justify-center min-h-[44px]"
+            className="inline-flex items-center justify-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 min-h-[44px]"
           >
-            <svg className="w-5 h-5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-            </svg>
-            Buat Faktur Baru
+            + Buat Faktur Baru
           </button>
         </div>
       </div>
 
-      {/* Filter Section */}
-      <div className="bg-white shadow rounded-lg p-4 mb-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Cari Pelanggan</label>
-            <input type="text" placeholder="Cari nama pelanggan..." className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+      {/* Success Message */}
+      {successMessage && (
+        <div className="px-4 py-3 sm:px-6 lg:px-8">
+          <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm flex items-center justify-between">
+            <span>{successMessage}</span>
+            <button onClick={() => setSuccessMessage('')} className="text-green-700 hover:text-green-900 font-bold">✕</button>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">No. Dokumen</label>
-            <input type="text" placeholder="Cari nomor faktur..." className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" value={documentNumberFilter} onChange={(e) => setDocumentNumberFilter(e.target.value)} />
+        </div>
+      )}
+
+      {/* Error Message */}
+      {error && (
+        <div className="px-4 py-3 sm:px-6 lg:px-8">
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm flex items-center justify-between">
+            <span>{error}</span>
+            <button onClick={() => setError('')} className="text-red-700 hover:text-red-900 font-bold">✕</button>
           </div>
+        </div>
+      )}
+
+      {/* Filters */}
+      <div className="bg-white border-b border-gray-200 px-4 py-4 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
+          {[
+            { label: 'Cari Pelanggan', value: searchTerm, onChange: setSearchTerm, placeholder: 'Nama pelanggan...' },
+            { label: 'No. Dokumen', value: documentNumberFilter, onChange: setDocumentNumberFilter, placeholder: 'Nomor faktur...' },
+          ].map((field, i) => (
+            <div key={i}>
+              <label className="block text-xs font-medium text-gray-500 mb-1">{field.label}</label>
+              <input
+                type="text"
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder={field.placeholder}
+                value={field.value}
+                onChange={(e) => field.onChange(e.target.value)}
+              />
+            </div>
+          ))}
+          
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-            <select className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Status</label>
+            <select
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
               <option value="">Semua Status</option>
               <option value="Draft">Draft</option>
               <option value="Submitted">Diajukan</option>
               <option value="Unpaid">Belum Lunas</option>
               <option value="Paid">Lunas</option>
+              <option value="Overdue">Jatuh Tempo</option>
               <option value="Cancelled">Dibatalkan</option>
             </select>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Dari Tanggal</label>
-            <BrowserStyleDatePicker value={dateFilter.from_date} onChange={(value: string) => setDateFilter({ ...dateFilter, from_date: value })} className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="DD/MM/YYYY" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Sampai Tanggal</label>
-            <BrowserStyleDatePicker value={dateFilter.to_date} onChange={(value: string) => setDateFilter({ ...dateFilter, to_date: value })} className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="DD/MM/YYYY" />
-          </div>
-          <div className="flex items-end">
-            <button
-              onClick={() => {
-                setDateFilter({ from_date: formatDate(new Date(Date.now() - 86400000)), to_date: formatDate(new Date()) });
-                setSearchTerm('');
-                setStatusFilter('');
-                setDocumentNumberFilter('');
-              }}
-              className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400"
-            >
-              Hapus Filter
-            </button>
-          </div>
+          
+          {['from_date', 'to_date'].map((key) => (
+            <div key={key}>
+              <label className="block text-xs font-medium text-gray-500 mb-1">
+                {key === 'from_date' ? 'Dari Tanggal' : 'Sampai Tanggal'}
+              </label>
+              <BrowserStyleDatePicker
+                value={dateFilter[key as keyof typeof dateFilter]}
+                onChange={(value: string) => setDateFilter({ ...dateFilter, [key]: value })}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="DD/MM/YYYY"
+              />
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 flex justify-end">
+          <button
+            onClick={handleResetFilters}
+            className="text-sm text-gray-600 hover:text-gray-900 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+          >
+            ⟲ Reset Filter
+          </button>
         </div>
       </div>
 
-      {/* Error Message */}
-      {error && (
-        <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-md mb-6">
-          <div className="flex"><div className="text-sm text-red-700">{error}</div></div>
-        </div>
-      )}
-
-      {/* Success Message */}
-      {successMessage && (
-        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-md">
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-              </svg>
+      {/* List Container */}
+      <div className="px-4 py-4 sm:px-6 lg:px-8">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          
+          {/* Progress Indicator */}
+          <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 text-xs text-gray-600 flex items-center justify-between">
+            <div>
+              <span className="font-medium">{invoices.length}</span> dari <span className="font-medium">{totalRecords}</span> data
             </div>
-            <div className="ml-3">
-              <h3 className="text-sm font-medium text-green-800">Berhasil!</h3>
-              <div className="mt-2 text-sm text-green-700">
-                <pre className="whitespace-pre-wrap font-sans">{successMessage}</pre>
+            {useInfiniteScrollMode && hasMoreData && (
+              <span className="text-indigo-600">• Scroll untuk load lebih banyak</span>
+            )}
+          </div>
+
+          {/* Table Header - Desktop Only */}
+          {!isMobile && invoices.length > 0 && (
+            <div className="hidden sm:flex items-center px-4 py-3 bg-gray-50 border-b border-gray-200 text-xs font-medium text-gray-500 uppercase">
+              <div className="flex-1 min-w-0">
+                <div className="grid grid-cols-12 gap-4">
+                  <div className="col-span-3">Dokumen / Pelanggan</div>
+                  <div className="col-span-2">Tanggal</div>
+                  <div className="col-span-2">Jatuh Tempo</div>
+                  <div className="col-span-2 text-right">Total</div>
+                  <div className="col-span-2 text-right">Pembayaran</div>
+                  <div className="col-span-1 text-right">Aksi</div>
+                </div>
               </div>
             </div>
-            <div className="ml-auto pl-3">
-              <button onClick={() => setSuccessMessage('')} className="inline-flex bg-green-50 rounded-md p-1.5 text-green-500 hover:bg-green-100">
-                <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          )}
 
-      {/* Invoice List */}
-      <div className="bg-white shadow overflow-hidden sm:rounded-md">
-        <ul className="divide-y divide-gray-200">
-          {invoices.map((invoice) => (
-            <li
-              key={invoice.name}
-              onClick={() => {
-                if (invoice.name) {
-                  router.push(`/invoice/siMain?name=${invoice.name}`);
-                }
-              }}
-              className="cursor-pointer hover:bg-gray-50 transition-colors"
-            >
-              <div className="px-4 py-4 sm:px-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-indigo-600 truncate">{invoice.name}</p>
-                    <p className="mt-1 text-sm text-gray-900">Pelanggan: {invoice.customer_name || invoice.customer}</p>
-                  </div>
-                  <div className="ml-4 flex-shrink-0">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      invoice.status === 'Paid' ? 'bg-green-100 text-green-800'
-                      : invoice.status === 'Unpaid' ? 'bg-red-100 text-red-800'
-                      : invoice.status === 'Submitted' ? 'bg-blue-100 text-blue-800'
-                      : invoice.status === 'Draft' ? 'bg-yellow-100 text-yellow-800'
-                      : 'bg-gray-100 text-gray-800'
-                    }`}>
-                      {invoice.status}
-                    </span>
-                  </div>
-                </div>
-                <div className="mt-2 sm:flex sm:justify-between">
-                  <div className="sm:flex">
-                    <p className="flex items-center text-sm text-gray-500">Tanggal: {invoice.posting_date}</p>
-                    <p className="mt-2 sm:mt-0 sm:ml-6 flex items-center text-sm text-gray-500">Jatuh Tempo: {invoice.due_date}</p>
-                    {invoice.items && invoice.items.length > 0 && invoice.items.find((item: InvoiceItem) => item.delivery_note) && (
-                      <p className="mt-2 sm:mt-0 sm:ml-6 flex items-center text-sm text-gray-500">
-                        DN: {invoice.items.find((item: InvoiceItem) => item.delivery_note)?.delivery_note || '-'}
-                      </p>
-                    )}
-                  </div>
-                  <div className="mt-2 flex items-center justify-between sm:mt-0">
-                    <div className="text-right">
-                      <div className="font-medium text-sm text-gray-900">Total: Rp {invoice.grand_total ? invoice.grand_total.toLocaleString('id-ID') : '0'}</div>
-                      <div className="flex items-center space-x-4 mt-1">
-                        <span className="text-xs text-gray-600">
-                          Diskon: Rp {(invoice.discount_amount || 0).toLocaleString('id-ID')}
-                        </span>
-                        <span className="text-xs text-gray-600">
-                          Pajak: Rp {(invoice.total_taxes_and_charges || 0).toLocaleString('id-ID')}
-                        </span>
-                      </div>
-                      <div className="flex items-center space-x-4 mt-1">
-                        <span className="text-xs text-green-600">
-                          Dibayar: Rp {(invoice.paid_amount || (invoice.grand_total - invoice.outstanding_amount) || 0).toLocaleString('id-ID')}
-                        </span>
-                        <span className="text-xs text-orange-600">
-                          Sisa: Rp {invoice.outstanding_amount ? invoice.outstanding_amount.toLocaleString('id-ID') : '0'}
-                        </span>
-                      </div>
-                      {/* Payment Progress Bar */}
-                      {invoice.grand_total && invoice.grand_total > 0 && (
-                        <div className="mt-2 w-32">
-                          <div className="w-full bg-gray-200 rounded-full h-2">
-                            <div
-                              className="bg-green-600 h-2 rounded-full transition-all duration-300"
-                              style={{ width: `${Math.min(((invoice.paid_amount || (invoice.grand_total - invoice.outstanding_amount) || 0) / invoice.grand_total) * 100, 100)}%` }}
-                            ></div>
-                          </div>
-                          <div className="text-xs text-gray-500 mt-1">
-                            {Math.round(((invoice.paid_amount || (invoice.grand_total - invoice.outstanding_amount) || 0) / invoice.grand_total) * 100)}% Lunas
-                          </div>
+          {/* Cards / Rows List */}
+          <ul className="divide-y divide-gray-100">
+            {invoices.map((invoice) => (
+              <li 
+                key={invoice.name}
+                onClick={() => handleCardClick(invoice.name)}
+                className="cursor-pointer hover:bg-indigo-50/50 transition-colors"
+              >
+                <div className="px-4 py-4">
+                  {isMobile ? (
+                    // ─── Mobile Card Layout ───
+                    <div className="space-y-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-indigo-600 truncate">{invoice.name}</p>
+                          <p className="text-xs text-gray-600 mt-0.5 truncate">{invoice.customer_name || invoice.customer}</p>
                         </div>
-                      )}
-                    </div>
-
-                    {/* Print button */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        window.open(`/print/invoice?name=${encodeURIComponent(invoice.name)}`, '_blank');
-                      }}
-                      className="ml-2 p-2 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
-                      title="Cetak"
-                    >
-                      <Printer className="h-4 w-4" />
-                    </button>
-
-                    {/* Submit Button for Draft Invoices */}
-                    {invoice.status === 'Draft' && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleSubmitSalesInvoice(invoice.name);
-                        }}
-                        disabled={submittingInvoice === invoice.name}
-                        className="ml-4 px-3 py-1 bg-green-600 text-white text-xs font-medium rounded hover:bg-green-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center"
-                      >
-                        {submittingInvoice === invoice.name ? (
-                          <>
-                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                            Mengajukan...
-                          </>
-                        ) : (
-                          'Ajukan'
+                        <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full border ${getStatusBadgeClass(invoice.status)}`}>
+                          {getStatusLabel(invoice.status)}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-xs text-gray-500">
+                        <div>📅 {invoice.posting_date}</div>
+                        <div>⏰ {invoice.due_date}</div>
+                      </div>
+                      <div className="pt-2 border-t border-gray-100">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-semibold text-gray-900">{formatCurrency(invoice.grand_total)}</span>
+                          <span className={`text-xs font-medium ${invoice.outstanding_amount > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                            Sisa: {formatCurrency(invoice.outstanding_amount)}
+                          </span>
+                        </div>
+                        {/* Payment Progress Bar */}
+                        {invoice.grand_total && invoice.grand_total > 0 && (
+                          <div className="w-full">
+                            <div className="w-full bg-gray-200 rounded-full h-2">
+                              <div
+                                className="bg-green-600 h-2 rounded-full transition-all duration-300"
+                                style={{ width: `${getPaymentPercent(invoice)}%` }}
+                              ></div>
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1 text-right">
+                              {Math.round(getPaymentPercent(invoice))}% Lunas
+                            </div>
+                          </div>
                         )}
-                      </button>
-                    )}
-                  </div>
-                  {invoice.custom_notes_si && (
-                    <p className="mt-1 text-xs text-gray-400 truncate">Catatan: {invoice.custom_notes_si}</p>
+                      </div>
+                      <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                        <div className="flex items-center gap-1">
+                          <button onClick={(e) => handlePrint(invoice.name, e)} className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Cetak">
+                            <Printer className="h-4 w-4" />
+                          </button>
+                          {invoice.status === 'Draft' && (
+                            <button 
+                              onClick={(e) => handleSubmitSalesInvoice(invoice.name, e)} 
+                              disabled={submittingInvoice === invoice.name}
+                              className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:bg-gray-400"
+                            >
+                              {submittingInvoice === invoice.name ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <Send className="h-3 w-3" />
+                              )}
+                              {submittingInvoice === invoice.name ? '...' : 'Ajukan'}
+                            </button>
+                          )}
+                        </div>
+                        {invoice.status !== 'Draft' && invoice.status !== 'Cancelled' && (
+                          <button className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100">
+                            <CreditCard className="h-3 w-3" />
+                            Bayar
+                          </button>
+                        )}
+                      </div>
+                      {invoice.custom_notes_si && <p className="text-xs text-gray-400 italic truncate">📝 {invoice.custom_notes_si}</p>}
+                    </div>
+                  ) : (
+                    // ─── Desktop Row Layout ───
+                    <div className="grid grid-cols-12 gap-4 items-center">
+                      <div className="col-span-3 min-w-0">
+                        <p className="text-sm font-semibold text-indigo-600 truncate">{invoice.name}</p>
+                        <p className="text-xs text-gray-600 mt-0.5 truncate">{invoice.customer_name || invoice.customer}</p>
+                        {invoice.custom_notes_si && <p className="text-xs text-gray-400 truncate mt-1">📝 {invoice.custom_notes_si}</p>}
+                      </div>
+                      <div className="col-span-2">
+                        <p className="text-sm text-gray-900">{invoice.posting_date}</p>
+                        <p className="text-xs text-gray-500">Posting</p>
+                      </div>
+                      <div className="col-span-2">
+                        <p className={`text-sm ${new Date(invoice.due_date) < new Date() && invoice.outstanding_amount > 0 ? 'text-red-600 font-medium' : 'text-gray-900'}`}>
+                          {invoice.due_date}
+                        </p>
+                        <p className="text-xs text-gray-500">Jatuh Tempo</p>
+                      </div>
+                      <div className="col-span-2 text-right">
+                        <p className="text-sm font-semibold text-gray-900">{formatCurrency(invoice.grand_total)}</p>
+                      </div>
+                      <div className="col-span-2 text-right">
+                        <p className={`text-sm font-medium ${invoice.outstanding_amount > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                          {formatCurrency(invoice.outstanding_amount)}
+                        </p>
+                        <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
+                          <div
+                            className="bg-green-600 h-1.5 rounded-full transition-all duration-300"
+                            style={{ width: `${getPaymentPercent(invoice)}%` }}
+                          ></div>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-0.5">{Math.round(getPaymentPercent(invoice))}%</p>
+                      </div>
+                      <div className="col-span-1">
+                        <div className="flex items-center justify-end gap-1">
+                          <button onClick={(e) => handlePrint(invoice.name, e)} className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Cetak">
+                            <Printer className="h-4 w-4" />
+                          </button>
+                          {invoice.status === 'Draft' && (
+                            <button 
+                              onClick={(e) => handleSubmitSalesInvoice(invoice.name, e)} 
+                              disabled={submittingInvoice === invoice.name}
+                              className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg disabled:text-gray-400" 
+                              title="Ajukan"
+                            >
+                              {submittingInvoice === invoice.name ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Send className="h-4 w-4" />
+                              )}
+                            </button>
+                          )}
+                          {invoice.status !== 'Draft' && invoice.status !== 'Cancelled' && (
+                            <button className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg" title="Bayar">
+                              <CreditCard className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </div>
+              </li>
+            ))}
+
+            {/* Skeleton Loaders saat loading more (infinite scroll) */}
+            {loadingMore && useInfiniteScrollMode && (
+              <>
+                <SkeletonCard />
+                <SkeletonCard />
+                <SkeletonCard />
+              </>
+            )}
+
+            {/* Sentinel element untuk trigger infinite scroll */}
+            {useInfiniteScrollMode && hasMoreData && (
+              <div ref={sentinelRef} className="h-10"></div>
+            )}
+          </ul>
+
+          {/* Empty State */}
+          {invoices.length === 0 && !loading && (
+            <div className="text-center py-16 px-4">
+              <FileText className="mx-auto h-12 w-12 text-gray-300" />
+              <p className="mt-4 text-sm text-gray-500">Tidak ada faktur penjualan ditemukan</p>
+              <button onClick={() => router.push('/invoice/siMain')} className="mt-4 inline-flex items-center px-4 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100">
+                + Buat Faktur Baru
+              </button>
+            </div>
+          )}
+
+          {/* Load More Button (Mobile Fallback) */}
+          {useInfiniteScrollMode && hasMoreData && !loadingMore && invoices.length > 0 && (
+            <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 text-center">
+              <button
+                onClick={handleLoadMoreClick}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors"
+              >
+                <Loader2 className="h-4 w-4" />
+                Load More ({totalRecords - invoices.length} remaining)
+              </button>
+            </div>
+          )}
+
+          {/* Loading More Indicator */}
+          {loadingMore && (
+            <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 text-center">
+              <div className="inline-flex items-center gap-2 text-sm text-gray-600">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Memuat data...
               </div>
-            </li>
-          ))}
-        </ul>
-        {invoices.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-gray-500">Tidak ada faktur ditemukan</p>
-          </div>
-        )}
-        <Pagination currentPage={currentPage} totalPages={totalPages} totalRecords={totalRecords} pageSize={pageSize} onPageChange={setCurrentPage} />
+            </div>
+          )}
+
+          {/* End of Data Indicator */}
+          {!hasMoreData && invoices.length > 0 && (
+            <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 text-center text-xs text-gray-500">
+              ✓ Semua data telah dimuat
+            </div>
+          )}
+
+          {/* Pagination Controls - Desktop Only */}
+          {!useInfiniteScrollMode && totalPages > 1 && (
+            <div className="px-4 py-3 bg-gray-50 border-t border-gray-200">
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalRecords={totalRecords}
+                pageSize={pageSize}
+                onPageChange={setCurrentPage}
+              />
+            </div>
+          )}
+        </div>
+        <p className="mt-3 text-xs text-gray-500 text-center">
+          Halaman {currentPage} dari {totalPages} • {isMobile ? 'Scroll untuk load lebih banyak' : 'Gunakan pagination untuk navigasi'}
+        </p>
       </div>
+
+      {/* Back to Top FAB Button */}
+      {showBackToTop && (
+        <button
+          onClick={scrollToTop}
+          className="fixed bottom-6 right-6 z-50 inline-flex items-center justify-center w-12 h-12 bg-indigo-600 text-white rounded-full shadow-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-all transform hover:scale-105"
+          title="Kembali ke atas"
+          aria-label="Kembali ke atas"
+        >
+          <ArrowUp className="h-5 w-5" />
+        </button>
+      )}
+
+      {/* Print Preview Modal */}
+      {showPrintPreview && printData && !loadingPrintData && (
+        <PrintPreviewModal
+          title={`Sales Invoice - ${printData.name}`}
+          onClose={() => {
+            setShowPrintPreview(false);
+            setPrintData(null);
+          }}
+          paperMode="continuous"
+        >
+          <SalesInvoicePrint
+            data={printData}
+            companyName={selectedCompany}
+          />
+        </PrintPreviewModal>
+      )}
     </div>
   );
 }

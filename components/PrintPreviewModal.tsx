@@ -4,6 +4,7 @@ import React, { useRef, useState } from 'react';
 
 export type PaperSize = 'A4' | 'A5' | 'Letter' | 'Legal' | 'F4';
 export type PaperOrientation = 'portrait' | 'landscape';
+export type PaperMode = 'continuous' | 'sheet';
 
 interface PrintSettings {
   paperSize: PaperSize;
@@ -14,6 +15,7 @@ interface PrintPreviewModalProps {
   title: string;
   onClose: () => void;
   children: React.ReactNode;
+  paperMode?: PaperMode;
   printUrl?: string;
   defaultPaperSize?: PaperSize;
   defaultOrientation?: PaperOrientation;
@@ -41,11 +43,12 @@ export default function PrintPreviewModal({
   title,
   onClose,
   children,
+  paperMode = 'sheet',
   printUrl,
   defaultPaperSize = 'A4',
   defaultOrientation = 'portrait',
   fixedPageSizeMm,
-  allowPaperSettings = true,
+  allowPaperSettings,
   zoomMin = 50,
   zoomMax = 200,
   useContentFrame = true,
@@ -58,26 +61,47 @@ export default function PrintPreviewModal({
   const [settings, setSettings] = useState<PrintSettings>({ paperSize: defaultPaperSize, orientation: defaultOrientation });
   const [showSettings, setShowSettings] = useState(false);
 
-  const dims = PAPER_DIMS[settings.paperSize];
-  const pageW = fixedPageSizeMm
-    ? fixedPageSizeMm.width
-    : settings.orientation === 'portrait' ? dims.w : dims.h;
-  const pageH = fixedPageSizeMm
-    ? fixedPageSizeMm.height
-    : settings.orientation === 'portrait' ? dims.h : dims.w;
+  // Determine if paper settings should be shown
+  const showPaperSettings = allowPaperSettings !== undefined 
+    ? allowPaperSettings 
+    : paperMode === 'sheet';
+
+  // Calculate page dimensions based on paper mode
+  let pageW: number;
+  let pageH: number | undefined;
+
+  if (fixedPageSizeMm) {
+    // Legacy: fixed size override
+    pageW = fixedPageSizeMm.width;
+    pageH = fixedPageSizeMm.height;
+  } else if (paperMode === 'continuous') {
+    // Continuous form: 210mm width, flexible height
+    pageW = 210;
+    pageH = undefined; // Auto height
+  } else {
+    // Sheet mode: standard paper sizes
+    const dims = PAPER_DIMS[settings.paperSize];
+    pageW = settings.orientation === 'portrait' ? dims.w : dims.h;
+    pageH = settings.orientation === 'portrait' ? dims.h : dims.w;
+  }
+
   const pageWidthPx = pageW * (96 / 25.4);
-  const pageHeightPx = pageH * (96 / 25.4);
+  const pageHeightPx = pageH ? pageH * (96 / 25.4) : undefined;
   const scale = zoom / 100;
 
   const buildPrintHtml = () => {
     if (!printRef.current) return '';
+    const pageRule = pageH 
+      ? `@page { size: ${pageW}mm ${pageH}mm; margin: 10mm 12mm; }`
+      : `@page { size: ${pageW}mm auto; margin: 5mm; }`;
+    
     return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8"/>
   <title>${title}</title>
   <style>
-    @page { size: ${pageW}mm ${pageH}mm; margin: 10mm 12mm; }
+    ${pageRule}
     * { box-sizing: border-box; }
     body { font-family: Arial, Helvetica, sans-serif; font-size: 10px; color: #111; margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     table { width: 100%; border-collapse: collapse; margin-bottom: 8px; table-layout: fixed; }
@@ -162,7 +186,7 @@ export default function PrintPreviewModal({
             className="text-xs px-2 py-1 rounded bg-gray-700 hover:bg-gray-600"
           >Reset</button>
 
-          {allowPaperSettings && !fixedPageSizeMm && (
+          {showPaperSettings && (
             <>
               <div className="w-px h-6 bg-gray-600 mx-1" />
 
@@ -220,7 +244,7 @@ export default function PrintPreviewModal({
       </div>
 
       {/* Settings Panel */}
-      {allowPaperSettings && !fixedPageSizeMm && showSettings && (
+      {showPaperSettings && showSettings && paperMode === 'sheet' && (
         <div className="bg-gray-800 border-b border-gray-700 px-4 py-3 flex items-center gap-6 shrink-0">
           {/* Paper Size */}
           <div className="flex items-center gap-2">
@@ -269,6 +293,24 @@ export default function PrintPreviewModal({
         </div>
       )}
 
+      {/* Paper Mode Indicator for Continuous Form */}
+      {paperMode === 'continuous' && (
+        <div className="bg-amber-900 border-b border-amber-700 px-4 py-2 flex items-center gap-3 shrink-0">
+          <div className="flex items-center gap-2">
+            <svg className="w-4 h-4 text-amber-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span className="text-xs text-amber-100 font-medium">Mode: Continuous Form (Kertas Kontinu)</span>
+          </div>
+          <span className="text-xs text-amber-200">
+            Lebar: {pageW}mm | Tinggi: Fleksibel (sesuai konten)
+          </span>
+          <span className="text-xs text-amber-300 ml-auto">
+            Untuk printer dot matrix dengan kertas continuous form
+          </span>
+        </div>
+      )}
+
       {/* Preview Area */}
       <div className="flex-1 overflow-auto py-6 px-4 bg-gray-700 flex justify-center">
         <div
@@ -276,7 +318,7 @@ export default function PrintPreviewModal({
             transform: `scale(${scale})`,
             transformOrigin: 'top center',
             width: useContentFrame ? `${pageWidthPx}px` : 'fit-content',
-            minHeight: useContentFrame ? `${pageHeightPx}px` : undefined,
+            minHeight: useContentFrame && pageHeightPx ? `${pageHeightPx}px` : undefined,
           }}
         >
           {useContentFrame ? (
@@ -285,7 +327,7 @@ export default function PrintPreviewModal({
               style={{
                 background: frameBackground,
                 width: `${pageWidthPx}px`,
-                minHeight: `${pageHeightPx}px`,
+                minHeight: pageHeightPx ? `${pageHeightPx}px` : 'auto',
                 margin: '0 auto',
                 padding: contentFramePadding,
                 boxSizing: 'border-box',

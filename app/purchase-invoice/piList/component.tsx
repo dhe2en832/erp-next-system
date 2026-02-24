@@ -1,14 +1,25 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
-import LoadingSpinner from '../../components/LoadingSpinner';
-import Pagination from '../../components/Pagination';
-import { formatDate, parseDate } from '../../../utils/format';
-import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
-import { Printer } from 'lucide-react';
-import ErrorDialog from '../../../components/ErrorDialog';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Printer, FileText, ArrowUp, Loader2, Plus, CreditCard, AlertCircle } from 'lucide-react';
 
+// ✅ Import reusable hooks & components
+import { useIsMobile, useInfiniteScroll } from '@/hooks';
+import {
+  LoadingSpinner,
+  Pagination,
+  ErrorDialog,
+  BrowserStyleDatePicker,
+  SkeletonCard,
+  SkeletonList,
+} from '@/components';
+
+import { formatDate, parseDate } from '../../../utils/format';
+
+// ─────────────────────────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────────────────────────
 interface PurchaseInvoice {
   name: string;
   supplier: string;
@@ -21,6 +32,8 @@ interface PurchaseInvoice {
   currency: string;
   discount_amount?: number;
   total_taxes_and_charges?: number;
+  creation?: string;
+  company?: string;
 }
 
 interface Supplier {
@@ -28,532 +41,833 @@ interface Supplier {
   supplier_name: string;
 }
 
+// ─────────────────────────────────────────────────────────────
+// Helper: Format currency
+// ─────────────────────────────────────────────────────────────
+const formatCurrency = (amount: number, currency = 'IDR') => {
+  return new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: currency,
+    minimumFractionDigits: 0,
+  }).format(amount);
+};
+
+// ─────────────────────────────────────────────────────────────
+// Status Mapping: English (DB) → Indonesian (UI)
+// ─────────────────────────────────────────────────────────────
+const STATUS_LABELS: Record<string, string> = {
+  'Draft': 'Draft',
+  'Submitted': 'Diajukan',
+  'Paid': 'Lunas',
+  'Unpaid': 'Belum Lunas',
+  'Overdue': 'Jatuh Tempo',
+  'Cancelled': 'Dibatalkan',
+  'Return Issued': 'Retur Dikirim',
+  'Debit Note Issued': 'Nota Debit Dikirim',
+};
+
+const STATUS_COLORS: Record<string, string> = {
+  'Draft': 'bg-yellow-100 text-yellow-800 border-yellow-200',
+  'Submitted': 'bg-blue-100 text-blue-800 border-blue-200',
+  'Paid': 'bg-green-100 text-green-800 border-green-200',
+  'Unpaid': 'bg-orange-100 text-orange-800 border-orange-200',
+  'Overdue': 'bg-red-100 text-red-800 border-red-200',
+  'Cancelled': 'bg-gray-100 text-gray-800 border-gray-200',
+  'Return Issued': 'bg-purple-100 text-purple-800 border-purple-200',
+  'Debit Note Issued': 'bg-indigo-100 text-indigo-800 border-indigo-200',
+};
+
+const getStatusLabel = (status: string): string => STATUS_LABELS[status] || status;
+const getStatusBadgeClass = (status: string): string =>
+  STATUS_COLORS[status] || 'bg-gray-100 text-gray-800 border-gray-200';
+
+// ─────────────────────────────────────────────────────────────
+// Main Component
+// ─────────────────────────────────────────────────────────────
 export default function PurchaseInvoiceList() {
   const router = useRouter();
-  const [purchaseInvoices, setPurchaseInvoices] = useState<PurchaseInvoice[]>([]);
+  const searchParams = useSearchParams();
+
+  // ✅ Gunakan reusable hook
+  const isMobile = useIsMobile(768);
+  const pageSize = isMobile ? 10 : 20;
+  const useInfiniteScrollMode = isMobile;
+
+  // ─────────────────────────────────────────────────────────
+  // State Management
+  // ─────────────────────────────────────────────────────────
+  const [invoices, setInvoices] = useState<PurchaseInvoice[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState(false);
-  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
-  const [successMessage, setSuccessMessage] = useState('');
-  const [error, setError] = useState('');
-  const [submitError, setSubmitError] = useState('');
-  const [selectedCompany, setSelectedCompany] = useState('');
-  const [searchTerm, setSearchTerm] = useState(''); // Search by PI name
-  const [documentNumber, setDocumentNumber] = useState(''); // Tambahkan document number filter
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [dateFilter, setDateFilter] = useState({
+    from_date: formatDate(new Date(Date.now() - 86400000)),
+    to_date: formatDate(new Date()),
+  });
   const [supplierFilter, setSupplierFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  
-  // Debounce for search
-  const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
-  
-  // Handle search with debounce
-  const handleSearchChange = (value: string) => {
-    setSearchTerm(value);
-    
-    // Clear existing timeout
-    if (searchTimeout) {
-      clearTimeout(searchTimeout);
-    }
-    
-    // Set new timeout
-    const newTimeout = setTimeout(() => {
-      setCurrentPage(1);
-      fetchPurchaseInvoices();
-    }, 500); // 500ms delay
-    
-    setSearchTimeout(newTimeout);
-  };
-  
-  const [dateFilter, setDateFilter] = useState<{
-    from_date: string;
-    to_date: string;
-  }>({
-    from_date: formatDate(new Date(Date.now() - 86400000)), // Yesterday in DD/MM/YYYY
-    to_date: formatDate(new Date()), // Today in DD/MM/YYYY
-  });
-
-  // Pagination states
+  const [documentNumberFilter, setDocumentNumberFilter] = useState('');
+  const [selectedCompany, setSelectedCompany] = useState('');
+  const [error, setError] = useState('');
+  const [submitError, setSubmitError] = useState('');
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalRecords, setTotalRecords] = useState(0);
-  const [pageSize] = useState(20); // 20 records per page
+  const [showBackToTop, setShowBackToTop] = useState(false);
+  const [hasMoreData, setHasMoreData] = useState(true);
 
-  // Get company from localStorage/cookie
+  // Debounce for search
+  const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
+
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+  // ─────────────────────────────────────────────────────────
+  // Sync URL dengan page state
+  // ─────────────────────────────────────────────────────────
   useEffect(() => {
+    const pageFromUrl = searchParams?.get('page');
+    if (pageFromUrl && !isNaN(parseInt(pageFromUrl))) {
+      const pageNum = parseInt(pageFromUrl);
+      if (pageNum >= 1) setCurrentPage(pageNum);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const newParams = new URLSearchParams(searchParams?.toString() || '');
+    if (currentPage > 1) {
+      newParams.set('page', currentPage.toString());
+    } else {
+      newParams.delete('page');
+    }
+    const newUrl = `${window.location.pathname}${newParams.toString() ? `?${newParams.toString()}` : ''}`;
+    window.history.replaceState({}, '', newUrl);
+  }, [currentPage, searchParams]);
+
+  // ─────────────────────────────────────────────────────────
+  // Company Selection from localStorage/cookies (WAJIB)
+  // ─────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
     let savedCompany = localStorage.getItem('selected_company');
-    
+
     if (!savedCompany) {
       const cookies = document.cookie.split(';');
-      const companyCookie = cookies.find(cookie => cookie.trim().startsWith('selected_company='));
+      const companyCookie = cookies.find(c => c.trim().startsWith('selected_company='));
       if (companyCookie) {
         savedCompany = companyCookie.split('=')[1];
-        if (savedCompany) {
-          localStorage.setItem('selected_company', savedCompany);
-        }
+        if (savedCompany) localStorage.setItem('selected_company', savedCompany);
       }
     }
-    
-    if (savedCompany) {
-      setSelectedCompany(savedCompany);
-    }
-    setLoading(false);
+
+    if (savedCompany) setSelectedCompany(savedCompany);
   }, []);
 
+  // ─────────────────────────────────────────────────────────
+  // Fetch Suppliers
+  // ─────────────────────────────────────────────────────────
   const fetchSuppliers = useCallback(async () => {
-    let companyToUse = selectedCompany;
-    
-    if (!companyToUse) {
-      const storedCompany = localStorage.getItem('selected_company');
-      if (storedCompany) {
-        companyToUse = storedCompany;
-      }
-    }
-    
+    const companyToUse = selectedCompany || localStorage.getItem('selected_company');
     if (!companyToUse) return;
 
     try {
       const response = await fetch(`/api/purchase/suppliers?company=${encodeURIComponent(companyToUse)}`);
       const data = await response.json();
-      
-      if (data.success) {
-        setSuppliers(data.data || []);
-      }
+      if (data.success) setSuppliers(data.data || []);
     } catch (err) {
       console.error('Error fetching suppliers:', err);
     }
   }, [selectedCompany]);
 
-  // Fetch purchase invoices
-  const fetchPurchaseInvoices = useCallback(async () => {
-    setError('');
-    
+  // ─────────────────────────────────────────────────────────
+  // Fetch Data - MENGIKUTI POLA soList.tsx
+  // ─────────────────────────────────────────────────────────
+  const fetchInvoices = useCallback(async (reset = false) => {
+    if (reset) {
+      setLoading(true);
+      setError('');
+    } else {
+      setLoadingMore(true);
+    }
+
+    // 🔥 CRITICAL: Pastikan company selalu ada
     let companyToUse = selectedCompany;
-    
+
     if (!companyToUse) {
-      const storedCompany = localStorage.getItem('selected_company');
-      if (storedCompany) {
-        companyToUse = storedCompany;
+      const stored = localStorage.getItem('selected_company');
+      if (stored) {
+        companyToUse = stored;
+      } else if (typeof window !== 'undefined') {
+        const cookies = document.cookie.split(';');
+        const cookie = cookies.find(c => c.trim().startsWith('selected_company='));
+        if (cookie) companyToUse = cookie.split('=')[1];
       }
     }
-    
+
+    // 🔥 ERROR HANDLING: Jika company masih kosong, stop dan tampilkan error
     if (!companyToUse) {
-      setError('Perusahaan tidak dipilih');
+      setError('Perusahaan belum dipilih. Silakan pilih perusahaan terlebih dahulu.');
       setLoading(false);
+      setLoadingMore(false);
       return;
     }
 
-    setLoading(true);
+    // Update state jika company ditemukan dari storage
+    if (!selectedCompany && companyToUse) {
+      setSelectedCompany(companyToUse);
+    }
 
     try {
-      const params = new URLSearchParams({
-        company: companyToUse,
-        limit_page_length: pageSize.toString(),
-        start: ((currentPage - 1) * pageSize).toString(),
-      });
+      // ✅ BUILD PARAMS: Pola sederhana seperti soList (bukan JSON filters)
+      const params = new URLSearchParams();
 
-      if (searchTerm) {
-        params.append('search', searchTerm);
-      }
-      if (documentNumber) { // Tambahkan document number filter
-        params.append('documentNumber', documentNumber);
-      }
-      // if (supplierFilter) {
-      //   params.append('supplier', supplierFilter);
-      // }
-      if (statusFilter) {
-        params.append('status', statusFilter);
-      }
+      // Pagination
+      params.append('limit_page_length', pageSize.toString());
+      params.append('start', ((currentPage - 1) * pageSize).toString());
+
+      // 🔥 WAJIB: Urutkan dari yang terbaru
+      params.append('order_by', 'creation desc');
+
+      // 🔥 WAJIB: Company sebagai simple param (bukan di dalam filters JSON)
+      params.append('company', companyToUse);
+
+      // Filters sederhana (seperti soList)
+      if (supplierFilter) params.append('search', supplierFilter);
+      if (documentNumberFilter) params.append('documentNumber', documentNumberFilter);
+      if (statusFilter) params.append('status', statusFilter);
+
+      // Date filters dengan parsing
       if (dateFilter.from_date) {
-        const parsedDate = parseDate(dateFilter.from_date);
-        if (parsedDate) {
-          params.append('from_date', parsedDate);
-        }
+        const parsed = parseDate(dateFilter.from_date);
+        if (parsed) params.append('from_date', parsed);
       }
       if (dateFilter.to_date) {
-        const parsedDate = parseDate(dateFilter.to_date);
-        if (parsedDate) {
-          params.append('to_date', parsedDate);
-        }
+        const parsed = parseDate(dateFilter.to_date);
+        if (parsed) params.append('to_date', parsed);
       }
 
-      const response = await fetch(`/api/purchase/invoices?${params}`, {
+      const response = await fetch(`/api/purchase/invoices?${params.toString()}`, {
         credentials: 'include',
       });
+      const result = await response.json();
 
-      const data = await response.json();
-      
-      if (data.success) {
-        setPurchaseInvoices(data.data || []);
-        setTotalRecords(data.total_records || 0);
-        setTotalPages(Math.ceil((data.total_records || 0) / pageSize));
+      if (result.success) {
+        const invoicesData = result.data || [];
+
+        // Handle pagination metadata
+        if (result.total_records !== undefined) {
+          setTotalRecords(result.total_records);
+          setTotalPages(Math.ceil(result.total_records / pageSize));
+          setHasMoreData(currentPage < Math.ceil(result.total_records / pageSize));
+        } else {
+          setTotalRecords(invoicesData.length);
+          setTotalPages(1);
+          setHasMoreData(false);
+        }
+
+        // ✅ Secondary sort by creation date (fallback jika API tidak sorting)
+        invoicesData.sort((a: any, b: any) => {
+          const dateA = new Date(a.creation || a.posting_date || '1970-01-01');
+          const dateB = new Date(b.creation || b.posting_date || '1970-01-01');
+          return dateB.getTime() - dateA.getTime();
+        });
+
+        if (reset) {
+          setInvoices(invoicesData);
+        } else {
+          // Append untuk infinite scroll (hindari duplikat)
+          setInvoices(prev => {
+            const existingNames = new Set(prev.map(o => o.name));
+            const newInvoices = invoicesData.filter((o: PurchaseInvoice) => !existingNames.has(o.name));
+            return [...prev, ...newInvoices];
+          });
+        }
+
+        // Empty state message
+        setError(invoicesData.length === 0 && reset ?
+          `Tidak ada faktur pembelian untuk perusahaan: ${companyToUse}` : '');
+
       } else {
-        setError(data.message || 'Gagal mengambil data Purchase Invoice');
+        // 🔥 Handle API error message
+        setError(result.message || 'Gagal memuat faktur pembelian');
       }
     } catch (err) {
-      console.error('Error fetching purchase invoices:', err);
-      setError('Terjadi kesalahan saat mengambil data');
+      console.error('Fetch error:', err);
+      setError('Gagal memuat faktur pembelian');
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
-  }, [selectedCompany, currentPage, pageSize, searchTerm, documentNumber, /*supplierFilter,*/ statusFilter, dateFilter.from_date, dateFilter.to_date]);
+  }, [currentPage, pageSize, dateFilter, supplierFilter, statusFilter, documentNumberFilter, selectedCompany]);
 
+  // ─────────────────────────────────────────────────────────
+  // Effects: Fetch triggers
+  // ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (selectedCompany) {
-      fetchPurchaseInvoices();
       fetchSuppliers();
     }
-  }, [fetchPurchaseInvoices, fetchSuppliers]);
+  }, [selectedCompany, fetchSuppliers]);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Draft':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'Submitted':
-        return 'bg-blue-100 text-blue-800';
-      case 'Paid':
-        return 'bg-green-100 text-green-800';
-      case 'Unpaid':
-        return 'bg-orange-100 text-orange-800';
-      case 'Cancelled':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
+  useEffect(() => {
+    fetchInvoices(true); // reset = true saat filter berubah
+  }, [fetchInvoices]);
+
+  useEffect(() => {
+    if (!useInfiniteScrollMode) {
+      fetchInvoices(false); // reset = false untuk pagination desktop
     }
-  };
+  }, [currentPage, fetchInvoices, useInfiniteScrollMode]);
 
-  const getStatusText = (status: string, dueDate?: string) => {
-    switch (status) {
-      case 'Draft':
-        return 'Draft';
-      case 'Submitted':
-        return 'Diajukan';
-      case 'Paid':
-        return 'Lunas';
-      case 'Unpaid':
-        return 'Belum Lunas';
-      case 'Cancelled':
-        return 'Dibatalkan';
-      case 'Overdue':
-        if (dueDate) {
-          const today = new Date();
-          const due = new Date(dueDate);
-          const diffTime = Math.abs(today.getTime() - due.getTime());
-          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-          return `Jatuh Tempo (${diffDays} hari)`;
-        }
-        return 'Jatuh Tempo';
-      default:
-        return status;
+  // Reset page saat filter berubah
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [dateFilter, supplierFilter, statusFilter, documentNumberFilter]);
+
+  // ─────────────────────────────────────────────────────────
+  // Debounce Search Handler
+  // ─────────────────────────────────────────────────────────
+  const handleSearchChange = useCallback((value: string) => {
+    setSupplierFilter(value);
+
+    if (searchTimeout) clearTimeout(searchTimeout);
+
+    const newTimeout = setTimeout(() => {
+      setCurrentPage(1);
+      fetchInvoices(true);
+    }, 500);
+
+    setSearchTimeout(newTimeout);
+  }, [searchTimeout, fetchInvoices]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (searchTimeout) clearTimeout(searchTimeout);
+    };
+  }, [searchTimeout]);
+
+  // ─────────────────────────────────────────────────────────
+  // Infinite Scroll Handler (Mobile Only) - Menggunakan reusable hook
+  // ─────────────────────────────────────────────────────────
+  const loadMoreData = useCallback(() => {
+    if (!loadingMore && hasMoreData && useInfiniteScrollMode) {
+      setCurrentPage(prev => {
+        const nextPage = prev + 1;
+        if (nextPage <= totalPages) return nextPage;
+        return prev;
+      });
     }
-  };
+  }, [loadingMore, hasMoreData, useInfiniteScrollMode, totalPages]);
 
-  const handleCardClick = (invoice: PurchaseInvoice) => {
-    if (invoice.status === 'Draft') {
-      router.push(`/purchase-invoice/piMain?id=${invoice.name}`);
-    } else {
-      router.push(`/purchase-invoice/piMain?name=${invoice.name}`);
-    }
-  };
+  // ✅ Gunakan reusable hook useInfiniteScroll
+  const infiniteScrollSentinelRef = useInfiniteScroll(
+    loadMoreData,
+    hasMoreData && !loadingMore,
+    loadingMore || loading,
+    '100px'
+  );
 
-  const handleSubmit = async (piName: string) => {
-    setActionLoading(true);
-    setError('');
-    
+  // ─────────────────────────────────────────────────────────
+  // Back to Top Button
+  // ─────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleScroll = () => setShowBackToTop(window.scrollY > 400);
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const scrollToTop = () => window.scrollTo({ top: 0, behavior: 'smooth' });
+
+  // ─────────────────────────────────────────────────────────
+  // Actions
+  // ─────────────────────────────────────────────────────────
+  const handleSubmit = async (piName: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setActionLoading(piName);
+    setSubmitError('');
+
     try {
       const response = await fetch(`/api/purchase/invoices/${piName}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
       });
+      const result = await response.json();
 
-      const data = await response.json();
-      
-      if (data.success) {
+      if (result.success) {
         setSuccessMessage(`Faktur Pembelian ${piName} berhasil diajukan!`);
         setShowSuccessDialog(true);
-        
-        // Refresh the list
-        fetchPurchaseInvoices();
-        
-        // Hide dialog after 3 seconds
-        setTimeout(() => {
-          setShowSuccessDialog(false);
-        }, 3000);
+        fetchInvoices(true);
+
+        setTimeout(() => setShowSuccessDialog(false), 3000);
       } else {
-        setSubmitError(data.message || 'Gagal mengajukan Faktur Pembelian');
+        setSubmitError(result.message || 'Gagal mengajukan Faktur Pembelian');
       }
-    } catch (err) {
+    } catch {
       setSubmitError('Gagal mengajukan Faktur Pembelian');
     } finally {
-      setActionLoading(false);
+      setActionLoading(null);
     }
   };
 
+  const handlePrint = (piName: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    window.open(`/print/purchase-invoice?name=${encodeURIComponent(piName)}`, '_blank');
+  };
+
+  const handleCardClick = (invoice: PurchaseInvoice) => {
+    if (invoice.name) {
+      const paramKey = invoice.status === 'Draft' ? 'id' : 'name';
+      router.push(`/purchase-invoice/piMain?${paramKey}=${invoice.name}`);
+    }
+  };
+
+  const handleResetFilters = () => {
+    setDateFilter({
+      from_date: formatDate(new Date(Date.now() - 86400000)),
+      to_date: formatDate(new Date()),
+    });
+    setSupplierFilter('');
+    setDocumentNumberFilter('');
+    setStatusFilter('');
+    setCurrentPage(1);
+  };
+
+  const handleLoadMoreClick = () => {
+    if (!loadingMore && hasMoreData) {
+      setCurrentPage(prev => Math.min(prev + 1, totalPages));
+    }
+  };
+
+  // Helper: Check if invoice is overdue
+  const isOverdue = (invoice: PurchaseInvoice) => {
+    if (invoice.status !== 'Unpaid' || !invoice.due_date) return false;
+    const today = new Date();
+    const due = parseDate(invoice.due_date);
+    if (!due) return false;
+    return new Date(due) < today;
+  };
+
+  // Helper: Calculate days until/after due date
+  const getDueDateInfo = (dueDate?: string) => {
+    if (!dueDate) return null;
+    const parsed = parseDate(dueDate);
+    if (!parsed) return null;
+
+    const today = new Date();
+    const due = new Date(parsed);
+    const diffTime = due.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 0) return { text: `${Math.abs(diffDays)} hari lalu`, overdue: true };
+    if (diffDays === 0) return { text: 'Hari ini', overdue: false };
+    return { text: `${diffDays} hari lagi`, overdue: false };
+  };
+
+  // ─────────────────────────────────────────────────────────
+  // Initial Loading - Menggunakan reusable SkeletonList
+  // ─────────────────────────────────────────────────────────
+  if (loading && invoices.length === 0) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="bg-white border-b border-gray-200 px-4 py-4 sm:px-6 lg:px-8">
+          <h1 className="text-2xl font-bold text-gray-900">Faktur Pembelian</h1>
+        </div>
+        <div className="px-4 py-4 sm:px-6 lg:px-8">
+          {/* ✅ Gunakan SkeletonList dengan mode auto */}
+          <SkeletonList mode="auto" isMobile={isMobile} count={10} />
+        </div>
+      </div>
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────
+  // Render
+  // ─────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gray-50">
       <ErrorDialog isOpen={!!submitError} title="Gagal Mengajukan" message={submitError} onClose={() => setSubmitError('')} />
+
       {/* Header */}
-      <div className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 py-6">
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Faktur Pembelian</h1>
-              <p className="mt-1 text-sm text-gray-600">Daftar faktur pembelian</p>
-            </div>
-            <button
-              onClick={() => router.push('/purchase-invoice/piMain')}
-              className="w-full sm:w-auto bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 flex items-center justify-center min-h-[44px]"
-            >
-              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Buat Faktur Pembelian
-            </button>
+      <div className="bg-white border-b border-gray-200 px-4 py-4 sm:px-6 lg:px-8 sticky top-0 z-30">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Faktur Pembelian</h1>
+            <p className="text-sm text-gray-600">Daftar faktur pembelian & pembayaran</p>
           </div>
+          <button
+            onClick={() => router.push('/purchase-invoice/piMain')}
+            className="inline-flex items-center justify-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 min-h-[44px]"
+          >
+            <Plus className="w-4 h-4 mr-1" /> Buat Faktur
+          </button>
         </div>
       </div>
 
-      {/* Error Alert */}
+      {/* Filters */}
+      <div className="bg-white border-b border-gray-200 px-4 py-4 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
+          {[
+            { label: 'Cari Pemasok', value: supplierFilter, onChange: handleSearchChange, placeholder: 'Nama pemasok...' },
+            { label: 'No. Dokumen', value: documentNumberFilter, onChange: setDocumentNumberFilter, placeholder: 'No. Faktur...' },
+          ].map((field, i) => (
+            <div key={i}>
+              <label className="block text-xs font-medium text-gray-500 mb-1">{field.label}</label>
+              <input
+                type="text"
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder={field.placeholder}
+                value={field.value}
+                onChange={(e) => field.onChange(e.target.value)}
+              />
+            </div>
+          ))}
+
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Status</label>
+            <select
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="">Semua Status</option>
+              {Object.entries(STATUS_LABELS).map(([key, label]) => (
+                <option key={key} value={key}>{label}</option>
+              ))}
+            </select>
+          </div>
+
+          {(['from_date', 'to_date'] as const).map((key) => (
+            <div key={key}>
+              <label className="block text-xs font-medium text-gray-500 mb-1">
+                {key === 'from_date' ? 'Dari Tanggal' : 'Sampai Tanggal'}
+              </label>
+              <BrowserStyleDatePicker
+                value={dateFilter[key]}
+                onChange={(value: string) => setDateFilter({ ...dateFilter, [key]: value })}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="DD/MM/YYYY"
+              />
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 flex justify-end">
+          <button
+            onClick={handleResetFilters}
+            className="text-sm text-gray-600 hover:text-gray-900 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+          >
+            ⟲ Reset Filter
+          </button>
+        </div>
+      </div>
+
+      {/* Error Banner */}
       {error && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+        <div className="px-4 py-3 sm:px-6 lg:px-8">
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 flex-shrink-0" />
             {error}
           </div>
         </div>
       )}
 
-      {/* Filters */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
-        <div className="bg-white shadow rounded-lg p-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Cari Pemasok
-              </label>
-              <input
-                type="text"
-                className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                placeholder="Cari nama pemasok..."
-                value={searchTerm}
-                onChange={(e) => handleSearchChange(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                No. Dokumen
-              </label>
-              <input
-                type="text"
-                className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                placeholder="Cari nomor faktur..."
-                value={documentNumber}
-                onChange={(e) => setDocumentNumber(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Status
-              </label>
-              <select
-                className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-              >
-                <option value="">Semua Status</option>
-                <option value="Draft">Draft</option>
-                <option value="Submitted">Diajukan</option>
-                <option value="Unpaid">Belum Lunas</option>
-                <option value="Overdue">Jatuh Tempo</option>
-                <option value="Paid">Lunas</option>
-                <option value="Cancelled">Dibatalkan</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Dari Tanggal
-              </label>
-              <BrowserStyleDatePicker
-                value={dateFilter.from_date}
-                onChange={(value: string) => setDateFilter(prev => ({ ...prev, from_date: value }))}
-                className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                placeholder="DD/MM/YYYY"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Sampai Tanggal
-              </label>
-              <BrowserStyleDatePicker
-                value={dateFilter.to_date}
-                onChange={(value: string) => setDateFilter(prev => ({ ...prev, to_date: value }))}
-                className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                placeholder="DD/MM/YYYY"
-              />
-            </div>
-          </div>
-          <div className="mt-4 flex justify-end space-x-2">
-            <button
-              onClick={() => {
-                setSearchTerm('');
-                setDocumentNumber('');
-                setStatusFilter('');
-                setDateFilter({
-                  from_date: formatDate(new Date(Date.now() - 86400000)), // Reset to yesterday in DD/MM/YYYY
-                  to_date: formatDate(new Date()), // Reset to today in DD/MM/YYYY
-                });
-                setCurrentPage(1);
-              }}
-              className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400"
-            >
-              Hapus Filter
-            </button>
-            <button
-              onClick={() => {
-                setCurrentPage(1);
-                fetchPurchaseInvoices();
-              }}
-              className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
-            >
-              Terapkan Filter
-            </button>
-          </div>
-        </div>
-      </div>
+      {/* List Container */}
+      <div className="px-4 py-4 sm:px-6 lg:px-8">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
 
-      {/* Purchase Invoices List */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
-        {loading ? (
-          <LoadingSpinner />
-        ) : purchaseInvoices.length === 0 ? (
-          <div className="bg-white shadow overflow-hidden sm:rounded-md">
-            <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
-              <h3 className="text-sm font-medium text-gray-900">
-                Faktur Pembelian (0 faktur)
-              </h3>
-            </div>
-            <div className="px-4 py-8 text-center">
-              <p className="text-gray-500">Tidak ada faktur pembelian ditemukan</p>
-            </div>
+          {/* Progress Indicator */}
+          <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 text-xs text-gray-600 flex items-center justify-between">
+            <span>
+              <span className="font-medium">{invoices.length}</span> dari <span className="font-medium">{totalRecords}</span> data
+            </span>
+            {useInfiniteScrollMode && hasMoreData && (
+              <span className="text-indigo-600">• Scroll untuk load lebih banyak</span>
+            )}
           </div>
-        ) : (
-          <div className="bg-white shadow overflow-hidden sm:rounded-md">
-            <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
-              <h3 className="text-sm font-medium text-gray-900">
-                Faktur Pembelian ({purchaseInvoices.length} faktur)
-              </h3>
+
+          {/* Table Header - Desktop Only */}
+          {!isMobile && invoices.length > 0 && (
+            <div className="hidden sm:flex items-center px-4 py-3 bg-gray-50 border-b border-gray-200 text-xs font-medium text-gray-500 uppercase">
+              <div className="flex-1 min-w-0">
+                <div className="grid grid-cols-12 gap-4">
+                  <div className="col-span-3">No. Faktur / Pemasok</div>
+                  <div className="col-span-2">Tanggal</div>
+                  <div className="col-span-2">Jatuh Tempo</div>
+                  <div className="col-span-2 text-right">Total</div>
+                  <div className="col-span-2">Status</div>
+                  <div className="col-span-1 text-right">Aksi</div>
+                </div>
+              </div>
             </div>
-            <ul className="divide-y divide-gray-200">
-              {purchaseInvoices.map((invoice) => (
-                <li 
+          )}
+
+          {/* Invoices List */}
+          <ul className="divide-y divide-gray-100">
+            {invoices.map((invoice) => {
+              const dueInfo = getDueDateInfo(invoice.due_date);
+              const overdue = isOverdue(invoice);
+
+              return (
+                <li
                   key={invoice.name}
                   onClick={() => handleCardClick(invoice)}
-                  className="cursor-pointer hover:bg-gray-50 transition-colors"
+                  className="cursor-pointer hover:bg-indigo-50/50 transition-colors"
                 >
-                  <div className="px-4 py-4 sm:px-6">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-indigo-600 truncate">
-                          {invoice.name}
-                        </p>
-                        <p className="mt-1 text-sm text-gray-900">Pemasok: {invoice.supplier_name || invoice.supplier}</p>
-                      </div>
-                      <div className="ml-4 flex-shrink-0">
-                        <span
-                          className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(invoice.status)}`}
-                        >
-                          {getStatusText(invoice.status, invoice.due_date)}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="mt-2 sm:flex sm:justify-between">
-                      <div className="sm:flex">
-                        <p className="flex items-center text-sm text-gray-500">
-                          Tanggal: {formatDate(invoice.posting_date)}
-                        </p>
-                        {invoice.due_date && (
-                          <p className="ml-6 flex items-center text-sm text-gray-500">
-                            Jatuh Tempo: {formatDate(invoice.due_date)}
-                          </p>
-                        )}
-                      </div>
-                      <div className="mt-2 flex items-center justify-between sm:mt-0">
-                        <div className="text-right">
-                          <span className="font-medium text-sm text-gray-900">
-                            Total: {invoice.currency} {invoice.grand_total.toLocaleString('id-ID')}
+                  <div className="px-4 py-4">
+                    {isMobile ? (
+                      // ─── Mobile Card View ───
+                      <div className="space-y-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-indigo-600 truncate">{invoice.name}</p>
+                            <p className="text-xs text-gray-600 mt-0.5 truncate">{invoice.supplier_name}</p>
+                          </div>
+                          <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full border ${getStatusBadgeClass(invoice.status)}`}>
+                            {getStatusLabel(invoice.status)}
                           </span>
-                          <div className="flex items-center space-x-4 mt-1">
-                            <span className="text-xs text-gray-600">
-                              Diskon: {invoice.currency} {(invoice.discount_amount || 0).toLocaleString('id-ID')}
-                            </span>
-                            <span className="text-xs text-gray-600">
-                              Pajak: {invoice.currency} {(invoice.total_taxes_and_charges || 0).toLocaleString('id-ID')}
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 text-xs text-gray-500">
+                          <div>📅 {invoice.posting_date}</div>
+                          {invoice.due_date && (
+                            <div className={overdue ? 'text-red-600 font-medium' : ''}>
+                              ⏰ {invoice.due_date} {dueInfo?.text && `(${dueInfo.text})`}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="pt-2 border-t border-gray-100 space-y-1">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-500">Total:</span>
+                            <span className="font-semibold text-gray-900">
+                              {invoice.currency} {invoice.grand_total.toLocaleString('id-ID')}
                             </span>
                           </div>
-                          {invoice.outstanding_amount !== undefined && (
-                            <span className="text-xs text-orange-600 block mt-1">
-                              Sisa: {invoice.currency} {invoice.outstanding_amount.toLocaleString('id-ID')}
-                            </span>
+                          {invoice.outstanding_amount > 0 && (
+                            <div className="flex justify-between text-xs">
+                              <span className="text-gray-500">Sisa:</span>
+                              <span className={`font-medium ${overdue ? 'text-red-600' : 'text-orange-600'}`}>
+                                {invoice.currency} {invoice.outstanding_amount.toLocaleString('id-ID')}
+                              </span>
+                            </div>
+                          )}
+                          {(invoice.discount_amount || invoice.total_taxes_and_charges) && (
+                            <div className="flex justify-between text-xs text-gray-400">
+                              <span>
+                                {invoice.discount_amount ? `Diskon: ${invoice.currency} ${invoice.discount_amount.toLocaleString('id-ID')}` : ''}
+                                {invoice.discount_amount && invoice.total_taxes_and_charges ? ' • ' : ''}
+                                {invoice.total_taxes_and_charges ? `Pajak: ${invoice.currency} ${invoice.total_taxes_and_charges.toLocaleString('id-ID')}` : ''}
+                              </span>
+                            </div>
                           )}
                         </div>
 
-                        {/* Print button */}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            window.open(`/print/purchase-invoice?name=${encodeURIComponent(invoice.name)}`, '_blank');
-                          }}
-                          className="ml-2 p-2 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
-                          title="Cetak"
-                        >
-                          <Printer className="h-4 w-4" />
-                        </button>
-
-                         {/* Action buttons based on status */}
-                        <div className="ml-2 flex space-x-2">
-                          {/* Submit button for Draft invoices */}
-                          {invoice.status === 'Draft' && (
+                        <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                          <div className="flex items-center gap-1">
+                            {overdue && invoice.status === 'Unpaid' && (
+                              <span className="inline-flex items-center gap-1 text-xs text-red-600">
+                                <AlertCircle className="h-3 w-3" /> Jatuh tempo
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1">
                             <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleSubmit(invoice.name);
-                              }}
-                              disabled={actionLoading}
-                              className="px-3 py-1 bg-green-600 text-white text-xs font-medium rounded hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center"
+                              onClick={(e) => handlePrint(invoice.name, e)}
+                              className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg"
+                              title="Cetak"
                             >
-                              {actionLoading ? (
-                                <>
-                                  <svg className="animate-spin -ml-1 mr-2 h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                  </svg>
-                                  Mengajukan...
-                                </>
-                              ) : (
-                                'Ajukan'
-                              )}
+                              <Printer className="h-4 w-4" />
                             </button>
-                          )}
+                            {invoice.status === 'Draft' && (
+                              <button
+                                onClick={(e) => handleSubmit(invoice.name, e)}
+                                disabled={actionLoading === invoice.name}
+                                className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:bg-gray-400"
+                              >
+                                {actionLoading === invoice.name ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Ajukan'}
+                              </button>
+                            )}
+                            {invoice.status === 'Submitted' && invoice.outstanding_amount > 0 && (
+                              <button className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">
+                                <CreditCard className="h-3 w-3" /> Bayar
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    ) : (
+                      // ─── Desktop Table Row ───
+                      <div className="grid grid-cols-12 gap-4 items-center">
+                        <div className="col-span-3 min-w-0">
+                          <p className="text-sm font-semibold text-indigo-600 truncate">{invoice.name}</p>
+                          <p className="text-xs text-gray-600 mt-0.5 truncate">{invoice.supplier_name}</p>
+                        </div>
+                        <div className="col-span-2">
+                          <p className="text-sm text-gray-900">{invoice.posting_date}</p>
+                        </div>
+                        <div className="col-span-2">
+                          {invoice.due_date ? (
+                            <div className={overdue ? 'text-red-600 font-medium' : 'text-gray-900'}>
+                              <p className="text-sm">{invoice.due_date}</p>
+                              {dueInfo?.text && <p className="text-xs text-gray-500">{dueInfo.text}</p>}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-gray-400">-</p>
+                          )}
+                        </div>
+                        <div className="col-span-2 text-right">
+                          <p className="text-sm font-semibold text-gray-900">
+                            {invoice.currency} {invoice.grand_total.toLocaleString('id-ID')}
+                          </p>
+                          {invoice.outstanding_amount > 0 && (
+                            <p className={`text-xs font-medium ${overdue ? 'text-red-600' : 'text-orange-600'}`}>
+                              Sisa: {invoice.currency} {invoice.outstanding_amount.toLocaleString('id-ID')}
+                            </p>
+                          )}
+                        </div>
+                        <div className="col-span-2">
+                          <div className="flex items-center gap-2">
+                            <span className={`inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full border ${getStatusBadgeClass(invoice.status)}`}>
+                              {getStatusLabel(invoice.status)}
+                            </span>
+                            {overdue && invoice.status === 'Unpaid' && (
+                              <span
+                                className="inline-flex items-center"
+                                title="Jatuh tempo"  // ✅ Native browser tooltip di wrapper span
+                                aria-label="Jatuh tempo"
+                              >
+                                <AlertCircle
+                                  className="h-4 w-4 text-red-500 flex-shrink-0"
+                                  aria-hidden="true"  // ✅ Icon dekoratif, sembunyikan dari screen reader
+                                />
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="col-span-1">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={(e) => handlePrint(invoice.name, e)}
+                              className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg"
+                              title="Cetak"
+                            >
+                              <Printer className="h-4 w-4" />
+                            </button>
+                            {invoice.status === 'Draft' && (
+                              <button
+                                onClick={(e) => handleSubmit(invoice.name, e)}
+                                disabled={actionLoading === invoice.name}
+                                className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg disabled:bg-gray-400"
+                                title="Ajukan"
+                              >
+                                {actionLoading === invoice.name ? <Loader2 className="h-4 w-4 animate-spin" /> : '✓'}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </li>
-              ))}
-            </ul>
-          </div>
-        )}
-        
-        {/* Pagination Controls */}
-        <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          totalRecords={totalRecords}
-          pageSize={pageSize}
-          onPageChange={setCurrentPage}
-        />
+              );
+            })}
+
+            {/* ✅ Gunakan reusable SkeletonCard untuk loading more */}
+            {loadingMore && useInfiniteScrollMode && (
+              <>
+                <SkeletonCard />
+                <SkeletonCard />
+                <SkeletonCard />
+              </>
+            )}
+
+            {/* ✅ Sentinel dari reusable hook useInfiniteScroll */}
+            {useInfiniteScrollMode && hasMoreData && (
+              <div ref={infiniteScrollSentinelRef} className="h-10"></div>
+            )}
+          </ul>
+
+          {/* Empty State */}
+          {invoices.length === 0 && !loading && (
+            <div className="text-center py-16 px-4">
+              <FileText className="mx-auto h-12 w-12 text-gray-300" />
+              <p className="mt-4 text-sm text-gray-500">Tidak ada faktur pembelian yang ditemukan</p>
+              <button
+                onClick={() => router.push('/purchase-invoice/piMain')}
+                className="mt-4 inline-flex items-center px-4 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100"
+              >
+                + Buat Faktur Baru
+              </button>
+            </div>
+          )}
+
+          {/* Load More Button (Mobile Fallback) */}
+          {useInfiniteScrollMode && hasMoreData && !loadingMore && invoices.length > 0 && (
+            <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 text-center">
+              <button
+                onClick={handleLoadMoreClick}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors"
+              >
+                <Loader2 className="h-4 w-4" />
+                Load More ({totalRecords - invoices.length} remaining)
+              </button>
+            </div>
+          )}
+
+          {/* Loading More Indicator */}
+          {loadingMore && (
+            <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 text-center">
+              <div className="inline-flex items-center gap-2 text-sm text-gray-600">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Memuat data...
+              </div>
+            </div>
+          )}
+
+          {/* End of Data */}
+          {!hasMoreData && invoices.length > 0 && (
+            <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 text-center text-xs text-gray-500">
+              ✓ Semua data telah dimuat
+            </div>
+          )}
+
+          {/* Pagination - Desktop Only */}
+          {!useInfiniteScrollMode && totalPages > 1 && (
+            <div className="px-4 py-3 bg-gray-50 border-t border-gray-200">
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalRecords={totalRecords}
+                pageSize={pageSize}
+                onPageChange={setCurrentPage}
+              />
+            </div>
+          )}
+        </div>
+        <p className="mt-3 text-xs text-gray-500 text-center">
+          Halaman {currentPage} dari {totalPages} • {isMobile ? 'Scroll untuk load lebih banyak' : 'Gunakan pagination untuk navigasi'}
+        </p>
       </div>
-      
+
+      {/* Back to Top FAB Button */}
+      {showBackToTop && (
+        <button
+          onClick={scrollToTop}
+          className="fixed bottom-6 right-6 z-50 inline-flex items-center justify-center w-12 h-12 bg-indigo-600 text-white rounded-full shadow-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-all transform hover:scale-105"
+          title="Back to top"
+          aria-label="Back to top"
+        >
+          <ArrowUp className="h-5 w-5" />
+        </button>
+      )}
+
       {/* Success Dialog */}
       {showSuccessDialog && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -568,9 +882,7 @@ export default function PurchaseInvoiceList() {
                 <h3 className="text-lg font-medium text-gray-900">Sukses!</h3>
               </div>
             </div>
-            <div className="text-sm text-gray-600">
-              {successMessage}
-            </div>
+            <div className="text-sm text-gray-600">{successMessage}</div>
             <div className="mt-4 flex justify-end">
               <button
                 onClick={() => setShowSuccessDialog(false)}

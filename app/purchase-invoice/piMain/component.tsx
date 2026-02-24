@@ -7,6 +7,8 @@ import PrintDialog from '../../components/PrintDialog';
 import DiscountInput from '@/components/invoice/DiscountInput';
 import TaxTemplateSelect from '@/components/invoice/TaxTemplateSelect';
 import InvoiceSummary from '@/components/invoice/InvoiceSummary';
+import PrintPreviewModal from '../../../components/print/PrintPreviewModal';
+import PurchaseInvoicePrint from '../../../components/print/PurchaseInvoicePrint';
 
 interface PurchaseReceipt {
   name: string;
@@ -89,6 +91,7 @@ export default function PurchaseInvoiceMain() {
   const [successMessage, setSuccessMessage] = useState('');
   const [showPrintDialog, setShowPrintDialog] = useState(false);
   const [printDocName, setPrintDocName] = useState('');
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
 
   // Edit/View mode states
   const [isEditMode, setIsEditMode] = useState(false);
@@ -678,12 +681,27 @@ export default function PurchaseInvoiceMain() {
                     : 'Buat faktur pembelian dari penerimaan barang'}
               </p>
             </div>
-            <button
-              onClick={() => router.push('/purchase-invoice')}
-              className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700"
-            >
-              Kembali ke Daftar
-            </button>
+            <div className="flex gap-2">
+              {(isEditMode || isViewMode) && invoiceId && (
+                <button
+                  type="button"
+                  onClick={() => setShowPrintPreview(true)}
+                  className="bg-emerald-600 text-white px-4 py-2 rounded-md hover:bg-emerald-700 flex items-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                  </svg>
+                  Print
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => router.push('/purchase-invoice')}
+                className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700"
+              >
+                Kembali ke Daftar
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -1304,6 +1322,38 @@ export default function PurchaseInvoiceMain() {
         </div>
       )}
     </div>
+
+    {/* Print Preview Modal */}
+    {showPrintPreview && (isEditMode || isViewMode) && (
+      <PrintPreviewModal
+        title={`Purchase Invoice - ${invoiceId}`}
+        onClose={() => setShowPrintPreview(false)}
+        paperMode="continuous"
+      >
+        <PurchaseInvoicePrint
+          data={{
+            name: invoiceId,
+            posting_date: formData.posting_date,
+            docstatus: isViewMode ? 1 : 0,
+            supplier: formData.supplier,
+            supplier_name: formData.supplier_name,
+            due_date: formData.due_date,
+            items: formData.items.map(item => ({
+              item_code: item.item_code,
+              item_name: item.item_name,
+              qty: item.qty,
+              rate: item.rate,
+              amount: item.amount,
+            })),
+            total: formData.items.reduce((sum, item) => sum + item.amount, 0),
+            total_taxes_and_charges: selectedTaxTemplate ? (formData.items.reduce((sum, item) => sum + item.amount, 0) * (selectedTaxTemplate.tax_rate / 100)) : 0,
+            grand_total: formData.items.reduce((sum, item) => sum + item.amount, 0) + (selectedTaxTemplate ? (formData.items.reduce((sum, item) => sum + item.amount, 0) * (selectedTaxTemplate.tax_rate / 100)) : 0),
+            remarks: formData.custom_notes_pi,
+          }}
+          companyName={selectedCompany}
+        />
+      </PrintPreviewModal>
+    )}
   
     </>
   );

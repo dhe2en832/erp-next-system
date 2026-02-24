@@ -1,496 +1,355 @@
-# Requirements Document
+# Requirements Document: Print System Redesign
 
 ## Introduction
 
-This document specifies the requirements for redesigning all print documents in the ERP system. The current print documents have several issues:
-1. Print preview uses incorrect dimensions (215mm x 140mm) instead of standard A4 portrait (210mm x 297mm)
-2. Business transaction documents use landscape orientation, which is not ideal for standard business documents
-3. Financial reports and other reports lack standardized print layouts
-4. Print preview and actual print output are inconsistent
+This document specifies the requirements for redesigning all print documents in the ERP system. The current print implementation has critical issues with dimensions, paper type assumptions, and layout consistency.
 
-This redesign will:
-- Fix print preview dimensions to standard A4 portrait (210mm x 297mm)
-- Transform all business transaction documents to portrait orientation with improved layout
-- Redesign financial reports (Trial Balance, Balance Sheet, P&L, etc.) for better print layout
-- Redesign all other report documents in report menus
-- Standardize the print preview component across all document types
-- Ensure consistency between print preview and actual print output
-- Provide layout examples/mockups for all document types
+### Current Issues
+1. **Incorrect dimensions**: Transaction documents use 215mm x 145mm instead of proper continuous form dimensions
+2. **Wrong paper type assumption**: System treats all documents as fixed-size A4 sheets
+3. **Transaction documents need continuous form**: SO, SJ, FJ, PO, PR, PI should use continuous form for multi-copy NCR printing
+4. **Inconsistent layouts**: Lack of standardized structure across document types
+5. **Preview/output mismatch**: Print preview doesn't accurately represent printed output
 
-The redesign covers:
-- Six core transaction document types: Sales Order (SO), Delivery Note/Surat Jalan (SJ), Sales Invoice/Faktur Jual (FJ), Purchase Order (PO), Purchase Receipt (PR), and Purchase Invoice (PI)
-- Financial reports: Trial Balance, Balance Sheet, Profit & Loss Statement, Cash Flow Statement, General Ledger, and other accounting reports
-- Other system reports: Inventory reports, Sales reports, Purchase reports, HR reports, and any other printable reports
+### Solution Overview
+This redesign will implement **TWO distinct print modes**:
+
+| Document Category | Paper Type | Dimensions | Target Printer |
+|------------------|------------|------------|----------------|
+| **Transaction Documents** | Continuous Form | 210mm width × Flexible height | Dot Matrix |
+| **Report Documents** | A4 Sheet | 210mm × 297mm (fixed) | Laser/Inkjet |
+
+### Scope
+
+**Transaction Documents (Continuous Form)**:
+- Sales Order (SO)
+- Delivery Note / Surat Jalan (SJ)
+- Sales Invoice / Faktur Jual (FJ)
+- Purchase Order (PO)
+- Purchase Receipt (PR)
+- Purchase Invoice (PI)
+- Payment Pay / Pembayaran Keluar
+- Payment Receive / Pembayaran Masuk
+
+**Report Documents (A4 Fixed)**:
+- Financial Reports: Trial Balance, Balance Sheet, Profit & Loss, Cash Flow, General Ledger
+- System Reports: Inventory, Sales, Purchase, HR, and all other printable reports
+
+---
 
 ## Glossary
 
-- **Print_System**: The document printing and preview functionality in the Next.js frontend application
-- **Transaction_Document**: A business transaction record (Sales Order, Delivery Note, Sales Invoice, Purchase Order, Purchase Receipt, or Purchase Invoice)
-- **Financial_Report**: An accounting report (Trial Balance, Balance Sheet, Profit & Loss, Cash Flow, General Ledger, etc.)
-- **System_Report**: Any other printable report in the system (Inventory, Sales, Purchase, HR reports, etc.)
-- **PrintLayout**: The React component that renders the document structure for printing
-- **PrintPreviewModal**: The modal component that displays print preview with zoom and paper settings
-- **PrintPreviewComponent**: The standardized component used across all document types for consistent preview functionality
-- **Portrait_Orientation**: Vertical page orientation where height is greater than width (e.g., A4: 210mm x 297mm)
-- **Landscape_Orientation**: Horizontal page orientation where width is greater than height (e.g., 297mm x 210mm)
-- **A4_Paper**: Standard paper size of 210mm x 297mm
-- **Print_Dimensions**: The width and height settings used for rendering print preview and actual print output
-- **Company_Logo**: The company's branding image displayed on printed documents
-- **Terbilang**: Indonesian text representation of numbers (e.g., "satu juta rupiah" for 1,000,000)
-- **Document_Metadata**: Information about the document including number, date, party name, and reference documents
-- **Report_Header**: The header section of a report containing title, date range, and company information
-- **Report_Footer**: The footer section of a report containing page numbers and print timestamp
+| Term | Definition |
+|------|------------|
+| **Continuous Form** | Paper with tractor holes on sides, flexible height, used for dot matrix printers |
+| **NCR Paper** | No Carbon Required - multi-copy paper that duplicates without carbon sheets |
+| **Tractor Holes** | Perforated holes on paper sides for dot matrix printer feeding |
+| **Printable Width** | Actual print area after excluding tractor hole margins (210mm) |
+| **Paper Mode** | System setting: 'continuous' for transactions, 'sheet' for reports |
+| **Transaction Document** | Business transaction record (SO, SJ, FJ, PO, PR, PI, Payment) |
+| **Report Document** | Financial or system report with fixed A4 dimensions |
+
+---
 
 ## Requirements
 
-### Requirement 1: Print Preview Dimension Correction
+### Requirement 1: Dual Paper Mode Support
 
-**User Story:** As a business user, I want the print preview to use correct A4 portrait dimensions, so that the preview accurately represents what will be printed on physical paper.
-
-#### Acceptance Criteria
-
-1. THE Print_System SHALL set Print_Dimensions to 210mm width x 297mm height for A4 portrait orientation
-2. THE Print_System SHALL remove the incorrect 215mm x 140mm dimensions from all print preview implementations
-3. THE Print_System SHALL apply the correct Print_Dimensions to the PrintPreviewModal component
-4. THE Print_System SHALL apply the correct Print_Dimensions to all print page components
-5. THE Print_System SHALL ensure the print preview matches the actual printed output dimensions
-6. THE Print_System SHALL validate that the preview container uses the correct aspect ratio (210:297)
-7. WHEN a user opens print preview, THE Print_System SHALL display the document at the correct A4 portrait dimensions
-8. WHEN a user prints a document, THE Print_System SHALL output at the correct A4 portrait dimensions
-9. THE Print_System SHALL apply correct CSS @page rules with size: A4 portrait
-10. THE Print_System SHALL measure and verify dimensions against physical A4 paper (210mm x 297mm)
-
-### Requirement 2: Portrait Orientation for All Transaction Documents
-
-**User Story:** As a business user, I want all transaction print documents to use portrait orientation, so that they match standard business document formats and are easier to file and store.
+**User Story**: As a system, I need to support two paper modes, so that transaction documents use continuous form and reports use A4 sheets.
 
 #### Acceptance Criteria
+1. THE Print_System SHALL support TWO paper modes: 'continuous' and 'sheet'
+2. THE Print_System SHALL default to 'continuous' mode for all Transaction Documents
+3. THE Print_System SHALL default to 'sheet' mode for all Report Documents
+4. THE Print_System SHALL set continuous mode dimensions to 210mm width × flexible height
+5. THE Print_System SHALL set sheet mode dimensions to 210mm × 297mm (A4 fixed)
+6. THE Print_System SHALL NOT allow paper mode switching for transaction documents (locked to continuous)
+7. THE Print_System SHALL allow paper size selection for report documents (A4, A5, Letter, Legal, F4)
+8. THE Print_System SHALL display paper mode indicator in PrintPreviewModal
+9. THE Print_System SHALL apply different @page CSS rules based on paper mode
+10. THE Print_System SHALL validate paper mode matches document type before rendering
 
-1. THE Print_System SHALL render all Sales Order documents in portrait orientation with A4_Paper dimensions (210mm x 297mm)
-2. THE Print_System SHALL render all Delivery Note documents in portrait orientation with A4_Paper dimensions (210mm x 297mm)
-3. THE Print_System SHALL render all Sales Invoice documents in portrait orientation with A4_Paper dimensions (210mm x 297mm)
-4. THE Print_System SHALL render all Purchase Order documents in portrait orientation with A4_Paper dimensions (210mm x 297mm)
-5. THE Print_System SHALL render all Purchase Receipt documents in portrait orientation with A4_Paper dimensions (210mm x 297mm)
-6. THE Print_System SHALL render all Purchase Invoice documents in portrait orientation with A4_Paper dimensions (210mm x 297mm)
-7. THE Print_System SHALL set the default paper orientation to portrait in PrintPreviewModal for all transaction document types
+---
 
-### Requirement 3: Financial Report Print Layout Redesign
+### Requirement 2: Continuous Form Dimensions for Transactions
 
-**User Story:** As an accounting user, I want financial reports to have professional print layouts, so that I can print and share reports with stakeholders.
-
-#### Acceptance Criteria
-
-1. THE Print_System SHALL render Trial Balance reports with A4 portrait orientation
-2. THE Print_System SHALL render Balance Sheet reports with A4 portrait orientation
-3. THE Print_System SHALL render Profit & Loss Statement reports with A4 portrait orientation
-4. THE Print_System SHALL render Cash Flow Statement reports with A4 portrait orientation
-5. THE Print_System SHALL render General Ledger reports with A4 portrait orientation
-6. THE Print_System SHALL render all other accounting reports with A4 portrait orientation
-7. FOR all Financial_Report types, THE Print_System SHALL display a Report_Header with company name, report title, and date range
-8. FOR all Financial_Report types, THE Print_System SHALL display a Report_Footer with page numbers and print timestamp
-9. FOR all Financial_Report types, THE Print_System SHALL use consistent table formatting with clear column headers
-10. FOR all Financial_Report types, THE Print_System SHALL apply appropriate number formatting for currency amounts
-
-### Requirement 4: Financial Report Header and Footer
-
-**User Story:** As an accounting user, I want financial reports to have clear headers and footers, so that I can identify the report and when it was generated.
+**User Story**: As a business user, I want transaction documents to use proper continuous form dimensions, so that they print correctly on dot matrix printers with NCR paper.
 
 #### Acceptance Criteria
+1. THE Print_System SHALL set continuous form width to 210mm (printable area)
+2. THE Print_System SHALL set continuous form height to auto/flexible (content-based)
+3. THE Print_System SHALL reserve 5mm margin on left side for tractor holes
+4. THE Print_System SHALL reserve 5mm margin on right side for tractor holes
+5. THE Print_System SHALL NOT impose fixed page height for continuous form documents
+6. THE Print_System SHALL NOT insert page breaks within transaction documents
+7. THE Print_System SHALL support perforation line indicator at 140mm height (for half-cut option)
+8. THE Print_System SHALL ensure total width including tractor holes is 241mm (9.5 inches)
+9. THE Print_System SHALL validate continuous form dimensions before printing
+10. THE Print_System SHALL warn user if printer doesn't support continuous form
 
-1. THE Report_Header SHALL display the company name at the top
-2. THE Report_Header SHALL display the Company_Logo when available
-3. THE Report_Header SHALL display the report title prominently (e.g., "TRIAL BALANCE", "BALANCE SHEET")
-4. THE Report_Header SHALL display the date range or as-of date for the report
-5. THE Report_Header SHALL display the report generation timestamp
-6. THE Report_Header SHALL use a minimum font size of 14 points for the company name
-7. THE Report_Header SHALL use a minimum font size of 16 points for the report title
-8. THE Report_Footer SHALL display page numbers in the format "Page X of Y"
-9. THE Report_Footer SHALL display the print timestamp
-10. THE Report_Footer SHALL use a small font size (8 points) and light gray color
+---
 
-### Requirement 5: Financial Report Table Formatting
+### Requirement 3: A4 Fixed Dimensions for Reports
 
-**User Story:** As an accounting user, I want financial report tables to be well-formatted and readable, so that I can easily analyze financial data.
-
-#### Acceptance Criteria
-
-1. FOR all Financial_Report types, THE Print_System SHALL display account names in the leftmost column
-2. FOR all Financial_Report types, THE Print_System SHALL align numeric columns (debit, credit, balance) to the right
-3. FOR all Financial_Report types, THE Print_System SHALL format currency amounts with Indonesian locale (e.g., "Rp 1.000.000")
-4. FOR all Financial_Report types, THE Print_System SHALL use alternating row colors for better readability
-5. FOR all Financial_Report types, THE Print_System SHALL apply borders to table cells
-6. FOR all Financial_Report types, THE Print_System SHALL use bold font for subtotals and totals
-7. FOR all Financial_Report types, THE Print_System SHALL indent child accounts to show hierarchy
-8. FOR all Financial_Report types, THE Print_System SHALL use a minimum font size of 9 points for table content
-9. FOR all Financial_Report types, THE Print_System SHALL prevent page breaks within account groups when possible
-10. FOR Balance Sheet and P&L reports, THE Print_System SHALL display section totals (Assets, Liabilities, Income, Expenses)
-
-### Requirement 6: Other System Reports Print Layout
-
-**User Story:** As a business user, I want all system reports to have consistent print layouts, so that all printed reports look professional.
+**User Story**: As an accounting user, I want reports to use standard A4 dimensions, so that they can be filed and archived properly.
 
 #### Acceptance Criteria
+1. THE Print_System SHALL set report document width to 210mm
+2. THE Print_System SHALL set report document height to 297mm (A4 fixed)
+3. THE Print_System SHALL support pagination for multi-page reports
+4. THE Print_System SHALL insert page breaks between report pages
+5. THE Print_System SHALL display page numbers in format "Page X of Y"
+6. THE Print_System SHALL support portrait orientation (default) and landscape orientation
+7. THE Print_System SHALL apply @page CSS rules with size: A4 portrait
+8. THE Print_System SHALL validate report dimensions match physical A4 paper (210mm × 297mm)
+9. THE Print_System SHALL support paper size alternatives (A5, Letter, Legal, F4) for reports
+10. THE Print_System SHALL maintain aspect ratio 210:297 at all zoom levels
 
-1. THE Print_System SHALL render all inventory reports with A4 portrait orientation
-2. THE Print_System SHALL render all sales reports with A4 portrait orientation
-3. THE Print_System SHALL render all purchase reports with A4 portrait orientation
-4. THE Print_System SHALL render all HR reports with A4 portrait orientation
-5. THE Print_System SHALL render all other System_Report types with A4 portrait orientation
-6. FOR all System_Report types, THE Print_System SHALL display a Report_Header with company name and report title
-7. FOR all System_Report types, THE Print_System SHALL display a Report_Footer with page numbers
-8. FOR all System_Report types, THE Print_System SHALL use consistent table formatting
-9. FOR all System_Report types, THE Print_System SHALL apply appropriate column widths based on content
-10. FOR all System_Report types, THE Print_System SHALL handle long reports with proper pagination
+---
 
-### Requirement 7: Standardized Print Preview Component
+### Requirement 4: Transaction Document Layout Standardization
 
-**User Story:** As a developer, I want a standardized print preview component, so that all document types have consistent preview functionality.
-
-#### Acceptance Criteria
-
-1. THE Print_System SHALL provide a single PrintPreviewComponent that can be used for all document types
-2. THE PrintPreviewComponent SHALL accept a "documentType" prop to identify the type (transaction, financial_report, system_report)
-3. THE PrintPreviewComponent SHALL accept a "documentData" prop containing the data to render
-4. THE PrintPreviewComponent SHALL apply the correct Print_Dimensions (210mm x 297mm) for all document types
-5. THE PrintPreviewComponent SHALL provide consistent zoom controls for all document types
-6. THE PrintPreviewComponent SHALL provide consistent paper settings for all document types
-7. THE PrintPreviewComponent SHALL provide consistent print and save-as-PDF buttons for all document types
-8. THE PrintPreviewComponent SHALL use the same styling and layout for all document types
-9. THE PrintPreviewComponent SHALL handle loading states consistently across all document types
-10. THE PrintPreviewComponent SHALL handle error states consistently across all document types
-
-### Requirement 8: Print Preview and Output Consistency
-
-**User Story:** As a business user, I want the print preview to match the actual printed output, so that what I see is what I get when printing.
+**User Story**: As a business user, I want all transaction documents to have consistent layout structure, so that they look professional and are easy to read.
 
 #### Acceptance Criteria
+1. THE PrintLayout SHALL display company logo and name in header section
+2. THE PrintLayout SHALL display document title prominently (e.g., "SALES ORDER", "FAKTUR JUAL")
+3. THE PrintLayout SHALL display document status badge when applicable (Draft, Submitted, Cancelled)
+4. THE PrintLayout SHALL display document metadata in dedicated section (number, date, party)
+5. THE PrintLayout SHALL display item table with clear column headers
+6. THE PrintLayout SHALL display totals section on right side (subtotal, tax, grand total)
+7. THE PrintLayout SHALL display Terbilang (amount in words) below totals
+8. THE PrintLayout SHALL display signature section at bottom (minimum 2 signatures)
+9. THE PrintLayout SHALL display notes section when available
+10. THE PrintLayout SHALL display footer with print timestamp and system attribution
 
-1. THE Print_System SHALL ensure the print preview uses the same CSS styles as the actual print output
-2. THE Print_System SHALL ensure the print preview uses the same Print_Dimensions as the actual print output
-3. THE Print_System SHALL ensure the print preview uses the same fonts as the actual print output
-4. THE Print_System SHALL ensure the print preview uses the same margins as the actual print output
-5. THE Print_System SHALL ensure the print preview uses the same page breaks as the actual print output
-6. WHEN a user views the print preview, THE Print_System SHALL render exactly what will be printed
-7. WHEN a user prints a document, THE Print_System SHALL produce output that matches the preview
-8. THE Print_System SHALL apply @media print rules consistently to both preview and print output
-9. THE Print_System SHALL test print output on physical printers to verify consistency
-10. THE Print_System SHALL test PDF output to verify consistency with preview
+---
 
-### Requirement 9: Layout Examples and Mockups
+### Requirement 5: Report Document Layout Standardization
 
-**User Story:** As a stakeholder, I want to see layout examples and mockups, so that I can review and approve the design before implementation.
-
-#### Acceptance Criteria
-
-1. THE Design_Document SHALL include a mockup for Sales Order print layout
-2. THE Design_Document SHALL include a mockup for Delivery Note print layout
-3. THE Design_Document SHALL include a mockup for Sales Invoice print layout
-4. THE Design_Document SHALL include a mockup for Purchase Order print layout
-5. THE Design_Document SHALL include a mockup for Purchase Receipt print layout
-6. THE Design_Document SHALL include a mockup for Purchase Invoice print layout
-7. THE Design_Document SHALL include a mockup for Trial Balance report layout
-8. THE Design_Document SHALL include a mockup for Balance Sheet report layout
-9. THE Design_Document SHALL include a mockup for Profit & Loss Statement report layout
-10. THE Design_Document SHALL include mockups for at least 2 other System_Report types
-11. THE Design_Document SHALL show the correct Print_Dimensions (210mm x 297mm) in all mockups
-12. THE Design_Document SHALL annotate mockups with measurements and spacing guidelines
-
-### Requirement 10: Company Logo Display
-
-**User Story:** As a business user, I want the company logo to appear on all printed documents, so that documents are properly branded and look professional.
+**User Story**: As an accounting user, I want all reports to have consistent layout structure, so that they look professional and are easy to analyze.
 
 #### Acceptance Criteria
+1. THE ReportLayout SHALL display company logo and name centered in header
+2. THE ReportLayout SHALL display report title prominently (e.g., "TRIAL BALANCE", "NERACA")
+3. THE ReportLayout SHALL display date range or as-of date in header
+4. THE ReportLayout SHALL display report generation timestamp in header
+5. THE ReportLayout SHALL display report data in structured table format
+6. THE ReportLayout SHALL support account hierarchy with indentation (0-5 levels)
+7. THE ReportLayout SHALL display section totals in bold font
+8. THE ReportLayout SHALL display grand totals with double underline
+9. THE ReportLayout SHALL display Report_Footer with page numbers and print timestamp
+10. THE ReportLayout SHALL prevent page breaks within account groups when possible
 
-1. THE PrintLayout SHALL display the Company_Logo in the document header
-2. THE PrintLayout SHALL position the Company_Logo on the left side of the header
-3. THE PrintLayout SHALL size the Company_Logo to a maximum height of 50 pixels
-4. THE PrintLayout SHALL maintain the Company_Logo aspect ratio when rendering
-5. WHEN no Company_Logo is available, THE PrintLayout SHALL display only the company name text
-6. THE PrintLayout SHALL load the Company_Logo from the public assets directory or a configurable URL
-7. THE PrintLayout SHALL handle Company_Logo loading errors gracefully without breaking the document layout
+---
 
-### Requirement 11: Improved Document Header Layout
+### Requirement 6: Print Preview Modal Enhancement
 
-**User Story:** As a business user, I want document headers to be clear and well-organized, so that I can quickly identify document information.
-
-#### Acceptance Criteria
-
-1. THE PrintLayout SHALL display the company name and Company_Logo in the top section of the header
-2. THE PrintLayout SHALL display the document title (e.g., "SALES ORDER", "FAKTUR JUAL") prominently in the header
-3. THE PrintLayout SHALL display the document status badge (Draft, Submitted, Cancelled) in the header when applicable
-4. THE PrintLayout SHALL use a minimum font size of 14 points for the company name
-5. THE PrintLayout SHALL use a minimum font size of 16 points for the document title
-6. THE PrintLayout SHALL separate the header from the document body with a visible border line
-7. THE PrintLayout SHALL allocate sufficient vertical space (minimum 60 pixels) for the header section
-
-### Requirement 12: Enhanced Document Metadata Section
-
-**User Story:** As a business user, I want document metadata to be clearly displayed and easy to read, so that I can quickly find key information like document number, date, and party details.
+**User Story**: As a business user, I want a unified print preview modal, so that all document types have consistent preview functionality.
 
 #### Acceptance Criteria
+1. THE PrintPreviewModal SHALL accept paperMode prop: 'continuous' | 'sheet'
+2. THE PrintPreviewModal SHALL display zoom controls (50% - 200%)
+3. THE PrintPreviewModal SHALL display paper settings panel (for sheet mode only)
+4. THE PrintPreviewModal SHALL disable paper size selection for continuous mode
+5. THE PrintPreviewModal SHALL display current dimensions in millimeters
+6. THE PrintPreviewModal SHALL provide Print button to trigger browser print dialog
+7. THE PrintPreviewModal SHALL provide Save as PDF button
+8. THE PrintPreviewModal SHALL maintain aspect ratio at all zoom levels
+9. THE PrintPreviewModal SHALL center document in viewport
+10. THE PrintPreviewModal SHALL handle loading and error states consistently
 
-1. THE PrintLayout SHALL display Document_Metadata in a dedicated section below the header
-2. THE PrintLayout SHALL display the document number with a clear label (e.g., "No. Dokumen:")
-3. THE PrintLayout SHALL display the document date with a clear label (e.g., "Tanggal:")
-4. THE PrintLayout SHALL display the party name (customer or supplier) with a clear label
-5. THE PrintLayout SHALL display the party address when available
-6. THE PrintLayout SHALL display reference document information when applicable
-7. THE PrintLayout SHALL display the sales person name for sales documents when available
-8. THE PrintLayout SHALL align metadata labels consistently with a minimum width of 100 pixels
-9. THE PrintLayout SHALL use a font size of at least 10 points for metadata text
-10. THE PrintLayout SHALL display metadata values in bold or semi-bold font weight for emphasis
+---
 
-### Requirement 13: Optimized Item Table Layout
+### Requirement 7: Indonesian Localization
 
-**User Story:** As a business user, I want item tables to be well-formatted and readable, so that I can easily review line items and quantities.
-
-#### Acceptance Criteria
-
-1. THE PrintLayout SHALL display item tables with clear column headers
-2. THE PrintLayout SHALL use alternating row colors for better readability
-3. THE PrintLayout SHALL align numeric columns (quantity, price, amount) to the right
-4. THE PrintLayout SHALL align text columns (item code, item name) to the left
-5. THE PrintLayout SHALL use a minimum font size of 9 points for table content
-6. THE PrintLayout SHALL use a minimum font size of 10 points for table headers
-7. THE PrintLayout SHALL apply borders to table cells for clear separation
-8. THE PrintLayout SHALL allocate appropriate column widths based on content type
-9. THE PrintLayout SHALL display row numbers in the first column
-10. WHEN item names are long, THE PrintLayout SHALL wrap text within the cell without breaking the table layout
-
-### Requirement 14: Professional Totals Section
-
-**User Story:** As a business user, I want the totals section to be clear and prominent, so that I can quickly see the final amounts.
+**User Story**: As an Indonesian business user, I want all labels and text in Bahasa Indonesia, so that documents are appropriate for local business use.
 
 #### Acceptance Criteria
-
-1. WHEN a document includes pricing, THE PrintLayout SHALL display a totals section
-2. THE PrintLayout SHALL display the subtotal amount when applicable
-3. THE PrintLayout SHALL display the tax amount separately when applicable
-4. THE PrintLayout SHALL display the grand total with emphasis (bold font, larger size, or border)
-5. THE PrintLayout SHALL align all amounts to the right
-6. THE PrintLayout SHALL format all amounts with Indonesian locale formatting (e.g., "Rp 1.000.000")
-7. THE PrintLayout SHALL display the Terbilang (amount in words) below the totals
-8. THE PrintLayout SHALL position the totals section on the right side of the page
-9. THE PrintLayout SHALL use a minimum font size of 11 points for the grand total
-
-### Requirement 15: Signature Section Layout
-
-**User Story:** As a business user, I want signature sections to be properly formatted, so that documents can be signed by authorized personnel.
-
-#### Acceptance Criteria
-
-1. THE PrintLayout SHALL display a signature section at the bottom of the document
-2. THE PrintLayout SHALL provide space for at least two signatures (e.g., "Dibuat Oleh", "Disetujui Oleh")
-3. THE PrintLayout SHALL allocate minimum 40 pixels of vertical space for handwritten signatures
-4. THE PrintLayout SHALL display signature labels clearly below the signature space
-5. THE PrintLayout SHALL display the signer's name when available
-6. THE PrintLayout SHALL distribute signature boxes evenly across the page width
-7. THE PrintLayout SHALL separate signature boxes with appropriate spacing
-8. THE PrintLayout SHALL prevent signature sections from being split across pages
-
-### Requirement 16: Notes and Additional Information
-
-**User Story:** As a business user, I want notes and additional information to be clearly displayed, so that important details are not missed.
-
-#### Acceptance Criteria
-
-1. WHEN a document includes notes, THE PrintLayout SHALL display them in a dedicated section
-2. THE PrintLayout SHALL label the notes section clearly (e.g., "Catatan:")
-3. THE PrintLayout SHALL preserve line breaks and formatting in notes text
-4. THE PrintLayout SHALL use a minimum font size of 9 points for notes
-5. THE PrintLayout SHALL position notes above the signature section
-6. THE PrintLayout SHALL apply visual styling (border, background, or indentation) to distinguish notes from other content
-7. THE PrintLayout SHALL limit notes section to a maximum of 150 pixels in height to prevent excessive space usage
-
-### Requirement 17: Print-Friendly Styling
-
-**User Story:** As a business user, I want documents to print correctly on physical printers, so that printed copies match the preview.
-
-#### Acceptance Criteria
-
-1. THE Print_System SHALL apply print-specific CSS media queries for optimal printing
-2. THE Print_System SHALL preserve background colors and images when printing
-3. THE Print_System SHALL set appropriate page margins (minimum 10mm on all sides)
-4. THE Print_System SHALL prevent page breaks within item rows
-5. THE Print_System SHALL prevent page breaks within the signature section
-6. THE Print_System SHALL prevent page breaks within the totals section
-7. THE Print_System SHALL hide UI controls (buttons, navigation) when printing
-8. THE Print_System SHALL use web-safe fonts (Arial, Helvetica) for maximum compatibility
-9. THE Print_System SHALL ensure all text is black or dark gray for clear printing
-
-### Requirement 18: Responsive Preview and Zoom
-
-**User Story:** As a business user, I want to preview documents at different zoom levels, so that I can review details before printing.
-
-#### Acceptance Criteria
-
-1. THE PrintPreviewModal SHALL provide zoom controls for the print preview
-2. THE PrintPreviewModal SHALL support zoom levels from 50% to 200%
-3. THE PrintPreviewModal SHALL display the current zoom percentage
-4. THE PrintPreviewModal SHALL provide zoom in and zoom out buttons
-5. THE PrintPreviewModal SHALL provide a reset button to return to 100% zoom
-6. THE PrintPreviewModal SHALL maintain document aspect ratio when zooming
-7. THE PrintPreviewModal SHALL center the document preview in the viewport
-8. THE PrintPreviewModal SHALL provide smooth zoom transitions
-
-### Requirement 19: Paper Settings Configuration
-
-**User Story:** As a business user, I want to configure paper settings, so that I can print on different paper sizes if needed.
-
-#### Acceptance Criteria
-
-1. THE PrintPreviewModal SHALL provide paper size selection options
-2. THE PrintPreviewModal SHALL support A4, A5, Letter, Legal, and F4 paper sizes
-3. THE PrintPreviewModal SHALL default to A4 paper size for all documents
-4. THE PrintPreviewModal SHALL provide orientation selection (portrait/landscape)
-5. THE PrintPreviewModal SHALL default to portrait orientation for all business documents
-6. THE PrintPreviewModal SHALL update the preview when paper settings change
-7. THE PrintPreviewModal SHALL display the selected paper dimensions in millimeters
-8. WHEN paper settings are changed, THE PrintPreviewModal SHALL adjust the document layout accordingly
-
-### Requirement 20: Indonesian Language Support
-
-**User Story:** As an Indonesian business user, I want all labels and text to be in Bahasa Indonesia, so that documents are appropriate for local business use.
-
-#### Acceptance Criteria
-
 1. THE PrintLayout SHALL display all labels in Bahasa Indonesia
-2. THE PrintLayout SHALL use "No. Dokumen" for document number label
-3. THE PrintLayout SHALL use "Tanggal" for date label
-4. THE PrintLayout SHALL use "Pelanggan" for customer label in sales documents
-5. THE PrintLayout SHALL use "Pemasok" or "Supplier" for supplier label in purchase documents
-6. THE PrintLayout SHALL use "Catatan" for notes label
-7. THE PrintLayout SHALL use "Terbilang" for amount-in-words label
-8. THE PrintLayout SHALL use "Subtotal", "Pajak", and "Total" for amounts section
+2. THE PrintLayout SHALL use "No. Dokumen" for document number
+3. THE PrintLayout SHALL use "Tanggal" for date
+4. THE PrintLayout SHALL use "Pelanggan" for customer (sales documents)
+5. THE PrintLayout SHALL use "Pemasok" or "Supplier" for supplier (purchase documents)
+6. THE PrintLayout SHALL use "Catatan" for notes
+7. THE PrintLayout SHALL use "Terbilang" for amount in words
+8. THE PrintLayout SHALL use "Subtotal", "Pajak", "Total" for amounts section
 9. THE PrintLayout SHALL format dates using Indonesian locale (e.g., "31 Desember 2024")
-10. THE PrintLayout SHALL format currency amounts with Indonesian locale (e.g., "Rp 1.000.000")
+10. THE PrintLayout SHALL format currency with Indonesian locale (e.g., "Rp 1.000.000")
 
-### Requirement 21: Document Footer
+---
 
-**User Story:** As a business user, I want a footer on printed documents, so that I can see when the document was printed.
+### Requirement 8: Print-Friendly CSS Styling
+
+**User Story**: As a business user, I want documents to print correctly on physical printers, so that printed copies match the preview.
+
+#### Acceptance Criteria
+1. THE Print_System SHALL apply @media print CSS rules for optimal printing
+2. THE Print_System SHALL preserve background colors and images when printing (-webkit-print-color-adjust: exact)
+3. THE Print_System SHALL set appropriate margins (10mm top/bottom, 12mm left/right for A4)
+4. THE Print_System SHALL set continuous form margins (5mm left/right for tractor holes)
+5. THE Print_System SHALL prevent page breaks within item rows
+6. THE Print_System SHALL prevent page breaks within signature section
+7. THE Print_System SHALL prevent page breaks within totals section
+8. THE Print_System SHALL hide UI controls (buttons, navigation) when printing
+9. THE Print_System SHALL use web-safe fonts (Arial, Helvetica) for maximum compatibility
+10. THE Print_System SHALL ensure all text is black or dark gray for clear printing
+
+---
+
+### Requirement 9: Document-Specific Customizations
+
+**User Story**: As a business user, I want each document type to display relevant information specific to that document, so that all necessary details are included.
 
 #### Acceptance Criteria
 
-1. THE PrintLayout SHALL display a footer at the bottom of each page
-2. THE PrintLayout SHALL include the print date in the footer
-3. THE PrintLayout SHALL format the print date in Indonesian locale
-4. THE PrintLayout SHALL include a system attribution message (e.g., "Dicetak oleh sistem")
-5. THE PrintLayout SHALL use a small font size (8 points) for footer text
-6. THE PrintLayout SHALL use a light gray color for footer text to distinguish it from main content
-7. THE PrintLayout SHALL separate the footer from the main content with a border line
-8. THE PrintLayout SHALL prevent the footer from being split across pages
+**Sales Order**:
+1. THE PrintLayout SHALL display delivery date when available
+2. THE PrintLayout SHALL display payment terms when available
+3. THE PrintLayout SHALL display sales person name when available
 
-### Requirement 22: Consistent Spacing and Alignment
+**Delivery Note (Surat Jalan)**:
+4. THE PrintLayout SHALL display related Sales Order number
+5. THE PrintLayout SHALL display driver name and vehicle number
+6. THE PrintLayout SHALL NOT display pricing information
+7. THE PrintLayout SHALL display warehouse column in item table
+8. THE PrintLayout SHALL provide 3 signature boxes (Sender, Driver, Receiver)
 
-**User Story:** As a business user, I want consistent spacing and alignment throughout documents, so that they look professional and organized.
+**Sales Invoice (Faktur Jual)**:
+9. THE PrintLayout SHALL display NPWP for company and customer
+10. THE PrintLayout SHALL display tax breakdown (PPN 11%)
+11. THE PrintLayout SHALL display payment due date
+12. THE PrintLayout SHALL display bank account information in notes
 
-#### Acceptance Criteria
+**Purchase Order**:
+13. THE PrintLayout SHALL display expected delivery date
+14. THE PrintLayout SHALL display delivery location/warehouse
+15. THE PrintLayout SHALL display supplier contact information
 
-1. THE PrintLayout SHALL use consistent vertical spacing between sections (minimum 10 pixels)
-2. THE PrintLayout SHALL use consistent horizontal padding for all sections (minimum 12 pixels)
-3. THE PrintLayout SHALL align all section content to the left margin
-4. THE PrintLayout SHALL align numeric values to the right within their columns
-5. THE PrintLayout SHALL use consistent font sizes within each section type
-6. THE PrintLayout SHALL use consistent font weights for labels and values
-7. THE PrintLayout SHALL maintain consistent line height (minimum 1.4) for readability
-8. THE PrintLayout SHALL ensure consistent border styles and colors throughout the document
+**Purchase Receipt**:
+16. THE PrintLayout SHALL display related Purchase Order number
+17. THE PrintLayout SHALL display ordered vs received quantity columns
+18. THE PrintLayout SHALL display quality check notes
+19. THE PrintLayout SHALL provide 3 signature boxes (Receiver, QC, Supervisor)
 
-### Requirement 23: Print Action Integration
+**Purchase Invoice**:
+20. THE PrintLayout SHALL display supplier invoice number reference
+21. THE PrintLayout SHALL display related Purchase Receipt number
+22. THE PrintLayout SHALL display payment due date
 
-**User Story:** As a business user, I want to easily access print functionality from document pages, so that I can quickly print documents.
+**Payment Pay/Receive**:
+23. THE PrintLayout SHALL display payment method (Cash, Transfer, Check)
+24. THE PrintLayout SHALL display bank account details
+25. THE PrintLayout SHALL display related invoice/document references
+26. THE PrintLayout SHALL display payment status (Paid, Partial, Pending)
 
-#### Acceptance Criteria
+---
 
-1. WHEN a document is saved, THE Print_System SHALL display a print dialog option
-2. WHEN a user clicks the print button in document lists, THE Print_System SHALL open the print preview
-3. THE Print_System SHALL pass the document name as a URL parameter to the print page
-4. THE Print_System SHALL fetch the latest document data when opening print preview
-5. THE Print_System SHALL display a loading indicator while fetching document data
-6. WHEN document data fails to load, THE Print_System SHALL display a clear error message
-7. THE Print_System SHALL provide a "Print" button in the preview modal to trigger browser print dialog
-8. THE Print_System SHALL provide a "Save as PDF" button in the preview modal
-9. WHEN the user clicks "Save as PDF", THE Print_System SHALL open the browser print dialog with PDF save option
+### Requirement 10: Testing and Validation
 
-### Requirement 24: Address Display Enhancement
-
-**User Story:** As a business user, I want customer and supplier addresses to be displayed on documents, so that shipping and billing information is clear.
-
-#### Acceptance Criteria
-
-1. WHEN a customer address is available, THE PrintLayout SHALL display it below the customer name
-2. WHEN a supplier address is available, THE PrintLayout SHALL display it below the supplier name
-3. THE PrintLayout SHALL format multi-line addresses with proper line breaks
-4. THE PrintLayout SHALL use a smaller font size (9 points) for addresses compared to party names
-5. THE PrintLayout SHALL limit address display to a maximum of 3 lines to conserve space
-6. WHEN no address is available, THE PrintLayout SHALL not display an empty address section
-7. THE PrintLayout SHALL use a lighter font weight for addresses compared to party names
-
-### Requirement 25: Document-Specific Customizations
-
-**User Story:** As a business user, I want each document type to display relevant information specific to that document, so that all necessary details are included.
+**User Story**: As a quality assurance tester, I want to verify that all print documents work correctly, so that users receive reliable printing functionality.
 
 #### Acceptance Criteria
-
-1. FOR Sales Order documents, THE PrintLayout SHALL display the delivery date when available
-2. FOR Sales Order documents, THE PrintLayout SHALL display payment terms when available
-3. FOR Delivery Note documents, THE PrintLayout SHALL display the related Sales Order number
-4. FOR Sales Invoice documents, THE PrintLayout SHALL display the related Delivery Note number when available
-5. FOR Sales Invoice documents, THE PrintLayout SHALL display payment due date when available
-6. FOR Purchase Order documents, THE PrintLayout SHALL display the expected delivery date when available
-7. FOR Purchase Receipt documents, THE PrintLayout SHALL display the related Purchase Order number
-8. FOR Purchase Invoice documents, THE PrintLayout SHALL display the related Purchase Receipt number when available
-9. FOR all sales documents, THE PrintLayout SHALL display the sales person name when available
-10. FOR all documents, THE PrintLayout SHALL display custom fields that are marked as "print on document"
-
-### Requirement 26: Print Layout Component Refactoring
-
-**User Story:** As a developer, I want the PrintLayout component to support portrait orientation, so that it can be used for the redesigned documents.
-
-#### Acceptance Criteria
-
-1. THE PrintLayout SHALL accept an optional "orientation" prop with values "portrait" or "landscape"
-2. THE PrintLayout SHALL accept an optional "paperSize" prop with values "A4", "A5", "Letter", "Legal", or "F4"
-3. THE PrintLayout SHALL accept an optional "companyLogo" prop for the logo URL
-4. THE PrintLayout SHALL accept an optional "partyAddress" prop for customer/supplier address
-5. THE PrintLayout SHALL accept an optional "totalQuantity" prop for displaying total item quantity
-6. THE PrintLayout SHALL accept an optional "totalItems" prop for displaying total number of items
-7. THE PrintLayout SHALL apply appropriate CSS styles based on the orientation prop
-8. THE PrintLayout SHALL calculate appropriate column widths based on paper size and orientation
-9. THE PrintLayout SHALL maintain backward compatibility with existing landscape print implementations
-10. THE PrintLayout SHALL export TypeScript interfaces for all props
-
-### Requirement 27: Print Preview Modal Enhancement
-
-**User Story:** As a developer, I want the PrintPreviewModal to better support portrait documents, so that the preview is optimized for the new layout.
-
-#### Acceptance Criteria
-
-1. THE PrintPreviewModal SHALL adjust the preview container width based on paper orientation
-2. THE PrintPreviewModal SHALL adjust the preview container height based on paper orientation
-3. THE PrintPreviewModal SHALL center portrait documents vertically in the preview area
-4. THE PrintPreviewModal SHALL provide adequate padding around portrait documents in the preview
-5. THE PrintPreviewModal SHALL scale portrait documents appropriately to fit the viewport
-6. THE PrintPreviewModal SHALL maintain the correct aspect ratio for portrait documents at all zoom levels
-7. THE PrintPreviewModal SHALL update the page dimension display when orientation changes
-8. THE PrintPreviewModal SHALL apply the correct @page CSS rules for portrait printing
-
-### Requirement 28: Testing and Validation
-
-**User Story:** As a quality assurance tester, I want to verify that all print documents work correctly, so that users receive reliable printing functionality.
-
-#### Acceptance Criteria
-
-1. FOR each Transaction_Document type, THE Print_System SHALL render the print preview without errors
-2. FOR each Financial_Report type, THE Print_System SHALL render the print preview without errors
-3. FOR each System_Report type, THE Print_System SHALL render the print preview without errors
-4. FOR each document type, THE Print_System SHALL generate valid HTML for printing
+1. FOR each Transaction_Document type, THE Print_System SHALL render print preview without errors
+2. FOR each Report_Document type, THE Print_System SHALL render print preview without errors
+3. FOR continuous mode documents, THE Print_System SHALL validate width is 210mm
+4. FOR sheet mode documents, THE Print_System SHALL validate dimensions are 210mm × 297mm
 5. FOR each document type, THE Print_System SHALL display all required fields correctly
 6. FOR each document type, THE Print_System SHALL handle missing optional fields gracefully
 7. FOR each document type, THE Print_System SHALL print correctly on physical printers
 8. FOR each document type, THE Print_System SHALL save correctly as PDF
 9. THE Print_System SHALL handle documents with many items (50+ line items) without layout breaking
 10. THE Print_System SHALL handle documents with long item names without layout breaking
-11. THE Print_System SHALL handle documents with large amounts without number formatting issues
-12. THE Print_System SHALL maintain consistent appearance across different browsers (Chrome, Firefox, Safari, Edge)
-13. THE Print_System SHALL verify that print preview dimensions match physical A4 paper (210mm x 297mm)
-14. THE Print_System SHALL verify that actual print output dimensions match physical A4 paper (210mm x 297mm)
+11. THE Print_System SHALL maintain consistent appearance across different browsers (Chrome, Firefox, Safari, Edge)
+12. THE Print_System SHALL verify continuous form output on dot matrix printers
+13. THE Print_System SHALL verify A4 output on laser/inkjet printers
+14. THE Print_System SHALL pass all 17 correctness properties with 100+ test iterations
+
+---
+
+## Correctness Properties
+
+### Property 1: Transaction Document Continuous Form Dimensions
+*For any* transaction document (SO, SJ, FJ, PO, PR, PI, Payment), when rendered in continuous mode, the page width SHALL be exactly 210mm, and the height SHALL be flexible (auto-adjusts to content).
+
+**Validates**: Requirements 1.4, 2.1, 2.2, 2.5, 2.6
+
+### Property 2: Report Document A4 Fixed Dimensions
+*For any* report document, when rendered in sheet mode, the page dimensions SHALL be exactly 210mm width × 297mm height, and the aspect ratio SHALL equal 210:297.
+
+**Validates**: Requirements 1.5, 3.1, 3.2, 3.10
+
+### Property 3: Paper Mode Consistency
+*For any* document, the paper mode SHALL match the document type (continuous for transactions, sheet for reports), and SHALL NOT be switchable for transaction documents.
+
+**Validates**: Requirements 1.2, 1.3, 1.6
+
+### Property 4: Tractor Hole Margins
+*For any* continuous form document, THE Print_System SHALL reserve 5mm margin on left side and 5mm margin on right side for tractor holes.
+
+**Validates**: Requirements 2.3, 2.4, 2.8
+
+### Property 5: No Page Breaks in Transactions
+*For any* transaction document, THE Print_System SHALL NOT insert page breaks within the document, and the document SHALL print as single continuous page.
+
+**Validates**: Requirements 2.6, 8.5
+
+### Property 6: Report Pagination Support
+*For any* report document with multiple pages, THE Print_System SHALL insert page breaks between pages, and SHALL display page numbers in format "Page X of Y".
+
+**Validates**: Requirements 3.3, 3.4, 3.5
+
+### Property 7: Indonesian Localization
+*For any* label or text element in any document, the text SHALL be in Bahasa Indonesia according to specified translations.
+
+**Validates**: Requirements 7.1-7.10
+
+### Property 8: Currency Formatting Consistency
+*For any* numeric currency value displayed in any document, the value SHALL be formatted using Indonesian locale (Rp X.XXX.XXX format with thousand separators).
+
+**Validates**: Requirements 7.10
+
+### Property 9: Preview and Output Consistency
+*For any* document, the CSS styles, dimensions, fonts, and margins used in print preview SHALL be identical to those used in actual print output.
+
+**Validates**: Requirements 8.1, 8.10
+
+### Property 10: Print Media Query Application
+*For any* document, when rendering for print, THE Print_System SHALL apply print-specific CSS media queries that hide UI controls, preserve backgrounds, and set appropriate page margins.
+
+**Validates**: Requirements 8.1-8.10
+
+### Property 11: Document Header Completeness
+*For any* transaction document, the rendered output SHALL contain a header section with company logo, company name, document title, and status badge.
+
+**Validates**: Requirements 4.1-4.3
+
+### Property 12: Document Metadata Display
+*For any* transaction document, the rendered output SHALL display document number, document date, and party name with clear labels.
+
+**Validates**: Requirements 4.4, 7.2-7.5
+
+### Property 13: Item Table Structure
+*For any* transaction document with line items, the item table SHALL include row numbers, item identification, quantity, and appropriate additional columns.
+
+**Validates**: Requirements 4.5, 9.7
+
+### Property 14: Totals Section Presence
+*For any* transaction document with pricing, the rendered output SHALL display totals section with subtotal, tax, and grand total.
+
+**Validates**: Requirements 4.6, 7.8
+
+### Property 15: Signature Section Page Break Prevention
+*For any* document with signatures, the signature section SHALL not be split across page boundaries.
+
+**Validates**: Requirements 8.6
+
+### Property 16: Report Header Completeness
+*For any* report document, the rendered output SHALL contain a header section with company name, report title, and date range or as-of date.
+
+**Validates**: Requirements 5.1-5.4
+
+### Property 17: Error Handling Gracefully
+*For any* error condition, the print system SHALL display a clear error message without crashing or showing broken layouts.
+
+**Validates**: Requirements 10.5, 10.6

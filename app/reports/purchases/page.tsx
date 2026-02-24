@@ -160,9 +160,9 @@ export default function PurchaseReportPage() {
         <PrintPreviewModal
           title={`Laporan Pembelian — ${selectedCompany}`}
           onClose={() => setShowPrintPreview(false)}
+          paperMode="sheet"
           printUrl={printUrl}
           useContentFrame={false}
-          allowPaperSettings={false}
         >
           <iframe
             src={printUrl}

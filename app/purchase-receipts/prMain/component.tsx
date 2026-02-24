@@ -4,6 +4,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import PrintDialog from '../../components/PrintDialog';
+import PrintPreviewModal from '../../../components/print/PrintPreviewModal';
+import PurchaseReceiptPrint from '../../../components/print/PurchaseReceiptPrint';
 
 interface Supplier {
   name: string;
@@ -139,6 +141,7 @@ export default function PurchaseReceiptMain() {
   const [successMessage, setSuccessMessage] = useState('');
   const [showPrintDialog, setShowPrintDialog] = useState(false);
   const [printDocName, setPrintDocName] = useState('');
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
   
   // Supplier Dialog States
   const [showSupplierDialog, setShowSupplierDialog] = useState(false);
@@ -778,12 +781,27 @@ export default function PurchaseReceiptMain() {
                   : 'Buat atau edit penerimaan barang dari pesanan pembelian'}
               </p>
             </div>
-            <button
-              onClick={() => router.push('/purchase-receipts/prList')}
-              className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700"
-            >
-              Kembali ke Daftar
-            </button>
+            <div className="flex gap-2">
+              {(isEditMode || isViewMode) && prId && (
+                <button
+                  type="button"
+                  onClick={() => setShowPrintPreview(true)}
+                  className="bg-emerald-600 text-white px-4 py-2 rounded-md hover:bg-emerald-700 flex items-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                  </svg>
+                  Print
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => router.push('/purchase-receipts/prList')}
+                className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700"
+              >
+                Kembali ke Daftar
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -1508,6 +1526,35 @@ export default function PurchaseReceiptMain() {
         </div>
       )}
     </div>
+
+    {/* Print Preview Modal */}
+    {showPrintPreview && (isEditMode || isViewMode) && (
+      <PrintPreviewModal
+        title={`Purchase Receipt - ${prId}`}
+        onClose={() => setShowPrintPreview(false)}
+        paperMode="continuous"
+      >
+        <PurchaseReceiptPrint
+          data={{
+            name: prId,
+            posting_date: postingDate,
+            docstatus: isViewMode ? 1 : 0,
+            supplier: supplier,
+            supplier_name: supplierName,
+            purchase_order: purchaseOrder,
+            items: selectedItems.map(item => ({
+              item_code: item.item_code,
+              item_name: item.item_name,
+              qty: item.qty,
+              received_qty: item.received_qty,
+              warehouse: item.warehouse,
+            })),
+            remarks: remarks,
+          }}
+          companyName={selectedCompany}
+        />
+      </PrintPreviewModal>
+    )}
     </>
   );
 

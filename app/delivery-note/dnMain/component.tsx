@@ -9,6 +9,8 @@ import PrintDialog from '../../components/PrintDialog';
 import { formatDate, parseDate } from '../../../utils/format';
 import { handleERPNextError } from '../../../utils/erpnext-error-handler';
 import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
+import PrintPreviewModal from '../../../components/print/PrintPreviewModal';
+import DeliveryNotePrint from '../../../components/print/DeliveryNotePrint';
 
 interface SalesOrder {
   name: string;
@@ -85,6 +87,7 @@ export default function DeliveryNoteMain() {
 
   const [showSalesOrderDialog, setShowSalesOrderDialog] = useState(false);
   const [showCustomerDialog, setShowCustomerDialog] = useState(false);
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
 
   // Get company on mount
   useEffect(() => {
@@ -399,6 +402,17 @@ export default function DeliveryNoteMain() {
               </p>
             </div>
             <div className="flex gap-2">
+              {editingDeliveryNote && (
+                <button
+                  onClick={() => setShowPrintPreview(true)}
+                  className="bg-emerald-600 text-white px-4 py-2 rounded-md hover:bg-emerald-700 flex items-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                  </svg>
+                  Print
+                </button>
+              )}
               {!editingDeliveryNote && (
                 <button
                   type="button"
@@ -647,6 +661,33 @@ export default function DeliveryNoteMain() {
         documentName={savedDocName}
         documentLabel="Surat Jalan"
       />
+
+      {/* Print Preview Modal */}
+      {showPrintPreview && editingDeliveryNote && (
+        <PrintPreviewModal
+          title={`Surat Jalan - ${editingDeliveryNote.name}`}
+          onClose={() => setShowPrintPreview(false)}
+          paperMode="continuous"
+        >
+          <DeliveryNotePrint
+            data={{
+              name: editingDeliveryNote.name,
+              posting_date: editingDeliveryNote.posting_date,
+              docstatus: editingDeliveryNote.docstatus || 0,
+              customer: editingDeliveryNote.customer,
+              customer_name: editingDeliveryNote.customer_name,
+              lr_no: editingDeliveryNote.lr_no,
+              lr_date: editingDeliveryNote.lr_date,
+              transporter_name: editingDeliveryNote.transporter_name,
+              vehicle_no: editingDeliveryNote.vehicle_no,
+              against_sales_order: editingDeliveryNote.against_sales_order,
+              items: editingDeliveryNote.items || [],
+              remarks: editingDeliveryNote.custom_notes_dn || editingDeliveryNote.remarks,
+            }}
+            companyName={selectedCompany}
+          />
+        </PrintPreviewModal>
+      )}
     </div>
   );
 }

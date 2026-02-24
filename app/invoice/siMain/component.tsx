@@ -11,6 +11,8 @@ import DiscountInput from '../../../components/invoice/DiscountInput';
 import TaxTemplateSelect from '../../../components/invoice/TaxTemplateSelect';
 import InvoiceSummary from '../../../components/invoice/InvoiceSummary';
 import { handleERPNextError } from '../../../utils/erpnext-error-handler';
+import PrintPreviewModal from '../../../components/print/PrintPreviewModal';
+import SalesInvoicePrint from '../../../components/print/SalesInvoicePrint';
 
 interface InvoiceItem {
   item_code: string;
@@ -35,6 +37,7 @@ interface CompleteInvoiceItem extends InvoiceItem {
   sales_order_item?: string;
   stock_uom?: string;
   conversion_factor?: number;
+  returned_qty?: number;
 }
 
 interface SalesTeamMember {
@@ -62,12 +65,14 @@ export default function SalesInvoiceMain() {
   const [loading, setLoading] = useState(!!invoiceName);
   const [selectedCompany, setSelectedCompany] = useState('');
   const [editingInvoice, setEditingInvoice] = useState<string | null>(null);
+  const [editingInvoiceData, setEditingInvoiceData] = useState<any>(null);
   const [editingInvoiceStatus, setEditingInvoiceStatus] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [formLoading, setFormLoading] = useState(false);
   const [showPrintDialog, setShowPrintDialog] = useState(false);
   const [savedDocName, setSavedDocName] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
   const createdDocName = useRef<string | null>(invoiceName || null);
   const isSubmittingRef = useRef(false);
 
@@ -239,6 +244,7 @@ export default function SalesInvoiceMain() {
         }
         
         setEditingInvoice(name);
+        setEditingInvoiceData(invoice);
         setEditingInvoiceStatus(invoice.docstatus === 1 ? 'Submitted' : invoice.status || 'Draft');
         setError('');
       } else {
@@ -679,6 +685,17 @@ export default function SalesInvoiceMain() {
               </p>
             </div>
             <div className="flex gap-2">
+              {editingInvoice && (
+                <button
+                  onClick={() => setShowPrintPreview(true)}
+                  className="bg-emerald-600 text-white px-4 py-2 rounded-md hover:bg-emerald-700 flex items-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                  </svg>
+                  Print
+                </button>
+              )}
               {!editingInvoice && (
                 <button
                   type="button"
@@ -1057,6 +1074,34 @@ export default function SalesInvoiceMain() {
         documentName={savedDocName}
         documentLabel="Faktur Penjualan"
       />
+
+      {/* Print Preview Modal */}
+      {showPrintPreview && editingInvoiceData && (
+        <PrintPreviewModal
+          title={`Faktur Penjualan - ${editingInvoiceData.name}`}
+          onClose={() => setShowPrintPreview(false)}
+          paperMode="continuous"
+        >
+          <SalesInvoicePrint
+            data={{
+              name: editingInvoiceData.name || '',
+              posting_date: editingInvoiceData.posting_date || '',
+              due_date: editingInvoiceData.due_date || '',
+              docstatus: editingInvoiceData.docstatus || 0,
+              customer: editingInvoiceData.customer || '',
+              customer_name: editingInvoiceData.customer_name || '',
+              tax_id: editingInvoiceData.tax_id || '',
+              items: editingInvoiceData.items || [],
+              total: editingInvoiceData.total || 0,
+              total_taxes_and_charges: editingInvoiceData.total_taxes_and_charges || 0,
+              grand_total: editingInvoiceData.grand_total || 0,
+              in_words: editingInvoiceData.in_words || '',
+              remarks: editingInvoiceData.remarks || editingInvoiceData.custom_notes_si || '',
+            }}
+            companyName={selectedCompany}
+          />
+        </PrintPreviewModal>
+      )}
     </div>
   );
 }

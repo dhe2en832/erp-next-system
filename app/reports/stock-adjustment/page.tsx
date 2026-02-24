@@ -84,7 +84,11 @@ export default function StockAdjustmentPage() {
       </div>
 
       {showPrint && (
-        <PrintPreviewModal title={`Penyesuaian Stok — ${selectedCompany}`} onClose={() => setShowPrint(false)} allowPaperSettings={false}>
+        <PrintPreviewModal 
+          title={`Penyesuaian Stok — ${selectedCompany}`} 
+          onClose={() => setShowPrint(false)} 
+          paperMode="sheet"
+        >
           <>
             <style>{`
               .fin-print table { table-layout: auto !important; width: 100%; border-collapse: collapse; margin-bottom: 8px; }

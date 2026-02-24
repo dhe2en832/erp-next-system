@@ -10,7 +10,8 @@ function fixTerbilang(raw: string): string {
   if (!raw) return '';
   return raw
     .replace(/^IDR\s+/i, '')
-    .replace(/\s+saja\.?$/i, ' rupiah');
+    .replace(/\s+saja\.?$/i, ' rupiah')
+    .trim();
 }
 
 const PO_COLUMNS: PrintColumn[] = [
@@ -132,11 +133,7 @@ function PurchaseOrderPrint() {
         <PrintPreviewModal
           title={docTitle}
           onClose={() => setShowPreview(false)}
-          fixedPageSizeMm={{ width: 215, height: 140 }}
-          allowPaperSettings={false}
-          contentFramePadding="14px 16px"
-          frameBackground="transparent"
-          frameShadow="none"
+          paperMode="continuous"
         >
           {layoutContent}
         </PrintPreviewModal>

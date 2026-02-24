@@ -97,11 +97,11 @@ const MAX_ROWS = 10;
 
 const CSS = `
 @page {
-  size: 21.5cm 14cm;
-  margin: 0.4cm 0.5cm;
+  size: 210mm auto;
+  margin: 5mm;
 }
 @media print {
-  html, body { width: 21.5cm; height: 14cm; margin: 0; padding: 0; }
+  html, body { width: 210mm; margin: 0; padding: 0; }
   .no-print { display: none !important; }
   body { background: #fff !important; }
 }
@@ -111,71 +111,72 @@ const CSS = `
 .print-wrapper {
   font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif;
   font-size: 10px;
-  line-height: 1.35;
+  line-height: 1.4;
   color: #111;
-  width: 21.5cm;
-  height: 14cm;
+  width: 210mm;
   box-sizing: border-box;
-  overflow: hidden;
   background: #fff;
-  padding: 0.4cm 0.5cm;
+  padding: 10mm 12mm;
   position: relative;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
+  min-height: auto;
 }
 .doc-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   border-bottom: 2px solid #1e293b;
-  padding-bottom: 5px;
-  margin-bottom: 5px;
+  padding-bottom: 8px;
+  margin-bottom: 12px;
   flex-shrink: 0;
 }
-.company-name { font-size: 13px; font-weight: 700; color: #1e293b; letter-spacing: 0.3px; }
+.company-name { font-size: 11px; font-weight: 700; color: #1e293b; letter-spacing: 0.3px; }
 .company-sub { font-size: 8.5px; color: #475569; margin-top: 1px; }
 .doc-title-block { text-align: right; }
-.doc-title { font-size: 14px; font-weight: 800; color: #1e293b; letter-spacing: 0.5px; }
+.doc-title { font-size: 14px; font-weight: 700; color: #1e293b; letter-spacing: 0.5px; margin-bottom: 4px; }
 .doc-meta-line { font-size: 9px; color: #374151; margin-top: 1px; }
 .doc-meta {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0 16px;
+  gap: 8px 16px;
   border-bottom: 1px solid #cbd5e1;
-  padding-bottom: 4px;
-  margin-bottom: 4px;
+  padding-bottom: 8px;
+  margin-bottom: 12px;
   flex-shrink: 0;
 }
-.meta-row { display: flex; gap: 4px; font-size: 9px; line-height: 1.5; }
-.meta-label { color: #64748b; white-space: nowrap; min-width: 70px; }
-.meta-value { color: #111; font-weight: 600; }
-.table-container { flex: 1; overflow: hidden; margin-bottom: 4px; }
-.items-table { width: 100%; border-collapse: collapse; font-size: 9.5px; }
+.meta-row { display: flex; gap: 4px; font-size: 9px; line-height: 1.6; margin-bottom: 4px; }
+.meta-label { color: #64748b; white-space: nowrap; min-width: 70px; font-weight: 600; }
+.meta-value { color: #111; font-weight: 400; }
+.table-container { flex: 1; overflow: visible; margin-bottom: 12px; }
+.items-table { width: 100%; border-collapse: collapse; font-size: 9px; }
 .items-table thead tr { background: #f1f5f9; border-top: 1px solid #94a3b8; border-bottom: 1px solid #94a3b8; }
-.items-table th { padding: 3px 4px; font-weight: 700; color: #334155; font-size: 9px; text-transform: uppercase; letter-spacing: 0.3px; }
-.items-table td { padding: 2px 4px; border-bottom: 1px solid #e2e8f0; color: #1e293b; }
+.items-table th { padding: 4px 6px; font-weight: 700; color: #334155; font-size: 9px; text-transform: uppercase; letter-spacing: 0.3px; }
+.items-table td { padding: 4px 6px; border-bottom: 1px solid #e2e8f0; color: #1e293b; }
 .items-table tbody tr:nth-child(even) td { background: #f8fafc; }
 .hidden-rows-note { font-size: 8px; color: #64748b; font-style: italic; padding: 1px 4px; }
 .doc-footer {
   flex-shrink: 0;
   border-top: 1px solid #cbd5e1;
-  padding-top: 4px;
+  padding-top: 8px;
+  margin-top: 12px;
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   gap: 8px;
+  page-break-inside: avoid;
 }
-.footer-left { flex: 1; font-size: 8.5px; color: #374151; }
-.footer-right { min-width: 160px; font-size: 9px; }
-.footer-stats-bar { width: 100%; display: flex; justify-content: center; gap: 14px; margin: 4px 0 2px; font-size: 9px; }
-.footer-stats-bar .label { color: #475569; }
-.total-row { display: flex; justify-content: space-between; padding: 1px 0; }
-.total-row.grand { font-weight: 700; font-size: 10px; border-top: 1px solid #334155; margin-top: 2px; padding-top: 2px; }
-.terbilang-text { font-size: 8px; font-style: italic; color: #475569; margin-top: 2px; }
-.signatures { display: flex; justify-content: space-between; margin-top: 4px; gap: 8px; }
-.sig-box { flex: 1; text-align: center; font-size: 8.5px; color: #374151; }
-.sig-line { border-bottom: 1px solid #334155; height: 28px; margin-bottom: 2px; }
+.footer-left { flex: 1; font-size: 9px; color: #374151; }
+.footer-right { min-width: 200px; font-size: 9px; }
+.footer-stats-bar { width: 100%; display: flex; justify-content: center; gap: 14px; margin: 8px 0 4px; font-size: 9px; }
+.footer-stats-bar .label { color: #475569; font-weight: 600; }
+.total-row { display: flex; justify-content: space-between; padding: 4px 0; }
+.total-row.grand { font-weight: 700; font-size: 10px; border-top: 1px solid #334155; margin-top: 4px; padding-top: 4px; }
+.terbilang-text { font-size: 9px; font-style: italic; color: #475569; margin-top: 8px; line-height: 1.5; }
+.signatures { display: flex; justify-content: space-between; margin-top: 20px; gap: 20px; page-break-inside: avoid; }
+.sig-box { flex: 1; text-align: center; font-size: 9px; }
+.sig-line { border-bottom: 1px solid #334155; height: 50px; margin-bottom: 4px; }
 .watermark {
   position: absolute; top: 45%; left: 50%;
   transform: translate(-50%, -50%) rotate(-30deg);
@@ -268,9 +269,11 @@ export default function PrintLayout({
               <span className="meta-value">{partyName || '-'}</span>
             </div>
             {partyAddress && (
-              <div className="meta-row">
-                <span className="meta-label">Alamat</span>
-                <span className="meta-value">{partyAddress}</span>
+              <div className="meta-row" style={{ display: 'block' }}>
+                <span className="meta-label">Alamat:</span>
+                <div className="meta-value" style={{ marginLeft: '10px', fontSize: '8px', marginTop: '2px' }}>
+                  {partyAddress}
+                </div>
               </div>
             )}
             {metaLeft?.map((f, i) => (

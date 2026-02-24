@@ -161,9 +161,9 @@ export default function SalesReportPage() {
         <PrintPreviewModal
           title={`Laporan Penjualan — ${selectedCompany}`}
           onClose={() => setShowPrintPreview(false)}
+          paperMode="sheet"
           printUrl={printUrl}
           useContentFrame={false}
-          allowPaperSettings={false}
         >
           <iframe
             src={printUrl}

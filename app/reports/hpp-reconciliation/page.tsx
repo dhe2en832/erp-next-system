@@ -71,7 +71,13 @@ export default function HPPReconciliationPage() {
       </div>
 
       {showPrint && (
-        <PrintPreviewModal title={`Rekonsiliasi HPP — ${selectedCompany}`} onClose={() => setShowPrint(false)} printUrl={printUrl} useContentFrame={false} allowPaperSettings={false}>
+        <PrintPreviewModal 
+          title={`Rekonsiliasi HPP — ${selectedCompany}`} 
+          onClose={() => setShowPrint(false)} 
+          paperMode="sheet"
+          printUrl={printUrl} 
+          useContentFrame={false}
+        >
           <iframe src={printUrl} title="Pratinjau" style={{ width: '210mm', height: '297mm', border: 0, background: '#fff', boxShadow: '0 8px 40px rgba(0,0,0,0.45)' }} />
         </PrintPreviewModal>
       )}

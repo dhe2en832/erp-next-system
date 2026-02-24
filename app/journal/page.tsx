@@ -1,7 +1,30 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import LoadingSpinner from '../../components/LoadingSpinner';
+import Pagination from '../components/Pagination';
+import { formatDate, parseDate } from '../../utils/format';
+import BrowserStyleDatePicker from '../../components/BrowserStyleDatePicker';
+import { FileText, ArrowUp, Loader2 } from 'lucide-react';
 
+// ─────────────────────────────────────────────────────────────
+// Hook: Deteksi mobile (breakpoint 768px)
+// ─────────────────────────────────────────────────────────────
+function useIsMobile(breakpoint = 768) {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < breakpoint);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, [breakpoint]);
+  return isMobile;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────────────────────────
 interface JournalEntry {
   name: string;
   voucher_type: string;
@@ -10,212 +33,508 @@ interface JournalEntry {
   total_credit: number;
   status: string;
   user_remark: string;
+  company?: string;
+  creation?: string;
 }
 
+// ─────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────
+const formatCurrency = (amount: number) =>
+  new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    minimumFractionDigits: 0,
+  }).format(amount);
+
+const STATUS_COLORS: Record<string, string> = {
+  Submitted: 'bg-green-100 text-green-800 border-green-200',
+  Draft: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+  Cancelled: 'bg-red-100 text-red-800 border-red-200',
+};
+
+const getStatusBadgeClass = (status: string) =>
+  STATUS_COLORS[status] || 'bg-gray-100 text-gray-800 border-gray-200';
+
+// ─────────────────────────────────────────────────────────────
+// Main Component
+// ─────────────────────────────────────────────────────────────
 export default function JournalPage() {
-  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const isMobile = useIsMobile(768);
+
+  const pageSize = isMobile ? 10 : 20;
+  const useInfiniteScrollMode = isMobile;
+
+  const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [dateFilter, setDateFilter] = useState({
-    from_date: new Date(Date.now() - 86400000).toISOString().split('T')[0],
-    to_date: new Date().toISOString().split('T')[0],
+    from_date: formatDate(new Date(Date.now() - 86400000)),
+    to_date: formatDate(new Date()),
   });
+  const [nameFilter, setNameFilter] = useState('');
+  const [voucherTypeFilter, setVoucherTypeFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [selectedCompany, setSelectedCompany] = useState('');
   const [error, setError] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [hasMoreData, setHasMoreData] = useState(true);
+  const [showBackToTop, setShowBackToTop] = useState(false);
+
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+  // ── Sync URL page ──
+  useEffect(() => {
+    const p = searchParams.get('page');
+    if (p && !isNaN(parseInt(p))) setCurrentPage(Math.max(1, parseInt(p)));
+  }, [searchParams]);
 
   useEffect(() => {
-    // Try to get company from localStorage first, then from cookie
-    let savedCompany = localStorage.getItem('selected_company');
-    
-    if (!savedCompany) {
-      // Fallback to cookie if localStorage is empty
-      const cookies = document.cookie.split(';');
-      const companyCookie = cookies.find(cookie => cookie.trim().startsWith('selected_company='));
-      if (companyCookie) {
-        savedCompany = companyCookie.split('=')[1];
-        // Store in localStorage for future use
-        if (savedCompany) {
-          localStorage.setItem('selected_company', savedCompany);
-        }
+    const params = new URLSearchParams(searchParams.toString());
+    currentPage > 1 ? params.set('page', String(currentPage)) : params.delete('page');
+    const newUrl = `${window.location.pathname}${params.toString() ? `?${params}` : ''}`;
+    window.history.replaceState({}, '', newUrl);
+  }, [currentPage, searchParams]);
+
+  // ── Company from localStorage/cookie ──
+  useEffect(() => {
+    let company = localStorage.getItem('selected_company');
+    if (!company) {
+      const c = document.cookie.split(';').find(c => c.trim().startsWith('selected_company='));
+      if (c) {
+        company = c.split('=')[1];
+        if (company) localStorage.setItem('selected_company', company);
       }
     }
-    
-    if (savedCompany) {
-      setSelectedCompany(savedCompany);
-    }
+    if (company) setSelectedCompany(company);
   }, []);
 
-  useEffect(() => {
-    fetchJournalEntries();
-  }, [dateFilter]); // Remove selectedCompany from dependencies
+  // ── Fetch ──
+  const fetchEntries = useCallback(async (reset = false) => {
+    reset ? setLoading(true) : setLoadingMore(true);
+    if (reset) setError('');
 
-  const fetchJournalEntries = async () => {
-    // Clear previous error when starting to fetch
-    setError('');
-    
-    // Check for company selection with better logic
-    let companyToUse = selectedCompany;
-    
-    // If no company in state, try to get it fresh
-    if (!companyToUse) {
-      const storedCompany = localStorage.getItem('selected_company');
-      if (storedCompany) {
-        companyToUse = storedCompany;
-      } else {
-        const cookies = document.cookie.split(';');
-        const companyCookie = cookies.find(cookie => cookie.trim().startsWith('selected_company='));
-        if (companyCookie) {
-          const cookieValue = companyCookie.split('=')[1];
-          if (cookieValue) {
-            companyToUse = cookieValue;
-          }
-        }
+    let company = selectedCompany;
+    if (!company) {
+      company = localStorage.getItem('selected_company') || '';
+      if (!company) {
+        const c = document.cookie.split(';').find(c => c.trim().startsWith('selected_company='));
+        if (c) company = c.split('=')[1] || '';
       }
     }
-    
-    if (!companyToUse) {
-      setError('No company selected. Please select a company first.');
+
+    if (!company) {
+      setError('Perusahaan belum dipilih. Silakan pilih perusahaan terlebih dahulu.');
       setLoading(false);
+      setLoadingMore(false);
       return;
     }
-    
-    // Update state if we found company from storage
-    if (!selectedCompany && companyToUse) {
-      setSelectedCompany(companyToUse);
-    }
-    
+
+    if (!selectedCompany && company) setSelectedCompany(company);
+
     try {
-      const response = await fetch("/api/finance/journal");
-      const data = await response.json();
-      
-      if (data.success) {
-        setJournalEntries(data.data || []);
-        setError('');
-      } else {
-        setError('Simple test failed: ' + data.message);
+      const params = new URLSearchParams();
+      params.append('limit_page_length', String(pageSize));
+      params.append('start', String((currentPage - 1) * pageSize));
+      params.append('order_by', 'creation desc');
+      params.append('company', company);
+      if (nameFilter) params.append('search', nameFilter);
+      if (voucherTypeFilter) params.append('voucher_type', voucherTypeFilter);
+      if (statusFilter) params.append('status', statusFilter);
+      if (dateFilter.from_date) {
+        const parsed = parseDate(dateFilter.from_date);
+        if (parsed) params.append('from_date', parsed);
       }
-    } catch (err) {
-      setError('Failed to fetch journal entries');
+      if (dateFilter.to_date) {
+        const parsed = parseDate(dateFilter.to_date);
+        if (parsed) params.append('to_date', parsed);
+      }
+
+      const res = await fetch(`/api/finance/journal?${params}`);
+      const result = await res.json();
+
+      if (result.success) {
+        const data: JournalEntry[] = result.data || [];
+
+        if (result.total_records !== undefined) {
+          setTotalRecords(result.total_records);
+          setTotalPages(Math.ceil(result.total_records / pageSize));
+          setHasMoreData(currentPage < Math.ceil(result.total_records / pageSize));
+        } else {
+          setTotalRecords(data.length);
+          setTotalPages(1);
+          setHasMoreData(false);
+        }
+
+        if (reset) {
+          setEntries(data);
+          setError(data.length === 0 ? `Tidak ada jurnal untuk perusahaan: ${company}` : '');
+        } else {
+          setEntries(prev => {
+            const existing = new Set(prev.map(e => e.name));
+            return [...prev, ...data.filter(e => !existing.has(e.name))];
+          });
+        }
+      } else {
+        setError(result.message || 'Gagal memuat jurnal');
+      }
+    } catch {
+      setError('Gagal memuat jurnal');
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
+  }, [currentPage, pageSize, dateFilter, nameFilter, voucherTypeFilter, statusFilter, selectedCompany]);
+
+  // ── Effects ──
+  useEffect(() => { fetchEntries(true); }, [dateFilter, nameFilter, voucherTypeFilter, statusFilter]);
+  useEffect(() => { fetchEntries(false); }, [currentPage]);
+  useEffect(() => { setCurrentPage(1); }, [dateFilter, nameFilter, voucherTypeFilter, statusFilter]);
+
+  // ── Infinite Scroll ──
+  const loadMoreData = useCallback(() => {
+    if (!loadingMore && hasMoreData && useInfiniteScrollMode) {
+      setCurrentPage(prev => (prev + 1 <= totalPages ? prev + 1 : prev));
+    }
+  }, [loadingMore, hasMoreData, useInfiniteScrollMode, totalPages]);
+
+  useEffect(() => {
+    if (!useInfiniteScrollMode || loading || loadingMore || !hasMoreData) return;
+    const observer = new IntersectionObserver(
+      entries => { if (entries[0].isIntersecting) loadMoreData(); },
+      { rootMargin: '100px' }
+    );
+    if (sentinelRef.current) observer.observe(sentinelRef.current);
+    return () => observer.disconnect();
+  }, [useInfiniteScrollMode, loading, loadingMore, hasMoreData, loadMoreData]);
+
+  // ── Back to Top ──
+  useEffect(() => {
+    const onScroll = () => setShowBackToTop(window.scrollY > 400);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  // ── Reset Filters ──
+  const handleResetFilters = () => {
+    setDateFilter({
+      from_date: formatDate(new Date(Date.now() - 86400000)),
+      to_date: formatDate(new Date()),
+    });
+    setNameFilter('');
+    setVoucherTypeFilter('');
+    setStatusFilter('');
+    setCurrentPage(1);
   };
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <div className="text-lg">Loading...</div>
+  // ── Skeleton ──
+  const SkeletonCard = () => (
+    <li className="px-4 py-4 border-b border-gray-100">
+      <div className="space-y-3 animate-pulse">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1">
+            <div className="h-4 bg-gray-200 rounded w-3/4" />
+            <div className="h-3 bg-gray-200 rounded w-1/2 mt-2" />
+          </div>
+          <div className="h-5 bg-gray-200 rounded w-16" />
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="h-3 bg-gray-200 rounded" />
+          <div className="h-3 bg-gray-200 rounded" />
+        </div>
+        <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+          <div className="h-4 bg-gray-200 rounded w-32" />
+          <div className="h-4 bg-gray-200 rounded w-32" />
+        </div>
       </div>
-    );
+    </li>
+  );
+
+  if (loading && entries.length === 0) {
+    return <LoadingSpinner message="Memuat Jurnal Umum..." />;
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Jurnal Umum</h1>
-      </div>
-
-      <div className="bg-white shadow rounded-lg p-4 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Dari Tanggal
-            </label>
-            <input
-              type="date"
-              className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              value={dateFilter.from_date}
-              onChange={(e) => setDateFilter({ ...dateFilter, from_date: e.target.value })}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Sampai Tanggal
-            </label>
-            <input
-              type="date"
-              className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              value={dateFilter.to_date}
-              onChange={(e) => setDateFilter({ ...dateFilter, to_date: e.target.value })}
-            />
-          </div>
-          <div className="flex items-end">
-            <button
-              onClick={() => setDateFilter({ 
-                from_date: new Date(Date.now() - 86400000).toISOString().split('T')[0],
-                to_date: new Date().toISOString().split('T')[0]
-              })}
-              className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400"
-            >
-              Reset Filter
-            </button>
-          </div>
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-white border-b border-gray-200 px-4 py-4 sm:px-6 lg:px-8 sticky top-0 z-30">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <h1 className="text-2xl font-bold text-gray-900">Jurnal Umum</h1>
+          <button
+            onClick={() => router.push('/finance/journal/new')}
+            className="inline-flex items-center justify-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 min-h-[44px]"
+          >
+            + Buat Jurnal
+          </button>
         </div>
       </div>
 
+      {/* Filters */}
+      <div className="bg-white border-b border-gray-200 px-4 py-4 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Cari Nama</label>
+            <input
+              type="text"
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="Nama jurnal..."
+              value={nameFilter}
+              onChange={e => setNameFilter(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Tipe Voucher</label>
+            <select
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              value={voucherTypeFilter}
+              onChange={e => setVoucherTypeFilter(e.target.value)}
+            >
+              <option value="">Semua Tipe</option>
+              <option value="Journal Entry">Journal Entry</option>
+              <option value="Opening Entry">Opening Entry</option>
+              <option value="Bank Entry">Bank Entry</option>
+              <option value="Cash Entry">Cash Entry</option>
+              <option value="Credit Card Entry">Credit Card Entry</option>
+              <option value="Debit Note">Debit Note</option>
+              <option value="Credit Note">Credit Note</option>
+              <option value="Contra Entry">Contra Entry</option>
+              <option value="Excise Entry">Excise Entry</option>
+              <option value="Write Off">Write Off</option>
+              <option value="Depreciation">Depreciation</option>
+              <option value="Exchange Rate Revaluation">Exchange Rate Revaluation</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Status</label>
+            <select
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              value={statusFilter}
+              onChange={e => setStatusFilter(e.target.value)}
+            >
+              <option value="">Semua Status</option>
+              <option value="Draft">Draft</option>
+              <option value="Submitted">Submitted</option>
+              <option value="Cancelled">Cancelled</option>
+            </select>
+          </div>
+
+          {(['from_date', 'to_date'] as const).map(key => (
+            <div key={key}>
+              <label className="block text-xs font-medium text-gray-500 mb-1">
+                {key === 'from_date' ? 'Dari Tanggal' : 'Sampai Tanggal'}
+              </label>
+              <BrowserStyleDatePicker
+                value={dateFilter[key]}
+                onChange={(value: string) => setDateFilter({ ...dateFilter, [key]: value })}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="DD/MM/YYYY"
+              />
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-3 flex justify-end">
+          <button
+            onClick={handleResetFilters}
+            className="text-sm text-gray-600 hover:text-gray-900 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+          >
+            ⟲ Reset Filter
+          </button>
+        </div>
+      </div>
+
+      {/* Error */}
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-          {error}
+        <div className="px-4 py-3 sm:px-6 lg:px-8">
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{error}</div>
         </div>
       )}
 
-      <div className="bg-white shadow overflow-hidden sm:rounded-md">
-        <ul className="divide-y divide-gray-200">
-          {journalEntries.map((entry) => (
-            <li key={entry.name}>
-              <div className="px-4 py-4 sm:px-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-indigo-600 truncate">
-                      {entry.name}
-                    </p>
-                    <p className="mt-1 text-sm text-gray-900">
-                      Tipe: {entry.voucher_type}
-                    </p>
-                    {entry.user_remark && (
-                      <p className="mt-1 text-sm text-gray-500">
-                        Catatan: {entry.user_remark}
-                      </p>
-                    )}
-                  </div>
-                  <div className="ml-4 flex-shrink-0">
-                    <span
-                      className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        entry.status === 'Submitted'
-                          ? 'bg-green-100 text-green-800'
-                          : entry.status === 'Draft'
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}
-                    >
-                      {entry.status}
-                    </span>
-                  </div>
-                </div>
-                <div className="mt-2 sm:flex sm:justify-between">
-                  <div className="sm:flex">
-                    <p className="flex items-center text-sm text-gray-500">
-                      Tanggal: {entry.posting_date}
-                    </p>
-                  </div>
-                  <div className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">
-                    <span className="text-red-600 font-medium">
-                      Debit: Rp {entry.total_debit.toLocaleString('id-ID')}
-                    </span>
-                    <span className="ml-4 text-green-600 font-medium">
-                      Credit: Rp {entry.total_credit.toLocaleString('id-ID')}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </li>
-          ))}
-        </ul>
-        {journalEntries.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-gray-500">Tidak ada jurnal ditemukan</p>
+      {/* List */}
+      <div className="px-4 py-4 sm:px-6 lg:px-8">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+
+          {/* Progress */}
+          <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 text-xs text-gray-600">
+            <span className="font-medium">{entries.length}</span> dari{' '}
+            <span className="font-medium">{totalRecords}</span> data
+            {useInfiniteScrollMode && hasMoreData && (
+              <span className="ml-2 text-indigo-600">• Scroll untuk load lebih banyak</span>
+            )}
           </div>
-        )}
+
+          {/* Table Header - Desktop */}
+          {!isMobile && entries.length > 0 && (
+            <div className="hidden sm:flex items-center px-4 py-3 bg-gray-50 border-b border-gray-200 text-xs font-medium text-gray-500 uppercase">
+              <div className="flex-1 grid grid-cols-12 gap-4">
+                <div className="col-span-3">Nama / Tipe</div>
+                <div className="col-span-2">Tanggal</div>
+                <div className="col-span-3">Catatan</div>
+                <div className="col-span-2 text-right">Debit / Credit</div>
+                <div className="col-span-2">Status</div>
+              </div>
+            </div>
+          )}
+
+          {/* Items */}
+          <ul className="divide-y divide-gray-100">
+            {entries.map(entry => (
+              <li
+                key={entry.name}
+                onClick={() => router.push(`/finance/journal/${entry.name}`)}
+                className="cursor-pointer hover:bg-indigo-50/50 transition-colors"
+              >
+                <div className="px-4 py-4">
+                  {isMobile ? (
+                    // ── Mobile Card ──
+                    <div className="space-y-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-indigo-600 truncate">{entry.name}</p>
+                          <p className="text-xs text-gray-500 mt-0.5">{entry.voucher_type}</p>
+                        </div>
+                        <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full border ${getStatusBadgeClass(entry.status)}`}>
+                          {entry.status}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-xs text-gray-500">
+                        <div>📅 {entry.posting_date}</div>
+                        {entry.user_remark && (
+                          <div className="truncate col-span-2">📝 {entry.user_remark}</div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2 border-t border-gray-100 text-sm font-semibold">
+                        <span className="text-red-600">D: {formatCurrency(entry.total_debit)}</span>
+                        <span className="text-green-600">C: {formatCurrency(entry.total_credit)}</span>
+                      </div>
+                    </div>
+                  ) : (
+                    // ── Desktop Row ──
+                    <div className="grid grid-cols-12 gap-4 items-center">
+                      <div className="col-span-3 min-w-0">
+                        <p className="text-sm font-semibold text-indigo-600 truncate">{entry.name}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">{entry.voucher_type}</p>
+                      </div>
+                      <div className="col-span-2">
+                        <p className="text-sm text-gray-900">{entry.posting_date}</p>
+                        <p className="text-xs text-gray-500">Posting</p>
+                      </div>
+                      <div className="col-span-3 min-w-0">
+                        {entry.user_remark ? (
+                          <p className="text-sm text-gray-600 truncate">{entry.user_remark}</p>
+                        ) : (
+                          <p className="text-sm text-gray-300 italic">—</p>
+                        )}
+                      </div>
+                      <div className="col-span-2 text-right">
+                        <p className="text-sm font-semibold text-red-600">{formatCurrency(entry.total_debit)}</p>
+                        <p className="text-xs font-medium text-green-600">{formatCurrency(entry.total_credit)}</p>
+                      </div>
+                      <div className="col-span-2">
+                        <span className={`inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full border ${getStatusBadgeClass(entry.status)}`}>
+                          {entry.status}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </li>
+            ))}
+
+            {/* Skeleton saat loading more */}
+            {loadingMore && useInfiniteScrollMode && (
+              <><SkeletonCard /><SkeletonCard /><SkeletonCard /></>
+            )}
+
+            {/* Sentinel infinite scroll */}
+            {useInfiniteScrollMode && hasMoreData && (
+              <div ref={sentinelRef} className="h-10" />
+            )}
+          </ul>
+
+          {/* Empty State */}
+          {entries.length === 0 && !loading && (
+            <div className="text-center py-16 px-4">
+              <FileText className="mx-auto h-12 w-12 text-gray-300" />
+              <p className="mt-4 text-sm text-gray-500">Tidak ada jurnal yang ditemukan</p>
+              <button
+                onClick={() => router.push('/finance/journal/new')}
+                className="mt-4 inline-flex items-center px-4 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100"
+              >
+                + Buat Jurnal Baru
+              </button>
+            </div>
+          )}
+
+          {/* Load More Button (Mobile fallback) */}
+          {useInfiniteScrollMode && hasMoreData && !loadingMore && entries.length > 0 && (
+            <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 text-center">
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors"
+              >
+                <Loader2 className="h-4 w-4" />
+                Load More ({totalRecords - entries.length} remaining)
+              </button>
+            </div>
+          )}
+
+          {/* Loading More */}
+          {loadingMore && (
+            <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 text-center">
+              <div className="inline-flex items-center gap-2 text-sm text-gray-600">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Memuat data...
+              </div>
+            </div>
+          )}
+
+          {/* End of Data */}
+          {!hasMoreData && entries.length > 0 && (
+            <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 text-center text-xs text-gray-500">
+              ✓ Semua data telah dimuat
+            </div>
+          )}
+
+          {/* Pagination Desktop */}
+          {!useInfiniteScrollMode && totalPages > 1 && (
+            <div className="px-4 py-3 bg-gray-50 border-t border-gray-200">
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalRecords={totalRecords}
+                pageSize={pageSize}
+                onPageChange={setCurrentPage}
+              />
+            </div>
+          )}
+        </div>
+
+        <p className="mt-3 text-xs text-gray-500 text-center">
+          Halaman {currentPage} dari {totalPages} •{' '}
+          {isMobile ? 'Scroll untuk load lebih banyak' : 'Gunakan pagination untuk navigasi'}
+        </p>
       </div>
+
+      {/* Back to Top */}
+      {showBackToTop && (
+        <button
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          className="fixed bottom-6 right-6 z-50 inline-flex items-center justify-center w-12 h-12 bg-indigo-600 text-white rounded-full shadow-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-all transform hover:scale-105"
+          title="Back to top"
+          aria-label="Back to top"
+        >
+          <ArrowUp className="h-5 w-5" />
+        </button>
+      )}
     </div>
   );
 }

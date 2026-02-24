@@ -88,20 +88,20 @@ export default function StockEntryMain() {
 
   const fetchEntryDetails = async (name: string) => {
     try {
-      console.log('Fetching entry details for:', name);
+      // console.log('Fetching entry details for:', name);
       const response = await fetch(`/api/inventory/stock-entry/${encodeURIComponent(name)}`);
       const data = await response.json();
       
-      console.log('Entry details response:', {
-        status: response.status,
-        success: data.success,
-        data: data.data
-      });
+      // console.log('Entry details response:', {
+      //   status: response.status,
+      //   success: data.success,
+      //   data: data.data
+      // });
       
       if (data.success && data.data) {
         const entry = data.data;
-        console.log('Setting entry data:', entry);
-        console.log('Entry items:', entry.items);
+        // console.log('Setting entry data:', entry);
+        // console.log('Entry items:', entry.items);
         setNewEntry(prev => {
           const updated = {
             ...prev,
@@ -117,7 +117,7 @@ export default function StockEntryMain() {
               qty: item.qty || 1
             })) || [{ item_code: '', item_name: '', qty: 1 }]
           };
-          console.log('Updated newEntry state:', updated);
+          // console.log('Updated newEntry state:', updated);
           return updated;
         });
       } else {

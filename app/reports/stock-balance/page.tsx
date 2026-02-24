@@ -188,9 +188,9 @@ export default function StockBalancePage() {
         <PrintPreviewModal
           title={`Stok per Gudang — ${selectedCompany}`}
           onClose={() => setShowPrintPreview(false)}
+          paperMode="sheet"
           printUrl={printUrl}
           useContentFrame={false}
-          allowPaperSettings={false}
         >
           <iframe
             src={printUrl}

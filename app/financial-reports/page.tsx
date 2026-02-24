@@ -355,7 +355,11 @@ export default function FinancialReportsPage() {
       </div>
 
       {showPrint && (
-        <PrintPreviewModal title={`${tabLabel} — ${company}`} onClose={() => setShowPrint(false)}>
+        <PrintPreviewModal 
+          title={`${tabLabel} — ${company}`} 
+          onClose={() => setShowPrint(false)}
+          paperMode="sheet"
+        >
           <>
             <style>{`
               .fin-print table { table-layout: auto !important; width: 100%; border-collapse: collapse; margin-bottom: 8px; }

@@ -5,6 +5,8 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 import PaymentCustomerDialog from '../../components/PaymentCustomerDialog';
 import PaymentSupplierDialog from '../../components/PaymentSupplierDialog';
 import CurrencyInput from '../../components/CurrencyInput';
+import PrintPreviewModal from '../../../components/print/PrintPreviewModal';
+import PaymentPrint from '../../../components/print/PaymentPrint';
 
 interface SalesInvoice {
   name: string;
@@ -76,6 +78,7 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
   const [isEditMode, setIsEditMode] = useState(false);
   const isEditModeRef = useRef(false);
   const [editingPaymentId, setEditingPaymentId] = useState('');
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
   const createdDocName = useRef<string | null>(null);
   const isSubmittingRef = useRef(false);
   const [outstandingInvoices, setOutstandingInvoices] = useState<SalesInvoice[]>([]);
@@ -896,6 +899,18 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
             {editPayment ? (formData.payment_type === 'Receive' ? 'Edit Penerimaan' : 'Edit Pembayaran') : (formData.payment_type === 'Receive' ? 'Buat Penerimaan Baru' : 'Buat Pembayaran Baru')}
           </h1>
         </div>
+        {editPayment && editingPaymentId && (
+          <button
+            type="button"
+            onClick={() => setShowPrintPreview(true)}
+            className="bg-emerald-600 text-white px-4 py-2 rounded-md hover:bg-emerald-700 flex items-center gap-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+            </svg>
+            Print
+          </button>
+        )}
       </div>
 
       {/* Success Message */}
@@ -1754,6 +1769,40 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
         onSelect={handleSupplierSelect}
         company={selectedCompany}
       />
+
+      {/* Print Preview Modal */}
+      {showPrintPreview && editPayment && editingPaymentId && (
+        <PrintPreviewModal
+          title={`Payment - ${editingPaymentId}`}
+          onClose={() => setShowPrintPreview(false)}
+          paperMode="continuous"
+        >
+          <PaymentPrint
+            data={{
+              name: editingPaymentId,
+              posting_date: formData.posting_date,
+              docstatus: editingPaymentStatus === 'Submitted' ? 1 : 0,
+              payment_type: formData.payment_type,
+              party_type: formData.party_type,
+              party: formData.party,
+              party_name: formData.party_type === 'Customer' ? selectedCustomerName : selectedSupplierName,
+              mode_of_payment: formData.mode_of_payment,
+              paid_from: formData.paid_from,
+              paid_to: formData.paid_to,
+              paid_amount: formData.paid_amount,
+              received_amount: formData.received_amount,
+              status: editingPaymentStatus,
+              references: formData.selected_invoices?.map(inv => ({
+                reference_doctype: formData.payment_type === 'Receive' ? 'Sales Invoice' : 'Purchase Invoice',
+                reference_name: inv.name,
+                allocated_amount: inv.allocated_amount || 0,
+              })),
+              remarks: formData.custom_notes_payment,
+            }}
+            companyName={selectedCompany}
+          />
+        </PrintPreviewModal>
+      )}
     </div>
   );
 }
