@@ -1,10 +1,27 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import Pagination from '../../components/Pagination';
 import PrintPreviewModal from '../../../components/PrintPreviewModal';
 import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
+
+// ─────────────────────────────────────────────────────────────
+// Hook: Deteksi mobile (breakpoint 768px)
+// ─────────────────────────────────────────────────────────────
+function useIsMobile(breakpoint = 768) {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < breakpoint);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, [breakpoint]);
+
+  return isMobile;
+}
 
 interface MarginItem {
   item_code: string;
@@ -18,6 +35,13 @@ interface MarginItem {
 }
 
 export default function MarginAnalysisPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const isMobile = useIsMobile(768);
+  
+  // ✅ Responsive pageSize
+  const pageSize = isMobile ? 10 : 20;
+  
   const [data, setData] = useState<MarginItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -35,12 +59,43 @@ export default function MarginAnalysisPage() {
     return { from_date: formatDate(firstDay), to_date: formatDate(today) };
   });
   const [currentPage, setCurrentPage] = useState(1);
-  const PAGE_SIZE = 20;
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
+
+  // ✅ FIX: Track pagination change source to prevent race conditions
+  const pageChangeSourceRef = useRef<'pagination' | 'filter' | 'init'>('init');
 
   useEffect(() => {
     const saved = localStorage.getItem('selected_company');
     if (saved) setSelectedCompany(saved);
   }, []);
+
+  // ✅ Sync URL dengan page state
+  useEffect(() => {
+    const pageFromUrl = searchParams.get('page');
+    if (pageFromUrl && !isNaN(parseInt(pageFromUrl))) {
+      const pageNum = parseInt(pageFromUrl);
+      if (pageNum >= 1) setCurrentPage(pageNum);
+    }
+  }, [searchParams]);
+
+  // ✅ Update URL with debounce to prevent throttling
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const timeoutId = setTimeout(() => {
+      const newParams = new URLSearchParams(searchParams.toString());
+      if (currentPage > 1) {
+        newParams.set('page', currentPage.toString());
+      } else {
+        newParams.delete('page');
+      }
+      const newUrl = `${window.location.pathname}${newParams.toString() ? `?${newParams.toString()}` : ''}`;
+      window.history.replaceState({}, '', newUrl);
+    }, 100); // Debounce 100ms
+
+    return () => clearTimeout(timeoutId);
+  }, [currentPage, searchParams]);
 
   const fetchData = useCallback(async () => {
     if (!selectedCompany) return;
@@ -71,14 +126,46 @@ export default function MarginAnalysisPage() {
     if (selectedCompany) fetchData();
   }, [selectedCompany, fetchData]);
 
+  // ✅ Reset page when filters change
+  useEffect(() => {
+    pageChangeSourceRef.current = 'filter';
+    setCurrentPage(1);
+  }, [dateFilter]);
+
+  // ✅ Fetch on page change
+  useEffect(() => {
+    if (selectedCompany) {
+      fetchData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage]);
+
+  // ✅ Trigger fetch on filter change (after reset)
+  useEffect(() => {
+    if (pageChangeSourceRef.current === 'filter' && selectedCompany) {
+      fetchData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateFilter]);
+
   const paginatedData = useMemo(() => {
-    const start = (currentPage - 1) * PAGE_SIZE;
-    return data.slice(start, start + PAGE_SIZE);
-  }, [data, currentPage]);
+    const start = (currentPage - 1) * pageSize;
+    const paginated = data.slice(start, start + pageSize);
+    setTotalRecords(data.length);
+    setTotalPages(Math.ceil(data.length / pageSize));
+    return paginated;
+  }, [data, currentPage, pageSize]);
 
   const negativeMargins = data.filter(item => item.margin_pct < 0).length;
   const thinMargins = data.filter(item => item.margin_pct >= 0 && item.margin_pct < 10).length;
   const printUrl = `/reports/margin-analysis/print?company=${selectedCompany}&from_date=${dateFilter.from_date}&to_date=${dateFilter.to_date}`;
+
+  // ✅ handlePageChange callback
+  const handlePageChange = useCallback((page: number) => {
+    pageChangeSourceRef.current = 'pagination';
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
 
   if (loading) return <LoadingSpinner message="Memuat analisa margin..." />;
 
@@ -142,37 +229,103 @@ export default function MarginAnalysisPage() {
 
       <div className="bg-white shadow rounded-lg overflow-hidden">
         <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
-          <h3 className="text-sm font-medium text-gray-900">Analisa Margin <span className="ml-2 px-2 py-1 bg-indigo-100 text-indigo-700 text-xs rounded-full">{data.length} item</span></h3>
+          <h3 className="text-sm font-medium text-gray-900">
+            Analisa Margin 
+            <span className="ml-2 px-2 py-1 bg-indigo-100 text-indigo-700 text-xs rounded-full">{totalRecords} item</span>
+          </h3>
         </div>
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kode Item</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nama Item</th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Avg Beli</th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Avg Jual</th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Margin/Unit</th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Margin %</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+        
+        {/* Desktop Table */}
+        {!isMobile ? (
+          <>
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kode Item</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nama Item</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Avg Beli</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Avg Jual</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Margin/Unit</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Margin %</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {paginatedData.length === 0 ? (
+                  <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-500">Tidak ada data margin</td></tr>
+                ) : (
+                  paginatedData.map((item, i) => (
+                    <tr key={i} className={`hover:bg-gray-50 ${item.margin_pct < 0 ? 'bg-red-50' : item.margin_pct < 10 ? 'bg-yellow-50' : ''}`}>
+                      <td className="px-4 py-3 text-sm font-medium text-indigo-600">{item.item_code}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900">{item.item_name}</td>
+                      <td className="px-4 py-3 text-sm text-right text-gray-900">Rp {item.avg_buy_price.toLocaleString('id-ID', {maximumFractionDigits:0})}</td>
+                      <td className="px-4 py-3 text-sm text-right text-gray-900">Rp {item.avg_sell_price.toLocaleString('id-ID', {maximumFractionDigits:0})}</td>
+                      <td className="px-4 py-3 text-sm text-right font-medium text-gray-900">Rp {item.margin_per_unit.toLocaleString('id-ID', {maximumFractionDigits:0})}</td>
+                      <td className={`px-4 py-3 text-sm text-right font-bold ${item.margin_pct < 0 ? 'text-red-600' : item.margin_pct < 10 ? 'text-yellow-600' : 'text-green-600'}`}>{item.margin_pct.toFixed(1)}%</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </>
+        ) : (
+          /* Mobile Cards */
+          <div className="divide-y divide-gray-200">
             {paginatedData.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-500">Tidak ada data margin</td></tr>
+              <div className="px-4 py-8 text-center text-gray-500">Tidak ada data margin</div>
             ) : (
               paginatedData.map((item, i) => (
-                <tr key={i} className={`hover:bg-gray-50 ${item.margin_pct < 0 ? 'bg-red-50' : item.margin_pct < 10 ? 'bg-yellow-50' : ''}`}>
-                  <td className="px-4 py-3 text-sm font-medium text-indigo-600">{item.item_code}</td>
-                  <td className="px-4 py-3 text-sm text-gray-900">{item.item_name}</td>
-                  <td className="px-4 py-3 text-sm text-right text-gray-900">Rp {item.avg_buy_price.toLocaleString('id-ID', {maximumFractionDigits:0})}</td>
-                  <td className="px-4 py-3 text-sm text-right text-gray-900">Rp {item.avg_sell_price.toLocaleString('id-ID', {maximumFractionDigits:0})}</td>
-                  <td className="px-4 py-3 text-sm text-right font-medium text-gray-900">Rp {item.margin_per_unit.toLocaleString('id-ID', {maximumFractionDigits:0})}</td>
-                  <td className={`px-4 py-3 text-sm text-right font-bold ${item.margin_pct < 0 ? 'text-red-600' : item.margin_pct < 10 ? 'text-yellow-600' : 'text-green-600'}`}>{item.margin_pct.toFixed(1)}%</td>
-                </tr>
+                <div key={i} className={`px-4 py-4 hover:bg-gray-50 ${item.margin_pct < 0 ? 'bg-red-50' : item.margin_pct < 10 ? 'bg-yellow-50' : ''}`}>
+                  <div className="space-y-3">
+                    {/* Row 1: Item Code + Margin % Badge */}
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-indigo-600 truncate">{item.item_code}</p>
+                        <p className="text-sm text-gray-900 mt-1">{item.item_name}</p>
+                      </div>
+                      <span className={`ml-2 inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border ${
+                        item.margin_pct < 0 
+                          ? 'bg-red-100 text-red-700 border-red-200' 
+                          : item.margin_pct < 10 
+                            ? 'bg-yellow-100 text-yellow-700 border-yellow-200' 
+                            : 'bg-green-100 text-green-700 border-green-200'
+                      }`}>
+                        {item.margin_pct.toFixed(1)}%
+                      </span>
+                    </div>
+                    
+                    {/* Row 2: Prices Grid */}
+                    <div className="grid grid-cols-2 gap-3 pt-2 border-t border-gray-100">
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Avg Beli</p>
+                        <p className="text-sm font-semibold text-gray-900">Rp {item.avg_buy_price.toLocaleString('id-ID', {maximumFractionDigits:0})}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Avg Jual</p>
+                        <p className="text-sm font-semibold text-gray-900">Rp {item.avg_sell_price.toLocaleString('id-ID', {maximumFractionDigits:0})}</p>
+                      </div>
+                    </div>
+                    
+                    {/* Row 3: Margin per Unit */}
+                    <div className="pt-2 border-t border-gray-100">
+                      <p className="text-xs text-gray-500 mb-1">Margin per Unit</p>
+                      <p className="text-base font-bold text-indigo-600">
+                        Rp {item.margin_per_unit.toLocaleString('id-ID', {maximumFractionDigits:0})}
+                      </p>
+                    </div>
+                  </div>
+                </div>
               ))
             )}
-          </tbody>
-        </table>
-        <Pagination currentPage={currentPage} totalPages={Math.ceil(data.length / PAGE_SIZE)} totalRecords={data.length} pageSize={PAGE_SIZE} onPageChange={setCurrentPage} />
+          </div>
+        )}
+        
+        <Pagination 
+          currentPage={currentPage} 
+          totalPages={totalPages} 
+          totalRecords={totalRecords} 
+          pageSize={pageSize} 
+          onPageChange={handlePageChange} 
+        />
       </div>
     </div>
   );

@@ -1,12 +1,36 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import Pagination from '../../components/Pagination';
 import PrintPreviewModal from '../../../components/PrintPreviewModal';
 import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
 
+// ─────────────────────────────────────────────────────────────
+// Hook: Deteksi mobile (breakpoint 768px)
+// ─────────────────────────────────────────────────────────────
+function useIsMobile(breakpoint = 768) {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < breakpoint);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, [breakpoint]);
+
+  return isMobile;
+}
+
 export default function StockAdjustmentPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const isMobile = useIsMobile(768);
+  
+  // ✅ Responsive pageSize
+  const pageSize = isMobile ? 10 : 20;
+  
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -24,12 +48,43 @@ export default function StockAdjustmentPage() {
     return { from_date: formatDate(firstDay), to_date: formatDate(today) };
   });
   const [currentPage, setCurrentPage] = useState(1);
-  const PAGE_SIZE = 20;
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
+
+  // ✅ FIX: Track pagination change source to prevent race conditions
+  const pageChangeSourceRef = useRef<'pagination' | 'filter' | 'init'>('init');
 
   useEffect(() => {
     const saved = localStorage.getItem('selected_company');
     if (saved) setSelectedCompany(saved);
   }, []);
+
+  // ✅ Sync URL dengan page state
+  useEffect(() => {
+    const pageFromUrl = searchParams.get('page');
+    if (pageFromUrl && !isNaN(parseInt(pageFromUrl))) {
+      const pageNum = parseInt(pageFromUrl);
+      if (pageNum >= 1) setCurrentPage(pageNum);
+    }
+  }, [searchParams]);
+
+  // ✅ Update URL with debounce to prevent throttling
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const timeoutId = setTimeout(() => {
+      const newParams = new URLSearchParams(searchParams.toString());
+      if (currentPage > 1) {
+        newParams.set('page', currentPage.toString());
+      } else {
+        newParams.delete('page');
+      }
+      const newUrl = `${window.location.pathname}${newParams.toString() ? `?${newParams.toString()}` : ''}`;
+      window.history.replaceState({}, '', newUrl);
+    }, 100); // Debounce 100ms
+
+    return () => clearTimeout(timeoutId);
+  }, [currentPage, searchParams]);
 
   const fetchData = useCallback(async () => {
     if (!selectedCompany) return;
@@ -60,13 +115,45 @@ export default function StockAdjustmentPage() {
     if (selectedCompany) fetchData();
   }, [selectedCompany, fetchData]);
 
+  // ✅ Reset page when filters change
+  useEffect(() => {
+    pageChangeSourceRef.current = 'filter';
+    setCurrentPage(1);
+  }, [dateFilter]);
+
+  // ✅ Fetch on page change
+  useEffect(() => {
+    if (selectedCompany) {
+      fetchData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage]);
+
+  // ✅ Trigger fetch on filter change (after reset)
+  useEffect(() => {
+    if (pageChangeSourceRef.current === 'filter' && selectedCompany) {
+      fetchData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateFilter]);
+
   const paginatedData = useMemo(() => {
-    const start = (currentPage - 1) * PAGE_SIZE;
-    return data.slice(start, start + PAGE_SIZE);
-  }, [data, currentPage]);
+    const start = (currentPage - 1) * pageSize;
+    const paginated = data.slice(start, start + pageSize);
+    setTotalRecords(data.length);
+    setTotalPages(Math.ceil(data.length / pageSize));
+    return paginated;
+  }, [data, currentPage, pageSize]);
 
   const totalAmount = data.reduce((sum, e) => sum + (e.total_amount || 0), 0);
   const printUrl = `/reports/stock-adjustment/print?company=${selectedCompany}&from_date=${dateFilter.from_date}&to_date=${dateFilter.to_date}`;
+
+  // ✅ handlePageChange callback
+  const handlePageChange = useCallback((page: number) => {
+    pageChangeSourceRef.current = 'pagination';
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
 
   if (loading) return <LoadingSpinner message="Memuat penyesuaian stok..." />;
 
@@ -142,37 +229,93 @@ export default function StockAdjustmentPage() {
 
       <div className="bg-white shadow rounded-lg overflow-hidden">
         <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
-          <h3 className="text-sm font-medium text-gray-900">Penyesuaian Stok <span className="ml-2 px-2 py-1 bg-indigo-100 text-indigo-700 text-xs rounded-full">{data.length} entri</span></h3>
+          <h3 className="text-sm font-medium text-gray-900">
+            Penyesuaian Stok 
+            <span className="ml-2 px-2 py-1 bg-indigo-100 text-indigo-700 text-xs rounded-full">{totalRecords} entri</span>
+          </h3>
         </div>
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tanggal</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">No. Transaksi</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tujuan</th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total Nilai</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Keterangan</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+        
+        {/* Desktop Table */}
+        {!isMobile ? (
+          <>
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tanggal</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">No. Transaksi</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tujuan</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total Nilai</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Keterangan</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {paginatedData.length === 0 ? (
+                  <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-500">Tidak ada penyesuaian stok</td></tr>
+                ) : (
+                  paginatedData.map((entry, i) => (
+                    <tr key={i} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-sm text-gray-900">{entry.posting_date}</td>
+                      <td className="px-4 py-3 text-sm font-medium text-indigo-600">{entry.name}</td>
+                      <td className="px-4 py-3 text-sm text-gray-700">
+                        <span className="px-2 py-1 bg-gray-100 text-gray-800 text-xs rounded">{entry.purpose}</span>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-right font-semibold text-gray-900">Rp {(entry.total_amount || 0).toLocaleString('id-ID')}</td>
+                      <td className="px-4 py-3 text-sm text-gray-500">{entry.remarks || '-'}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </>
+        ) : (
+          /* Mobile Cards */
+          <div className="divide-y divide-gray-200">
             {paginatedData.length === 0 ? (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-500">Tidak ada penyesuaian stok</td></tr>
+              <div className="px-4 py-8 text-center text-gray-500">Tidak ada penyesuaian stok</div>
             ) : (
               paginatedData.map((entry, i) => (
-                <tr key={i} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-sm text-gray-900">{entry.posting_date}</td>
-                  <td className="px-4 py-3 text-sm font-medium text-indigo-600">{entry.name}</td>
-                  <td className="px-4 py-3 text-sm text-gray-700">
-                    <span className="px-2 py-1 bg-gray-100 text-gray-800 text-xs rounded">{entry.purpose}</span>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-right font-semibold text-gray-900">Rp {(entry.total_amount || 0).toLocaleString('id-ID')}</td>
-                  <td className="px-4 py-3 text-sm text-gray-500">{entry.remarks || '-'}</td>
-                </tr>
+                <div key={i} className="px-4 py-4 hover:bg-gray-50">
+                  <div className="space-y-3">
+                    {/* Row 1: Transaction No + Date */}
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-indigo-600 truncate">{entry.name}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">📅 {entry.posting_date}</p>
+                      </div>
+                      <span className="ml-2 px-2 py-1 bg-gray-100 text-gray-800 text-xs rounded shrink-0">
+                        {entry.purpose}
+                      </span>
+                    </div>
+                    
+                    {/* Row 2: Total Amount */}
+                    <div className="pt-2 border-t border-gray-100">
+                      <p className="text-xs text-gray-500 mb-1">Total Nilai</p>
+                      <p className="text-base font-bold text-indigo-600">
+                        Rp {(entry.total_amount || 0).toLocaleString('id-ID')}
+                      </p>
+                    </div>
+                    
+                    {/* Row 3: Remarks */}
+                    {entry.remarks && (
+                      <div className="pt-2 border-t border-gray-100">
+                        <p className="text-xs text-gray-500 mb-1">Keterangan</p>
+                        <p className="text-sm text-gray-700">{entry.remarks}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
               ))
             )}
-          </tbody>
-        </table>
-        <Pagination currentPage={currentPage} totalPages={Math.ceil(data.length / PAGE_SIZE)} totalRecords={data.length} pageSize={PAGE_SIZE} onPageChange={setCurrentPage} />
+          </div>
+        )}
+        
+        <Pagination 
+          currentPage={currentPage} 
+          totalPages={totalPages} 
+          totalRecords={totalRecords} 
+          pageSize={pageSize} 
+          onPageChange={handlePageChange} 
+        />
       </div>
     </div>
   );

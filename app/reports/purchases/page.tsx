@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import Pagination from '../../components/Pagination';
 import PrintPreviewModal from '../../../components/PrintPreviewModal';
@@ -25,7 +26,25 @@ const STATUS_OPTIONS = [
   { value: 'Cancelled', label: 'Cancelled' },
 ];
 
+// Hook: Deteksi mobile (breakpoint 768px)
+function useIsMobile(breakpoint = 768) {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < breakpoint);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, [breakpoint]);
+
+  return isMobile;
+}
+
 export default function PurchaseReportPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const isMobile = useIsMobile(768);
+  const pageSize = isMobile ? 10 : 20;
   const [data, setData] = useState<PurchaseEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -38,7 +57,11 @@ export default function PurchaseReportPage() {
   
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const PAGE_SIZE = 20;
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
+
+  // ✅ FIX: Track pagination change source to prevent race conditions
+  const pageChangeSourceRef = useRef<'pagination' | 'filter' | 'init'>('init');
 
   // Helper to convert YYYY-MM-DD to DD/MM/YYYY
   const formatToDDMMYYYY = (dateStr: string) => {
@@ -64,6 +87,33 @@ export default function PurchaseReportPage() {
     setToDate(formatToDDMMYYYY(today.toISOString().split('T')[0]));
   }, []);
 
+  // Sync URL dengan page state
+  useEffect(() => {
+    const pageFromUrl = searchParams.get('page');
+    if (pageFromUrl && !isNaN(parseInt(pageFromUrl))) {
+      const pageNum = parseInt(pageFromUrl);
+      if (pageNum >= 1) setCurrentPage(pageNum);
+    }
+  }, [searchParams]);
+
+  // Update URL with debounce to prevent throttling
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const timeoutId = setTimeout(() => {
+      const newParams = new URLSearchParams(searchParams.toString());
+      if (currentPage > 1) {
+        newParams.set('page', currentPage.toString());
+      } else {
+        newParams.delete('page');
+      }
+      const newUrl = `${window.location.pathname}${newParams.toString() ? `?${newParams.toString()}` : ''}`;
+      window.history.replaceState({}, '', newUrl);
+    }, 100); // Debounce 100ms
+
+    return () => clearTimeout(timeoutId);
+  }, [currentPage, searchParams]);
+
   const fetchData = useCallback(async () => {
     if (!selectedCompany) return;
     setLoading(true);
@@ -77,43 +127,73 @@ export default function PurchaseReportPage() {
       const response = await fetch(`/api/finance/reports/purchases?${params}`, { credentials: 'include' });
       const result = await response.json();
       if (result.success) {
-        setData(result.data || []);
+        let allData = result.data || [];
+        
+        // Apply frontend filters
+        if (searchTerm) {
+          allData = allData.filter((entry: PurchaseEntry) =>
+            (entry.supplier_name || entry.supplier || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (entry.name || '').toLowerCase().includes(searchTerm.toLowerCase())
+          );
+        }
+        if (filterStatus) {
+          allData = allData.filter((entry: PurchaseEntry) => entry.status === filterStatus);
+        }
+        
+        setTotalRecords(allData.length);
+        setTotalPages(Math.ceil(allData.length / pageSize));
+        
+        // Store all data for pagination
+        if (typeof window !== 'undefined') {
+          (window as any).__purchasesAllData = allData;
+        }
+        
+        // Frontend pagination
+        const startIndex = (currentPage - 1) * pageSize;
+        const endIndex = startIndex + pageSize;
+        const paginatedData = allData.slice(startIndex, endIndex);
+        
+        setData(paginatedData);
       } else {
         setError(result.message || 'Gagal memuat laporan pembelian');
       }
-    } catch (err) {
-      console.error('Error fetching purchase report:', err);
+    } catch {
       setError('Gagal memuat laporan pembelian');
     } finally {
       setLoading(false);
     }
-  }, [selectedCompany, fromDate, toDate]);
-
-  useEffect(() => {
-    if (selectedCompany) fetchData();
-  }, [selectedCompany, fetchData]);
+  }, [selectedCompany, fromDate, toDate, searchTerm, filterStatus, currentPage, pageSize]);
 
   // Reset page when filters change
   useEffect(() => {
+    pageChangeSourceRef.current = 'filter';
     setCurrentPage(1);
-  }, [searchTerm, filterStatus]);
+  }, [searchTerm, filterStatus, fromDate, toDate]);
 
-  // Frontend filtering
-  const filteredData = useMemo(() => {
-    return data.filter(entry => {
-      const matchSearch = !searchTerm ||
-        (entry.supplier_name || entry.supplier || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (entry.name || '').toLowerCase().includes(searchTerm.toLowerCase());
-      const matchStatus = !filterStatus || entry.status === filterStatus;
-      return matchSearch && matchStatus;
-    });
-  }, [data, searchTerm, filterStatus]);
+  // Fetch when page changes (separated from filter logic)
+  useEffect(() => {
+    if (selectedCompany) {
+      // For page changes (not filter changes), use cached data if available
+      if (pageChangeSourceRef.current === 'pagination' && typeof window !== 'undefined' && (window as any).__purchasesAllData) {
+        const allData = (window as any).__purchasesAllData;
+        const startIndex = (currentPage - 1) * pageSize;
+        const endIndex = startIndex + pageSize;
+        const paginatedData = allData.slice(startIndex, endIndex);
+        setData(paginatedData);
+      } else {
+        fetchData();
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage]);
 
-  // Pagination
-  const paginatedData = useMemo(() => {
-    const start = (currentPage - 1) * PAGE_SIZE;
-    return filteredData.slice(start, start + PAGE_SIZE);
-  }, [filteredData, currentPage]);
+  // Trigger fetch when filters change (after page reset)
+  useEffect(() => {
+    if (pageChangeSourceRef.current === 'filter' && selectedCompany) {
+      fetchData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm, filterStatus, fromDate, toDate]);
 
   // Memoized handlers
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -131,17 +211,31 @@ export default function PurchaseReportPage() {
     setToDate(formatToDDMMYYYY(today.toISOString().split('T')[0]));
   }, []);
 
-  const totalPurchases = filteredData.reduce((sum, e) => sum + (e.grand_total || 0), 0);
+  const handlePageChange = useCallback((page: number) => {
+    pageChangeSourceRef.current = 'pagination';
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
+  const totalPurchases = useMemo(() => {
+    if (typeof window === 'undefined') return 0;
+    const allData = typeof window !== 'undefined' ? (window as any).__purchasesAllData || data : data;
+    return allData.reduce((sum: number, e: PurchaseEntry) => sum + (e.grand_total || 0), 0);
+  }, [data]);
+
+  const avgPurchases = useMemo(() => {
+    return totalRecords > 0 ? totalPurchases / totalRecords : 0;
+  }, [totalPurchases, totalRecords]);
 
   const printParams = new URLSearchParams({ company: selectedCompany });
   if (fromDate) printParams.set('from_date', formatToYYYYMMDD(fromDate));
   if (toDate) printParams.set('to_date', formatToYYYYMMDD(toDate));
   const printUrl = `/reports/purchases/print?${printParams.toString()}`;
 
-  if (loading) return <LoadingSpinner message="Memuat laporan pembelian..." />;
+  if (loading && data.length === 0) return <LoadingSpinner message="Memuat laporan pembelian..." />;
 
   return (
-    <div className="max-w-6xl mx-auto p-6">
+    <div className="max-w-7xl mx-auto p-6">
       <div className="flex justify-between items-start mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Laporan Pembelian</h1>
@@ -175,8 +269,8 @@ export default function PurchaseReportPage() {
       {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{error}</div>}
 
       {/* Filters */}
-      <div className="bg-white shadow rounded-lg p-4 mb-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="bg-white shadow rounded-lg p-4 mb-6 print:hidden">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
           {/* Date From */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Dari Tanggal</label>
@@ -226,7 +320,7 @@ export default function PurchaseReportPage() {
           </div>
           
           {/* Action Buttons */}
-          <div className="flex items-end space-x-2">
+          <div className="flex items-end space-x-2 lg:col-span-2">
             <button 
               onClick={handleClearFilters}
               className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400 transition-colors text-sm"
@@ -247,7 +341,7 @@ export default function PurchaseReportPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
           <p className="text-sm text-blue-600 font-medium">Total PO</p>
-          <p className="text-2xl font-bold text-blue-900">{filteredData.length}</p>
+          <p className="text-2xl font-bold text-blue-900">{totalRecords}</p>
         </div>
         <div className="bg-green-50 border border-green-200 rounded-lg p-4">
           <p className="text-sm text-green-600 font-medium">Total Pembelian</p>
@@ -255,13 +349,11 @@ export default function PurchaseReportPage() {
         </div>
         <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
           <p className="text-sm text-purple-600 font-medium">Rata-rata PO</p>
-          <p className="text-xl font-bold text-purple-900">
-            Rp {filteredData.length > 0 ? (totalPurchases / filteredData.length).toLocaleString('id-ID', { maximumFractionDigits: 0 }) : 0}
-          </p>
+          <p className="text-xl font-bold text-purple-900">Rp {avgPurchases.toLocaleString('id-ID', { maximumFractionDigits: 0 })}</p>
         </div>
         <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
           <p className="text-sm text-orange-600 font-medium">Halaman</p>
-          <p className="text-xl font-bold text-orange-900">{currentPage} / {Math.ceil(filteredData.length / PAGE_SIZE) || 1}</p>
+          <p className="text-xl font-bold text-orange-900">{currentPage} / {totalPages || 1}</p>
         </div>
       </div>
 
@@ -269,51 +361,89 @@ export default function PurchaseReportPage() {
         <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
           <h3 className="text-sm font-medium text-gray-900">
             Data Pembelian 
-            <span className="ml-2 px-2 py-1 bg-indigo-100 text-indigo-700 text-xs rounded-full">{filteredData.length} entri</span>
+            <span className="ml-2 px-2 py-1 bg-indigo-100 text-indigo-700 text-xs rounded-full">{totalRecords} entri</span>
           </h3>
         </div>
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">No. PO</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pemasok</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tanggal</th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {paginatedData.length === 0 ? (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-500">Tidak ada data pembelian</td></tr>
-            ) : (
-              paginatedData.map((entry) => (
-                <tr key={entry.name} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-sm font-medium text-indigo-600">{entry.name}</td>
-                  <td className="px-4 py-3 text-sm text-gray-900">{entry.supplier_name || entry.supplier}</td>
-                  <td className="px-4 py-3 text-sm text-gray-500">{entry.transaction_date}</td>
-                  <td className="px-4 py-3 text-sm text-gray-900 text-right">Rp {(entry.grand_total || 0).toLocaleString('id-ID')}</td>
-                  <td className="px-4 py-3 text-sm">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                      entry.status === 'Completed' ? 'bg-green-100 text-green-800' :
-                      entry.status === 'To Receive and Bill' ? 'bg-yellow-100 text-yellow-800' :
-                      entry.status === 'To Bill' ? 'bg-blue-100 text-blue-800' :
-                      entry.status === 'To Receive' ? 'bg-purple-100 text-purple-800' :
-                      entry.status === 'Cancelled' ? 'bg-red-100 text-red-800' :
-                      'bg-gray-100 text-gray-800'
-                    }`}>{entry.status}</span>
-                  </td>
+
+        {/* Desktop Table */}
+        {!isMobile ? (
+          <>
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">No. PO</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pemasok</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tanggal</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                 </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {data.length === 0 ? (
+                  <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-500">Tidak ada data pembelian</td></tr>
+                ) : (
+                  data.map((entry) => (
+                    <tr key={entry.name} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-sm font-medium text-indigo-600">{entry.name}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900">{entry.supplier_name || entry.supplier}</td>
+                      <td className="px-4 py-3 text-sm text-gray-500">{entry.transaction_date}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900 text-right">Rp {(entry.grand_total || 0).toLocaleString('id-ID')}</td>
+                      <td className="px-4 py-3 text-sm">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                          entry.status === 'Completed' ? 'bg-green-100 text-green-800' :
+                          entry.status === 'To Receive and Bill' ? 'bg-yellow-100 text-yellow-800' :
+                          entry.status === 'To Bill' ? 'bg-blue-100 text-blue-800' :
+                          entry.status === 'To Receive' ? 'bg-purple-100 text-purple-800' :
+                          entry.status === 'Cancelled' ? 'bg-red-100 text-red-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>{entry.status}</span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </>
+        ) : (
+          /* Mobile Cards */
+          <div className="divide-y divide-gray-200">
+            {data.length === 0 ? (
+              <div className="px-4 py-8 text-center text-gray-500">Tidak ada data pembelian</div>
+            ) : (
+              data.map((entry) => (
+                <div key={entry.name} className="px-4 py-4 hover:bg-gray-50">
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-indigo-600 truncate">{entry.name}</p>
+                        <p className="text-sm text-gray-900 mt-1">{entry.supplier_name || entry.supplier}</p>
+                        <p className="text-xs text-gray-500 mt-1">{entry.transaction_date}</p>
+                      </div>
+                      <span className={`ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                        entry.status === 'Completed' ? 'bg-green-100 text-green-800' :
+                        entry.status === 'To Receive and Bill' ? 'bg-yellow-100 text-yellow-800' :
+                        entry.status === 'To Bill' ? 'bg-blue-100 text-blue-800' :
+                        entry.status === 'To Receive' ? 'bg-purple-100 text-purple-800' :
+                        entry.status === 'Cancelled' ? 'bg-red-100 text-red-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>{entry.status}</span>
+                    </div>
+                    <div className="pt-2 border-t border-gray-100">
+                      <p className="text-sm font-medium text-gray-900">Rp {(entry.grand_total || 0).toLocaleString('id-ID')}</p>
+                    </div>
+                  </div>
+                </div>
               ))
             )}
-          </tbody>
-        </table>
+          </div>
+        )}
         
         <Pagination
           currentPage={currentPage}
-          totalPages={Math.ceil(filteredData.length / PAGE_SIZE)}
-          totalRecords={filteredData.length}
-          pageSize={PAGE_SIZE}
-          onPageChange={setCurrentPage}
+          totalPages={totalPages}
+          totalRecords={totalRecords}
+          pageSize={pageSize}
+          onPageChange={handlePageChange}
         />
       </div>
     </div>

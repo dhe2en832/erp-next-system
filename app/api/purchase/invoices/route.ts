@@ -251,12 +251,12 @@ export async function GET(request: NextRequest) {
 
     // Build ERPNext URL with dynamic pagination
     const limit = searchParams.get('limit_page_length') || '20';
-    const start = searchParams.get('start') || '0';
+    const limitStart = searchParams.get('limit_start') || '0';
     
     // Note: discount_amount and discount_percentage removed from fields to avoid ERPNext permission errors
     // These fields are added with default values (0) in the response transformation layer below
     // Include discount and tax fields in the response - Requirements 3.6, 3.8, 14.2, 14.5
-    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Purchase Invoice?fields=["name","supplier","supplier_name","posting_date","due_date","grand_total","outstanding_amount","status","currency","total","net_total","taxes_and_charges","total_taxes_and_charges"]&filters=${encodeURIComponent(filters)}&order_by=posting_date desc&limit_page_length=${limit}&start=${start}`;
+    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Purchase Invoice?fields=["name","supplier","supplier_name","posting_date","due_date","grand_total","outstanding_amount","status","currency","total","net_total","taxes_and_charges","total_taxes_and_charges"]&filters=${encodeURIComponent(filters)}&order_by=posting_date desc&limit_page_length=${limit}&limit_start=${limitStart}`;
 
     const response = await fetch(
       erpNextUrl,

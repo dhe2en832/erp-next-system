@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Search, X, Eye, ArrowUp, ChevronLeft, ChevronRight, BookOpen, Calendar } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
@@ -375,6 +375,8 @@ export default function GLEntryPage() {
     voucher_type: '',
   });
 
+  // ✅ FIX: Track pagination change source to prevent race conditions
+  const pageChangeSourceRef = useRef<'pagination' | 'filter' | 'init'>('init');
   const sentinelRef = useRef<HTMLDivElement>(null);
   const hasMoreRef = useRef(false);
   const loadingMoreRef = useRef(false);
@@ -392,14 +394,36 @@ export default function GLEntryPage() {
     if (cookie) setSelectedCompany(decodeURIComponent(cookie.split('=')[1].trim()));
   }, []);
 
+  // ✅ Sync URL dengan page state (desktop only)
   useEffect(() => {
-    if (isMobile) return;
-    const p = new URLSearchParams(searchParams.toString());
-    p.set('page', String(currentPage));
-    router.replace(`?${p.toString()}`, { scroll: false });
-  }, [currentPage, isMobile]); // eslint-disable-line react-hooks/exhaustive-deps
+    const pageFromUrl = searchParams.get('page');
+    if (pageFromUrl && !isNaN(parseInt(pageFromUrl))) {
+      const pageNum = parseInt(pageFromUrl);
+      if (pageNum >= 1) setCurrentPage(pageNum);
+    }
+  }, [searchParams]);
 
+  // ✅ Update URL with debounce to prevent throttling (desktop only)
   useEffect(() => {
+    if (isMobile || typeof window === 'undefined') return;
+    
+    const timeoutId = setTimeout(() => {
+      const newParams = new URLSearchParams(searchParams.toString());
+      if (currentPage > 1) {
+        newParams.set('page', currentPage.toString());
+      } else {
+        newParams.delete('page');
+      }
+      const newUrl = `${window.location.pathname}${newParams.toString() ? `?${newParams.toString()}` : ''}`;
+      window.history.replaceState({}, '', newUrl);
+    }, 100); // Debounce 100ms
+
+    return () => clearTimeout(timeoutId);
+  }, [currentPage, isMobile, searchParams]);
+
+  // ✅ Reset page when filters change
+  useEffect(() => {
+    pageChangeSourceRef.current = 'filter';
     setCurrentPage(1);
     if (isMobile) setGLEntries([]);
   }, [searchTerm, filters, isMobile]);
@@ -451,11 +475,21 @@ export default function GLEntryPage() {
     }
   }, [selectedCompany, searchTerm, filters, pageSize]);
 
+  // ✅ Fetch on company/page change
   useEffect(() => {
     if (selectedCompany) {
       fetchGLEntries(isMobile ? 1 : currentPage, 'replace');
     }
-  }, [selectedCompany, fetchGLEntries, currentPage, isMobile]); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCompany, currentPage, isMobile]);
+
+  // ✅ Trigger fetch on filter change (after reset)
+  useEffect(() => {
+    if (pageChangeSourceRef.current === 'filter' && selectedCompany) {
+      fetchGLEntries(isMobile ? 1 : currentPage, 'replace');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm, filters]);
 
   useEffect(() => {
     if (!isMobile || !sentinelRef.current) return;
@@ -468,7 +502,11 @@ export default function GLEntryPage() {
     return () => observer.disconnect();
   }, [isMobile, fetchGLEntries]);
 
-  const handlePageChange = (page: number) => { setCurrentPage(page); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  const handlePageChange = (page: number) => { 
+    pageChangeSourceRef.current = 'pagination';
+    setCurrentPage(page); 
+    window.scrollTo({ top: 0, behavior: 'smooth' }); 
+  };
 
   const clearFilters = () => {
     setSearchTerm('');
@@ -482,31 +520,42 @@ export default function GLEntryPage() {
 
   // ── Mobile Card ──────────────────────────────────────────────────────────
   const MobileCard = ({ entry }: { entry: GLEntry }) => (
-    <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm active:scale-[0.99] transition-transform cursor-pointer"
+    <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm hover:bg-gray-50 transition-colors cursor-pointer"
       onClick={() => setSelectedGLEntry(entry)}>
-      <div className="flex items-start justify-between gap-2 mb-2">
-        <span className="text-xs font-mono text-gray-400 truncate">{entry.voucher_no}</span>
-        <span className="shrink-0 text-xs text-gray-500">{formatDate(entry.posting_date)}</span>
-      </div>
-      <p className="text-sm font-medium text-gray-800 mb-3 line-clamp-1">{entry.account}</p>
-      <div className="flex items-center justify-between">
-        <div className="flex gap-3">
-          {entry.debit > 0 && (
-            <div>
-              <p className="text-[10px] text-emerald-600 font-medium">DEBIT</p>
-              <p className="text-sm font-bold text-emerald-700">{formatCurrency(entry.debit)}</p>
-            </div>
-          )}
-          {entry.credit > 0 && (
-            <div>
-              <p className="text-[10px] text-rose-600 font-medium">KREDIT</p>
-              <p className="text-sm font-bold text-rose-700">{formatCurrency(entry.credit)}</p>
-            </div>
-          )}
+      <div className="space-y-3">
+        {/* Row 1: Voucher No + Date */}
+        <div className="flex justify-between items-start">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-indigo-600 truncate">{entry.voucher_no}</p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full text-xs font-medium">
+                {voucherLabel(entry.voucher_type)}
+              </span>
+            </p>
+          </div>
+          <span className="ml-2 text-xs text-gray-500">📅 {formatDate(entry.posting_date)}</span>
         </div>
-        <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full font-medium">
-          {voucherLabel(entry.voucher_type)}
-        </span>
+        
+        {/* Row 2: Account */}
+        <div className="text-sm text-gray-700 line-clamp-2" title={entry.account}>
+          💼 {entry.account}
+        </div>
+        
+        {/* Row 3: Debit + Kredit */}
+        <div className="grid grid-cols-2 gap-3 pt-2 border-t border-gray-100">
+          <div>
+            <p className="text-xs text-gray-500 mb-1">Debit</p>
+            <p className="text-sm font-semibold text-emerald-700">
+              {entry.debit > 0 ? formatCurrency(entry.debit) : '-'}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500 mb-1">Kredit</p>
+            <p className="text-sm font-semibold text-rose-700">
+              {entry.credit > 0 ? formatCurrency(entry.credit) : '-'}
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );

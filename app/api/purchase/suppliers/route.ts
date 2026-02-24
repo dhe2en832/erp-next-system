@@ -9,7 +9,8 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const company = searchParams.get('company');
     const search = searchParams.get('search');
-    const limit = searchParams.get('limit') || '500';
+    const limitPageLength = searchParams.get('limit_page_length') || '20';
+    const limitStart = searchParams.get('limit_start') || '0';
 
     const cookies = request.cookies;
     const sid = cookies.get('sid')?.value;
@@ -67,7 +68,7 @@ export async function GET(request: NextRequest) {
     const filtersString = JSON.stringify(filters);
 
     // Build ERPNext URL sederhana - hanya ambil name dan supplier_name
-    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Supplier?fields=["name","supplier_name"]&filters=${encodeURIComponent(filtersString)}&order_by=supplier_name&limit_page_length=${limit}`;
+    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Supplier?fields=["name","supplier_name"]&filters=${encodeURIComponent(filtersString)}&order_by=supplier_name&limit_page_length=${limitPageLength}&limit_start=${limitStart}`;
 
     console.log('Suppliers ERPNext URL:', erpNextUrl);
 
@@ -105,7 +106,7 @@ export async function GET(request: NextRequest) {
         ];
         
         const supplierNameFiltersString = JSON.stringify(supplierNameFilters);
-        const supplierNameUrl = `${ERPNEXT_API_URL}/api/resource/Supplier?fields=["name","supplier_name"]&filters=${encodeURIComponent(supplierNameFiltersString)}&order_by=supplier_name&limit_page_length=${limit}`;
+        const supplierNameUrl = `${ERPNEXT_API_URL}/api/resource/Supplier?fields=["name","supplier_name"]&filters=${encodeURIComponent(supplierNameFiltersString)}&order_by=supplier_name&limit_page_length=${limitPageLength}&limit_start=${limitStart}`;
         
         console.log('Supplier name search URL:', supplierNameUrl);
         
@@ -140,6 +141,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         success: true,
         data: finalData,
+        total: finalData.length,
         message: `Suppliers fetched successfully${search ? ' (hybrid search)' : ''}`
       });
     } else {

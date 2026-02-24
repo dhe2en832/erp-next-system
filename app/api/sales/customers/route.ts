@@ -6,13 +6,14 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search');
-    const limit = searchParams.get('limit') || '20';
+    const limitPageLength = searchParams.get('limit_page_length') || '20';
+    const limitStart = searchParams.get('limit_start') || '0';
     const company = searchParams.get('company');
 
     const cookies = request.cookies;
     const sid = cookies.get('sid')?.value;
 
-    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Customer?fields=["name","customer_name"]&limit_page_length=${limit}`;
+    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Customer?fields=["name","customer_name"]&limit_page_length=${limitPageLength}&limit_start=${limitStart}`;
     
     // Build filters array - Use simple approach that works
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -46,7 +47,7 @@ export async function GET(request: NextRequest) {
     }
 
     console.log('Customers ERPNext URL:', erpNextUrl);
-    console.log('Request params:', { search, limit, company });
+    console.log('Request params:', { search, limitPageLength, limitStart, company });
     console.log('Search term value:', search);
     console.log('Search term trimmed:', search?.trim());
     console.log('Filters being applied:', filters);
@@ -85,7 +86,7 @@ export async function GET(request: NextRequest) {
     // If search filter causes error, try without filter
     if (!response.ok && search && search.trim()) {
       console.log('🔄 Search filter failed, trying without filter...');
-      const fallbackUrl = `${ERPNEXT_API_URL}/api/resource/Customer?fields=["name","customer_name"]&limit_page_length=${limit}`;
+      const fallbackUrl = `${ERPNEXT_API_URL}/api/resource/Customer?fields=["name","customer_name"]&limit_page_length=${limitPageLength}&limit_start=${limitStart}`;
       
       const fallbackResponse = await fetch(fallbackUrl, {
         method: 'GET',
@@ -98,6 +99,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({
           success: true,
           data: fallbackData.data || [],
+          total: fallbackData.data?.length || 0,
         });
       }
     }
@@ -116,6 +118,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         success: true,
         data: data.data || [],
+        total: data.data?.length || 0,
       });
     } else {
       const errorMessage = data.message || data.exc_type || 'Failed to fetch customers';

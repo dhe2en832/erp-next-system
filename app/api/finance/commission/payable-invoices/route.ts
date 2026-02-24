@@ -26,8 +26,8 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status');
     const dateFrom = searchParams.get('date_from');
     const dateTo = searchParams.get('date_to');
-    const page = parseInt(searchParams.get('page') || '1', 10);
-    const limit = parseInt(searchParams.get('limit') || '20', 10);
+    const limitPageLength = parseInt(searchParams.get('limit_page_length') || '20', 10);
+    const limitStart = parseInt(searchParams.get('limit_start') || '0', 10);
 
     const headers = getAuthHeaders(request);
     if (!headers['Authorization'] && !headers['Cookie']) {
@@ -59,8 +59,7 @@ export async function GET(request: NextRequest) {
       'custom_commission_paid', 'status', 'sales_team'
     ];
 
-    const start = (page - 1) * limit;
-    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Sales Invoice?fields=${encodeURIComponent(JSON.stringify(fields))}&filters=${encodeURIComponent(JSON.stringify(filters))}&order_by=posting_date desc&limit_start=${start}&limit_page_length=${limit}`;
+    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Sales Invoice?fields=${encodeURIComponent(JSON.stringify(fields))}&filters=${encodeURIComponent(JSON.stringify(filters))}&order_by=posting_date desc&limit_start=${limitStart}&limit_page_length=${limitPageLength}`;
 
     // If sales_person filter is provided, we need a different approach
     // since sales_team is a child table
@@ -87,7 +86,7 @@ export async function GET(request: NextRequest) {
           'name', 'customer', 'customer_name', 'posting_date', 'grand_total',
           'base_grand_total', 'outstanding_amount', 'custom_total_komisi_sales', 'status', 'sales_team'
         ];
-        const fallbackUrl = `${ERPNEXT_API_URL}/api/resource/Sales Invoice?fields=${encodeURIComponent(JSON.stringify(fallbackFields))}&filters=${encodeURIComponent(JSON.stringify(fallbackFilters))}&order_by=posting_date desc&limit_start=${start}&limit_page_length=${limit}`;
+        const fallbackUrl = `${ERPNEXT_API_URL}/api/resource/Sales Invoice?fields=${encodeURIComponent(JSON.stringify(fallbackFields))}&filters=${encodeURIComponent(JSON.stringify(fallbackFilters))}&order_by=posting_date desc&limit_start=${limitStart}&limit_page_length=${limitPageLength}`;
 
         const fallbackResponse = await fetch(fallbackUrl, { method: 'GET', headers });
         const fallbackData = await fallbackResponse.json();
@@ -120,9 +119,9 @@ export async function GET(request: NextRequest) {
           // Apply frontend filters
           invoices = applyFrontendFilters(invoices, { invoiceNo, customerName, salesPerson, dateFrom, dateTo });
           const total = invoices.length;
-          const paginated = invoices.slice(0, limit);
+          const paginated = invoices.slice(0, limitPageLength);
 
-          return NextResponse.json({ success: true, data: paginated, total, page, limit });
+          return NextResponse.json({ success: true, data: paginated, total });
         }
       }
 
@@ -163,7 +162,7 @@ export async function GET(request: NextRequest) {
     // Use filtered invoices length as total (more accurate)
     const total = invoices.length;
 
-    return NextResponse.json({ success: true, data: invoices, total, page, limit });
+    return NextResponse.json({ success: true, data: invoices, total });
   } catch (error) {
     console.error('Payable Invoices API Error:', error);
     return NextResponse.json({ success: false, message: 'Internal server error' }, { status: 500 });

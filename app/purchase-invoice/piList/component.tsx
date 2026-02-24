@@ -123,6 +123,9 @@ export default function PurchaseInvoiceList() {
   const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+  
+  // Ref untuk tracking pagination source (prevent race conditions)
+  const pageChangeSourceRef = useRef<'pagination' | 'filter' | 'init'>('init');
 
   // ─────────────────────────────────────────────────────────
   // Sync URL dengan page state
@@ -135,16 +138,22 @@ export default function PurchaseInvoiceList() {
     }
   }, [searchParams]);
 
+  // Update URL with debounce to prevent throttling
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const newParams = new URLSearchParams(searchParams?.toString() || '');
-    if (currentPage > 1) {
-      newParams.set('page', currentPage.toString());
-    } else {
-      newParams.delete('page');
-    }
-    const newUrl = `${window.location.pathname}${newParams.toString() ? `?${newParams.toString()}` : ''}`;
-    window.history.replaceState({}, '', newUrl);
+    
+    const timeoutId = setTimeout(() => {
+      const newParams = new URLSearchParams(searchParams?.toString() || '');
+      if (currentPage > 1) {
+        newParams.set('page', currentPage.toString());
+      } else {
+        newParams.delete('page');
+      }
+      const newUrl = `${window.location.pathname}${newParams.toString() ? `?${newParams.toString()}` : ''}`;
+      window.history.replaceState({}, '', newUrl);
+    }, 100); // Debounce 100ms
+
+    return () => clearTimeout(timeoutId);
   }, [currentPage, searchParams]);
 
   // ─────────────────────────────────────────────────────────
@@ -227,7 +236,7 @@ export default function PurchaseInvoiceList() {
 
       // Pagination
       params.append('limit_page_length', pageSize.toString());
-      params.append('start', ((currentPage - 1) * pageSize).toString());
+      params.append('limit_start', ((currentPage - 1) * pageSize).toString());
 
       // 🔥 WAJIB: Urutkan dari yang terbaru
       params.append('order_by', 'creation desc');
@@ -305,27 +314,31 @@ export default function PurchaseInvoiceList() {
   }, [currentPage, pageSize, dateFilter, supplierFilter, statusFilter, documentNumberFilter, selectedCompany]);
 
   // ─────────────────────────────────────────────────────────
-  // Effects: Fetch triggers
+  // Effects - FIXED VERSION - Prevent race conditions
   // ─────────────────────────────────────────────────────────
+  
+  // Reset page when filters change
   useEffect(() => {
-    if (selectedCompany) {
-      fetchSuppliers();
-    }
-  }, [selectedCompany, fetchSuppliers]);
-
-  useEffect(() => {
-    fetchInvoices(true); // reset = true saat filter berubah
-  }, [fetchInvoices]);
-
-  useEffect(() => {
-    if (!useInfiniteScrollMode) {
-      fetchInvoices(false); // reset = false untuk pagination desktop
-    }
-  }, [currentPage, fetchInvoices, useInfiniteScrollMode]);
-
-  // Reset page saat filter berubah
-  useEffect(() => {
+    pageChangeSourceRef.current = 'filter';
     setCurrentPage(1);
+  }, [dateFilter, supplierFilter, statusFilter, documentNumberFilter]);
+
+  // Fetch when page changes (separated from filter logic)
+  useEffect(() => {
+    // Always reset for desktop pagination
+    // Only append for mobile infinite scroll when page > 1
+    const shouldReset = !useInfiniteScrollMode || currentPage === 1;
+    fetchInvoices(shouldReset);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, useInfiniteScrollMode]);
+
+  // Trigger fetch when filters change (after page reset)
+  useEffect(() => {
+    if (pageChangeSourceRef.current === 'filter') {
+      const shouldReset = !useInfiniteScrollMode || currentPage === 1;
+      fetchInvoices(shouldReset);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateFilter, supplierFilter, statusFilter, documentNumberFilter]);
 
   // ─────────────────────────────────────────────────────────
@@ -846,7 +859,10 @@ export default function PurchaseInvoiceList() {
                 totalPages={totalPages}
                 totalRecords={totalRecords}
                 pageSize={pageSize}
-                onPageChange={setCurrentPage}
+                onPageChange={(page) => {
+                  pageChangeSourceRef.current = 'pagination';
+                  setCurrentPage(page);
+                }}
               />
             </div>
           )}

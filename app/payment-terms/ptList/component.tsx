@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useIsMobile } from '@/hooks';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import Pagination from '../../components/Pagination';
 
 interface PaymentTermsTemplate {
   name: string;
@@ -16,19 +18,65 @@ interface PaymentTermsTemplate {
 
 export default function PaymentTermsList() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isMobile = useIsMobile(768);
+  const pageSize = isMobile ? 10 : 20;
+  
   const [templates, setTemplates] = useState<PaymentTermsTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
+
+  // Ref untuk tracking pagination source (prevent race conditions)
+  const pageChangeSourceRef = useRef<'pagination' | 'filter' | 'init'>('init');
+
+  // Sync URL dengan page state
+  useEffect(() => {
+    const pageFromUrl = searchParams?.get('page');
+    if (pageFromUrl && !isNaN(parseInt(pageFromUrl))) {
+      const pageNum = parseInt(pageFromUrl);
+      if (pageNum >= 1) setCurrentPage(pageNum);
+    }
+  }, [searchParams]);
+
+  // Update URL with debounce to prevent throttling
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const timeoutId = setTimeout(() => {
+      const newParams = new URLSearchParams(searchParams?.toString() || '');
+      if (currentPage > 1) {
+        newParams.set('page', currentPage.toString());
+      } else {
+        newParams.delete('page');
+      }
+      const newUrl = `${window.location.pathname}${newParams.toString() ? `?${newParams.toString()}` : ''}`;
+      window.history.replaceState({}, '', newUrl);
+    }, 100); // Debounce 100ms
+
+    return () => clearTimeout(timeoutId);
+  }, [currentPage, searchParams]);
 
   const fetchPaymentTerms = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const response = await fetch('/api/setup/payment-terms', { credentials: 'include' });
+      const params = new URLSearchParams();
+      params.set('limit_page_length', pageSize.toString());
+      params.set('limit_start', ((currentPage - 1) * pageSize).toString());
+      
+      if (searchTerm.trim()) params.set('search', searchTerm.trim());
+
+      const response = await fetch(`/api/setup/payment-terms?${params}`, { credentials: 'include' });
       const data = await response.json();
 
       if (data.success) {
         setTemplates(data.data || []);
+        setTotalRecords(data.total || data.data?.length || 0);
+        setTotalPages(Math.ceil((data.total || data.data?.length || 0) / pageSize));
       } else {
         setError(data.message || 'Gagal memuat data termin pembayaran');
       }
@@ -38,13 +86,39 @@ export default function PaymentTermsList() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [searchTerm, currentPage, pageSize]);
 
+  // Reset page when search changes
+  useEffect(() => {
+    pageChangeSourceRef.current = 'filter';
+    setCurrentPage(1);
+  }, [searchTerm]);
+
+  // Fetch when page changes (separated from filter logic)
   useEffect(() => {
     fetchPaymentTerms();
-  }, [fetchPaymentTerms]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage]);
 
-  if (loading) {
+  // Trigger fetch when filters change (after page reset)
+  useEffect(() => {
+    if (pageChangeSourceRef.current === 'filter') {
+      fetchPaymentTerms();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm]);
+
+  // Memoized handlers
+  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchTerm(e.target.value);
+  }, []);
+
+  const handleClearFilters = useCallback(() => {
+    setSearchTerm('');
+    setCurrentPage(1);
+  }, []);
+
+  if (loading && templates.length === 0) {
     return <LoadingSpinner message="Memuat data termin pembayaran..." />;
   }
 
@@ -67,38 +141,128 @@ export default function PaymentTermsList() {
         <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{error}</div>
       )}
 
+      {/* Filters */}
+      <div className="bg-white shadow rounded-lg p-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Search */}
+          <div className="lg:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Cari Template</label>
+            <input 
+              type="text" 
+              placeholder="Nama template..." 
+              value={searchTerm}
+              onChange={handleSearchChange}
+              className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+            />
+          </div>
+          
+          {/* Action Buttons */}
+          <div className="flex items-end space-x-2 lg:col-span-2">
+            <button 
+              onClick={handleClearFilters}
+              className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400 transition-colors text-sm"
+            >
+              Hapus Filter
+            </button>
+            <button 
+              onClick={fetchPaymentTerms}
+              className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors text-sm"
+            >
+              Refresh
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <p className="text-sm text-blue-600 font-medium">Total Template</p>
+          <p className="text-2xl font-bold text-blue-900">{totalRecords}</p>
+        </div>
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+          <p className="text-sm text-green-600 font-medium">Halaman</p>
+          <p className="text-xl font-bold text-green-900">{currentPage} / {totalPages || 1}</p>
+        </div>
+      </div>
+
       <div className="bg-white shadow rounded-lg overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nama Template</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+        {/* Desktop Table */}
+        {!isMobile ? (
+          <>
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nama Template</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {templates.length === 0 ? (
+                  <tr>
+                    <td colSpan={2} className="px-6 py-8 text-center text-gray-500">
+                      {searchTerm ? 'Tidak ada template yang cocok dengan pencarian' : 'Belum ada template termin pembayaran'}
+                    </td>
+                  </tr>
+                ) : (
+                  templates.map((tpl) => (
+                    <tr key={tpl.name} className="hover:bg-gray-50 cursor-pointer" onClick={() => router.push(`/payment-terms/ptMain?name=${encodeURIComponent(tpl.name)}`)}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-indigo-600">{tpl.name}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); router.push(`/payment-terms/ptMain?name=${encodeURIComponent(tpl.name)}`); }}
+                          className="text-indigo-600 hover:text-indigo-900 font-medium"
+                        >
+                          Lihat
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </>
+        ) : (
+          /* Mobile Cards */
+          <div className="divide-y divide-gray-200">
             {templates.length === 0 ? (
-              <tr>
-                <td colSpan={2} className="px-6 py-8 text-center text-gray-500">
-                  Belum ada template termin pembayaran
-                </td>
-              </tr>
+              <div className="px-4 py-8 text-center text-gray-500">
+                {searchTerm ? 'Tidak ada template yang cocok dengan pencarian' : 'Belum ada template termin pembayaran'}
+              </div>
             ) : (
               templates.map((tpl) => (
-                <tr key={tpl.name} className="hover:bg-gray-50 cursor-pointer" onClick={() => router.push(`/payment-terms/ptMain?name=${encodeURIComponent(tpl.name)}`)}>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-indigo-600">{tpl.name}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                <div
+                  key={tpl.name}
+                  onClick={() => router.push(`/payment-terms/ptMain?name=${encodeURIComponent(tpl.name)}`)}
+                  className="px-4 py-4 hover:bg-gray-50 cursor-pointer"
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-indigo-600 truncate">{tpl.name}</p>
+                    </div>
                     <button
                       onClick={(e) => { e.stopPropagation(); router.push(`/payment-terms/ptMain?name=${encodeURIComponent(tpl.name)}`); }}
-                      className="text-indigo-600 hover:text-indigo-900 font-medium"
+                      className="ml-4 text-indigo-600 hover:text-indigo-900 text-sm font-medium"
                     >
                       Lihat
                     </button>
-                  </td>
-                </tr>
+                  </div>
+                </div>
               ))
             )}
-          </tbody>
-        </table>
+          </div>
+        )}
+        
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalRecords={totalRecords}
+          pageSize={pageSize}
+          onPageChange={(page) => {
+            pageChangeSourceRef.current = 'pagination';
+            setCurrentPage(page);
+          }}
+        />
       </div>
     </div>
   );

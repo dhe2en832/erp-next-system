@@ -110,6 +110,9 @@ export default function DeliveryNoteList() {
   const [loadingPrintData, setLoadingPrintData] = useState(false);
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+  
+  // Ref untuk tracking pagination source (prevent race conditions)
+  const pageChangeSourceRef = useRef<'pagination' | 'filter' | 'init'>('init');
 
   // ─────────────────────────────────────────────────────────
   // Sync URL dengan page state
@@ -122,15 +125,20 @@ export default function DeliveryNoteList() {
     }
   }, [searchParams]);
 
+  // Update URL with debounce to prevent throttling
   useEffect(() => {
-    const newParams = new URLSearchParams(searchParams.toString());
-    if (currentPage > 1) {
-      newParams.set('page', currentPage.toString());
-    } else {
-      newParams.delete('page');
-    }
-    const newUrl = `${window.location.pathname}${newParams.toString() ? `?${newParams.toString()}` : ''}`;
-    window.history.replaceState({}, '', newUrl);
+    const timeoutId = setTimeout(() => {
+      const newParams = new URLSearchParams(searchParams.toString());
+      if (currentPage > 1) {
+        newParams.set('page', currentPage.toString());
+      } else {
+        newParams.delete('page');
+      }
+      const newUrl = `${window.location.pathname}${newParams.toString() ? `?${newParams.toString()}` : ''}`;
+      window.history.replaceState({}, '', newUrl);
+    }, 100); // Debounce 100ms
+
+    return () => clearTimeout(timeoutId);
   }, [currentPage, searchParams]);
 
   // ─────────────────────────────────────────────────────────
@@ -272,16 +280,32 @@ export default function DeliveryNoteList() {
     }
   }, [selectedCompany, dateFilter, nameFilter, customerFilter, statusFilter, currentPage, pageSize]);
 
+  // ─────────────────────────────────────────────────────────
+  // Effects - FIXED VERSION - Prevent race conditions
+  // ─────────────────────────────────────────────────────────
+  
+  // Reset page when filters change
   useEffect(() => {
-    fetchDeliveryNotes(true);
+    pageChangeSourceRef.current = 'filter';
+    setCurrentPage(1);
   }, [dateFilter, nameFilter, customerFilter, statusFilter]);
 
+  // Fetch when page changes (separated from filter logic)
   useEffect(() => {
-    fetchDeliveryNotes(false);
-  }, [currentPage]);
+    // Always reset for desktop pagination
+    // Only append for mobile infinite scroll when page > 1
+    const shouldReset = !useInfiniteScrollMode || currentPage === 1;
+    fetchDeliveryNotes(shouldReset);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, useInfiniteScrollMode]);
 
+  // Trigger fetch when filters change (after page reset)
   useEffect(() => {
-    setCurrentPage(1);
+    if (pageChangeSourceRef.current === 'filter') {
+      const shouldReset = !useInfiniteScrollMode || currentPage === 1;
+      fetchDeliveryNotes(shouldReset);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateFilter, nameFilter, customerFilter, statusFilter]);
 
   // ─────────────────────────────────────────────────────────
@@ -730,7 +754,10 @@ export default function DeliveryNoteList() {
                 totalPages={totalPages}
                 totalRecords={totalRecords}
                 pageSize={pageSize}
-                onPageChange={setCurrentPage}
+                onPageChange={(page) => {
+                  pageChangeSourceRef.current = 'pagination';
+                  setCurrentPage(page);
+                }}
               />
             </div>
           )}

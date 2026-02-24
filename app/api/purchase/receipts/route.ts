@@ -74,11 +74,11 @@ export async function GET(request: NextRequest) {
     
     filters += ']';
 
-    console.log('Built filters:', filters);
+    // console.log('Built filters:', filters);
 
     // Build ERPNext URL with dynamic pagination and sorting
     const limit = searchParams.get('limit_page_length') || '20';
-    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Purchase Receipt?fields=["name","supplier","supplier_name","posting_date","status","grand_total","currency"]&filters=${encodeURIComponent(filters)}&limit_page_length=${limit}&start=${start}`;
+    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Purchase Receipt?fields=["name","supplier","supplier_name","posting_date","status","grand_total","currency"]&filters=${encodeURIComponent(filters)}&limit_page_length=${limit}&limit_start=${start}`;
     
     if (orderBy) {
       erpNextUrl += `&order_by=${orderBy}`;
@@ -86,9 +86,9 @@ export async function GET(request: NextRequest) {
       erpNextUrl += '&order_by=creation desc';
     }
 
-    console.log('Purchase Receipts ERPNext URL:', erpNextUrl);
+    // console.log('Purchase Receipts ERPNext URL:', erpNextUrl);
 
-    console.log('Making fetch request to ERPNext...');
+    // console.log('Making fetch request to ERPNext...');
     erpNextResponse = await fetch(
       erpNextUrl,
       {
@@ -97,14 +97,14 @@ export async function GET(request: NextRequest) {
       }
     );
 
-    console.log('ERPNext Response status:', erpNextResponse.status);
-    console.log('ERPNext Response ok:', erpNextResponse.ok);
+    // console.log('ERPNext Response status:', erpNextResponse.status);
+    // console.log('ERPNext Response ok:', erpNextResponse.ok);
 
     const data = await erpNextResponse.json();
-    console.log('Purchase Receipts response:', data);
+    // console.log('Purchase Receipts response:', data);
 
     if (erpNextResponse.ok) {
-      console.log('Processing successful response...');
+      // console.log('Processing successful response...');
       
       return NextResponse.json({
         success: true,
@@ -112,7 +112,7 @@ export async function GET(request: NextRequest) {
         total_records: data.total_records || (data.data || []).length,
       });
     } else {
-      console.log('ERPNext API Error:', data);
+      console.error('ERPNext API Error:', data);
       return NextResponse.json(
         { success: false, message: data.exc || data.message || 'Failed to fetch purchase receipts' },
         { status: erpNextResponse.status }

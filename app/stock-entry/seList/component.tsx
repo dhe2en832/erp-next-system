@@ -1,7 +1,23 @@
 import BrowserStyleDatePicker from '@/components/BrowserStyleDatePicker';
 import Pagination from '../../components/Pagination';
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+
+// ─────────────────────────────────────────────────────────────
+// Hook: Deteksi mobile (breakpoint 768px)
+// ─────────────────────────────────────────────────────────────
+function useIsMobile(breakpoint = 768) {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < breakpoint);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, [breakpoint]);
+
+  return isMobile;
+}
 
 interface StockEntry {
   name: string;
@@ -24,6 +40,10 @@ interface Warehouse {
 
 export default function StockEntryList() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isMobile = useIsMobile(768);
+  const pageSize = isMobile ? 10 : 20;
+  
   const [entries, setEntries] = useState<StockEntry[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -33,6 +53,13 @@ export default function StockEntryList() {
   const [searchTerm, setSearchTerm] = useState('');
   const [purposeFilter, setPurposeFilter] = useState('');
   const [warehouseFilter, setWarehouseFilter] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
+  
+  // ✅ FIX: Track pagination change source to prevent race conditions
+  const pageChangeSourceRef = useRef<'pagination' | 'filter' | 'init'>('init');
+  
   const [dateFilter, setDateFilter] = useState(() => {
     const today = new Date();
     const yesterday = new Date(today);
@@ -52,8 +79,33 @@ export default function StockEntryList() {
     };
   });
   const [selectedCompany, setSelectedCompany] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const PAGE_SIZE = 20;
+
+  // Sync URL dengan page state
+  useEffect(() => {
+    const pageFromUrl = searchParams?.get('page');
+    if (pageFromUrl && !isNaN(parseInt(pageFromUrl))) {
+      const pageNum = parseInt(pageFromUrl);
+      if (pageNum >= 1) setCurrentPage(pageNum);
+    }
+  }, [searchParams]);
+
+  // Update URL with debounce to prevent throttling
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const timeoutId = setTimeout(() => {
+      const newParams = new URLSearchParams(searchParams?.toString() || '');
+      if (currentPage > 1) {
+        newParams.set('page', currentPage.toString());
+      } else {
+        newParams.delete('page');
+      }
+      const newUrl = `${window.location.pathname}${newParams.toString() ? `?${newParams.toString()}` : ''}`;
+      window.history.replaceState({}, '', newUrl);
+    }, 100); // Debounce 100ms
+
+    return () => clearTimeout(timeoutId);
+  }, [currentPage, searchParams]);
 
   useEffect(() => {
     const savedCompany = localStorage.getItem('selected_company');
@@ -84,6 +136,10 @@ export default function StockEntryList() {
       
       const params = new URLSearchParams();
       
+      // Pagination
+      params.set('limit_page_length', pageSize.toString());
+      params.set('limit_start', ((currentPage - 1) * pageSize).toString());
+      
       // Add base filters
       const filtersArray: any[] = [["company", "=", selectedCompany]];
       
@@ -92,7 +148,12 @@ export default function StockEntryList() {
         filtersArray.push(["purpose", "=", purposeFilter]);
       }
       
-      // Add warehouse filter - will be applied in frontend
+      // Add search filter
+      if (searchTerm.trim()) {
+        filtersArray.push(["name", "like", `%${searchTerm.trim()}%`]);
+      }
+      
+      // Add warehouse filter - will be applied in frontend with OR logic
       // (ERPNext API doesn't support OR syntax in filters)
       
       // Add date filters
@@ -115,7 +176,18 @@ export default function StockEntryList() {
       const data = await response.json();
 
       if (data.success) {
-        setEntries(data.data || []);
+        // Apply warehouse filter in frontend (OR logic)
+        let filteredData = data.data || [];
+        if (warehouseFilter.trim()) {
+          filteredData = filteredData.filter((entry: StockEntry) => 
+            entry.from_warehouse === warehouseFilter.trim() || 
+            entry.to_warehouse === warehouseFilter.trim()
+          );
+        }
+        
+        setEntries(filteredData);
+        setTotalRecords(data.total || filteredData.length);
+        setTotalPages(Math.ceil((data.total || filteredData.length) / pageSize));
       } else {
         setError(data.message || 'Gagal memuat entri stok');
       }
@@ -124,7 +196,7 @@ export default function StockEntryList() {
     } finally {
       setLoading(false);
     }
-  }, [selectedCompany, purposeFilter, warehouseFilter, dateFilter]);
+  }, [selectedCompany, purposeFilter, warehouseFilter, dateFilter, searchTerm, currentPage, pageSize]);
 
   const fetchWarehouses = useCallback(async () => {
     if (!selectedCompany) return;
@@ -138,40 +210,62 @@ export default function StockEntryList() {
     }
   }, [selectedCompany]);
 
+  // Reset page when filters change
+  useEffect(() => {
+    pageChangeSourceRef.current = 'filter';
+    setCurrentPage(1);
+  }, [dateFilter, purposeFilter, warehouseFilter, searchTerm]);
+
+  // Fetch when page changes (separated from filter logic)
   useEffect(() => {
     if (selectedCompany) {
       fetchEntries();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, selectedCompany]);
+
+  // Trigger fetch when filters change (after page reset)
+  useEffect(() => {
+    if (pageChangeSourceRef.current === 'filter' && selectedCompany) {
+      fetchEntries();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateFilter, purposeFilter, warehouseFilter, searchTerm]);
+
+  useEffect(() => {
+    if (selectedCompany) {
       fetchWarehouses();
     }
-  }, [selectedCompany, fetchEntries, fetchWarehouses]);
+  }, [selectedCompany, fetchWarehouses]);
 
   // Apply warehouse and search filters in frontend with OR logic
-  const filteredEntries = useMemo(() => {
-    let filtered = entries;
-    
-    // Apply warehouse filter
-    if (warehouseFilter.trim()) {
-      filtered = filtered.filter(entry => 
-        entry.from_warehouse === warehouseFilter.trim() || 
-        entry.to_warehouse === warehouseFilter.trim()
-      );
-    }
-    
-    // Apply search filter
-    if (searchTerm.trim()) {
-      const search = searchTerm.trim().toLowerCase();
-      filtered = filtered.filter(entry => 
-        entry.name?.toLowerCase().includes(search)
-      );
-    }
-    
-    return filtered;
-  }, [entries, warehouseFilter, searchTerm]);
+  // NOTE: This is now handled in fetchEntries, so we can remove this useMemo
+  // const filteredEntries = useMemo(() => {
+  //   let filtered = entries;
+  //   
+  //   // Apply warehouse filter
+  //   if (warehouseFilter.trim()) {
+  //     filtered = filtered.filter(entry => 
+  //       entry.from_warehouse === warehouseFilter.trim() || 
+  //       entry.to_warehouse === warehouseFilter.trim()
+  //     );
+  //   }
+  //   
+  //   // Apply search filter
+  //   if (searchTerm.trim()) {
+  //     const search = searchTerm.trim().toLowerCase();
+  //     filtered = filtered.filter(entry => 
+  //       entry.name?.toLowerCase().includes(search)
+  //     );
+  //   }
+  //   
+  //   return filtered;
+  // }, [entries, warehouseFilter, searchTerm]);
 
-  const paginatedEntries = useMemo(() => {
-    const start = (currentPage - 1) * PAGE_SIZE;
-    return filteredEntries.slice(start, start + PAGE_SIZE);
-  }, [filteredEntries, currentPage]);
+  // const paginatedEntries = useMemo(() => {
+  //   const start = (currentPage - 1) * PAGE_SIZE;
+  //   return filteredEntries.slice(start, start + PAGE_SIZE);
+  // }, [filteredEntries, currentPage]);
 
   const getPurposeColor = (purpose: string) => {
     switch (purpose?.toLowerCase()) {
@@ -224,7 +318,7 @@ export default function StockEntryList() {
     setPurposeFilter(e.target.value);
   }, []);
 
-  if (loading) {
+  if (loading && entries.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -359,26 +453,36 @@ export default function StockEntryList() {
           <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
             <h3 className="text-sm font-medium text-gray-900">
               Entri Stok 
-              <span className="ml-2 px-2 py-1 bg-indigo-100 text-indigo-700 text-xs rounded-full">{filteredEntries.length} entri</span>
-              {filteredEntries.length > PAGE_SIZE && <span className="ml-2 text-gray-500">— Hal. {currentPage}</span>}
+              <span className="ml-2 px-2 py-1 bg-indigo-100 text-indigo-700 text-xs rounded-full">{totalRecords} entri</span>
+              {totalPages > 1 && <span className="ml-2 text-gray-500">— Hal. {currentPage}</span>}
             </h3>
           </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">No. Entri</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tanggal & Waktu</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tujuan</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dari Gudang</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ke Gudang</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Jumlah</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {paginatedEntries.map((entry) => {
+          
+          {/* Desktop Table */}
+          {!isMobile ? (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">No. Entri</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tanggal & Waktu</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tujuan</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dari Gudang</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ke Gudang</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Jumlah</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {entries.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
+                        Tidak ada entri stok ditemukan
+                      </td>
+                    </tr>
+                  ) : (
+                    entries.map((entry) => {
                   // FIX: Normalisasi tipe data ke number untuk menghindari error TypeScript
                   const docStatusNum = Number(entry.docstatus);
                   const isDraft = docStatusNum === 0;
@@ -462,24 +566,131 @@ export default function StockEntryList() {
                       </td>
                     </tr>
                   );
-                })}
+                }))}
               </tbody>
             </table>
           </div>
-          {filteredEntries.length === 0 && (
-            <div className="text-center py-12">
-              <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-              </svg>
-              <p className="mt-2 text-gray-500">Tidak ada entri stok ditemukan</p>
-            </div>
-          )}
+        ) : (
+          /* Mobile Cards */
+          <div className="divide-y divide-gray-200">
+            {entries.length === 0 ? (
+              <div className="px-4 py-8 text-center text-gray-500">
+                Tidak ada entri stok ditemukan
+              </div>
+            ) : (
+              entries.map((entry) => {
+                const docStatusNum = Number(entry.docstatus);
+                const isDraft = docStatusNum === 0;
+                const isSubmitted = docStatusNum === 1;
+                const isSubmitting = submittingEntry === entry.name;
+
+                return (
+                  <div
+                    key={entry.name}
+                    onClick={() => router.push(`/stock-entry/seMain?name=${entry.name}`)}
+                    className="px-4 py-4 hover:bg-gray-50 cursor-pointer"
+                  >
+                    <div className="space-y-3">
+                      {/* Row 1: Entry Name + Status Badge */}
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-indigo-600 truncate">{entry.name}</p>
+                          <p className="text-xs text-gray-500 mt-0.5">📅 {entry.posting_date} • 🕐 {entry.posting_time}</p>
+                        </div>
+                        {isSubmitted ? (
+                          <span className="ml-2 inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                            ✓ Submitted
+                          </span>
+                        ) : (
+                          <span className="ml-2 inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                            📝 Draft
+                          </span>
+                        )}
+                      </div>
+                      
+                      {/* Row 2: Purpose Badge */}
+                      <div>
+                        <span className={`inline-flex px-2.5 py-1 text-xs font-semibold rounded-full ${getPurposeColor(entry.purpose)}`}>
+                          {entry.purpose}
+                        </span>
+                      </div>
+                      
+                      {/* Row 3: Warehouses */}
+                      <div className="grid grid-cols-2 gap-3 pt-2 border-t border-gray-100">
+                        <div>
+                          <p className="text-xs text-gray-500 mb-1">Dari Gudang</p>
+                          <p className="text-sm font-semibold text-gray-900 truncate" title={entry.from_warehouse}>
+                            📦 {entry.from_warehouse || '-'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 mb-1">Ke Gudang</p>
+                          <p className="text-sm font-semibold text-gray-900 truncate" title={entry.to_warehouse}>
+                            📦 {entry.to_warehouse || '-'}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      {/* Row 4: Total Amount */}
+                      <div className="pt-2 border-t border-gray-100">
+                        <p className="text-xs text-gray-500 mb-1">Total Jumlah</p>
+                        <p className="text-base font-bold text-indigo-600">
+                          {entry.total_amount?.toLocaleString('id-ID') || 0}
+                        </p>
+                      </div>
+                      
+                      {/* Row 5: Submit Button (only for draft) */}
+                      {isDraft && (
+                        <div className="pt-3 border-t border-gray-100">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSubmitEntry(entry.name);
+                            }}
+                            disabled={isSubmitting}
+                            className={`w-full inline-flex items-center justify-center px-3 py-2 text-xs font-medium rounded-md transition-all shadow-sm
+                              ${isSubmitting 
+                                ? 'bg-gray-400 text-white cursor-not-allowed' 
+                                : 'bg-gradient-to-r from-teal-500 to-teal-600 text-white hover:from-teal-600 hover:to-teal-700'
+                              }`}
+                          >
+                            {isSubmitting ? (
+                              <>
+                                <svg className="animate-spin -ml-1 mr-2 h-3 w-3 text-white" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                Submitting...
+                              </>
+                            ) : (
+                              <>
+                                <svg className="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                                Submit
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
+          
           <Pagination
             currentPage={currentPage}
-            totalPages={Math.ceil(filteredEntries.length / PAGE_SIZE)}
-            totalRecords={filteredEntries.length}
-            pageSize={PAGE_SIZE}
-            onPageChange={setCurrentPage}
+            totalPages={totalPages}
+            totalRecords={totalRecords}
+            pageSize={pageSize}
+            onPageChange={(page) => {
+              pageChangeSourceRef.current = 'pagination';
+              setCurrentPage(page);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
           />
         </div>
       </div>

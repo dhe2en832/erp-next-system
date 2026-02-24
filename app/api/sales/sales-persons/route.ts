@@ -6,12 +6,14 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search');
+    const limitPageLength = searchParams.get('limit_page_length') || '20';
+    const limitStart = searchParams.get('limit_start') || '0';
 
     const cookies = request.cookies;
     const sid = cookies.get('sid')?.value;
 
     // Get sales person master data from Sales Person doctype
-    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Sales Person?fields=["name","sales_person_name","employee"]&limit_page_length=1000`;
+    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Sales Person?fields=["name","sales_person_name","employee"]&limit_page_length=${limitPageLength}&limit_start=${limitStart}`;
     
     if (search) {
       erpNextUrl += `&filters=[["sales_person_name","like","%${search}%"]]`;

@@ -7,8 +7,10 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const filters = searchParams.get('filters');
     const orderBy = searchParams.get('order_by');
+    const limitPageLength = searchParams.get('limit_page_length') || '20';
+    const limitStart = searchParams.get('limit_start') || '0';
 
-    console.log('Stock Entry API Parameters:', { filters, orderBy });
+    console.log('Stock Entry API Parameters:', { filters, orderBy, limitPageLength, limitStart });
 
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     const apiKey = process.env.ERP_API_KEY;
@@ -48,7 +50,7 @@ export async function GET(request: NextRequest) {
     console.log('Parsed filters array:', filtersArray);
 
     // Build ERPNext URL
-    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Stock Entry?fields=["name","posting_date","posting_time","purpose","company","from_warehouse","to_warehouse","total_amount","docstatus"]&limit_page_length=100&order_by=posting_date desc,posting_time desc`;
+    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Stock Entry?fields=["name","posting_date","posting_time","purpose","company","from_warehouse","to_warehouse","total_amount","docstatus"]&limit_page_length=${limitPageLength}&limit_start=${limitStart}&order_by=posting_date desc,posting_time desc`;
     
     if (filtersArray.length > 0) {
       erpNextUrl += `&filters=${encodeURIComponent(JSON.stringify(filtersArray))}`;
@@ -77,6 +79,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         success: true,
         data: data.data || [],
+        total: data.data?.length || 0,
       });
     } else {
       return NextResponse.json(

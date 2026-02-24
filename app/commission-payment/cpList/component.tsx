@@ -1,10 +1,27 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import Pagination from '../../components/Pagination';
 import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
 import { formatDate, parseDate } from '../../../utils/format';
+
+// ─────────────────────────────────────────────────────────────
+// Hook: Deteksi mobile (breakpoint 768px)
+// ─────────────────────────────────────────────────────────────
+function useIsMobile(breakpoint = 768) {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < breakpoint);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, [breakpoint]);
+
+  return isMobile;
+}
 
 interface PayableInvoice {
   name: string;
@@ -20,6 +37,12 @@ interface PayableInvoice {
 
 export default function CommissionPaymentList() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isMobile = useIsMobile(768);
+  
+  // ✅ Responsive pageSize
+  const pageSize = isMobile ? 10 : 20;
+  
   const [invoices, setInvoices] = useState<PayableInvoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -37,8 +60,11 @@ export default function CommissionPaymentList() {
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
-  const [limit, setLimit] = useState(20);
-  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
+
+  // ✅ FIX: Track pagination change source to prevent race conditions
+  const pageChangeSourceRef = useRef<'pagination' | 'filter' | 'init'>('init');
 
   // Refs untuk input focus
   const invoiceNoRef = useRef<HTMLInputElement>(null);
@@ -63,15 +89,15 @@ export default function CommissionPaymentList() {
     setFilters(prev => ({ ...prev, ...defaultFilters }));
   }, []);
 
-  const fetchPayableInvoices = async (pageNum = currentPage) => {
+  const fetchPayableInvoices = useCallback(async () => {
     if (!selectedCompany) return;
     setLoading(true);
     setError('');
     try {
       const params = new URLSearchParams({
         company: selectedCompany,
-        page: String(pageNum),
-        limit: String(limit),
+        limit_page_length: String(pageSize),
+        limit_start: String((currentPage - 1) * pageSize),
       });
 
       // Add filters if provided
@@ -93,7 +119,8 @@ export default function CommissionPaymentList() {
 
       if (data.success) {
         setInvoices(data.data || []);
-        setTotal(data.total || 0);
+        setTotalRecords(data.total || 0);
+        setTotalPages(Math.ceil((data.total || 0) / pageSize));
       } else {
         setError(data.message || 'Gagal memuat data komisi');
       }
@@ -103,13 +130,60 @@ export default function CommissionPaymentList() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedCompany, currentPage, pageSize, filters]);
 
+  // ─────────────────────────────────────────────────────────
+  // Effects - FIXED VERSION - Prevent race conditions
+  // ─────────────────────────────────────────────────────────
+  
+  // ✅ Sync URL dengan page state
+  useEffect(() => {
+    const pageFromUrl = searchParams.get('page');
+    if (pageFromUrl && !isNaN(parseInt(pageFromUrl))) {
+      const pageNum = parseInt(pageFromUrl);
+      if (pageNum >= 1) setCurrentPage(pageNum);
+    }
+  }, [searchParams]);
+
+  // ✅ Update URL with debounce to prevent throttling
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const timeoutId = setTimeout(() => {
+      const newParams = new URLSearchParams(searchParams.toString());
+      if (currentPage > 1) {
+        newParams.set('page', currentPage.toString());
+      } else {
+        newParams.delete('page');
+      }
+      const newUrl = `${window.location.pathname}${newParams.toString() ? `?${newParams.toString()}` : ''}`;
+      window.history.replaceState({}, '', newUrl);
+    }, 100); // Debounce 100ms
+
+    return () => clearTimeout(timeoutId);
+  }, [currentPage, searchParams]);
+  
+  // Reset page when filters change
+  useEffect(() => {
+    pageChangeSourceRef.current = 'filter';
+    setCurrentPage(1);
+  }, [filters]);
+
+  // Fetch when page changes (separated from filter logic)
   useEffect(() => {
     if (selectedCompany) {
       fetchPayableInvoices();
     }
-  }, [selectedCompany, currentPage, filters, limit]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, selectedCompany]);
+
+  // Trigger fetch when filters change (after page reset)
+  useEffect(() => {
+    if (pageChangeSourceRef.current === 'filter' && selectedCompany) {
+      fetchPayableInvoices();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters, selectedCompany]);
 
   // Restore focus after re-render
   useEffect(() => {
@@ -169,7 +243,7 @@ export default function CommissionPaymentList() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
           <p className="text-sm text-blue-600 font-medium">Total Faktur</p>
-          <p className="text-2xl font-bold text-blue-900">{total}</p>
+          <p className="text-2xl font-bold text-blue-900">{totalRecords}</p>
         </div>
         <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
           <p className="text-sm text-orange-600 font-medium">Total Komisi</p>
@@ -282,86 +356,145 @@ export default function CommissionPaymentList() {
       </div>
 
       <div className="bg-white shadow rounded-lg overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">No. Faktur</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pelanggan</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sales Person</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tanggal</th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total Faktur</th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Komisi</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+        <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
+          <h3 className="text-sm font-medium text-gray-900">
+            Daftar Faktur Komisi 
+            <span className="ml-2 px-2 py-1 bg-indigo-100 text-indigo-700 text-xs rounded-full">{totalRecords} faktur</span>
+          </h3>
+        </div>
+        
+        {/* Desktop Table */}
+        {!isMobile ? (
+          <>
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">No. Faktur</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pelanggan</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sales Person</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tanggal</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total Faktur</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Komisi</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {invoices.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                      Tidak ada faktur dengan komisi
+                    </td>
+                  </tr>
+                ) : (
+                  invoices.map((inv) => (
+                    <tr key={inv.name} className="hover:bg-gray-50">
+                      <td 
+                        className="px-4 py-3 whitespace-nowrap text-sm font-medium text-indigo-600 cursor-pointer hover:underline"
+                        onClick={() => router.push(`/invoice/siMain?name=${encodeURIComponent(inv.name)}`)}
+                      >
+                        {inv.name}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{inv.customer_name || inv.customer}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                        {inv.sales_team && inv.sales_team.length > 0
+                          ? inv.sales_team.map(s => s.sales_person).join(', ')
+                          : '-'}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{inv.posting_date}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right">Rp {(inv.grand_total || 0).toLocaleString('id-ID')}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-orange-600 text-right">Rp {(inv.custom_total_komisi_sales || 0).toLocaleString('id-ID')}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {inv.custom_commission_paid ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            Sudah Dibayar
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                            Belum Dibayar
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </>
+        ) : (
+          /* Mobile Cards */
+          <div className="divide-y divide-gray-200">
             {invoices.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
-                  Tidak ada faktur dengan komisi
-                </td>
-              </tr>
+              <div className="px-4 py-8 text-center text-gray-500">Tidak ada faktur dengan komisi</div>
             ) : (
               invoices.map((inv) => (
-                <tr key={inv.name} className="hover:bg-gray-50">
-                  <td 
-                    className="px-4 py-3 whitespace-nowrap text-sm font-medium text-indigo-600 cursor-pointer hover:underline"
-                    onClick={() => router.push(`/invoice/siMain?name=${encodeURIComponent(inv.name)}`)}
-                  >
-                    {inv.name}
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{inv.customer_name || inv.customer}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                    {inv.sales_team && inv.sales_team.length > 0
-                      ? inv.sales_team.map(s => s.sales_person).join(', ')
-                      : '-'}
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{inv.posting_date}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right">Rp {(inv.grand_total || 0).toLocaleString('id-ID')}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-orange-600 text-right">Rp {(inv.custom_total_komisi_sales || 0).toLocaleString('id-ID')}</td>
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    {inv.custom_commission_paid ? (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                        Sudah Dibayar
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                        Belum Dibayar
-                      </span>
+                <div 
+                  key={inv.name} 
+                  className="px-4 py-4 hover:bg-gray-50"
+                  onClick={() => router.push(`/invoice/siMain?name=${encodeURIComponent(inv.name)}`)}
+                >
+                  <div className="space-y-3">
+                    {/* Row 1: Invoice No + Status Badge */}
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-indigo-600 truncate cursor-pointer">{inv.name}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">📅 {inv.posting_date}</p>
+                      </div>
+                      {inv.custom_commission_paid ? (
+                        <span className="ml-2 inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          ✓ Dibayar
+                        </span>
+                      ) : (
+                        <span className="ml-2 inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                          ⏳ Belum
+                        </span>
+                      )}
+                    </div>
+                    
+                    {/* Row 2: Customer */}
+                    <div className="text-sm text-gray-700 truncate" title={inv.customer_name || inv.customer}>
+                      👤 {inv.customer_name || inv.customer}
+                    </div>
+                    
+                    {/* Row 3: Sales Person */}
+                    {inv.sales_team && inv.sales_team.length > 0 && (
+                      <div className="text-sm text-gray-600 truncate">
+                        💼 {inv.sales_team.map(s => s.sales_person).join(', ')}
+                      </div>
                     )}
-                  </td>
-                </tr>
+                    
+                    {/* Row 4: Total Faktur + Komisi */}
+                    <div className="grid grid-cols-2 gap-3 pt-2 border-t border-gray-100">
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Total Faktur</p>
+                        <p className="text-sm font-semibold text-gray-900">
+                          Rp {(inv.grand_total || 0).toLocaleString('id-ID')}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Komisi</p>
+                        <p className="text-sm font-bold text-orange-600">
+                          Rp {(inv.custom_total_komisi_sales || 0).toLocaleString('id-ID')}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               ))
             )}
-          </tbody>
-        </table>
-        {/* Pagination */}
-        {total > 0 && (
-          <div className="px-4 py-3 border-t border-gray-200 flex items-center justify-between">
-            <div className="text-sm text-gray-500">
-              Menampilkan {((currentPage - 1) * limit) + 1} - {Math.min(currentPage * limit, total)} dari {total} data
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => { if (currentPage > 1) { setCurrentPage(currentPage - 1); fetchPayableInvoices(currentPage - 1); } }}
-                disabled={currentPage <= 1}
-                className="px-3 py-1 border border-gray-300 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-              >
-                &larr; Sebelumnya
-              </button>
-              <span className="px-3 py-1 text-sm text-gray-600">
-                Halaman {currentPage}
-              </span>
-              <button
-                onClick={() => { if (currentPage * limit < total) { setCurrentPage(currentPage + 1); fetchPayableInvoices(currentPage + 1); } }}
-                disabled={currentPage * limit >= total}
-                className="px-3 py-1 border border-gray-300 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-              >
-                Selanjutnya &rarr;
-              </button>
-            </div>
           </div>
         )}
+        
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalRecords={totalRecords}
+          pageSize={pageSize}
+          onPageChange={(page) => {
+            pageChangeSourceRef.current = 'pagination';
+            setCurrentPage(page);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+        />
       </div>
     </div>
   );

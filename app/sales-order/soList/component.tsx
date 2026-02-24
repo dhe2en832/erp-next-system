@@ -159,6 +159,9 @@ export default function SalesOrderList() {
 
   // Ref untuk sentinel infinite scroll
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+  
+  // Ref untuk tracking pagination source (prevent race conditions)
+  const pageChangeSourceRef = useRef<'pagination' | 'filter' | 'init'>('init');
 
   // ─────────────────────────────────────────────────────────
   // Sync URL dengan page state (untuk bookmark/share)
@@ -173,15 +176,20 @@ export default function SalesOrderList() {
     }
   }, [searchParams]);
 
+  // Update URL with debounce to prevent throttling
   useEffect(() => {
-    const newParams = new URLSearchParams(searchParams.toString());
-    if (currentPage > 1) {
-      newParams.set('page', currentPage.toString());
-    } else {
-      newParams.delete('page');
-    }
-    const newUrl = `${window.location.pathname}${newParams.toString() ? `?${newParams.toString()}` : ''}`;
-    window.history.replaceState({}, '', newUrl);
+    const timeoutId = setTimeout(() => {
+      const newParams = new URLSearchParams(searchParams.toString());
+      if (currentPage > 1) {
+        newParams.set('page', currentPage.toString());
+      } else {
+        newParams.delete('page');
+      }
+      const newUrl = `${window.location.pathname}${newParams.toString() ? `?${newParams.toString()}` : ''}`;
+      window.history.replaceState({}, '', newUrl);
+    }, 100); // Debounce 100ms
+
+    return () => clearTimeout(timeoutId);
   }, [currentPage, searchParams]);
 
   // ─────────────────────────────────────────────────────────
@@ -300,19 +308,31 @@ export default function SalesOrderList() {
   }, [currentPage, pageSize, dateFilter, nameFilter, statusFilter, documentNumberFilter, selectedCompany]);
 
   // ─────────────────────────────────────────────────────────
-  // Effects
+  // Effects - FIXED VERSION - Prevent race conditions
   // ─────────────────────────────────────────────────────────
+  
+  // Reset page when filters change
   useEffect(() => {
-    fetchOrders(true); // reset = true
+    pageChangeSourceRef.current = 'filter';
+    setCurrentPage(1);
   }, [dateFilter, nameFilter, statusFilter, documentNumberFilter]);
 
+  // Fetch when page changes (separated from filter logic)
   useEffect(() => {
-    fetchOrders(false); // reset = false (append mode untuk infinite scroll)
-  }, [currentPage]);
+    // Always reset for desktop pagination
+    // Only append for mobile infinite scroll when page > 1
+    const shouldReset = !useInfiniteScrollMode || currentPage === 1;
+    fetchOrders(shouldReset);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, useInfiniteScrollMode]);
 
-  // Reset page saat filter berubah
+  // Trigger fetch when filters change (after page reset)
   useEffect(() => {
-    setCurrentPage(1);
+    if (pageChangeSourceRef.current === 'filter') {
+      const shouldReset = !useInfiniteScrollMode || currentPage === 1;
+      fetchOrders(shouldReset);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateFilter, nameFilter, statusFilter, documentNumberFilter]);
 
   // ─────────────────────────────────────────────────────────
@@ -825,7 +845,10 @@ export default function SalesOrderList() {
                 totalPages={totalPages}
                 totalRecords={totalRecords}
                 pageSize={pageSize}
-                onPageChange={setCurrentPage}
+                onPageChange={(page) => {
+                  pageChangeSourceRef.current = 'pagination';
+                  setCurrentPage(page);
+                }}
               />
             </div>
           )}

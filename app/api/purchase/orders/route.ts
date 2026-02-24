@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const company = searchParams.get('company');
     const limitPageLength = searchParams.get('limit_page_length');
-    const start = searchParams.get('start');
+    const limitStart = searchParams.get('limit_start');
     const search = searchParams.get('search');
     const documentNumber = searchParams.get('documentNumber');
     const status = searchParams.get('status');
@@ -96,7 +96,7 @@ export async function GET(request: NextRequest) {
       fields: JSON.stringify(fields),
       filters: JSON.stringify(filters),
       limit_page_length: limitPageLength || '20',
-      ...(start && { start }),
+      ...(limitStart && { limit_start: limitStart }),
       ...(orderBy && { order_by: orderBy })
     });
 

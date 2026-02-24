@@ -23,17 +23,17 @@ export default function BrowserStyleDatePicker({
 
   useEffect(() => {
     // Convert DD/MM/YYYY to YYYY-MM-DD for the date input
-    console.log('[DEBUG DatePicker] value prop:', value);
+    // console.log('[DEBUG DatePicker] value prop:', value);
     if (value && /^\d{2}\/\d{2}\/\d{4}$/.test(value)) {
       const parsed = parseDate(value);
-      console.log('[DEBUG DatePicker] parsed:', parsed);
+      // console.log('[DEBUG DatePicker] parsed:', parsed);
       setInternalValue(parsed || '');
     } else if (value && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
       // Already YYYY-MM-DD, use directly
-      console.log('[DEBUG DatePicker] already YYYY-MM-DD:', value);
+      // console.log('[DEBUG DatePicker] already YYYY-MM-DD:', value);
       setInternalValue(value);
     } else {
-      console.log('[DEBUG DatePicker] invalid format, clearing');
+      // console.log('[DEBUG DatePicker] invalid format, clearing');
       setInternalValue('');
     }
   }, [value]);

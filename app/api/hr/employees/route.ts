@@ -8,11 +8,13 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search');
     const status = searchParams.get('status') || 'Active';
     const nameFilter = searchParams.get('name');
+    const limitPageLength = searchParams.get('limit_page_length') || '20';
+    const limitStart = searchParams.get('limit_start') || '0';
 
     const cookies = request.cookies;
     const sid = cookies.get('sid')?.value;
 
-    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Employee?fields=["name","employee_name","first_name","company","department","designation","gender","status","cell_number","personal_email","date_of_birth","date_of_joining"]&limit_page_length=500`;
+    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Employee?fields=["name","employee_name","first_name","company","department","designation","gender","status","cell_number","personal_email","date_of_birth","date_of_joining"]&limit_page_length=${limitPageLength}&limit_start=${limitStart}`;
     
     // Build filters array
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

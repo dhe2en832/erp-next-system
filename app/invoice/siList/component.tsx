@@ -142,6 +142,9 @@ export default function SalesInvoiceList() {
   const [loadingPrintData, setLoadingPrintData] = useState(false);
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+  
+  // Ref untuk tracking pagination source (prevent race conditions)
+  const pageChangeSourceRef = useRef<'pagination' | 'filter' | 'init'>('init');
 
   // ─────────────────────────────────────────────────────────
   // Sync URL dengan page state (bookmark/share)
@@ -154,15 +157,20 @@ export default function SalesInvoiceList() {
     }
   }, [searchParams]);
 
+  // Update URL with debounce to prevent throttling
   useEffect(() => {
-    const newParams = new URLSearchParams(searchParams.toString());
-    if (currentPage > 1) {
-      newParams.set('page', currentPage.toString());
-    } else {
-      newParams.delete('page');
-    }
-    const newUrl = `${window.location.pathname}${newParams.toString() ? `?${newParams.toString()}` : ''}`;
-    window.history.replaceState({}, '', newUrl);
+    const timeoutId = setTimeout(() => {
+      const newParams = new URLSearchParams(searchParams.toString());
+      if (currentPage > 1) {
+        newParams.set('page', currentPage.toString());
+      } else {
+        newParams.delete('page');
+      }
+      const newUrl = `${window.location.pathname}${newParams.toString() ? `?${newParams.toString()}` : ''}`;
+      window.history.replaceState({}, '', newUrl);
+    }, 100); // Debounce 100ms
+
+    return () => clearTimeout(timeoutId);
   }, [currentPage, searchParams]);
 
   // ─────────────────────────────────────────────────────────
@@ -314,19 +322,32 @@ export default function SalesInvoiceList() {
   }, [selectedCompany, dateFilter, searchTerm, statusFilter, documentNumberFilter, currentPage, pageSize]);
 
   // ─────────────────────────────────────────────────────────
-  // Effects
   // ─────────────────────────────────────────────────────────
+  // Effects - FIXED VERSION - Prevent race conditions
+  // ─────────────────────────────────────────────────────────
+  
+  // Reset page when filters change
   useEffect(() => {
-    fetchInvoices(true); // reset = true (ganti filter)
+    pageChangeSourceRef.current = 'filter';
+    setCurrentPage(1);
   }, [dateFilter, searchTerm, statusFilter, documentNumberFilter]);
 
+  // Fetch when page changes (separated from filter logic)
   useEffect(() => {
-    fetchInvoices(false); // reset = false (ganti halaman/infinite scroll)
-  }, [currentPage]);
+    // Always reset for desktop pagination
+    // Only append for mobile infinite scroll when page > 1
+    const shouldReset = !useInfiniteScrollMode || currentPage === 1;
+    fetchInvoices(shouldReset);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, useInfiniteScrollMode]);
 
-  // Reset ke halaman 1 saat filter berubah
+  // Trigger fetch when filters change (after page reset)
   useEffect(() => {
-    setCurrentPage(1);
+    if (pageChangeSourceRef.current === 'filter') {
+      const shouldReset = !useInfiniteScrollMode || currentPage === 1;
+      fetchInvoices(shouldReset);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateFilter, searchTerm, statusFilter, documentNumberFilter]);
 
   // ─────────────────────────────────────────────────────────
@@ -858,7 +879,10 @@ export default function SalesInvoiceList() {
                 totalPages={totalPages}
                 totalRecords={totalRecords}
                 pageSize={pageSize}
-                onPageChange={setCurrentPage}
+                onPageChange={(page) => {
+                  pageChangeSourceRef.current = 'pagination';
+                  setCurrentPage(page);
+                }}
               />
             </div>
           )}

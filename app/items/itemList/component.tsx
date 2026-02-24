@@ -62,13 +62,11 @@ export default function ItemList() {
   const searchParams = useSearchParams();
   const isMobile = useIsMobile(768);
 
-  // ✅ OTOMATIS - tidak ada toggle button
+  // ✅ Responsive pageSize
   const pageSize = isMobile ? 10 : 20;
-  const useInfiniteScrollMode = isMobile;
 
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [itemCodeFilter, setItemCodeFilter] = useState('');
   const [selectedCompany, setSelectedCompany] = useState('');
@@ -77,10 +75,7 @@ export default function ItemList() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalRecords, setTotalRecords] = useState(0);
   const [showBackToTop, setShowBackToTop] = useState(false);
-  const [hasMoreData, setHasMoreData] = useState(true);
 
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
-  
   // ✅ FIX: Track pagination change source to prevent race conditions
   const pageChangeSourceRef = useRef<'pagination' | 'filter' | 'init'>('init');
 
@@ -178,18 +173,11 @@ export default function ItemList() {
   }, [selectedCompany]);
 
   // ─────────────────────────────────────────────────────────
-  // Fetch Data - PERSIS SEPERTI SO LIST
-  // ─────────────────────────────────────────────────────────
-  // ─────────────────────────────────────────────────────────
   // Fetch Data - FIXED VERSION
   // ─────────────────────────────────────────────────────────
-  const fetchItems = useCallback(async (reset = false) => {
-    if (reset) {
-      setLoading(true);
-      setError('');
-    } else {
-      setLoadingMore(true);
-    }
+  const fetchItems = useCallback(async () => {
+    setLoading(true);
+    setError('');
 
     try {
       // ✅ Build params satu per satu agar encoding benar
@@ -268,28 +256,13 @@ export default function ItemList() {
         if (result.total_records !== undefined) {
           setTotalRecords(result.total_records);
           setTotalPages(Math.ceil(result.total_records / pageSize));
-          setHasMoreData(currentPage < Math.ceil(result.total_records / pageSize));
         } else {
           setTotalRecords(itemsWithPrices.length);
           setTotalPages(1);
-          setHasMoreData(false);
         }
 
-        if (reset) {
-          // console.log('🔄 RESET: Setting items to:', itemsWithPrices.length, 'items');
-          // console.log('First item:', itemsWithPrices[0]?.item_code);
-          setItems(itemsWithPrices);
-        } else {
-          // ✅ Deduplication saat infinite scroll
-          setItems(prev => {
-            const existingCodes = new Set(prev.map(i => i.item_code));
-            const newItems = itemsWithPrices.filter((i: Item) => !existingCodes.has(i.item_code));
-            // console.log('➕ APPEND: Adding', newItems.length, 'new items to existing', prev.length);
-            return [...prev, ...newItems];
-          });
-        }
-
-        setError(itemsWithPrices.length === 0 && reset ? 'Tidak ada barang ditemukan' : '');
+        setItems(itemsWithPrices);
+        setError(itemsWithPrices.length === 0 ? 'Tidak ada barang ditemukan' : '');
       } else {
         setError(result.message || 'Gagal memuat daftar barang');
       }
@@ -298,7 +271,6 @@ export default function ItemList() {
       setError(err.message || 'Gagal memuat daftar barang');
     } finally {
       setLoading(false);
-      setLoadingMore(false);
     }
   }, [currentPage, pageSize, searchTerm, itemCodeFilter, fetchItemPrices]);
   
@@ -315,64 +287,17 @@ export default function ItemList() {
   
   // Fetch items when page changes (separated from filter logic)
   useEffect(() => {
-    // console.log('📄 Page effect triggered:', { 
-    //   currentPage, 
-    //   source: pageChangeSourceRef.current,
-    //   useInfiniteScrollMode 
-    // });
-    
-    // Always reset for desktop pagination
-    // Only append for mobile infinite scroll when page > 1
-    const shouldReset = !useInfiniteScrollMode || currentPage === 1;
-    // console.log('🎯 Calling fetchItems with reset:', shouldReset);
-    
-    fetchItems(shouldReset);
+    fetchItems();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, useInfiniteScrollMode]);
+  }, [currentPage]);
   
   // Trigger fetch when filters change (after page reset)
   useEffect(() => {
     if (pageChangeSourceRef.current === 'filter') {
-      // console.log('🔍 Filter effect: Triggering fetch after filter change');
-      const shouldReset = !useInfiniteScrollMode || currentPage === 1;
-      fetchItems(shouldReset);
+      fetchItems();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm, itemCodeFilter]);
-
-  // ─────────────────────────────────────────────────────────
-  // Infinite Scroll Handler (Mobile Only) - IntersectionObserver
-  // ─────────────────────────────────────────────────────────
-  const loadMoreData = useCallback(() => {
-    if (!loadingMore && hasMoreData && useInfiniteScrollMode) {
-      setCurrentPage(prev => {
-        const nextPage = prev + 1;
-        if (nextPage <= totalPages) {
-          return nextPage;
-        }
-        return prev;
-      });
-    }
-  }, [loadingMore, hasMoreData, useInfiniteScrollMode, totalPages]);
-
-  useEffect(() => {
-    if (!useInfiniteScrollMode || loading || loadingMore || !hasMoreData) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) {
-          loadMoreData();
-        }
-      },
-      { rootMargin: '100px' } // Trigger 100px sebelum bottom
-    );
-
-    if (sentinelRef.current) {
-      observer.observe(sentinelRef.current);
-    }
-
-    return () => observer.disconnect();
-  }, [useInfiniteScrollMode, loading, loadingMore, hasMoreData, loadMoreData]);
 
   // ─────────────────────────────────────────────────────────
   // Back to Top Button
@@ -415,11 +340,11 @@ export default function ItemList() {
     setCurrentPage(1);
   };
 
-  const handleLoadMoreClick = () => {
-    if (!loadingMore && hasMoreData) {
-      setCurrentPage(prev => Math.min(prev + 1, totalPages));
-    }
-  };
+  const handlePageChange = useCallback((page: number) => {
+    pageChangeSourceRef.current = 'pagination';
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
 
   // ─────────────────────────────────────────────────────────
   // Skeleton Loader Component
@@ -523,9 +448,6 @@ export default function ItemList() {
           {/* Progress Indicator */}
           <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 text-xs text-gray-600">
             <span className="font-medium">{items.length}</span> dari <span className="font-medium">{totalRecords}</span> barang
-            {useInfiniteScrollMode && hasMoreData && (
-              <span className="ml-2 text-indigo-600">• Scroll untuk load lebih banyak</span>
-            )}
           </div>
 
           {/* Table Header - Desktop Only */}
@@ -643,20 +565,6 @@ export default function ItemList() {
                 </div>
               </li>
             ))}
-
-            {/* Skeleton Loaders */}
-            {loadingMore && useInfiniteScrollMode && (
-              <>
-                <SkeletonCard />
-                <SkeletonCard />
-                <SkeletonCard />
-              </>
-            )}
-
-            {/* Sentinel untuk infinite scroll */}
-            {useInfiniteScrollMode && hasMoreData && (
-              <div ref={sentinelRef} className="h-10"></div>
-            )}
           </ul>
 
           {/* Empty State */}
@@ -670,62 +578,19 @@ export default function ItemList() {
             </div>
           )}
 
-          {/* Load More Button (Mobile Fallback) */}
-          {useInfiniteScrollMode && hasMoreData && !loadingMore && items.length > 0 && (
-            <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 text-center">
-              <button
-                onClick={handleLoadMoreClick}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors"
-              >
-                <Loader2 className="h-4 w-4" />
-                Load More ({totalRecords - items.length} remaining)
-              </button>
-            </div>
-          )}
-
-          {/* Loading More Indicator */}
-          {loadingMore && (
-            <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 text-center">
-              <div className="inline-flex items-center gap-2 text-sm text-gray-600">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Memuat data...
-              </div>
-            </div>
-          )}
-
-          {/* End of Data */}
-          {!hasMoreData && items.length > 0 && (
-            <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 text-center text-xs text-gray-500">
-              ✓ Semua data telah dimuat
-            </div>
-          )}
-
-          {/* Pagination - Desktop Only */}
-          {!useInfiniteScrollMode && totalPages > 1 && (
+          {/* Pagination - Mobile & Desktop */}
+          {totalPages > 1 && (
             <div className="px-4 py-3 bg-gray-50 border-t border-gray-200">
               <Pagination
                 currentPage={currentPage}
                 totalPages={totalPages}
                 totalRecords={totalRecords}
                 pageSize={pageSize}
-                onPageChange={(page) => {
-                  // console.log('🖱️ Pagination button clicked:', page);
-                  pageChangeSourceRef.current = 'pagination';
-                  setCurrentPage(page);
-                }}
+                onPageChange={handlePageChange}
               />
             </div>
           )}
         </div>
-        
-        {/* Info Text */}
-        <p className="mt-3 text-xs text-gray-500 text-center">
-          {useInfiniteScrollMode ? (
-            <>Halaman {currentPage} dari {totalPages} • Scroll untuk load lebih banyak</>
-          ) : (
-            <>Menampilkan {items.length} dari {totalRecords} barang • Halaman {currentPage} dari {totalPages}</>
-          )}
-        </p>
       </div>
 
       {/* Back to Top FAB Button */}

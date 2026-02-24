@@ -185,6 +185,9 @@ export default function PurchaseReceiptList() {
 
   // Ref untuk sentinel infinite scroll
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+  
+  // Ref untuk tracking pagination source (prevent race conditions)
+  const pageChangeSourceRef = useRef<'pagination' | 'filter' | 'init'>('init');
 
   // ─────────────────────────────────────────────────────────
   // Sync URL dengan page state (untuk bookmark/share)
@@ -197,16 +200,22 @@ export default function PurchaseReceiptList() {
     }
   }, [searchParams]);
 
+  // Update URL with debounce to prevent throttling
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const newParams = new URLSearchParams(searchParams?.toString() || '');
-    if (currentPage > 1) {
-      newParams.set('page', currentPage.toString());
-    } else {
-      newParams.delete('page');
-    }
-    const newUrl = `${window.location.pathname}${newParams.toString() ? `?${newParams.toString()}` : ''}`;
-    window.history.replaceState({}, '', newUrl);
+    
+    const timeoutId = setTimeout(() => {
+      const newParams = new URLSearchParams(searchParams?.toString() || '');
+      if (currentPage > 1) {
+        newParams.set('page', currentPage.toString());
+      } else {
+        newParams.delete('page');
+      }
+      const newUrl = `${window.location.pathname}${newParams.toString() ? `?${newParams.toString()}` : ''}`;
+      window.history.replaceState({}, '', newUrl);
+    }, 100); // Debounce 100ms
+
+    return () => clearTimeout(timeoutId);
   }, [currentPage, searchParams]);
 
   // ─────────────────────────────────────────────────────────
@@ -346,27 +355,34 @@ export default function PurchaseReceiptList() {
   }, [currentPage, pageSize, dateFilter, supplierFilter, statusFilter, documentNumberFilter, selectedCompany]);
 
   // ─────────────────────────────────────────────────────────
-  // Effects - MENGIKUTI POLA soList.tsx
+  // Effects - FIXED VERSION - Prevent race conditions
   // ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (selectedCompany) fetchSuppliers();
   }, [selectedCompany, fetchSuppliers]);
 
+  // Reset page when filters change
   useEffect(() => {
-    // Filter berubah → fetch dengan reset
-    fetchReceipts(true);
+    pageChangeSourceRef.current = 'filter';
+    setCurrentPage(1);
   }, [dateFilter, supplierFilter, statusFilter, documentNumberFilter]);
 
+  // Fetch when page changes (separated from filter logic)
   useEffect(() => {
-    // Page berubah → fetch append mode (untuk infinite scroll)
-    if (!useInfiniteScrollMode) {
-      fetchReceipts(false);
-    }
-  }, [currentPage]);
+    // Always reset for desktop pagination
+    // Only append for mobile infinite scroll when page > 1
+    const shouldReset = !useInfiniteScrollMode || currentPage === 1;
+    fetchReceipts(shouldReset);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, useInfiniteScrollMode]);
 
-  // Reset page saat filter berubah
+  // Trigger fetch when filters change (after page reset)
   useEffect(() => {
-    setCurrentPage(1);
+    if (pageChangeSourceRef.current === 'filter') {
+      const shouldReset = !useInfiniteScrollMode || currentPage === 1;
+      fetchReceipts(shouldReset);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateFilter, supplierFilter, statusFilter, documentNumberFilter]);
 
   // ─────────────────────────────────────────────────────────
@@ -775,7 +791,10 @@ export default function PurchaseReceiptList() {
                 totalPages={totalPages}
                 totalRecords={totalRecords}
                 pageSize={pageSize}
-                onPageChange={setCurrentPage}
+                onPageChange={(page) => {
+                  pageChangeSourceRef.current = 'pagination';
+                  setCurrentPage(page);
+                }}
               />
             </div>
           )}

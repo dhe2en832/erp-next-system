@@ -8,8 +8,8 @@ export async function GET(request: NextRequest) {
     
     const { searchParams } = new URL(request.url);
     const filters = searchParams.get('filters');
-    const limit = searchParams.get('limit') || '20';
-    const start = searchParams.get('start') || '0';
+    const limitPageLength = searchParams.get('limit_page_length') || '20';
+    const limitStart = searchParams.get('limit_start') || '0';
     const orderBy = searchParams.get('order_by');
     const search = searchParams.get('search');
     const status = searchParams.get('status');
@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Build ERPNext URL
-    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Payment Entry?fields=["name","payment_type","party","party_name","party_type","paid_amount","received_amount","status","posting_date","mode_of_payment","reference_no","custom_notes_payment","clearance_date"]&limit_page_length=${limit}&start=${start}`;
+    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Payment Entry?fields=["name","payment_type","party","party_name","party_type","paid_amount","received_amount","status","posting_date","mode_of_payment","reference_no","custom_notes_payment","clearance_date"]&limit_page_length=${limitPageLength}&limit_start=${limitStart}`;
     
     if (filtersArray.length > 0) {
       erpNextUrl += `&filters=${encodeURIComponent(JSON.stringify(filtersArray))}`;

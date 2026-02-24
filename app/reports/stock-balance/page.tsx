@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import Pagination from '../../components/Pagination';
 import PrintPreviewModal from '../../../components/PrintPreviewModal';
@@ -20,7 +21,25 @@ interface Warehouse {
   warehouse_name: string;
 }
 
+// Hook: Deteksi mobile (breakpoint 768px)
+function useIsMobile(breakpoint = 768) {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < breakpoint);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, [breakpoint]);
+
+  return isMobile;
+}
+
 export default function StockBalancePage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const isMobile = useIsMobile(768);
+  const pageSize = isMobile ? 10 : 20;
   const [data, setData] = useState<StockEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -51,12 +70,43 @@ export default function StockBalancePage() {
   
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const PAGE_SIZE = 20;
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
+
+  // ✅ FIX: Track pagination change source to prevent race conditions
+  const pageChangeSourceRef = useRef<'pagination' | 'filter' | 'init'>('init');
 
   useEffect(() => {
     const saved = localStorage.getItem('selected_company');
     if (saved) setSelectedCompany(saved);
   }, []);
+
+  // Sync URL dengan page state
+  useEffect(() => {
+    const pageFromUrl = searchParams.get('page');
+    if (pageFromUrl && !isNaN(parseInt(pageFromUrl))) {
+      const pageNum = parseInt(pageFromUrl);
+      if (pageNum >= 1) setCurrentPage(pageNum);
+    }
+  }, [searchParams]);
+
+  // Update URL with debounce to prevent throttling
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const timeoutId = setTimeout(() => {
+      const newParams = new URLSearchParams(searchParams.toString());
+      if (currentPage > 1) {
+        newParams.set('page', currentPage.toString());
+      } else {
+        newParams.delete('page');
+      }
+      const newUrl = `${window.location.pathname}${newParams.toString() ? `?${newParams.toString()}` : ''}`;
+      window.history.replaceState({}, '', newUrl);
+    }, 100); // Debounce 100ms
+
+    return () => clearTimeout(timeoutId);
+  }, [currentPage, searchParams]);
 
   const fetchData = useCallback(async () => {
     if (!selectedCompany) return;
@@ -97,6 +147,12 @@ export default function StockBalancePage() {
     }
   }, [selectedCompany, fetchData, fetchWarehouses]);
 
+  // Reset page when filters change
+  useEffect(() => {
+    pageChangeSourceRef.current = 'filter';
+    setCurrentPage(1);
+  }, [searchTerm, warehouseFilter]);
+
   // Frontend filtering
   const filteredData = useMemo(() => {
     let filtered = data;
@@ -120,9 +176,12 @@ export default function StockBalancePage() {
 
   // Pagination
   const paginatedData = useMemo(() => {
-    const start = (currentPage - 1) * PAGE_SIZE;
-    return filteredData.slice(start, start + PAGE_SIZE);
-  }, [filteredData, currentPage]);
+    const start = (currentPage - 1) * pageSize;
+    const paginated = filteredData.slice(start, start + pageSize);
+    setTotalRecords(filteredData.length);
+    setTotalPages(Math.ceil(filteredData.length / pageSize));
+    return paginated;
+  }, [filteredData, currentPage, pageSize]);
 
   const totalQty = filteredData.reduce((sum, e) => sum + (e.actual_qty || 0), 0);
   const totalValue = filteredData.reduce((sum, e) => sum + (e.stock_value || 0), 0);
@@ -133,12 +192,16 @@ export default function StockBalancePage() {
   // Memoized handlers to prevent input losing focus
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(e.target.value);
-    setCurrentPage(1); // Reset to first page on filter change
   }, []);
 
   const handleWarehouseChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
     setWarehouseFilter(e.target.value);
-    setCurrentPage(1); // Reset to first page on filter change
+  }, []);
+
+  const handlePageChange = useCallback((page: number) => {
+    pageChangeSourceRef.current = 'pagination';
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
   const handleRefresh = () => {
@@ -290,50 +353,88 @@ export default function StockBalancePage() {
         <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
           <h3 className="text-sm font-medium text-gray-900">
             Data Stok 
-            <span className="ml-2 px-2 py-1 bg-indigo-100 text-indigo-700 text-xs rounded-full">{filteredData.length} entri</span>
-            {filteredData.length > PAGE_SIZE && <span className="ml-2 text-gray-500">— Hal. {currentPage}</span>}
+            <span className="ml-2 px-2 py-1 bg-indigo-100 text-indigo-700 text-xs rounded-full">{totalRecords} entri</span>
           </h3>
         </div>
         
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kode Barang</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nama Barang</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Gudang</th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Qty</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">UoM</th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Nilai Stok</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+        {/* Desktop Table */}
+        {!isMobile ? (
+          <>
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kode Barang</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nama Barang</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Gudang</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Qty</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">UoM</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Nilai Stok</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {paginatedData.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                      Tidak ada data stok yang sesuai dengan filter
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedData.map((entry, i) => (
+                    <tr key={i} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-sm font-medium text-indigo-600">{entry.item_code}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900">{entry.item_name || '-'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-500">{entry.warehouse}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900 text-right">{entry.actual_qty.toLocaleString('id-ID')}</td>
+                      <td className="px-4 py-3 text-sm text-gray-500">{entry.stock_uom || 'Nos'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900 text-right">Rp {(entry.stock_value || 0).toLocaleString('id-ID')}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </>
+        ) : (
+          /* Mobile Cards */
+          <div className="divide-y divide-gray-200">
             {paginatedData.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
-                  Tidak ada data stok yang sesuai dengan filter
-                </td>
-              </tr>
+              <div className="px-4 py-8 text-center text-gray-500">Tidak ada data stok yang sesuai dengan filter</div>
             ) : (
               paginatedData.map((entry, i) => (
-                <tr key={i} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-sm font-medium text-indigo-600">{entry.item_code}</td>
-                  <td className="px-4 py-3 text-sm text-gray-900">{entry.item_name || '-'}</td>
-                  <td className="px-4 py-3 text-sm text-gray-500">{entry.warehouse}</td>
-                  <td className="px-4 py-3 text-sm text-gray-900 text-right">{entry.actual_qty.toLocaleString('id-ID')}</td>
-                  <td className="px-4 py-3 text-sm text-gray-500">{entry.stock_uom || 'Nos'}</td>
-                  <td className="px-4 py-3 text-sm text-gray-900 text-right">Rp {(entry.stock_value || 0).toLocaleString('id-ID')}</td>
-                </tr>
+                <div key={i} className="px-4 py-4 hover:bg-gray-50">
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-indigo-600 truncate">{entry.item_code}</p>
+                        <p className="text-sm text-gray-900 mt-1">{entry.item_name || '-'}</p>
+                        <p className="text-xs text-gray-500 mt-1">📦 {entry.warehouse}</p>
+                      </div>
+                      <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
+                        {entry.stock_uom || 'Nos'}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 pt-2 border-t border-gray-100">
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Qty</p>
+                        <p className="text-sm font-semibold text-gray-900">{entry.actual_qty.toLocaleString('id-ID')}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Nilai Stok</p>
+                        <p className="text-sm font-semibold text-gray-900">Rp {(entry.stock_value || 0).toLocaleString('id-ID')}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               ))
             )}
-          </tbody>
-        </table>
+          </div>
+        )}
         
         <Pagination
           currentPage={currentPage}
-          totalPages={Math.ceil(filteredData.length / PAGE_SIZE)}
-          totalRecords={filteredData.length}
-          pageSize={PAGE_SIZE}
-          onPageChange={setCurrentPage}
+          totalPages={totalPages}
+          totalRecords={totalRecords}
+          pageSize={pageSize}
+          onPageChange={handlePageChange}
         />
       </div>
     </div>

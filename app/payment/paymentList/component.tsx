@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useIsMobile } from '../../../hooks';
 import {
   LoadingSpinner,
@@ -106,6 +106,9 @@ export default function PaymentList({ onEdit, onCreate, selectedCompany }: Payme
   const [showBackToTop, setShowBackToTop] = useState(false);
   const [submittingPayment, setSubmittingPayment] = useState<string>('');
 
+  // Ref untuk tracking pagination source (prevent race conditions)
+  const pageChangeSourceRef = useRef<'pagination' | 'filter' | 'init'>('init');
+
   // Warkat dialog states
   const [showClearWarkatDialog, setShowClearWarkatDialog] = useState(false);
   const [showBounceWarkatDialog, setShowBounceWarkatDialog] = useState(false);
@@ -139,7 +142,7 @@ export default function PaymentList({ onEdit, onCreate, selectedCompany }: Payme
     try {
       const params = new URLSearchParams();
       params.append('limit_page_length', pageSize.toString());
-      params.append('start', ((currentPage - 1) * pageSize).toString());
+      params.append('limit_start', ((currentPage - 1) * pageSize).toString());
       
       // ✅ REQUEST FIELD SPESIFIK DARI ERPNext
       params.append('fields', JSON.stringify([
@@ -215,18 +218,30 @@ export default function PaymentList({ onEdit, onCreate, selectedCompany }: Payme
   ]);
 
   // ─────────────────────────────────────────────────────────
-  // Effects
+  // Effects - FIXED VERSION - Prevent race conditions
   // ─────────────────────────────────────────────────────────
+  
+  // Reset page when filters change
+  useEffect(() => {
+    pageChangeSourceRef.current = 'filter';
+    setCurrentPage(1);
+  }, [dateFilter, searchFilter, documentNumberFilter, paymentTypeFilter, statusFilter, modeOfPaymentFilter]);
+
+  // Fetch when page changes (separated from filter logic)
   useEffect(() => {
     if (selectedCompany) {
       fetchPayments();
     }
-  }, [fetchPayments, selectedCompany]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, selectedCompany]);
 
-  // Reset ke halaman 1 saat filter berubah (non-debounced untuk UX responsif)
+  // Trigger fetch when filters change (after page reset)
   useEffect(() => {
-    setCurrentPage(1);
-  }, [dateFilter, searchFilter, documentNumberFilter, paymentTypeFilter, statusFilter, modeOfPaymentFilter]);
+    if (pageChangeSourceRef.current === 'filter' && selectedCompany) {
+      fetchPayments();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateFilter, searchFilter, documentNumberFilter, paymentTypeFilter, statusFilter, modeOfPaymentFilter, selectedCompany]);
 
   // ─────────────────────────────────────────────────────────
   // Back to Top Button
@@ -738,7 +753,10 @@ export default function PaymentList({ onEdit, onCreate, selectedCompany }: Payme
                 totalPages={totalPages}
                 totalRecords={totalRecords}
                 pageSize={pageSize}
-                onPageChange={setCurrentPage}
+                onPageChange={(page) => {
+                  pageChangeSourceRef.current = 'pagination';
+                  setCurrentPage(page);
+                }}
               />
             </div>
           )}
