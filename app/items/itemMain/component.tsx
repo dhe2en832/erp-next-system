@@ -17,12 +17,13 @@ interface Item {
   valuation_rate?: number;
   standard_rate?: number;
   last_purchase_rate?: number;
+  custom_financial_cost_percent?: number;
 }
 
 export default function ItemMain() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const itemCode = searchParams.get('code');
+  const itemCode = searchParams.get('name') || searchParams.get('code'); // Support both 'name' and 'code' parameters
 
   const [loading, setLoading] = useState(!!itemCode);
   const [selectedCompany, setSelectedCompany] = useState('');
@@ -48,6 +49,7 @@ export default function ItemMain() {
     last_purchase_rate: 0,
     brand: '',
     default_currency: 'IDR',
+    custom_financial_cost_percent: 0,
   });
   const [valuationRateLoading, setValuationRateLoading] = useState(false);
   const [brands, setBrands] = useState<{name: string}[]>([]);
@@ -136,15 +138,34 @@ export default function ItemMain() {
     }
   }, [itemCode]);
 
+  // Debug: Log formData changes
+  useEffect(() => {
+    console.log('FormData updated - custom_financial_cost_percent:', formData.custom_financial_cost_percent);
+  }, [formData.custom_financial_cost_percent]);
+
   const fetchItemDetails = async (code: string) => {
     setLoading(true);
     try {
+      console.log('Fetching item details for code:', code);
       const response = await fetch(`/api/inventory/items/${encodeURIComponent(code)}`, { credentials: 'include' });
       const data = await response.json();
+      console.log('=== API Response START ===');
+      console.log('Full API Response:', JSON.stringify(data, null, 2));
+      console.log('=== API Response END ===');
+      
       if (data.success && data.data) {
         const item = data.data;
+        console.log('Item object:', item);
+        console.log('Item custom_financial_cost_percent from API:', item.custom_financial_cost_percent);
+        console.log('Type of custom_financial_cost_percent:', typeof item.custom_financial_cost_percent);
         setEditingItem(item);
-        setFormData({
+        
+        // Use nullish coalescing (??) instead of logical OR (||) to preserve 0 values
+        const financialCostPercent = item.custom_financial_cost_percent ?? 0;
+        console.log('Setting custom_financial_cost_percent to:', financialCostPercent);
+        console.log('Type after nullish coalescing:', typeof financialCostPercent);
+        
+        const initialFormData = {
           item_code: item.item_code,
           item_name: item.item_name,
           description: item.description || '',
@@ -156,7 +177,12 @@ export default function ItemMain() {
           last_purchase_rate: item.last_purchase_rate || 0,
           brand: item.brand || '',
           default_currency: 'IDR',
-        });
+          custom_financial_cost_percent: financialCostPercent,
+        };
+        
+        console.log('Initial formData object:', initialFormData);
+        console.log('Initial formData with custom_financial_cost_percent:', initialFormData.custom_financial_cost_percent);
+        setFormData(initialFormData);
         
         // Initialize price inputs with formatted values
         setPriceInputs({
@@ -165,18 +191,21 @@ export default function ItemMain() {
         });
         
         // Fetch valuation rate and bottom price for existing items
-        fetchItemPricing(item.item_code);
+        // Pass the financial cost percent to ensure it's preserved
+        fetchItemPricing(item.item_code, financialCostPercent);
       } else {
+        console.error('API returned unsuccessful response:', data);
         setError('Gagal memuat detail barang: ' + (data.message || 'Item tidak ditemukan'));
       }
-    } catch {
+    } catch (err) {
+      console.error('Error in fetchItemDetails:', err);
       setError('Gagal memuat detail barang');
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchItemPricing = async (itemCode: string) => {
+  const fetchItemPricing = async (itemCode: string, preserveFinancialCostPercent?: number) => {
     setValuationRateLoading(true);
     try {
       // Fetch valuation rate from stock ledger
@@ -192,17 +221,35 @@ export default function ItemMain() {
       const sellingData = await sellingResponse.json();
       
       if (valuationResponse.ok && valuationData.success && valuationData.data[itemCode]) {
-        setFormData(prev => ({
-          ...prev,
-          valuation_rate: valuationData.data[itemCode],
-        }));
+        setFormData(prev => {
+          console.log('Before valuation update - custom_financial_cost_percent:', prev.custom_financial_cost_percent);
+          const updated = {
+            ...prev,
+            valuation_rate: valuationData.data[itemCode],
+          };
+          // Preserve custom_financial_cost_percent if provided
+          if (preserveFinancialCostPercent !== undefined) {
+            updated.custom_financial_cost_percent = preserveFinancialCostPercent;
+          }
+          console.log('After valuation update - custom_financial_cost_percent:', updated.custom_financial_cost_percent);
+          return updated;
+        });
       }
       
       if (purchaseResponse.ok && purchaseData.success) {
-        setFormData(prev => ({
-          ...prev,
-          last_purchase_rate: purchaseData.data.price_list_rate || 0,
-        }));
+        setFormData(prev => {
+          console.log('Before purchase price update - custom_financial_cost_percent:', prev.custom_financial_cost_percent);
+          const updated = {
+            ...prev,
+            last_purchase_rate: purchaseData.data.price_list_rate || 0,
+          };
+          // Preserve custom_financial_cost_percent if provided
+          if (preserveFinancialCostPercent !== undefined) {
+            updated.custom_financial_cost_percent = preserveFinancialCostPercent;
+          }
+          console.log('After purchase price update - custom_financial_cost_percent:', updated.custom_financial_cost_percent);
+          return updated;
+        });
         setPriceInputs(prev => ({
           ...prev,
           last_purchase_rate: purchaseData.data.price_list_rate ? purchaseData.data.price_list_rate.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00'
@@ -210,19 +257,32 @@ export default function ItemMain() {
       }
       
       if (sellingResponse.ok && sellingData.success) {
-        setFormData(prev => ({
-          ...prev,
-          standard_rate: sellingData.data.price_list_rate || 0,
-        }));
+        setFormData(prev => {
+          console.log('Before selling price update - custom_financial_cost_percent:', prev.custom_financial_cost_percent);
+          const updated = {
+            ...prev,
+            standard_rate: sellingData.data.price_list_rate || 0,
+          };
+          // Preserve custom_financial_cost_percent if provided
+          if (preserveFinancialCostPercent !== undefined) {
+            updated.custom_financial_cost_percent = preserveFinancialCostPercent;
+          }
+          console.log('After selling price update - custom_financial_cost_percent:', updated.custom_financial_cost_percent);
+          return updated;
+        });
         setPriceInputs(prev => ({
           ...prev,
           standard_rate: sellingData.data.price_list_rate ? sellingData.data.price_list_rate.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00'
         }));
       }
+      
+      console.log('After fetchItemPricing - formData will be updated');
     } catch (err) {
       console.error('Error fetching item pricing:', err);
     } finally {
       setValuationRateLoading(false);
+      // Log final state after all pricing updates
+      console.log('fetchItemPricing completed');
     }
   };
 
@@ -467,6 +527,26 @@ export default function ItemMain() {
                     onChange={(e) => setFormData({ ...formData, opening_stock: parseFloat(e.target.value) || 0 })}
                   />
                 </div>
+              </div>
+              
+              {/* Financial Cost Percent */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Persentase Biaya Keuangan (%)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  value={formData.custom_financial_cost_percent}
+                  onChange={(e) => setFormData({ ...formData, custom_financial_cost_percent: parseFloat(e.target.value) || 0 })}
+                  placeholder="0.00"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Persentase biaya keuangan untuk perhitungan HPP (0-100%)
+                </p>
               </div>
             </div>
 

@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     const defaultFields = [
       'name', 'item_code', 'item_name', 'description', 'item_group', 
       'stock_uom', 'opening_stock', 'last_purchase_rate', 'valuation_rate',
-      'standard_rate', 'creation', 'modified'
+      'standard_rate', 'creation', 'modified', 'custom_financial_cost_percent'
     ];
     const fields = fieldsParam ? fieldsParam.split(',') : defaultFields;
     
@@ -183,7 +183,8 @@ export async function POST(request: NextRequest) {
     const validCreateData: any = {};
     const allowedFields = [
       'item_code', 'item_name', 'description', 'item_group', 'stock_uom', 
-      'opening_stock', 'brand', 'standard_rate', 'last_purchase_rate', 'valuation_method'
+      'opening_stock', 'brand', 'standard_rate', 'last_purchase_rate', 'valuation_method',
+      'custom_financial_cost_percent'
     ];
     
     Object.keys(createData).forEach(key => {
@@ -343,7 +344,7 @@ export async function PUT(request: NextRequest) {
     const validUpdateData: any = {};
     const allowedFields = [
       'item_name', 'description', 'item_group', 'stock_uom', 
-      'opening_stock', 'brand'
+      'opening_stock', 'brand', 'custom_financial_cost_percent'
       // Removed: 'standard_rate', 'last_purchase_rate' (system-managed)
     ];
     

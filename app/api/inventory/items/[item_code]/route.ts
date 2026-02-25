@@ -21,7 +21,7 @@ export async function GET(
     console.log('Fetching item details for:', item_code);
 
     // Build ERPNext URL to get specific item by item_code
-    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Item/${encodeURIComponent(item_code)}?fields=["item_code","item_name","description","item_group","stock_uom","opening_stock","valuation_rate","standard_rate","brand"]`;
+    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Item/${encodeURIComponent(item_code)}?fields=["item_code","item_name","description","item_group","stock_uom","opening_stock","valuation_rate","standard_rate","brand","custom_financial_cost_percent"]`;
 
     const response = await fetch(erpNextUrl, {
       method: 'GET',

@@ -41,6 +41,7 @@ interface Item {
   description?: string;
   creation?: string;
   modified?: string;
+  custom_financial_cost_percent?: number;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -207,7 +208,8 @@ export default function ItemList() {
       const fields = [
         'name', 'item_code', 'item_name', 'item_group', 'stock_uom',
         'opening_stock', 'last_purchase_rate', 'valuation_rate',
-        'standard_rate', 'description', 'creation', 'modified'
+        'standard_rate', 'description', 'creation', 'modified',
+        'custom_financial_cost_percent'
       ].join(',');
       params.append('fields', fields);
 
@@ -458,9 +460,9 @@ export default function ItemList() {
                   <div className="col-span-2">Kode / Nama</div>
                   <div className="col-span-1">Grup</div>
                   <div className="col-span-2 text-right">Harga Beli</div>
-                  <div className="col-span-2 text-right">Last Beli</div>
-                  <div className="col-span-2 text-right">Avg Beli</div>
                   <div className="col-span-2 text-right">Harga Jual</div>
+                  <div className="col-span-2 text-right">Avg Beli</div>
+                  <div className="col-span-2 text-right">Biaya Keu (%)</div>
                   <div className="col-span-1 text-right">Aksi</div>
                 </div>
               </div>
@@ -497,16 +499,16 @@ export default function ItemList() {
                           <span className="font-medium text-gray-900">{formatCurrency(item.harga_beli || 0)}</span>
                         </div>
                         <div>
-                          <span className="block text-gray-400">Last Beli:</span>
-                          <span className="font-medium text-orange-600">{formatCurrency(item.last_purchase_rate || 0)}</span>
+                          <span className="block text-gray-400">Harga Jual:</span>
+                          <span className="font-medium text-green-600">{formatCurrency(item.harga_jual || item.standard_rate || 0)}</span>
                         </div>
                         <div>
                           <span className="block text-gray-400">Avg Beli:</span>
                           <span className="font-medium text-blue-600">{formatCurrency(item.valuation_rate || 0)}</span>
                         </div>
                         <div>
-                          <span className="block text-gray-400">Harga Jual:</span>
-                          <span className="font-medium text-green-600">{formatCurrency(item.harga_jual || item.standard_rate || 0)}</span>
+                          <span className="block text-gray-400">Biaya Keuangan:</span>
+                          <span className="font-medium text-purple-600">{(item.custom_financial_cost_percent || 0).toFixed(2)}%</span>
                         </div>
                       </div>
                       <div className="pt-2 border-t border-gray-100 text-xs text-gray-500">
@@ -538,16 +540,16 @@ export default function ItemList() {
                         <p className="text-xs text-gray-500">Price List</p>
                       </div>
                       <div className="col-span-2 text-right">
-                        <p className="text-sm text-orange-600 font-medium">{formatCurrency(item.last_purchase_rate || 0)}</p>
-                        <p className="text-xs text-gray-500">Last Purchase</p>
+                        <p className="text-sm font-medium text-green-600">{formatCurrency(item.harga_jual || item.standard_rate || 0)}</p>
+                        <p className="text-xs text-gray-500">Selling Price</p>
                       </div>
                       <div className="col-span-2 text-right">
                         <p className="text-sm text-blue-600 font-medium">{formatCurrency(item.valuation_rate || 0)}</p>
                         <p className="text-xs text-gray-500">Avg/Valuation</p>
                       </div>
                       <div className="col-span-2 text-right">
-                        <p className="text-sm font-medium text-green-600">{formatCurrency(item.harga_jual || item.standard_rate || 0)}</p>
-                        <p className="text-xs text-gray-500">Selling Price</p>
+                        <p className="text-sm font-medium text-purple-600">{(item.custom_financial_cost_percent || 0).toFixed(2)}%</p>
+                        <p className="text-xs text-gray-500">Financial Cost</p>
                       </div>
                       <div className="col-span-1">
                         <div className="flex items-center justify-end">
