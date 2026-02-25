@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 interface KasItem {
   keterangan: string;
@@ -15,13 +15,18 @@ interface Account {
   account_type?: string;
 }
 
-export default function KasKeluarForm() {
+export default function KasMasukForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const journalName = searchParams.get('name'); // Get name from URL
+  
   const [selectedCompany, setSelectedCompany] = useState('');
   const [loading, setLoading] = useState(false);
+  const [fetchingData, setFetchingData] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [journalEntryName, setJournalEntryName] = useState('');
+  const [isEditMode, setIsEditMode] = useState(false);
 
   const [postingDate, setPostingDate] = useState(new Date().toISOString().split('T')[0]);
   const [cashAccount, setCashAccount] = useState('');
@@ -30,7 +35,7 @@ export default function KasKeluarForm() {
   ]);
 
   const [cashAccounts, setCashAccounts] = useState<Account[]>([]);
-  const [expenseAccounts, setExpenseAccounts] = useState<Account[]>([]);
+  const [incomeAccounts, setIncomeAccounts] = useState<Account[]>([]);
 
   useEffect(() => {
     const saved = localStorage.getItem('selected_company');
@@ -40,9 +45,80 @@ export default function KasKeluarForm() {
   useEffect(() => {
     if (selectedCompany) {
       fetchCashAccounts();
-      fetchExpenseAccounts();
+      fetchIncomeAccounts();
     }
   }, [selectedCompany]);
+
+  // Fetch journal entry data if in edit mode
+  useEffect(() => {
+    if (journalName && selectedCompany) {
+      setIsEditMode(true);
+      fetchJournalData();
+    }
+  }, [journalName, selectedCompany]);
+
+  const fetchJournalData = async () => {
+    setFetchingData(true);
+    setError('');
+    try {
+      const res = await fetch(`/api/finance/journal/${encodeURIComponent(journalName!)}`, {
+        credentials: 'include',
+      });
+      const data = await res.json();
+
+      if (data.success && data.data) {
+        const journal = data.data;
+        
+        // Set posting date
+        setPostingDate(journal.posting_date || new Date().toISOString().split('T')[0]);
+        
+        // Parse accounts to extract cash account and items
+        const accounts = journal.accounts || [];
+        
+        // Find cash account (debit entry for kas masuk)
+        const cashEntry = accounts.find((acc: any) => 
+          (acc.debit_in_account_currency && acc.debit_in_account_currency > 0) ||
+          (acc.debit && acc.debit > 0)
+        );
+        if (cashEntry) {
+          setCashAccount(cashEntry.account);
+        }
+        
+        // Find income accounts (credit entries) - filter out entries with "Kas Masuk -" in user_remark
+        const incomeEntries = accounts.filter((acc: any) => {
+          const hasCredit = (acc.credit_in_account_currency && acc.credit_in_account_currency > 0) ||
+                           (acc.credit && acc.credit > 0);
+          const isNotCashSummary = !acc.user_remark || !acc.user_remark.includes('Kas Masuk -');
+          return hasCredit && isNotCashSummary;
+        });
+        
+        if (incomeEntries.length > 0) {
+          const parsedItems = incomeEntries.map((acc: any) => {
+            // Extract keterangan from user_remark, removing "Kas Masuk: " prefix if present
+            let keterangan = acc.user_remark || '';
+            if (keterangan.startsWith('Kas Masuk: ')) {
+              keterangan = keterangan.substring('Kas Masuk: '.length);
+            }
+            
+            return {
+              keterangan,
+              nominal: acc.credit_in_account_currency || acc.credit || 0,
+              kategori: acc.account || '',
+            };
+          });
+          setItems(parsedItems);
+        }
+        
+        setJournalEntryName(journal.name);
+      } else {
+        setError(data.message || 'Gagal memuat data journal');
+      }
+    } catch (err) {
+      setError('Terjadi kesalahan saat memuat data journal');
+    } finally {
+      setFetchingData(false);
+    }
+  };
 
   const fetchCashAccounts = async () => {
     try {
@@ -52,11 +128,11 @@ export default function KasKeluarForm() {
     } catch { /* silent */ }
   };
 
-  const fetchExpenseAccounts = async () => {
+  const fetchIncomeAccounts = async () => {
     try {
-      const res = await fetch(`/api/finance/accounts/expense?company=${encodeURIComponent(selectedCompany)}&type=expense`, { credentials: 'include' });
+      const res = await fetch(`/api/finance/accounts/expense?company=${encodeURIComponent(selectedCompany)}&type=income`, { credentials: 'include' });
       const data = await res.json();
-      if (data.success) setExpenseAccounts(data.data || []);
+      if (data.success) setIncomeAccounts(data.data || []);
     } catch { /* silent */ }
   };
 
@@ -99,7 +175,7 @@ export default function KasKeluarForm() {
     }
 
     try {
-      const res = await fetch('/api/finance/journal/kas-keluar', {
+      const res = await fetch('/api/finance/journal/kas-masuk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -113,11 +189,16 @@ export default function KasKeluarForm() {
 
       const data = await res.json();
       if (data.success) {
-        setSuccessMessage(data.message || 'Jurnal Kas Keluar berhasil dibuat!');
+        setSuccessMessage(data.message || 'Jurnal Kas Masuk berhasil dibuat!');
         setJournalEntryName(data.data?.name || '');
         setItems([{ keterangan: '', nominal: 0, kategori: '' }]);
+        
+        // Redirect ke list kas masuk setelah 1.5 detik
+        setTimeout(() => {
+          router.push('/kas-masuk');
+        }, 1500);
       } else {
-        setError(data.message || 'Gagal membuat jurnal kas keluar');
+        setError(data.message || 'Gagal membuat jurnal kas masuk');
       }
     } catch {
       setError('Terjadi kesalahan saat membuat jurnal');
@@ -132,18 +213,39 @@ export default function KasKeluarForm() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 py-6">
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Kas Keluar</h1>
-              <p className="mt-1 text-sm text-gray-600">Buat jurnal pengeluaran kas multi-item</p>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
+                {isEditMode ? 'Edit Kas Masuk' : 'Kas Masuk'}
+              </h1>
+              <p className="mt-1 text-sm text-gray-600">
+                {isEditMode ? `Edit jurnal: ${journalEntryName}` : 'Buat jurnal penerimaan kas multi-item'}
+              </p>
             </div>
-            <button
-              onClick={() => router.push('/journal')}
-              className="w-full sm:w-auto bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 min-h-[44px]"
-            >
-              Lihat Jurnal
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => router.push('/kas-masuk')}
+                className="w-full sm:w-auto bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 min-h-[44px]"
+              >
+                Lihat List
+              </button>
+              <button
+                onClick={() => router.push('/journal')}
+                className="w-full sm:w-auto bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 min-h-[44px]"
+              >
+                Lihat Jurnal
+              </button>
+            </div>
           </div>
         </div>
       </div>
+
+      {fetchingData && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+          <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded flex items-center gap-2">
+            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+            Memuat data journal...
+          </div>
+        </div>
+      )}
 
       {successMessage && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
@@ -204,7 +306,7 @@ export default function KasKeluarForm() {
             {/* Items Table */}
             <div className="mb-6">
               <div className="flex justify-between items-center mb-3">
-                <h3 className="text-lg font-medium text-gray-900">Detail Pengeluaran</h3>
+                <h3 className="text-lg font-medium text-gray-900">Detail Penerimaan</h3>
                 <button
                   type="button"
                   onClick={addRow}
@@ -220,7 +322,7 @@ export default function KasKeluarForm() {
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">No</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Keterangan</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nominal (Rp)</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kategori (Akun Biaya)</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kategori (Akun Pendapatan)</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Aksi</th>
                     </tr>
                   </thead>
@@ -234,7 +336,7 @@ export default function KasKeluarForm() {
                             className="block w-full border border-gray-300 rounded-md shadow-sm py-1.5 px-2 text-sm"
                             value={item.keterangan}
                             onChange={(e) => updateRow(index, 'keterangan', e.target.value)}
-                            placeholder="Keterangan pengeluaran..."
+                            placeholder="Keterangan penerimaan..."
                           />
                         </td>
                         <td className="px-4 py-2">
@@ -254,7 +356,7 @@ export default function KasKeluarForm() {
                             onChange={(e) => updateRow(index, 'kategori', e.target.value)}
                           >
                             <option value="">Pilih Akun...</option>
-                            {expenseAccounts.map((acc) => (
+                            {incomeAccounts.map((acc) => (
                               <option key={acc.name} value={acc.name}>{acc.name}</option>
                             ))}
                           </select>
@@ -296,11 +398,12 @@ export default function KasKeluarForm() {
               </button>
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || fetchingData || isEditMode}
                 className="bg-indigo-600 text-white px-6 py-2 rounded-md hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2"
+                title={isEditMode ? 'Edit mode: data hanya untuk view' : ''}
               >
                 {loading && <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>}
-                {loading ? 'Memproses...' : 'Buat Jurnal Kas Keluar'}
+                {isEditMode ? 'View Mode (Read Only)' : loading ? 'Memproses...' : 'Buat Jurnal Kas Masuk'}
               </button>
             </div>
           </form>

@@ -6,13 +6,11 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const company = searchParams.get('company');
-    const search = searchParams.get('search');
-    const from_date = searchParams.get('from_date');
-    const to_date = searchParams.get('to_date');
-    const account = searchParams.get('account');
-    const voucher_type = searchParams.get('voucher_type');
+    const filtersParam = searchParams.get('filters');
+    const fieldsParam = searchParams.get('fields');
+    const orderBy = searchParams.get('order_by') || 'posting_date desc';
     const limit_page_length = searchParams.get('limit_page_length') || '20';
-    const start = searchParams.get('start') || '0';
+    const limit_start = searchParams.get('limit_start') || '0';
 
     if (!company) {
       return NextResponse.json(
@@ -21,33 +19,58 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Build filters array
-    const filters = [
-      ['company', '=', company]
-    ];
+    // Parse filters from JSON or build from individual params (backward compatibility)
+    let filters: any[] = [];
+    
+    if (filtersParam) {
+      try {
+        filters = JSON.parse(filtersParam);
+      } catch (e) {
+        console.error('Failed to parse filters:', e);
+        filters = [];
+      }
+    }
+    
+    // Always add company filter if not already present
+    const hasCompanyFilter = filters.some(f => Array.isArray(f) && f[0] === 'company');
+    if (!hasCompanyFilter) {
+      filters.push(['company', '=', company]);
+    }
+    
+    // Backward compatibility: support individual query params
+    const search = searchParams.get('search');
+    const from_date = searchParams.get('from_date');
+    const to_date = searchParams.get('to_date');
+    const account = searchParams.get('account');
+    const voucher_type = searchParams.get('voucher_type');
 
-    if (from_date) {
+    if (from_date && !filters.some(f => Array.isArray(f) && f[0] === 'posting_date' && f[1] === '>=')) {
       filters.push(['posting_date', '>=', from_date]);
     }
 
-    if (to_date) {
+    if (to_date && !filters.some(f => Array.isArray(f) && f[0] === 'posting_date' && f[1] === '<=')) {
       filters.push(['posting_date', '<=', to_date]);
     }
 
-    if (account) {
+    if (account && !filters.some(f => Array.isArray(f) && f[0] === 'account' && f[1] === 'like')) {
       filters.push(['account', 'like', `%${account}%`]);
     }
 
-    if (voucher_type) {
+    if (voucher_type && !filters.some(f => Array.isArray(f) && f[0] === 'voucher_type')) {
       filters.push(['voucher_type', '=', voucher_type]);
     }
 
-    if (search) {
+    if (search && !filters.some(f => Array.isArray(f) && f[0] === 'account' && f[1] === 'like')) {
       filters.push(['account', 'like', `%${search}%`]);
     }
+    
+    // Parse fields or use default
+    const fields = fieldsParam 
+      ? JSON.parse(fieldsParam)
+      : ["name","posting_date","account","debit","credit","voucher_type","voucher_no","cost_center","company","remarks","fiscal_year","is_opening","project"];
 
     // Get GL entries from ERPNext
-    const url = `${ERPNEXT_API_URL}/api/resource/GL Entry?fields=["name","posting_date","account","debit","credit","voucher_type","voucher_no","cost_center","company","remarks","fiscal_year","is_opening","project"]&filters=${encodeURIComponent(JSON.stringify(filters))}&order_by=posting_date desc&limit_page_length=${limit_page_length}&start=${start}`;
+    const url = `${ERPNEXT_API_URL}/api/resource/GL Entry?fields=${encodeURIComponent(JSON.stringify(fields))}&filters=${encodeURIComponent(JSON.stringify(filters))}&order_by=${encodeURIComponent(orderBy)}&limit_page_length=${limit_page_length}&limit_start=${limit_start}`;
 
     const response = await fetch(url, {
       method: 'GET',
@@ -61,7 +84,10 @@ export async function GET(request: NextRequest) {
       const data = await response.json();
 
       if (data.data && Array.isArray(data.data)) {
-        const countUrl = `${ERPNEXT_API_URL}/api/resource/GL Entry?filters=${encodeURIComponent(JSON.stringify(filters))}&limit_page_length=1`;
+        // Get total count using ERPNext count API
+        const countUrl = `${ERPNEXT_API_URL}/api/resource/GL Entry?filters=${encodeURIComponent(JSON.stringify(filters))}&limit_page_length=0`;
+        
+        let totalRecords = data.data.length;
         
         try {
           const countResponse = await fetch(countUrl, {
@@ -74,39 +100,38 @@ export async function GET(request: NextRequest) {
 
           if (countResponse.ok) {
             const countData = await countResponse.json();
-            const totalRecords = countData.data ? countData.data.length : 0;
-            
-            return NextResponse.json({
-              success: true,
-              data: data.data,
-              total_records: totalRecords,
-              message: `Found ${data.data.length} GL entries`
-            });
+            // ERPNext returns total count in the response
+            if (countData.data && Array.isArray(countData.data)) {
+              totalRecords = countData.data.length;
+            }
           }
         } catch (countError) {
-          // Fallback
+          console.error('Failed to get count:', countError);
+          // Fallback to data length
         }
 
         return NextResponse.json({
           success: true,
           data: data.data,
-          total_records: data.data.length,
+          total_records: totalRecords,
           message: `Found ${data.data.length} GL entries`
         });
       } else {
         return NextResponse.json({
-          success: false,
+          success: true,
           message: 'No GL entries found',
-          data: []
+          data: [],
+          total_records: 0
         });
       }
     } else {
       const errorText = await response.text();
+      console.error('ERPNext API error:', errorText);
       return NextResponse.json({
         success: false,
         message: 'Failed to fetch GL entries from ERPNext',
         error: errorText
-      });
+      }, { status: response.status });
     }
 
   } catch (error: any) {

@@ -1,12 +1,12 @@
 'use client';
 
 import { Suspense } from 'react';
-import KasMasukList from './kmList/component';
+import KasKeluarForm from './component';
 
-export default function KasMasukPage() {
+export default function KasKeluarFormPage() {
   return (
     <Suspense fallback={<div className="p-6 text-center">Memuat...</div>}>
-      <KasMasukList />
+      <KasKeluarForm />
     </Suspense>
   );
 }

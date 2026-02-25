@@ -85,6 +85,8 @@ export default function JournalPage() {
   const [hasMoreData, setHasMoreData] = useState(true);
   const [showBackToTop, setShowBackToTop] = useState(false);
 
+  // ✅ FIX: Track pagination change source to prevent race conditions
+  const pageChangeSourceRef = useRef<'pagination' | 'filter' | 'init'>('init');
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   // ── Sync URL page ──
@@ -93,12 +95,19 @@ export default function JournalPage() {
     if (p && !isNaN(parseInt(p))) setCurrentPage(Math.max(1, parseInt(p)));
   }, [searchParams]);
 
+  // ✅ Update URL with debounce to prevent throttling (desktop only)
   useEffect(() => {
-    const params = new URLSearchParams(searchParams.toString());
-    currentPage > 1 ? params.set('page', String(currentPage)) : params.delete('page');
-    const newUrl = `${window.location.pathname}${params.toString() ? `?${params}` : ''}`;
-    window.history.replaceState({}, '', newUrl);
-  }, [currentPage, searchParams]);
+    if (isMobile || typeof window === 'undefined') return;
+    
+    const timeoutId = setTimeout(() => {
+      const params = new URLSearchParams(searchParams.toString());
+      currentPage > 1 ? params.set('page', String(currentPage)) : params.delete('page');
+      const newUrl = `${window.location.pathname}${params.toString() ? `?${params}` : ''}`;
+      window.history.replaceState({}, '', newUrl);
+    }, 100); // Debounce 100ms
+
+    return () => clearTimeout(timeoutId);
+  }, [currentPage, isMobile, searchParams]);
 
   // ── Company from localStorage/cookie ──
   useEffect(() => {
@@ -191,9 +200,28 @@ export default function JournalPage() {
   }, [currentPage, pageSize, dateFilter, nameFilter, voucherTypeFilter, statusFilter, selectedCompany]);
 
   // ── Effects ──
-  useEffect(() => { fetchEntries(true); }, [dateFilter, nameFilter, voucherTypeFilter, statusFilter]);
-  useEffect(() => { fetchEntries(false); }, [currentPage]);
-  useEffect(() => { setCurrentPage(1); }, [dateFilter, nameFilter, voucherTypeFilter, statusFilter]);
+  // ✅ Reset page when filters change
+  useEffect(() => {
+    pageChangeSourceRef.current = 'filter';
+    setCurrentPage(1);
+    if (isMobile) setEntries([]);
+  }, [dateFilter, nameFilter, voucherTypeFilter, statusFilter, isMobile]);
+
+  // ✅ Fetch when page changes (separated from filter logic)
+  useEffect(() => {
+    if (selectedCompany) {
+      fetchEntries(useInfiniteScrollMode ? false : true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, selectedCompany]);
+
+  // ✅ Trigger fetch when filters change (after page reset)
+  useEffect(() => {
+    if (pageChangeSourceRef.current === 'filter' && selectedCompany) {
+      fetchEntries(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateFilter, nameFilter, voucherTypeFilter, statusFilter]);
 
   // ── Infinite Scroll ──
   const loadMoreData = useCallback(() => {
@@ -265,7 +293,7 @@ export default function JournalPage() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <h1 className="text-2xl font-bold text-gray-900">Jurnal Umum</h1>
           <button
-            onClick={() => router.push('/finance/journal/new')}
+            onClick={() => router.push('/journal/journalMain')}
             className="inline-flex items-center justify-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 min-h-[44px]"
           >
             + Buat Jurnal
@@ -387,7 +415,7 @@ export default function JournalPage() {
             {entries.map(entry => (
               <li
                 key={entry.name}
-                onClick={() => router.push(`/finance/journal/${entry.name}`)}
+                onClick={() => router.push(`/journal/journalMain?name=${encodeURIComponent(entry.name)}`)}
                 className="cursor-pointer hover:bg-indigo-50/50 transition-colors"
               >
                 <div className="px-4 py-4">
@@ -396,24 +424,30 @@ export default function JournalPage() {
                     <div className="space-y-3">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-indigo-600 truncate">{entry.name}</p>
-                          <p className="text-xs text-gray-500 mt-0.5">{entry.voucher_type}</p>
+                          <p className="text-sm font-semibold text-indigo-600 truncate">📄 {entry.name}</p>
+                          <p className="text-xs text-gray-500 mt-0.5">🏷️ {entry.voucher_type}</p>
                         </div>
                         <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full border ${getStatusBadgeClass(entry.status)}`}>
-                          {entry.status}
+                          {entry.status === 'Submitted' ? '✓ ' : entry.status === 'Draft' ? '📝 ' : '✗ '}{entry.status}
                         </span>
                       </div>
 
                       <div className="grid grid-cols-2 gap-2 text-xs text-gray-500">
                         <div>📅 {entry.posting_date}</div>
                         {entry.user_remark && (
-                          <div className="truncate col-span-2">📝 {entry.user_remark}</div>
+                          <div className="truncate col-span-2">� {entry.user_remark}</div>
                         )}
                       </div>
 
-                      <div className="flex items-center justify-between pt-2 border-t border-gray-100 text-sm font-semibold">
-                        <span className="text-red-600">D: {formatCurrency(entry.total_debit)}</span>
-                        <span className="text-green-600">C: {formatCurrency(entry.total_credit)}</span>
+                      <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                        <div>
+                          <p className="text-xs text-gray-500 mb-0.5">Debit</p>
+                          <p className="text-sm font-semibold text-emerald-700">{formatCurrency(entry.total_debit)}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs text-gray-500 mb-0.5">Kredit</p>
+                          <p className="text-sm font-semibold text-rose-700">{formatCurrency(entry.total_credit)}</p>
+                        </div>
                       </div>
                     </div>
                   ) : (
@@ -466,7 +500,7 @@ export default function JournalPage() {
               <FileText className="mx-auto h-12 w-12 text-gray-300" />
               <p className="mt-4 text-sm text-gray-500">Tidak ada jurnal yang ditemukan</p>
               <button
-                onClick={() => router.push('/finance/journal/new')}
+                onClick={() => router.push('/journal/journalMain')}
                 className="mt-4 inline-flex items-center px-4 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100"
               >
                 + Buat Jurnal Baru
@@ -512,7 +546,11 @@ export default function JournalPage() {
                 totalPages={totalPages}
                 totalRecords={totalRecords}
                 pageSize={pageSize}
-                onPageChange={setCurrentPage}
+                onPageChange={(page) => {
+                  pageChangeSourceRef.current = 'pagination';
+                  setCurrentPage(page);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
               />
             </div>
           )}

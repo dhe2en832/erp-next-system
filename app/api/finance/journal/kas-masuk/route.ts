@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
         account: item.kategori,
         debit_in_account_currency: 0,
         credit_in_account_currency: Number(item.nominal),
-        user_remark: item.keterangan,
+        user_remark: `Kas Masuk: ${item.keterangan}`,
       });
     }
 
@@ -102,6 +102,9 @@ export async function POST(request: NextRequest) {
       total_credit: totalNominal,
     };
 
+    console.log('Kas Masuk Payload:', JSON.stringify(journalPayload, null, 2));
+    console.log('Total accounts:', accounts.length);
+
     const response = await fetch(`${ERPNEXT_API_URL}/api/resource/Journal Entry`, {
       method: 'POST',
       headers,
@@ -109,6 +112,7 @@ export async function POST(request: NextRequest) {
     });
 
     const data = await response.json();
+    console.log('ERPNext Response:', JSON.stringify(data, null, 2));
 
     if (response.ok) {
       return NextResponse.json({
