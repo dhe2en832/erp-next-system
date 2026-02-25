@@ -23,14 +23,24 @@ export default function Navigation() {
     }
   };
 
+  const [isReportsOpen, setIsReportsOpen] = useState(false);
+
   const menuItems = [
     { name: 'Dashboard', href: '/dashboard', icon: '📊' },
     { name: 'Sales Orders', href: '/sales-order', icon: '📋' },
-    { name: 'Delivery Notes', href: '/delivery-note', icon: '🚚' },
+    { name: 'Delivery Notes', href: '/delivery-note', icon: '�🚚' },
     { name: 'Sales Invoices', href: '/invoice', icon: '🧾' },
     { name: 'Payments', href: '/payment', icon: '💳' },
     { name: 'Journal Entries', href: '/journal', icon: '📖' },
     { name: 'Items', href: '/items', icon: '📦' },
+  ];
+
+  const reportMenuItems = [
+    { name: 'Detail Invoice Penjualan', href: '/reports/sales-invoice-details', icon: '📄' },
+    { name: 'Detail Invoice Pembelian', href: '/reports/purchase-invoice-details', icon: '📑' },
+    { name: 'Ringkasan Pembayaran', href: '/reports/payment-summary', icon: '💰' },
+    { name: 'Detail Pembayaran', href: '/reports/payment-details', icon: '💳' },
+    { name: 'Laporan Keuangan', href: '/financial-reports', icon: '📊' },
   ];
 
   return (
@@ -61,6 +71,42 @@ export default function Navigation() {
                   {item.name}
                 </Link>
               ))}
+              
+              {/* Reports Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => setIsReportsOpen(!isReportsOpen)}
+                  className={`${
+                    pathname.startsWith('/reports') || pathname === '/financial-reports'
+                      ? 'border-indigo-400 text-white'
+                      : 'border-transparent text-indigo-100 hover:border-indigo-300 hover:text-white'
+                  } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors`}
+                >
+                  <span className="mr-2">📊</span>
+                  Laporan
+                  <svg className="ml-1 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                
+                {isReportsOpen && (
+                  <div className="absolute left-0 mt-2 w-64 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
+                    <div className="py-1">
+                      {reportMenuItems.map((item) => (
+                        <Link
+                          key={item.name}
+                          href={item.href}
+                          className="block px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700"
+                          onClick={() => setIsReportsOpen(false)}
+                        >
+                          <span className="mr-2">{item.icon}</span>
+                          {item.name}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -143,6 +189,50 @@ export default function Navigation() {
                 {item.name}
               </Link>
             ))}
+            
+            {/* Mobile Reports Section */}
+            <div className="border-t border-indigo-700 pt-2 mt-2">
+              <button
+                onClick={() => setIsReportsOpen(!isReportsOpen)}
+                className="w-full flex items-center justify-between pl-3 pr-4 py-2 text-base font-medium text-indigo-100 hover:bg-indigo-700"
+              >
+                <span>
+                  <span className="mr-2">📊</span>
+                  Laporan
+                </span>
+                <svg 
+                  className={`h-5 w-5 transition-transform ${isReportsOpen ? 'rotate-180' : ''}`} 
+                  fill="none" 
+                  viewBox="0 0 24 24" 
+                  stroke="currentColor"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              
+              {isReportsOpen && (
+                <div className="pl-6 space-y-1">
+                  {reportMenuItems.map((item) => (
+                    <Link
+                      key={item.name}
+                      href={item.href}
+                      className={`${
+                        pathname === item.href
+                          ? 'bg-indigo-700 text-white'
+                          : 'text-indigo-100 hover:bg-indigo-700'
+                      } block pl-3 pr-4 py-2 text-sm`}
+                      onClick={() => {
+                        setIsMenuOpen(false);
+                        setIsReportsOpen(false);
+                      }}
+                    >
+                      <span className="mr-2">{item.icon}</span>
+                      {item.name}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
           
           {/* Mobile user menu */}

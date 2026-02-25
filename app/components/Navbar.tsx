@@ -16,10 +16,16 @@ interface MenuItem {
   allowedRoles?: string[];
 }
 
+interface MenuSubCategory {
+  name: string;
+  items: MenuItem[];
+}
+
 interface MenuCategory {
   name: string;
   icon: string;
-  items: MenuItem[];
+  items?: MenuItem[];
+  subCategories?: MenuSubCategory[];
 }
 
 export default function Navbar() {
@@ -28,6 +34,7 @@ export default function Navbar() {
   const [roles, setRoles] = useState<string[]>([]);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const [activeSubCategory, setActiveSubCategory] = useState<string | null>(null);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -203,21 +210,50 @@ export default function Navbar() {
     {
       name: 'Laporan',
       icon: '📈',
-      items: [
-        { name: 'Laporan Keuangan', href: '/financial-reports', allowedRoles: ['System Manager', 'Accounts User', 'Accounts Manager', 'Report Manager'] },
-        { name: 'Piutang Usaha', href: '/reports/accounts-receivable', allowedRoles: ['System Manager', 'Accounts User', 'Accounts Manager', 'Report Manager', 'Sales Manager', 'Sales Master Manager'] },
-        { name: 'Hutang Usaha', href: '/reports/accounts-payable', allowedRoles: ['System Manager', 'Accounts User', 'Accounts Manager', 'Report Manager', 'Purchase Manager', 'Purchase Master Manager'] },
-        { name: 'Alur Kas', href: '/reports/cash-flow', allowedRoles: ['System Manager', 'Accounts User', 'Accounts Manager', 'Report Manager'] },
-        { name: 'Laporan Penjualan', href: '/reports/sales', allowedRoles: ['System Manager', 'Sales User', 'Sales Manager', 'Sales Master Manager', 'Report Manager'] },
-        { name: 'Laporan Pembelian', href: '/reports/purchases', allowedRoles: ['System Manager', 'Purchase User', 'Purchase Manager', 'Purchase Master Manager', 'Report Manager'] },
-        { name: 'Stok per Gudang', href: '/reports/stock-balance', allowedRoles: ['System Manager', 'Stock User', 'Stock Manager', 'Item Manager', 'Report Manager'] },
-        { name: 'Laporan Kartu Stok', href: '/reports/stock-card', allowedRoles: ['System Manager', 'Stock User', 'Stock Manager', 'Item Manager', 'Report Manager'] },
-        { name: 'Ledger HPP', href: '/reports/hpp-ledger', allowedRoles: ['System Manager', 'Accounts User', 'Accounts Manager', 'Report Manager'] },
-        { name: 'Margin per Unit', href: '/reports/margin-analysis', allowedRoles: ['System Manager', 'Accounts User', 'Accounts Manager', 'Sales Manager', 'Report Manager'] },
-        { name: 'Penyesuaian Stok', href: '/reports/stock-adjustment', allowedRoles: ['System Manager', 'Stock User', 'Stock Manager', 'Accounts Manager', 'Report Manager'] },
-        { name: 'Ongkir/Biaya Perolehan', href: '/reports/acquisition-costs', allowedRoles: ['System Manager', 'Accounts User', 'Accounts Manager', 'Report Manager'] },
-        { name: 'Retur Jual/Beli', href: '/reports/returns', allowedRoles: ['System Manager', 'Accounts User', 'Accounts Manager', 'Sales Manager', 'Purchase Manager', 'Report Manager'] },
-        { name: 'Rekonsiliasi HPP', href: '/reports/hpp-reconciliation', allowedRoles: ['System Manager', 'Accounts User', 'Accounts Manager', 'Report Manager'] },
+      subCategories: [
+        {
+          name: 'Laporan Keuangan',
+          items: [
+            { name: 'Laporan Keuangan', href: '/financial-reports', allowedRoles: ['System Manager', 'Accounts User', 'Accounts Manager', 'Report Manager'] },
+            { name: 'Piutang Usaha', href: '/reports/accounts-receivable', allowedRoles: ['System Manager', 'Accounts User', 'Accounts Manager', 'Report Manager', 'Sales Manager', 'Sales Master Manager'] },
+            { name: 'Hutang Usaha', href: '/reports/accounts-payable', allowedRoles: ['System Manager', 'Accounts User', 'Accounts Manager', 'Report Manager', 'Purchase Manager', 'Purchase Master Manager'] },
+            { name: 'Alur Kas', href: '/reports/cash-flow', allowedRoles: ['System Manager', 'Accounts User', 'Accounts Manager', 'Report Manager'] },
+          ]
+        },
+        {
+          name: 'Penjualan & Pembelian',
+          items: [
+            { name: 'Laporan Penjualan', href: '/reports/sales', allowedRoles: ['System Manager', 'Sales User', 'Sales Manager', 'Sales Master Manager', 'Report Manager'] },
+            { name: 'Detail Invoice Penjualan', href: '/reports/sales-invoice-details', allowedRoles: ['System Manager', 'Accounts User', 'Accounts Manager', 'Sales Manager', 'Sales Master Manager', 'Report Manager'] },
+            { name: 'Laporan Pembelian', href: '/reports/purchases', allowedRoles: ['System Manager', 'Purchase User', 'Purchase Manager', 'Purchase Master Manager', 'Report Manager'] },
+            { name: 'Detail Invoice Pembelian', href: '/reports/purchase-invoice-details', allowedRoles: ['System Manager', 'Accounts User', 'Accounts Manager', 'Purchase Manager', 'Purchase Master Manager', 'Report Manager'] },
+          ]
+        },
+        {
+          name: 'Pembayaran',
+          items: [
+            { name: 'Ringkasan Pembayaran', href: '/reports/payment-summary', allowedRoles: ['System Manager', 'Accounts User', 'Accounts Manager', 'Report Manager'] },
+            { name: 'Detail Pembayaran', href: '/reports/payment-details', allowedRoles: ['System Manager', 'Accounts User', 'Accounts Manager', 'Report Manager'] },
+          ]
+        },
+        {
+          name: 'Persediaan',
+          items: [
+            { name: 'Stok per Gudang', href: '/reports/stock-balance', allowedRoles: ['System Manager', 'Stock User', 'Stock Manager', 'Item Manager', 'Report Manager'] },
+            { name: 'Laporan Kartu Stok', href: '/reports/stock-card', allowedRoles: ['System Manager', 'Stock User', 'Stock Manager', 'Item Manager', 'Report Manager'] },
+            { name: 'Penyesuaian Stok', href: '/reports/stock-adjustment', allowedRoles: ['System Manager', 'Stock User', 'Stock Manager', 'Accounts Manager', 'Report Manager'] },
+          ]
+        },
+        {
+          name: 'HPP & Margin',
+          items: [
+            { name: 'Ledger HPP', href: '/reports/hpp-ledger', allowedRoles: ['System Manager', 'Accounts User', 'Accounts Manager', 'Report Manager'] },
+            { name: 'Margin per Unit', href: '/reports/margin-analysis', allowedRoles: ['System Manager', 'Accounts User', 'Accounts Manager', 'Sales Manager', 'Report Manager'] },
+            { name: 'Ongkir/Biaya Perolehan', href: '/reports/acquisition-costs', allowedRoles: ['System Manager', 'Accounts User', 'Accounts Manager', 'Report Manager'] },
+            { name: 'Retur Jual/Beli', href: '/reports/returns', allowedRoles: ['System Manager', 'Accounts User', 'Accounts Manager', 'Sales Manager', 'Purchase Manager', 'Report Manager'] },
+            { name: 'Rekonsiliasi HPP', href: '/reports/hpp-reconciliation', allowedRoles: ['System Manager', 'Accounts User', 'Accounts Manager', 'Report Manager'] },
+          ]
+        }
       ]
     },
     {
@@ -302,9 +338,18 @@ export default function Navbar() {
     });
     // For Laporan: show category if user has access to at least one sub-item
     if (category.name === 'Laporan') {
-      return category.items.some(item =>
-        !item.allowedRoles || item.allowedRoles.some(r => roles.includes(r))
-      );
+      if (category.subCategories) {
+        return category.subCategories.some(subCat =>
+          subCat.items.some(item =>
+            !item.allowedRoles || item.allowedRoles.some(r => roles.includes(r))
+          )
+        );
+      }
+      if (category.items) {
+        return category.items.some(item =>
+          !item.allowedRoles || item.allowedRoles.some(r => roles.includes(r))
+        );
+      }
     }
     return allowed.has('*') || allowed.has(category.name);
   };
@@ -317,9 +362,19 @@ export default function Navbar() {
     );
   };
 
+  const filterSubCategories = (subCategories: MenuSubCategory[]) => {
+    if (!roles || roles.length === 0) return subCategories;
+    if (roles.includes('System Manager')) return subCategories;
+    return subCategories.map(subCat => ({
+      ...subCat,
+      items: filterItems(subCat.items)
+    })).filter(subCat => subCat.items.length > 0);
+  };
+
   const visibleCategories = menuCategories.filter(canSeeCategory).map(cat => ({
     ...cat,
-    items: filterItems(cat.items),
+    items: cat.items ? filterItems(cat.items) : undefined,
+    subCategories: cat.subCategories ? filterSubCategories(cat.subCategories) : undefined,
   }));
 
   // Don't show navbar on login and company selection pages
@@ -418,54 +473,57 @@ export default function Navbar() {
           <div className="flex items-center justify-between py-2">
             {/* Desktop Navigation - hidden on mobile */}
             <div className="hidden md:flex items-center space-x-1 flex-wrap">
-              {visibleCategories.map((category, catIdx) => (
-                <div key={category.name} className="relative dropdown-container">
-                  {category.items.length === 1 ? (
-                    <a
-                      href={category.items[0].href}
-                      className={`inline-flex items-center px-2.5 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                        isActive(category.items[0].href)
-                          ? 'bg-indigo-100 text-indigo-700'
-                          : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                      }`}
-                    >
-                      <span className="mr-1.5">{category.icon}</span>
-                      <span className="hidden lg:inline">{category.items[0].name}</span>
-                      <span className="lg:hidden">{category.icon}</span>
-                    </a>
-                  ) : (
-                    <div>
-                      <button
-                        onClick={() => setActiveDropdown(activeDropdown === category.name ? null : category.name)}
+              {visibleCategories.map((category, catIdx) => {
+                // Handle categories with direct items (old structure)
+                const hasDirectItems = category.items && category.items.length > 0;
+                // Handle categories with subcategories (new structure)
+                const hasSubCategories = category.subCategories && category.subCategories.length > 0;
+                
+                return (
+                  <div key={category.name} className="relative dropdown-container">
+                    {hasDirectItems && category.items!.length === 1 ? (
+                      <a
+                        href={category.items![0].href}
                         className={`inline-flex items-center px-2.5 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                          category.items.some(item => isActive(item.href))
+                          isActive(category.items![0].href)
                             ? 'bg-indigo-100 text-indigo-700'
                             : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                         }`}
                       >
                         <span className="mr-1.5">{category.icon}</span>
-                        <span className="hidden lg:inline">{category.name}</span>
-                        <svg
-                          className={`ml-1 h-3.5 w-3.5 transition-transform ${
-                            activeDropdown === category.name ? 'transform rotate-180' : ''
+                        <span className="hidden lg:inline">{category.items![0].name}</span>
+                        <span className="lg:hidden">{category.icon}</span>
+                      </a>
+                    ) : (
+                      <div>
+                        <button
+                          onClick={() => setActiveDropdown(activeDropdown === category.name ? null : category.name)}
+                          className={`inline-flex items-center px-2.5 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                            (hasDirectItems && category.items!.some(item => isActive(item.href))) ||
+                            (hasSubCategories && category.subCategories!.some(sub => sub.items.some(item => isActive(item.href))))
+                              ? 'bg-indigo-100 text-indigo-700'
+                              : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                           }`}
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
                         >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </button>
-                      
-                      {activeDropdown === category.name && (
-                        <div className={`absolute ${catIdx >= menuCategories.length - 3 ? 'right-0' : 'left-0'} mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50`}>
-                          <div className="py-1">
-                            {category.items.map((item) => (
-                              item.href === '#' ? (
-                                <div key={item.name} className="px-4 py-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wider border-t border-gray-100 first:border-t-0 mt-1 first:mt-0">
-                                  {item.name.replace(/—/g, '').trim()}
-                                </div>
-                              ) : (
+                          <span className="mr-1.5">{category.icon}</span>
+                          <span className="hidden lg:inline">{category.name}</span>
+                          <svg
+                            className={`ml-1 h-3.5 w-3.5 transition-transform ${
+                              activeDropdown === category.name ? 'transform rotate-180' : ''
+                            }`}
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </button>
+                        
+                        {activeDropdown === category.name && (
+                          <div className={`absolute ${catIdx >= menuCategories.length - 3 ? 'right-0' : 'left-0'} mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50`}>
+                            <div className="py-1">
+                              {/* Render direct items */}
+                              {hasDirectItems && category.items!.map((item) => (
                                 <a
                                   key={item.name}
                                   href={item.href}
@@ -477,15 +535,54 @@ export default function Navbar() {
                                 >
                                   {item.name}
                                 </a>
-                              )
-                            ))}
+                              ))}
+                              
+                              {/* Render subcategories */}
+                              {hasSubCategories && category.subCategories!.map((subCat) => (
+                                <div key={subCat.name}>
+                                  <button
+                                    onClick={() => setActiveSubCategory(activeSubCategory === subCat.name ? null : subCat.name)}
+                                    className="w-full flex items-center justify-between px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50"
+                                  >
+                                    <span>{subCat.name}</span>
+                                    <svg
+                                      className={`h-4 w-4 transition-transform ${
+                                        activeSubCategory === subCat.name ? 'transform rotate-90' : ''
+                                      }`}
+                                      fill="none"
+                                      viewBox="0 0 24 24"
+                                      stroke="currentColor"
+                                    >
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                    </svg>
+                                  </button>
+                                  {activeSubCategory === subCat.name && (
+                                    <div className="bg-gray-50">
+                                      {subCat.items.map((item) => (
+                                        <a
+                                          key={item.name}
+                                          href={item.href}
+                                          className={`block px-8 py-2 text-sm transition-colors ${
+                                            isActive(item.href)
+                                              ? 'bg-indigo-50 text-indigo-700'
+                                              : 'text-gray-600 hover:bg-gray-100'
+                                          }`}
+                                        >
+                                          {item.name}
+                                        </a>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
 
             {/* Mobile hamburger - shown on mobile only */}
@@ -534,21 +631,21 @@ export default function Navbar() {
                 </button>
               </div>
               
-              {visibleCategories.map((category) => (
-                <div key={category.name} className="mb-5">
-                  <div className="flex items-center mb-2">
-                    <span className="mr-2">{category.icon}</span>
-                    <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">
-                      {category.name}
-                    </h3>
-                  </div>
-                  <div className="space-y-0.5">
-                    {category.items.map((item) => (
-                      item.href === '#' ? (
-                        <div key={item.name} className="pl-8 pr-4 py-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                          {item.name.replace(/—/g, '').trim()}
-                        </div>
-                      ) : (
+              {visibleCategories.map((category) => {
+                const hasDirectItems = category.items && category.items.length > 0;
+                const hasSubCategories = category.subCategories && category.subCategories.length > 0;
+                
+                return (
+                  <div key={category.name} className="mb-5">
+                    <div className="flex items-center mb-2">
+                      <span className="mr-2">{category.icon}</span>
+                      <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">
+                        {category.name}
+                      </h3>
+                    </div>
+                    <div className="space-y-0.5">
+                      {/* Render direct items */}
+                      {hasDirectItems && category.items!.map((item) => (
                         <a
                           key={item.name}
                           href={item.href}
@@ -561,11 +658,51 @@ export default function Navbar() {
                         >
                           {item.name}
                         </a>
-                      )
-                    ))}
+                      ))}
+                      
+                      {/* Render subcategories */}
+                      {hasSubCategories && category.subCategories!.map((subCat) => (
+                        <div key={subCat.name} className="mb-2">
+                          <button
+                            onClick={() => setActiveSubCategory(activeSubCategory === subCat.name ? null : subCat.name)}
+                            className="w-full flex items-center justify-between pl-8 pr-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 rounded-lg"
+                          >
+                            <span>{subCat.name}</span>
+                            <svg
+                              className={`h-4 w-4 transition-transform ${
+                                activeSubCategory === subCat.name ? 'transform rotate-90' : ''
+                              }`}
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                          </button>
+                          {activeSubCategory === subCat.name && (
+                            <div className="mt-1 space-y-0.5">
+                              {subCat.items.map((item) => (
+                                <a
+                                  key={item.name}
+                                  href={item.href}
+                                  onClick={() => setIsMenuOpen(false)}
+                                  className={`block pl-12 pr-4 py-2 text-sm rounded-lg transition-colors ${
+                                    isActive(item.href)
+                                      ? 'bg-indigo-50 text-indigo-700 font-medium'
+                                      : 'text-gray-600 hover:bg-gray-100'
+                                  }`}
+                                >
+                                  {item.name}
+                                </a>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
