@@ -27,8 +27,14 @@ interface ProfitParams {
 
 interface Summary {
   total_sales?: number;
-  total_hpp?: number;
+  total_hpp_base?: number;
+  total_financial_cost?: number;
+  total_hpp_total?: number;
+  total_gross_profit_before_overhead?: number;
+  total_gross_profit?: number;
+  total_base_profit?: number;
   total_commission?: number;
+  total_company_margin?: number;
   total_company_profit?: number;
 }
 
@@ -88,6 +94,9 @@ export default function ProfitReportPage() {
       if (!res.ok || !json.success) {
         throw new Error(json.message || "Gagal memuat laporan");
       }
+      console.log("API Response:", json.data);
+      console.log("by_invoice type:", typeof json.data?.by_invoice);
+      console.log("by_invoice:", json.data?.by_invoice);
       setData(json.data);
     } catch (err: any) {
       setError(err?.message || "Gagal memuat laporan");
@@ -137,26 +146,31 @@ export default function ProfitReportPage() {
 
   const comparisonData = useMemo(() => {
     if (!data?.by_invoice) return [];
-    return data.by_invoice.map((inv: any) => ({
-      name: inv.invoice,
-      sales: inv.sales || inv.total_sales || 0,
-      hpp: inv.hpp || inv.total_hpp || 0,
+    return Object.entries(data.by_invoice).map(([invoice, inv]: [string, any]) => ({
+      name: invoice,
+      sales: inv.sales || 0,
+      hpp_base: inv.hpp_base || 0,
+      hpp_total: inv.hpp_total || 0,
+      financial_cost: inv.financial_cost || 0,
       commission: inv.commission || 0,
-      profit: inv.profit || inv.company_profit || 0,
+      profit: inv.profit || 0,
     }));
   }, [data]);
 
   const salesChartData = useMemo(() => {
     if (!data?.by_sales) return [];
-    return data.by_sales.map((row: any) => ({
-      name: row.sales,
+    return Object.entries(data.by_sales).map(([sales_person, row]: [string, any]) => ({
+      name: sales_person,
       commission: row.commission || 0,
     }));
   }, [data]);
 
   const customerChartData = useMemo(() => {
     if (!data?.by_customer) return [];
-    return data.by_customer.map((c: any) => ({ name: c.customer, profit: c.profit || c.company_profit || 0 }));
+    return Object.entries(data.by_customer).map(([customer, c]: [string, any]) => ({
+      name: customer,
+      profit: c.profit || 0,
+    }));
   }, [data]);
   const salesOptions = useMemo(() => salesList.filter(Boolean), [salesList]);
   const customerOptions = useMemo(() => customerList.filter(Boolean), [customerList]);
@@ -216,10 +230,25 @@ export default function ProfitReportPage() {
       XLSX.utils.book_append_sheet(wb, ws, name);
     };
 
-    addSheet(data.by_invoice || [], "Per Invoice");
+    // Convert objects to arrays for Excel export
+    const invoiceArray = Object.entries(data.by_invoice || {}).map(([invoice, row]: [string, any]) => ({
+      invoice,
+      ...row,
+    }));
+    const customerArray = Object.entries(data.by_customer || {}).map(([customer, row]: [string, any]) => ({
+      customer,
+      ...row,
+    }));
+    const salesArray = Object.entries(data.by_sales || {}).map(([sales, row]: [string, any]) => ({
+      sales,
+      sales_total: row.sales,
+      ...row,
+    }));
+
+    addSheet(invoiceArray, "Per Invoice");
     addSheet(data.by_item || [], "Per Item");
-    addSheet(data.by_customer || [], "Per Customer");
-    addSheet(data.by_sales || [], "Per Sales");
+    addSheet(customerArray, "Per Customer");
+    addSheet(salesArray, "Per Sales");
 
     XLSX.writeFile(wb, "profit-report.xlsx");
   };
@@ -385,11 +414,23 @@ export default function ProfitReportPage() {
 
       {/* Summary */}
       {data && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <SummaryCard label="Total Sales" value={summary.total_sales} />
-          <SummaryCard label="Total HPP" value={summary.total_hpp} />
-          <SummaryCard label="Total Komisi" value={summary.total_commission} />
-          <SummaryCard label="Profit Perusahaan" value={summary.total_company_profit} />
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <SummaryCard label="Total Sales" value={summary.total_sales} />
+            <SummaryCard label="HPP Base" value={summary.total_hpp_base} />
+            <SummaryCard label="Financial Cost" value={summary.total_financial_cost} />
+            <SummaryCard label="HPP Total" value={summary.total_hpp_total} />
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <SummaryCard label="GP (Before Overhead)" value={summary.total_gross_profit_before_overhead} />
+            <SummaryCard label="Gross Profit" value={summary.total_gross_profit} />
+            <SummaryCard label="Base Profit" value={summary.total_base_profit} />
+            <SummaryCard label="Total Komisi" value={summary.total_commission} />
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-2 gap-4">
+            <SummaryCard label="Company Margin" value={summary.total_company_margin} />
+            <SummaryCard label="Company Profit" value={summary.total_company_profit} />
+          </div>
         </div>
       )}
 
@@ -397,7 +438,7 @@ export default function ProfitReportPage() {
       {data && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <ChartCard title="Perbandingan Profit per Invoice" subtitle="Klik baris di tabel untuk drilldown item">
-            <BarChartResponsive data={comparisonData} dataKeys={["sales", "hpp", "commission", "profit"]} />
+            <BarChartResponsive data={comparisonData} dataKeys={["sales", "hpp_total", "commission", "profit"]} />
           </ChartCard>
           <ChartCard title="Komisi per Sales" subtitle="Total komisi per tenaga penjual">
             <BarChartSimple data={salesChartData} dataKey="commission" color="#10b981" />
@@ -412,7 +453,7 @@ export default function ProfitReportPage() {
       {data && (
         <div className="space-y-6">
           <TableInvoice
-            rows={data.by_invoice || []}
+            rows={data.by_invoice || {}}
             expandedInvoice={expandedInvoice}
             onToggle={toggleInvoice}
             itemsMap={data.by_item || []}
@@ -421,14 +462,27 @@ export default function ProfitReportPage() {
             title="Per Item"
             columns={[
               { key: "invoice", label: "Invoice" },
-              { key: "item", label: "Item" },
+              { key: "customer", label: "Customer" },
+              { key: "customer_name", label: "Nama Customer" },
+              { key: "sales_person", label: "Sales" },
+              { key: "item_code", label: "Kode Item" },
+              { key: "item_name", label: "Nama Item" },
               { key: "qty", label: "Qty" },
+              { key: "rate", label: "Rate" },
+              { key: "price_list_rate", label: "Price List" },
+              { key: "hpp_rate", label: "HPP Rate" },
+              { key: "financial_cost_percent", label: "FC %" },
               { key: "sales", label: "Penjualan" },
-              { key: "hpp", label: "HPP" },
+              { key: "hpp_base", label: "HPP Base" },
+              { key: "financial_cost", label: "Financial Cost" },
+              { key: "hpp_total", label: "HPP Total" },
+              { key: "gross_profit_before_overhead", label: "GP (Before)" },
+              { key: "gross_profit", label: "Gross Profit" },
+              { key: "base_profit", label: "Base Profit" },
+              { key: "margin_zone", label: "Margin Zone" },
               { key: "commission", label: "Komisi" },
-              { key: "company_margin", label: "Margin Perusahaan" },
-              { key: "company_profit", label: "Laba Perusahaan" },
-              { key: "gross_profit", label: "Laba Kotor" },
+              { key: "company_margin", label: "Company Margin" },
+              { key: "company_profit", label: "Company Profit" },
             ]}
             rows={data.by_item || []}
           />
@@ -438,14 +492,20 @@ export default function ProfitReportPage() {
               { key: "customer", label: "Pelanggan" },
               { key: "invoices", label: "Invoice" },
               { key: "sales", label: "Penjualan" },
-              { key: "hpp", label: "HPP" },
+              { key: "hpp_base", label: "HPP Base" },
+              { key: "financial_cost", label: "Financial Cost" },
+              { key: "hpp_total", label: "HPP Total" },
+              { key: "gross_profit_before_overhead", label: "GP (Before)" },
+              { key: "gross_profit", label: "Gross Profit" },
               { key: "base_profit", label: "Laba Dasar" },
               { key: "commission", label: "Komisi" },
               { key: "company_margin", label: "Margin Perusahaan" },
               { key: "profit", label: "Laba Perusahaan" },
-              { key: "gross_profit", label: "Laba Kotor" },
             ]}
-            rows={data.by_customer || []}
+            rows={Object.entries(data.by_customer || {}).map(([customer, row]: [string, any]) => ({
+              customer,
+              ...row,
+            }))}
           />
           <TableSimple
             title="Per Sales"
@@ -453,14 +513,21 @@ export default function ProfitReportPage() {
               { key: "sales", label: "Sales" },
               { key: "invoices", label: "Invoice" },
               { key: "sales_total", label: "Penjualan" },
-              { key: "hpp", label: "HPP" },
+              { key: "hpp_base", label: "HPP Base" },
+              { key: "financial_cost", label: "Financial Cost" },
+              { key: "hpp_total", label: "HPP Total" },
+              { key: "gross_profit_before_overhead", label: "GP (Before)" },
+              { key: "gross_profit", label: "Gross Profit" },
               { key: "base_profit", label: "Laba Dasar" },
               { key: "commission", label: "Komisi" },
               { key: "company_margin", label: "Margin Perusahaan" },
               { key: "profit", label: "Laba Perusahaan" },
-              { key: "gross_profit", label: "Laba Kotor" },
             ]}
-            rows={data.by_sales || []}
+            rows={Object.entries(data.by_sales || {}).map(([sales, row]: [string, any]) => ({
+              sales,
+              sales_total: row.sales,
+              ...row,
+            }))}
           />
         </div>
       )}
@@ -606,12 +673,11 @@ function TableInvoice({
   onToggle,
   itemsMap,
 }: {
-  rows: any[];
+  rows: Record<string, any>;
   expandedInvoice: string | null;
   onToggle: (inv: string) => void;
   itemsMap: any[];
 }) {
-  // map items by invoice for quick drilldown
   const itemsByInvoice = useMemo(() => {
     const map: Record<string, any[]> = {};
     (itemsMap || []).forEach((it: any) => {
@@ -620,6 +686,8 @@ function TableInvoice({
     });
     return map;
   }, [itemsMap]);
+
+  const invoiceEntries = Object.entries(rows || {});
 
   return (
     <div className="bg-white rounded shadow p-4">
@@ -632,36 +700,46 @@ function TableInvoice({
           <thead className="bg-gray-50">
             <tr>
               <th className="px-3 py-2 text-left">Invoice</th>
+              <th className="px-3 py-2 text-left">Customer</th>
+              <th className="px-3 py-2 text-left">Sales</th>
               <th className="px-3 py-2 text-right">Penjualan</th>
-              <th className="px-3 py-2 text-right">HPP</th>
-              <th className="px-3 py-2 text-right">Laba Dasar</th>
+              <th className="px-3 py-2 text-right">HPP Base</th>
+              <th className="px-3 py-2 text-right">Fin. Cost</th>
+              <th className="px-3 py-2 text-right">HPP Total</th>
+              <th className="px-3 py-2 text-right">GP (Before)</th>
+              <th className="px-3 py-2 text-right">Gross Profit</th>
+              <th className="px-3 py-2 text-right">Base Profit</th>
               <th className="px-3 py-2 text-right">Komisi</th>
-              <th className="px-3 py-2 text-right">Margin Perusahaan</th>
-              <th className="px-3 py-2 text-right">Laba Perusahaan</th>
-              <th className="px-3 py-2 text-right">Laba Kotor</th>
+              <th className="px-3 py-2 text-right">Co. Margin</th>
+              <th className="px-3 py-2 text-right">Profit</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {rows.map((row: any) => {
-              const isOpen = expandedInvoice === row.invoice;
+            {invoiceEntries.map(([invoice, row]: [string, any]) => {
+              const isOpen = expandedInvoice === invoice;
               return (
-                <Fragment key={row.invoice}>
+                <Fragment key={invoice}>
                   <tr
                     className="hover:bg-gray-50 cursor-pointer"
-                    onClick={() => onToggle(row.invoice)}
+                    onClick={() => onToggle(invoice)}
                   >
-                    <td className="px-3 py-2 font-medium text-indigo-700">{row.invoice}</td>
-                    <td className="px-3 py-2 text-right">{(row.sales || row.total_sales || 0).toLocaleString("id-ID")}</td>
-                    <td className="px-3 py-2 text-right">{(row.hpp || row.total_hpp || 0).toLocaleString("id-ID")}</td>
+                    <td className="px-3 py-2 font-medium text-indigo-700">{invoice}</td>
+                    <td className="px-3 py-2">{row.customer || "-"}</td>
+                    <td className="px-3 py-2">{row.sales_person || "-"}</td>
+                    <td className="px-3 py-2 text-right">{(row.sales || 0).toLocaleString("id-ID")}</td>
+                    <td className="px-3 py-2 text-right">{(row.hpp_base || 0).toLocaleString("id-ID")}</td>
+                    <td className="px-3 py-2 text-right">{(row.financial_cost || 0).toLocaleString("id-ID")}</td>
+                    <td className="px-3 py-2 text-right">{(row.hpp_total || 0).toLocaleString("id-ID")}</td>
+                    <td className="px-3 py-2 text-right">{(row.gross_profit_before_overhead || 0).toLocaleString("id-ID")}</td>
+                    <td className="px-3 py-2 text-right">{(row.gross_profit || 0).toLocaleString("id-ID")}</td>
                     <td className="px-3 py-2 text-right">{(row.base_profit || 0).toLocaleString("id-ID")}</td>
                     <td className="px-3 py-2 text-right">{(row.commission || 0).toLocaleString("id-ID")}</td>
-                    <td className="px-3 py-2 text-right">{(row.company_margin || row.company_profit || 0).toLocaleString("id-ID")}</td>
-                    <td className="px-3 py-2 text-right">{(row.profit || row.company_profit || 0).toLocaleString("id-ID")}</td>
-                    <td className="px-3 py-2 text-right">{(row.gross_profit || 0).toLocaleString("id-ID")}</td>
+                    <td className="px-3 py-2 text-right">{(row.company_margin || 0).toLocaleString("id-ID")}</td>
+                    <td className="px-3 py-2 text-right">{(row.profit || 0).toLocaleString("id-ID")}</td>
                   </tr>
                   {isOpen && (
-                    <tr key={`${row.invoice}-details`}>
-                      <td colSpan={8} className="bg-gray-50 px-3 py-2">
+                    <tr key={`${invoice}-details`}>
+                      <td colSpan={13} className="bg-gray-50 px-3 py-2">
                         <div className="text-sm text-gray-700 font-semibold mb-1">Detail Item</div>
                         <div className="overflow-x-auto">
                           <table className="min-w-full text-xs">
@@ -676,18 +754,18 @@ function TableInvoice({
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
-                              {(itemsByInvoice[row.invoice] || []).map((it: any, idx: number) => (
-                                <tr key={`${row.invoice}-${it.item || it.item_code || idx}`}>
+                              {(itemsByInvoice[invoice] || []).map((it: any, idx: number) => (
+                                <tr key={`${invoice}-${it.item || it.item_code || idx}`}>
                                   <td className="px-2 py-1">{it.item || it.item_code}</td>
                                   <td className="px-2 py-1 text-right">{it.qty || 0}</td>
                                   <td className="px-2 py-1 text-right">{(it.sales || 0).toLocaleString("id-ID")}</td>
-                                  <td className="px-2 py-1 text-right">{(it.hpp || 0).toLocaleString("id-ID")}</td>
+                                  <td className="px-2 py-1 text-right">{(it.hpp_total || 0).toLocaleString("id-ID")}</td>
                                   <td className="px-2 py-1 text-right">{(it.commission || 0).toLocaleString("id-ID")}</td>
-                                  <td className="px-2 py-1 text-right">{(it.profit || it.company_profit || 0).toLocaleString("id-ID")}</td>
+                                  <td className="px-2 py-1 text-right">{(it.company_profit || 0).toLocaleString("id-ID")}</td>
                                 </tr>
                               ))}
-                              {!(itemsByInvoice[row.invoice] || []).length && (
-                                <tr key={`${row.invoice}-no-data`}>
+                              {!(itemsByInvoice[invoice] || []).length && (
+                                <tr key={`${invoice}-no-data`}>
                                   <td colSpan={6} className="px-2 py-1 text-gray-500">Tidak ada data item</td>
                                 </tr>
                               )}

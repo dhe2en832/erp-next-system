@@ -8,10 +8,12 @@ import LoadingSpinner from '../../../components/LoadingSpinner';
 const INVOICE_COLUMNS: ReportColumn[] = [
   { key: 'invoice', label: 'No. Invoice', width: '120px' },
   { key: 'customer', label: 'Pelanggan' },
-  { key: 'sales', label: 'Total Penjualan', width: '110px', align: 'right', format: (v, r) => fmtIDR(v || r.total_sales || 0) },
-  { key: 'hpp', label: 'HPP', width: '100px', align: 'right', format: (v, r) => fmtIDR(v || r.total_hpp || 0) },
+  { key: 'sales_person', label: 'Sales', width: '80px' },
+  { key: 'sales', label: 'Total Penjualan', width: '110px', align: 'right', format: (v) => fmtIDR(v || 0) },
+  { key: 'hpp_total', label: 'HPP Total', width: '100px', align: 'right', format: (v) => fmtIDR(v || 0) },
+  { key: 'gross_profit', label: 'Gross Profit', width: '100px', align: 'right', format: (v) => fmtIDR(v || 0) },
   { key: 'commission', label: 'Komisi', width: '90px', align: 'right', format: (v) => fmtIDR(v || 0) },
-  { key: 'profit', label: 'Profit', width: '100px', align: 'right', format: (v, r) => fmtIDR(v || r.company_profit || 0) },
+  { key: 'profit', label: 'Profit', width: '100px', align: 'right', format: (v) => fmtIDR(v || 0) },
 ];
 
 function ProfitPrint() {
@@ -53,11 +55,18 @@ function ProfitPrint() {
   if (error) return <div style={{ padding: '20px', color: 'red' }}>{error}</div>;
 
   const summary = data?.summary || {};
-  const byInvoice: any[] = data?.by_invoice || [];
+  // Convert by_invoice object to array
+  const byInvoice: any[] = Object.entries(data?.by_invoice || {}).map(([invoice, row]: [string, any]) => ({
+    invoice,
+    ...row,
+  }));
   const periodLabel = fromDate && toDate ? `Periode: ${fmtDate(fromDate)} – ${fmtDate(toDate)}` : '';
 
   const totalSales = summary.total_sales || 0;
-  const totalHpp = summary.total_hpp || 0;
+  const totalHppBase = summary.total_hpp_base || 0;
+  const totalFinancialCost = summary.total_financial_cost || 0;
+  const totalHppTotal = summary.total_hpp_total || 0;
+  const totalGrossProfit = summary.total_gross_profit || 0;
   const totalCommission = summary.total_commission || 0;
   const totalProfit = summary.total_company_profit || 0;
 
@@ -70,13 +79,17 @@ function ProfitPrint() {
       data={byInvoice}
       summaryCards={[
         { label: 'Total Penjualan', value: fmtIDR(totalSales) },
-        { label: 'Total HPP', value: fmtIDR(totalHpp) },
+        { label: 'HPP Base', value: fmtIDR(totalHppBase) },
+        { label: 'Financial Cost', value: fmtIDR(totalFinancialCost) },
+        { label: 'HPP Total', value: fmtIDR(totalHppTotal) },
+        { label: 'Gross Profit', value: fmtIDR(totalGrossProfit) },
         { label: 'Total Komisi', value: fmtIDR(totalCommission) },
         { label: 'Total Profit', value: fmtIDR(totalProfit), color: totalProfit >= 0 ? '#16a34a' : '#dc2626' },
       ]}
       footerTotals={[
         { label: 'Total Penjualan', value: fmtIDR(totalSales) },
-        { label: 'Total HPP', value: fmtIDR(totalHpp) },
+        { label: 'Total HPP Total', value: fmtIDR(totalHppTotal) },
+        { label: 'Total Gross Profit', value: fmtIDR(totalGrossProfit) },
         { label: 'Total Komisi', value: fmtIDR(totalCommission) },
         { label: 'Total Profit Bersih', value: fmtIDR(totalProfit) },
       ]}

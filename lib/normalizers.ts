@@ -1,34 +1,8 @@
 export function normalizeProfitReport(raw: any) {
-  const by_invoice = Object.entries(raw?.by_invoice || {}).map(([invoice, v]: any) => ({
-    invoice,
-    ...v,
-    company_margin: v?.company_margin ?? 0,
-    gross_profit: v?.gross_profit ?? 0,
-  }));
-
-  const by_customer = Object.entries(raw?.by_customer || {}).map(([customer, v]: any) => ({
-    customer,
-    invoices: v?.invoices || [],
-    sales: v?.sales ?? 0,
-    hpp: v?.hpp ?? v?.total_hpp ?? 0,
-    base_profit: v?.base_profit ?? 0,
-    commission: v?.commission ?? 0,
-    profit: v?.profit ?? v?.company_profit ?? 0,
-    company_margin: v?.company_margin ?? v?.company_profit ?? 0,
-    gross_profit: v?.gross_profit ?? 0,
-  }));
-
-  const by_sales = Object.entries(raw?.by_sales || {}).map(([sales, v]: any) => ({
-    sales,
-    invoices: v?.invoices || [],
-    sales_total: v?.sales ?? v?.total_sales ?? 0,
-    hpp: v?.hpp ?? v?.total_hpp ?? 0,
-    base_profit: v?.base_profit ?? 0,
-    commission: v?.commission ?? v?.amount ?? v?.profit ?? 0,
-    profit: v?.profit ?? v?.company_profit ?? 0,
-    company_margin: v?.company_margin ?? v?.company_profit ?? 0,
-    gross_profit: v?.gross_profit ?? 0,
-  }));
+  // Keep by_invoice, by_customer, by_sales as objects (new API format)
+  const by_invoice = raw?.by_invoice || {};
+  const by_customer = raw?.by_customer || {};
+  const by_sales = raw?.by_sales || {};
 
   let by_item: any[] = [];
   if (Array.isArray(raw?.by_item)) {
@@ -64,11 +38,11 @@ export function normalizeProfitReport(raw: any) {
   }
 
   return {
-    ...raw,
     by_invoice,
     by_customer,
     by_sales,
     by_item,
     summary: raw?.summary || {},
+    params: raw?.params || {},
   };
 }
