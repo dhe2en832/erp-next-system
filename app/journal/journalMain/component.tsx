@@ -18,12 +18,20 @@ interface JournalFormData {
   company: string;
 }
 
+interface AccountEntry {
+  account: string;
+  debit_in_account_currency: number;
+  credit_in_account_currency: number;
+  user_remark: string;
+}
+
 export default function JournalMain({ onBack, selectedCompany, journalName }: JournalMainProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [accounts, setAccounts] = useState<AccountEntry[]>([]);
 
   const [formData, setFormData] = useState<JournalFormData>({
     posting_date: new Date().toISOString().split('T')[0],
@@ -53,6 +61,16 @@ export default function JournalMain({ onBack, selectedCompany, journalName }: Jo
           user_remark: data.data.user_remark || '',
           company: data.data.company || selectedCompany,
         });
+        
+        // Load accounts
+        if (data.data.accounts && Array.isArray(data.data.accounts)) {
+          setAccounts(data.data.accounts.map((acc: any) => ({
+            account: acc.account || '',
+            debit_in_account_currency: parseFloat(acc.debit_in_account_currency || acc.debit || 0),
+            credit_in_account_currency: parseFloat(acc.credit_in_account_currency || acc.credit || 0),
+            user_remark: acc.user_remark || '',
+          })));
+        }
       } else {
         setError(data.message || 'Gagal memuat data journal');
       }
@@ -206,6 +224,62 @@ export default function JournalMain({ onBack, selectedCompany, journalName }: Jo
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
+
+          {/* Account Entries - Only show if viewing existing journal */}
+          {journalName && accounts.length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 mb-3">Detail Akun</h3>
+              <div className="border border-gray-200 rounded-lg overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Akun</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Keterangan</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Debit</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Kredit</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {accounts.map((acc, index) => (
+                        <tr key={index} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 text-sm text-gray-900">{acc.account}</td>
+                          <td className="px-4 py-3 text-sm text-gray-600">{acc.user_remark || '-'}</td>
+                          <td className="px-4 py-3 text-sm text-right font-medium text-gray-900">
+                            {acc.debit_in_account_currency > 0 
+                              ? new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(acc.debit_in_account_currency)
+                              : '-'
+                            }
+                          </td>
+                          <td className="px-4 py-3 text-sm text-right font-medium text-gray-900">
+                            {acc.credit_in_account_currency > 0 
+                              ? new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(acc.credit_in_account_currency)
+                              : '-'
+                            }
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-gray-50">
+                      <tr>
+                        <td colSpan={2} className="px-4 py-3 text-sm font-medium text-gray-700 text-right">Total:</td>
+                        <td className="px-4 py-3 text-sm font-bold text-gray-900 text-right">
+                          {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(
+                            accounts.reduce((sum, acc) => sum + acc.debit_in_account_currency, 0)
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-sm font-bold text-gray-900 text-right">
+                          {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(
+                            accounts.reduce((sum, acc) => sum + acc.credit_in_account_currency, 0)
+                          )}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Info Box */}
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
