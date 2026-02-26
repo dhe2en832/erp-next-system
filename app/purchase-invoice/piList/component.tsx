@@ -17,6 +17,8 @@ import {
 
 import { formatDate, parseDate } from '../../../utils/format';
 
+export const dynamic = 'force-dynamic';
+
 // ─────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────

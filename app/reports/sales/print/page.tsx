@@ -5,6 +5,8 @@ import { useSearchParams } from 'next/navigation';
 import A4ReportLayout, { fmtIDR, fmtDate, getTerbilang, ReportColumn } from '../../../components/A4ReportLayout';
 import LoadingSpinner from '../../../components/LoadingSpinner';
 
+export const dynamic = 'force-dynamic';
+
 const COLUMNS: ReportColumn[] = [
   { key: 'name', label: 'No. SO', width: '110px' },
   { key: 'customer_name', label: 'Pelanggan' },

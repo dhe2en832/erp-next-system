@@ -6,6 +6,8 @@ import PrintLayout, { PrintColumn } from '../../components/PrintLayout';
 import PrintPreviewModal from '../../../components/PrintPreviewModal';
 import LoadingSpinner from '../../components/LoadingSpinner';
 
+export const dynamic = 'force-dynamic';
+
 function fixTerbilang(raw: string): string {
   if (!raw) return '';
   return raw

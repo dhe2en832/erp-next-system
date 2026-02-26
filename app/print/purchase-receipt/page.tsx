@@ -6,6 +6,8 @@ import PrintLayout, { PrintColumn, PrintSignature } from '../../components/Print
 import PrintPreviewModal from '../../../components/PrintPreviewModal';
 import LoadingSpinner from '../../components/LoadingSpinner';
 
+export const dynamic = 'force-dynamic';
+
 const PR_COLUMNS: PrintColumn[] = [
   { key: 'no', label: 'No', width: '28px', align: 'center' },
   { key: 'item_code', label: 'Kode', width: '90px' },

@@ -12,6 +12,8 @@ import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
 import PrintPreviewModal from '../../../components/print/PrintPreviewModal';
 import SalesOrderPrint from '../../../components/print/SalesOrderPrint';
 
+export const dynamic = 'force-dynamic';
+
 interface SalesTeamMember {
   sales_person: string;
   allocated_percentage: number;

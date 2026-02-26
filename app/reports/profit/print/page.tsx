@@ -5,6 +5,8 @@ import { useSearchParams } from 'next/navigation';
 import A4ReportLayout, { fmtIDR, fmtDate, getTerbilang, ReportColumn } from '../../../components/A4ReportLayout';
 import LoadingSpinner from '../../../components/LoadingSpinner';
 
+export const dynamic = 'force-dynamic';
+
 const INVOICE_COLUMNS: ReportColumn[] = [
   { key: 'invoice', label: 'No. Invoice', width: '120px' },
   { key: 'customer', label: 'Pelanggan' },

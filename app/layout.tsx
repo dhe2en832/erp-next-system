@@ -12,6 +12,9 @@ export const metadata: Metadata = {
   description: "Enterprise Resource Planning System",
 };
 
+// Force dynamic rendering for all pages (required for useSearchParams)
+export const dynamic = 'force-dynamic';
+
 export default function RootLayout({
   children,
 }: {

@@ -6,6 +6,8 @@ import { useIsMobile } from '@/hooks';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import Pagination from '../../components/Pagination';
 
+export const dynamic = 'force-dynamic';
+
 interface PaymentTermsTemplate {
   name: string;
   template_name?: string;

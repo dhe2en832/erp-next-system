@@ -17,6 +17,8 @@ import {
   getFirstDayOfMonth
 } from '@/lib/report-utils';
 
+export const dynamic = 'force-dynamic';
+
 export default function PurchaseInvoiceDetailsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();

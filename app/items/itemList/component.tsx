@@ -7,6 +7,8 @@ import Pagination from '../../components/Pagination';
 import { Edit, Package, ArrowUp, Loader2, Search } from 'lucide-react';
 import ErrorDialog from '../../../components/ErrorDialog';
 
+export const dynamic = 'force-dynamic';
+
 // ─────────────────────────────────────────────────────────────
 // Hook: Deteksi mobile (breakpoint 768px)
 // ─────────────────────────────────────────────────────────────

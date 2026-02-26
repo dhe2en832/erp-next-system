@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import Pagination from '../../components/Pagination';
 
+export const dynamic = 'force-dynamic';
+
 // ─────────────────────────────────────────────────────────────
 // Hook: Deteksi mobile (breakpoint 768px)
 // ─────────────────────────────────────────────────────────────

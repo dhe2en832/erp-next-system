@@ -4,6 +4,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import JournalMain from './component';
 
+export const dynamic = 'force-dynamic';
+
 export default function JournalMainPage() {
   const router = useRouter();
   const searchParams = useSearchParams();

@@ -3,6 +3,8 @@
 import React, { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 
+export const dynamic = 'force-dynamic';
+
 function HPPLedgerPrintContent() {
   const searchParams = useSearchParams();
   const companyParam = searchParams.get('company') || '';

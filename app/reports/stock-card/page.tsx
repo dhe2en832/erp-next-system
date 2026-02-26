@@ -10,6 +10,8 @@ import {
 import * as XLSX from 'xlsx';
 import PrintPreviewModal from '../../../components/PrintPreviewModal';
 
+export const dynamic = 'force-dynamic';
+
 // ─────────────────────────────────────────────────────────────
 // Hook: Deteksi mobile (breakpoint 768px)
 // ─────────────────────────────────────────────────────────────

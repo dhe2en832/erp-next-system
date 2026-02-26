@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Search, X, Eye, ArrowUp, ChevronLeft, ChevronRight, BookOpen, Calendar } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
+export const dynamic = 'force-dynamic';
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 interface GLEntry {

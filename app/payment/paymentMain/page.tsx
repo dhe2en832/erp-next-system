@@ -5,6 +5,8 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import PaymentMain from './component';
 import LoadingSpinner from '../../components/LoadingSpinner';
 
+export const dynamic = 'force-dynamic';
+
 function PaymentMainInner() {
   const searchParams = useSearchParams();
   const router = useRouter();

@@ -5,6 +5,8 @@ import { useSearchParams } from 'next/navigation';
 import A4ReportLayout, { fmtIDR, fmtDate, getTerbilang, ReportColumn } from '../../../components/A4ReportLayout';
 import LoadingSpinner from '../../../components/LoadingSpinner';
 
+export const dynamic = 'force-dynamic';
+
 const COLUMNS: ReportColumn[] = [
   { key: 'name', label: 'No. PO', width: '110px' },
   { key: 'supplier_name', label: 'Pemasok', format: (v, r) => v || r.supplier || '-' },

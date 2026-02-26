@@ -9,6 +9,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import PrintPreviewModal from '../../../components/PrintPreviewModal';
 import SalesPersonDialog from '../../components/SalesPersonDialog';
 
+export const dynamic = 'force-dynamic';
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 interface AREntry {

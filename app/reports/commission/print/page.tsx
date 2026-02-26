@@ -5,6 +5,8 @@ import { useSearchParams } from 'next/navigation';
 import A4ReportLayout, { fmtIDR, fmtDate, getTerbilang, ReportColumn } from '../../../components/A4ReportLayout';
 import LoadingSpinner from '../../../components/LoadingSpinner';
 
+export const dynamic = 'force-dynamic';
+
 const SO_COLUMNS: ReportColumn[] = [
   { key: 'name', label: 'No. SO', width: '120px' },
   { key: 'transaction_date', label: 'Tanggal', width: '80px', format: (v) => fmtDate(v) },

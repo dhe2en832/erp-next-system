@@ -16,6 +16,8 @@ import {
   ReturnReason 
 } from '../../../types/sales-return';
 
+export const dynamic = 'force-dynamic';
+
 export default function SalesReturnMain() {
   const router = useRouter();
   const searchParams = useSearchParams();

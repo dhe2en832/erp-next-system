@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import ItemDialog from '../../components/ItemDialog';
 
+export const dynamic = 'force-dynamic';
+
 interface Warehouse {
   name: string;
   warehouse_name: string;

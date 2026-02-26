@@ -14,6 +14,8 @@ import { handleERPNextError } from '../../../utils/erpnext-error-handler';
 import PrintPreviewModal from '../../../components/print/PrintPreviewModal';
 import SalesInvoicePrint from '../../../components/print/SalesInvoicePrint';
 
+export const dynamic = 'force-dynamic';
+
 interface InvoiceItem {
   item_code: string;
   item_name: string;

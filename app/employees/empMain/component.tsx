@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
 
+export const dynamic = 'force-dynamic';
+
 
 interface Employee {
   name?: string;

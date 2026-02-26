@@ -7,6 +7,8 @@ import Pagination from '../../components/Pagination';
 import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
 import { formatDate, parseDate } from '../../../utils/format';
 
+export const dynamic = 'force-dynamic';
+
 // ─────────────────────────────────────────────────────────────
 // Hook: Deteksi mobile (breakpoint 768px)
 // ─────────────────────────────────────────────────────────────

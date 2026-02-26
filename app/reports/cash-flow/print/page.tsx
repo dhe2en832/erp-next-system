@@ -6,6 +6,8 @@ import A4ReportLayout, { fmtIDR, fmtDate, ReportColumn } from '../../../componen
 import LoadingSpinner from '../../../components/LoadingSpinner';
 import React from 'react';
 
+export const dynamic = 'force-dynamic';
+
 const CSS_EXTRA = `
 .cf-section-title { font-size: 11px; font-weight: 700; background: #e2e8f0; padding: 5px 6px; border: 1px solid #cbd5e1; color: #334155; text-transform: uppercase; letter-spacing: 0.5px; }
 .cf-table { width: 100%; border-collapse: collapse; font-size: 10.5px; margin-bottom: 8px; }

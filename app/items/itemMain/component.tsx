@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import SearchableSelectDialog from '../../components/SearchableSelectDialog';
 
+export const dynamic = 'force-dynamic';
+
 const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
 
 interface Item {

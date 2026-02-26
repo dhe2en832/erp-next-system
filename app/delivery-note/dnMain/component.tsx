@@ -12,6 +12,8 @@ import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
 import PrintPreviewModal from '../../../components/print/PrintPreviewModal';
 import DeliveryNotePrint from '../../../components/print/DeliveryNotePrint';
 
+export const dynamic = 'force-dynamic';
+
 interface SalesOrder {
   name: string;
   customer: string;

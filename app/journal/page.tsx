@@ -8,6 +8,8 @@ import { formatDate, parseDate } from '../../utils/format';
 import BrowserStyleDatePicker from '../../components/BrowserStyleDatePicker';
 import { FileText, ArrowUp, Loader2 } from 'lucide-react';
 
+export const dynamic = 'force-dynamic';
+
 // ─────────────────────────────────────────────────────────────
 // Hook: Deteksi mobile (breakpoint 768px)
 // ─────────────────────────────────────────────────────────────

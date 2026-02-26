@@ -6,6 +6,8 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
 import { formatDate, parseDate } from '../../../utils/format';
 
+export const dynamic = 'force-dynamic';
+
 interface PayableInvoice {
   name: string;
   customer: string;

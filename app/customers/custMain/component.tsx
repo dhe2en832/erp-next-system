@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import SalesPersonDialog from '../../components/SalesPersonDialog';
 
+export const dynamic = 'force-dynamic';
+
 interface CustomerFormData {
   customer_name: string;
   customer_type: string;

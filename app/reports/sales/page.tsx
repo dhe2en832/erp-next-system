@@ -9,6 +9,8 @@ import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
 import SalesPersonDialog from '../../components/SalesPersonDialog';
 import { User, Users } from 'lucide-react';
 
+export const dynamic = 'force-dynamic';
+
 interface SalesEntry {
   name: string;
   customer: string;

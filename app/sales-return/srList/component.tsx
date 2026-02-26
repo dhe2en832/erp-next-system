@@ -10,6 +10,8 @@ import { Printer, FileText, Send, ArrowUp, Loader2, RotateCcw } from 'lucide-rea
 import ErrorDialog from '../../../components/ErrorDialog';
 import { SalesReturn } from '../../../types/sales-return';
 
+export const dynamic = 'force-dynamic';
+
 // ─────────────────────────────────────────────────────────────
 // Hook: Deteksi mobile (breakpoint 768px)
 // ─────────────────────────────────────────────────────────────

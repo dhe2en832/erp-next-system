@@ -4,6 +4,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import LoadingSpinner from '../../components/LoadingSpinner';
 
+export const dynamic = 'force-dynamic';
+
 interface SupplierFormData {
   supplier_name: string;
   supplier_type: string;

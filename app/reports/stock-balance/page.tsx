@@ -7,6 +7,8 @@ import Pagination from '../../components/Pagination';
 import PrintPreviewModal from '../../../components/PrintPreviewModal';
 import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
 
+export const dynamic = 'force-dynamic';
+
 interface StockEntry {
   item_code: string;
   item_name?: string;

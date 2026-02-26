@@ -8,6 +8,8 @@ import {
 import { useRouter, useSearchParams } from 'next/navigation';
 import PrintPreviewModal from '../../../components/PrintPreviewModal';
 
+export const dynamic = 'force-dynamic';
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 interface APEntry {

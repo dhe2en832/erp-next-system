@@ -11,6 +11,8 @@ import ErrorDialog from '../../../components/ErrorDialog';
 import PrintPreviewModal from '../../../components/print/PrintPreviewModal';
 import SalesOrderPrint from '../../../components/print/SalesOrderPrint';
 
+export const dynamic = 'force-dynamic';
+
 // ─────────────────────────────────────────────────────────────
 // Hook: Deteksi mobile (breakpoint 768px)
 // ─────────────────────────────────────────────────────────────

@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import PrintPreviewModal from '../../../components/PrintPreviewModal';
 
+export const dynamic = 'force-dynamic';
+
 // --- Types & Interfaces ---
 
 interface CashFlowEntry {

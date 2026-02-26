@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import LoadingSpinner from '../../components/LoadingSpinner';
 
+export const dynamic = 'force-dynamic';
+
 interface PaymentTerm {
   payment_term: string;
   description: string;
