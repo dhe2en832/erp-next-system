@@ -44,17 +44,48 @@ export async function GET(request: NextRequest) {
     const data = await response.json();
 
     if (response.ok) {
-      const arData = (data.data || []).map((inv: any) => ({
-        voucher_no: inv.name,
-        customer: inv.customer,
-        customer_name: inv.customer_name,
-        posting_date: inv.posting_date,
-        due_date: inv.due_date,
-        invoice_grand_total: inv.grand_total,
-        outstanding_amount: inv.outstanding_amount,
-        voucher_type: 'Sales Invoice',
-      }));
-      return NextResponse.json({ success: true, data: arData });
+      const invoices = data.data || [];
+      
+      // Fetch sales team for each invoice
+      const invoicesWithSales = await Promise.all(
+        invoices.map(async (inv: any) => {
+          try {
+            const salesTeamUrl = `${ERPNEXT_API_URL}/api/resource/Sales Invoice/${inv.name}?fields=["sales_team"]`;
+            const salesTeamResponse = await fetch(salesTeamUrl, { method: 'GET', headers });
+            const salesTeamData = await salesTeamResponse.json();
+            
+            // Get first sales person from sales_team child table
+            const salesPerson = salesTeamData.data?.sales_team?.[0]?.sales_person || '';
+            
+            return {
+              voucher_no: inv.name,
+              customer: inv.customer,
+              customer_name: inv.customer_name,
+              posting_date: inv.posting_date,
+              due_date: inv.due_date,
+              invoice_grand_total: inv.grand_total,
+              outstanding_amount: inv.outstanding_amount,
+              voucher_type: 'Sales Invoice',
+              sales_person: salesPerson,
+            };
+          } catch (error) {
+            console.error(`Error fetching sales team for ${inv.name}:`, error);
+            return {
+              voucher_no: inv.name,
+              customer: inv.customer,
+              customer_name: inv.customer_name,
+              posting_date: inv.posting_date,
+              due_date: inv.due_date,
+              invoice_grand_total: inv.grand_total,
+              outstanding_amount: inv.outstanding_amount,
+              voucher_type: 'Sales Invoice',
+              sales_person: '',
+            };
+          }
+        })
+      );
+      
+      return NextResponse.json({ success: true, data: invoicesWithSales, total_records: invoicesWithSales.length });
     } else {
       return NextResponse.json(
         { success: false, message: data.message || 'Failed to fetch accounts receivable' },

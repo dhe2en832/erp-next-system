@@ -719,7 +719,7 @@ export default function SalesOrderMain() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  Tenaga Penjual <span className="text-red-500">*</span>
+                  Sales Penjual <span className="text-red-500">*</span>
                 </label>
                 <div className="flex mt-1">
                   <input

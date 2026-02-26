@@ -98,6 +98,28 @@ export async function GET(request: NextRequest) {
         }
 
         const detailData = await detailResponse.json();
+        
+        // Get sales person from first referenced Sales Invoice
+        let salesPerson = '';
+        const references = detailData.data.references || [];
+        
+        for (const ref of references) {
+          if (ref.reference_doctype === 'Sales Invoice' && ref.reference_name) {
+            try {
+              const invoiceUrl = `${ERPNEXT_API_URL}/api/resource/Sales Invoice/${ref.reference_name}?fields=["sales_team"]`;
+              const invoiceResponse = await fetch(invoiceUrl, { method: 'GET', headers, signal: AbortSignal.timeout(10000) });
+              
+              if (invoiceResponse.ok) {
+                const invoiceData = await invoiceResponse.json();
+                salesPerson = invoiceData.data?.sales_team?.[0]?.sales_person || '';
+                if (salesPerson) break; // Stop after finding first sales person
+              }
+            } catch (error) {
+              console.error(`Error fetching sales person from ${ref.reference_name}:`, error);
+            }
+          }
+        }
+        
         return {
           name: detailData.data.name,
           posting_date: detailData.data.posting_date,
@@ -110,7 +132,8 @@ export async function GET(request: NextRequest) {
           received_amount: detailData.data.received_amount,
           status: detailData.data.status,
           docstatus: detailData.data.docstatus,
-          references: (detailData.data.references || []).map((ref: any) => ({
+          sales_person: salesPerson,
+          references: references.map((ref: any) => ({
             reference_doctype: ref.reference_doctype,
             reference_name: ref.reference_name,
             total_amount: ref.total_amount || 0,

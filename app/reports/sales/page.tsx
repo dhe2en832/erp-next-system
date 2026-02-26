@@ -6,6 +6,8 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 import Pagination from '../../components/Pagination';
 import PrintPreviewModal from '../../../components/PrintPreviewModal';
 import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
+import SalesPersonDialog from '../../components/SalesPersonDialog';
+import { User, Users } from 'lucide-react';
 
 interface SalesEntry {
   name: string;
@@ -16,6 +18,7 @@ interface SalesEntry {
   status: string;
   per_delivered?: number;
   per_billed?: number;
+  sales_person?: string;
 }
 
 const STATUS_OPTIONS = [
@@ -57,6 +60,8 @@ export default function SalesReportPage() {
   const [toDate, setToDate] = useState('');
   const [filterCustomer, setFilterCustomer] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+  const [filterSalesPerson, setFilterSalesPerson] = useState('');
+  const [showSalesPersonDialog, setShowSalesPersonDialog] = useState(false);
   
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -99,24 +104,6 @@ export default function SalesReportPage() {
     }
   }, [searchParams]);
 
-  // Update URL with debounce to prevent throttling
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    
-    const timeoutId = setTimeout(() => {
-      const newParams = new URLSearchParams(searchParams.toString());
-      if (currentPage > 1) {
-        newParams.set('page', currentPage.toString());
-      } else {
-        newParams.delete('page');
-      }
-      const newUrl = `${window.location.pathname}${newParams.toString() ? `?${newParams.toString()}` : ''}`;
-      window.history.replaceState({}, '', newUrl);
-    }, 100); // Debounce 100ms
-
-    return () => clearTimeout(timeoutId);
-  }, [currentPage, searchParams]);
-
   const fetchData = useCallback(async () => {
     if (!selectedCompany) return;
     setLoading(true);
@@ -142,6 +129,11 @@ export default function SalesReportPage() {
         if (filterStatus) {
           allData = allData.filter((entry: SalesEntry) => entry.status === filterStatus);
         }
+        if (filterSalesPerson) {
+          allData = allData.filter((entry: SalesEntry) =>
+            (entry.sales_person || '').toLowerCase().includes(filterSalesPerson.toLowerCase())
+          );
+        }
         
         setTotalRecords(allData.length);
         setTotalPages(Math.ceil(allData.length / pageSize));
@@ -163,13 +155,13 @@ export default function SalesReportPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedCompany, fromDate, toDate, filterCustomer, filterStatus, currentPage, pageSize]);
+  }, [selectedCompany, fromDate, toDate, filterCustomer, filterStatus, filterSalesPerson, currentPage, pageSize]);
 
   // Reset page when filters change
   useEffect(() => {
     pageChangeSourceRef.current = 'filter';
     setCurrentPage(1);
-  }, [filterCustomer, filterStatus, fromDate, toDate]);
+  }, [filterCustomer, filterStatus, filterSalesPerson, fromDate, toDate]);
 
   // Fetch when page changes (separated from filter logic)
   useEffect(() => {
@@ -194,7 +186,7 @@ export default function SalesReportPage() {
       fetchData();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterCustomer, filterStatus, fromDate, toDate]);
+  }, [filterCustomer, filterStatus, filterSalesPerson, fromDate, toDate]);
 
   // Memoized handlers
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -204,6 +196,7 @@ export default function SalesReportPage() {
   const handleClearFilters = useCallback(() => {
     setFilterCustomer('');
     setFilterStatus('');
+    setFilterSalesPerson('');
     setCurrentPage(1);
     const today = new Date();
     const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -216,6 +209,10 @@ export default function SalesReportPage() {
     pageChangeSourceRef.current = 'pagination';
     setCurrentPage(page);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
+  const handleSalesPersonSelect = useCallback((salesPerson: { name: string; full_name: string }) => {
+    setFilterSalesPerson(salesPerson.full_name);
   }, []);
 
   const totalSales = useMemo(() => {
@@ -255,15 +252,53 @@ export default function SalesReportPage() {
         <PrintPreviewModal
           title={`Laporan Penjualan — ${selectedCompany}`}
           onClose={() => setShowPrintPreview(false)}
-          paperMode="sheet"
-          printUrl={printUrl}
-          useContentFrame={false}
+          printUrl=""
+          useContentFrame={true}
+          allowPaperSettings={true}
         >
-          <iframe
-            src={printUrl}
-            title="Pratinjau Laporan Penjualan"
-            style={{ width: '210mm', height: '297mm', border: 0, background: '#fff', boxShadow: '0 8px 40px rgba(0,0,0,0.45)' }}
-          />
+          <div className="p-8 bg-white">
+            <div className="text-center mb-6">
+              <h2 className="text-xl font-bold">{selectedCompany}</h2>
+              <h3 className="text-lg font-semibold mt-2">Laporan Penjualan</h3>
+              <p className="text-sm text-gray-600 mt-1">
+                Periode: {fromDate} s/d {toDate}
+              </p>
+            </div>
+
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b-2 border-gray-300">
+                  <th className="text-left py-2 px-2">No. SO</th>
+                  <th className="text-left py-2 px-2">Pelanggan</th>
+                  <th className="text-left py-2 px-2">Tanggal</th>
+                  <th className="text-right py-2 px-2">Total</th>
+                  <th className="text-left py-2 px-2">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.map((entry) => (
+                  <tr key={entry.name} className="border-b border-gray-200">
+                    <td className="py-2 px-2 font-medium">{entry.name}</td>
+                    <td className="py-2 px-2">{entry.customer_name || entry.customer}</td>
+                    <td className="py-2 px-2">{entry.transaction_date}</td>
+                    <td className="py-2 px-2 text-right">Rp {(entry.grand_total || 0).toLocaleString('id-ID')}</td>
+                    <td className="py-2 px-2">{entry.status}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-gray-300 font-bold">
+                  <td colSpan={3} className="py-2 px-2 text-right">TOTAL:</td>
+                  <td className="py-2 px-2 text-right">Rp {totalSales.toLocaleString('id-ID')}</td>
+                  <td className="py-2 px-2"></td>
+                </tr>
+              </tfoot>
+            </table>
+
+            <div className="mt-6 text-xs text-gray-500 text-center">
+              Dicetak pada: {new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}
+            </div>
+          </div>
         </PrintPreviewModal>
       )}
 
@@ -312,7 +347,28 @@ export default function SalesReportPage() {
               ))}
             </select>
           </div>
-          <div className="flex items-end space-x-2 lg:col-span-2">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Sales Person</label>
+            <div className="relative">
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+              <input 
+                type="text" 
+                placeholder="Nama sales person..." 
+                value={filterSalesPerson} 
+                onChange={(e) => setFilterSalesPerson(e.target.value)} 
+                className="block w-full border border-gray-300 rounded-md shadow-sm py-2 pl-9 pr-10 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" 
+              />
+              <button
+                type="button"
+                onClick={() => setShowSalesPersonDialog(true)}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-indigo-600 transition-colors"
+                title="Pilih dari daftar"
+              >
+                <Users className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+          <div className="flex items-end space-x-2">
             <button 
               onClick={handleClearFilters}
               className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400 transition-colors text-sm"
@@ -468,6 +524,13 @@ export default function SalesReportPage() {
           onPageChange={handlePageChange}
         />
       </div>
+
+      {/* Sales Person Dialog */}
+      <SalesPersonDialog
+        isOpen={showSalesPersonDialog}
+        onClose={() => setShowSalesPersonDialog(false)}
+        onSelect={handleSalesPersonSelect}
+      />
     </div>
   );
 }

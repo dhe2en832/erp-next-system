@@ -145,24 +145,6 @@ export default function CashFlowPage() {
     }
   }, [searchParams]);
 
-  // Update URL with debounce to prevent throttling
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    
-    const timeoutId = setTimeout(() => {
-      const newParams = new URLSearchParams(searchParams.toString());
-      if (page > 1) {
-        newParams.set('page', page.toString());
-      } else {
-        newParams.delete('page');
-      }
-      const newUrl = `${window.location.pathname}${newParams.toString() ? `?${newParams.toString()}` : ''}`;
-      window.history.replaceState({}, '', newUrl);
-    }, 100); // Debounce 100ms
-
-    return () => clearTimeout(timeoutId);
-  }, [page, searchParams]);
-
   // 3. Scroll Listener for Back to Top & Infinite Scroll
   useEffect(() => {
     const handleScroll = () => {
@@ -585,16 +567,61 @@ export default function CashFlowPage() {
       {/* Print Preview Modal */}
       {showPrintPreview && (
         <PrintPreviewModal
-          title={`Laporan Alur Kas`}
+          title={`Laporan Alur Kas — ${filters.company}`}
           onClose={() => setShowPrintPreview(false)}
-          printUrl={`/reports/cash-flow/print?company=${filters.company}&from_date=${filters.from_date}&to_date=${filters.to_date}`}
-          useContentFrame={false}
+          printUrl=""
+          useContentFrame={true}
+          allowPaperSettings={true}
         >
-           <iframe
-            src={`/reports/cash-flow/print?company=${filters.company}&from_date=${filters.from_date}&to_date=${filters.to_date}`}
-            title="Pratinjau"
-            className="w-full h-full border-0"
-          />
+          <div className="p-8 bg-white">
+            <div className="text-center mb-6">
+              <h2 className="text-xl font-bold">{filters.company}</h2>
+              <h3 className="text-lg font-semibold mt-2">Laporan Alur Kas</h3>
+              <p className="text-sm text-gray-600 mt-1">
+                Periode: {filters.from_date} s/d {filters.to_date}
+              </p>
+            </div>
+
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b-2 border-gray-300">
+                  <th className="text-left py-2 px-2">Tanggal</th>
+                  <th className="text-left py-2 px-2">Voucher</th>
+                  <th className="text-left py-2 px-2">Akun</th>
+                  <th className="text-right py-2 px-2">Debit</th>
+                  <th className="text-right py-2 px-2">Kredit</th>
+                  <th className="text-right py-2 px-2">Saldo</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.map((entry) => (
+                  <tr key={entry.name} className="border-b border-gray-200">
+                    <td className="py-2 px-2">{entry.posting_date}</td>
+                    <td className="py-2 px-2">
+                      <div className="font-medium">{entry.voucher_type || '-'}</div>
+                      <div className="text-xs text-gray-500">{entry.voucher_no || '-'}</div>
+                    </td>
+                    <td className="py-2 px-2">{entry.account}</td>
+                    <td className="py-2 px-2 text-right">{entry.debit ? formatCurrency(entry.debit) : '-'}</td>
+                    <td className="py-2 px-2 text-right">{entry.credit ? formatCurrency(entry.credit) : '-'}</td>
+                    <td className="py-2 px-2 text-right font-medium">{formatCurrency(entry.balance)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-gray-300 font-bold">
+                  <td colSpan={3} className="py-2 px-2 text-right">TOTAL:</td>
+                  <td className="py-2 px-2 text-right">{formatCurrency(totalDebit)}</td>
+                  <td className="py-2 px-2 text-right">{formatCurrency(totalCredit)}</td>
+                  <td className="py-2 px-2 text-right">{formatCurrency(totalDebit - totalCredit)}</td>
+                </tr>
+              </tfoot>
+            </table>
+
+            <div className="mt-6 text-xs text-gray-500 text-center">
+              Dicetak pada: {new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}
+            </div>
+          </div>
         </PrintPreviewModal>
       )}
 

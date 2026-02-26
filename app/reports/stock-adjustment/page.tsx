@@ -67,25 +67,6 @@ export default function StockAdjustmentPage() {
       if (pageNum >= 1) setCurrentPage(pageNum);
     }
   }, [searchParams]);
-
-  // ✅ Update URL with debounce to prevent throttling
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    
-    const timeoutId = setTimeout(() => {
-      const newParams = new URLSearchParams(searchParams.toString());
-      if (currentPage > 1) {
-        newParams.set('page', currentPage.toString());
-      } else {
-        newParams.delete('page');
-      }
-      const newUrl = `${window.location.pathname}${newParams.toString() ? `?${newParams.toString()}` : ''}`;
-      window.history.replaceState({}, '', newUrl);
-    }, 100); // Debounce 100ms
-
-    return () => clearTimeout(timeoutId);
-  }, [currentPage, searchParams]);
-
   const fetchData = useCallback(async () => {
     if (!selectedCompany) return;
     setLoading(true);
@@ -174,27 +155,53 @@ export default function StockAdjustmentPage() {
         <PrintPreviewModal 
           title={`Penyesuaian Stok — ${selectedCompany}`} 
           onClose={() => setShowPrint(false)} 
-          paperMode="sheet"
+          printUrl=""
+          useContentFrame={true}
+          allowPaperSettings={true}
         >
-          <>
-            <style>{`
-              .fin-print table { table-layout: auto !important; width: 100%; border-collapse: collapse; margin-bottom: 8px; }
-              .fin-print th, .fin-print td { padding: 4px 6px; vertical-align: top; }
-              .fin-print .doc-header { margin-bottom: 12px; }
-              .fin-print .section-header { margin-top: 10px; margin-bottom: 4px; }
-              .fin-print .section-sub { font-weight: 700; color: #1e293b; }
-              .fin-print .subtotal-row td { font-weight: 700; }
-              .fin-print .total-row td { font-weight: 800; }
-            `}</style>
-            <iframe
-              src={printUrl}
-              title="Pratinjau"
-              style={{ width: '210mm', height: '297mm', border: 0, background: '#fff', boxShadow: '0 8px 40px rgba(0,0,0,0.45)' }}
-            />
-            <div style={{marginTop:'20px',borderTop:'1px solid #d1d5db',paddingTop:'4px',fontSize:'8px',color:'#9ca3af',textAlign:'center'}}>
-              Dicetak oleh sistem — {new Date().toLocaleDateString('id-ID', {day:'2-digit',month:'long',year:'numeric'})}
+          <div className="p-8 bg-white">
+            <div className="text-center mb-6">
+              <h2 className="text-xl font-bold">{selectedCompany}</h2>
+              <h3 className="text-lg font-semibold mt-2">Penyesuaian Persediaan & Stock Opname</h3>
+              <p className="text-sm text-gray-600 mt-1">
+                Periode: {dateFilter.from_date} s/d {dateFilter.to_date}
+              </p>
             </div>
-          </>
+
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b-2 border-gray-300">
+                  <th className="text-left py-2 px-2">Tanggal</th>
+                  <th className="text-left py-2 px-2">No. Transaksi</th>
+                  <th className="text-left py-2 px-2">Tujuan</th>
+                  <th className="text-right py-2 px-2">Total Nilai</th>
+                  <th className="text-left py-2 px-2">Keterangan</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.map((entry: any, i: number) => (
+                  <tr key={i} className="border-b border-gray-200">
+                    <td className="py-2 px-2">{entry.posting_date}</td>
+                    <td className="py-2 px-2 font-medium">{entry.name}</td>
+                    <td className="py-2 px-2">{entry.purpose}</td>
+                    <td className="py-2 px-2 text-right">Rp {(entry.total_amount || 0).toLocaleString('id-ID')}</td>
+                    <td className="py-2 px-2">{entry.remarks || '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-gray-300 font-bold">
+                  <td colSpan={3} className="py-2 px-2 text-right">TOTAL:</td>
+                  <td className="py-2 px-2 text-right">Rp {totalAmount.toLocaleString('id-ID')}</td>
+                  <td className="py-2 px-2"></td>
+                </tr>
+              </tfoot>
+            </table>
+
+            <div className="mt-6 text-xs text-gray-500 text-center">
+              Dicetak pada: {new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}
+            </div>
+          </div>
         </PrintPreviewModal>
       )}
 

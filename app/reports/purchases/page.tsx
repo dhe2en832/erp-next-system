@@ -96,24 +96,6 @@ export default function PurchaseReportPage() {
     }
   }, [searchParams]);
 
-  // Update URL with debounce to prevent throttling
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    
-    const timeoutId = setTimeout(() => {
-      const newParams = new URLSearchParams(searchParams.toString());
-      if (currentPage > 1) {
-        newParams.set('page', currentPage.toString());
-      } else {
-        newParams.delete('page');
-      }
-      const newUrl = `${window.location.pathname}${newParams.toString() ? `?${newParams.toString()}` : ''}`;
-      window.history.replaceState({}, '', newUrl);
-    }, 100); // Debounce 100ms
-
-    return () => clearTimeout(timeoutId);
-  }, [currentPage, searchParams]);
-
   const fetchData = useCallback(async () => {
     if (!selectedCompany) return;
     setLoading(true);
@@ -254,15 +236,53 @@ export default function PurchaseReportPage() {
         <PrintPreviewModal
           title={`Laporan Pembelian — ${selectedCompany}`}
           onClose={() => setShowPrintPreview(false)}
-          paperMode="sheet"
-          printUrl={printUrl}
-          useContentFrame={false}
+          printUrl=""
+          useContentFrame={true}
+          allowPaperSettings={true}
         >
-          <iframe
-            src={printUrl}
-            title="Pratinjau Laporan Pembelian"
-            style={{ width: '210mm', height: '297mm', border: 0, background: '#fff', boxShadow: '0 8px 40px rgba(0,0,0,0.45)' }}
-          />
+          <div className="p-8 bg-white">
+            <div className="text-center mb-6">
+              <h2 className="text-xl font-bold">{selectedCompany}</h2>
+              <h3 className="text-lg font-semibold mt-2">Laporan Pembelian</h3>
+              <p className="text-sm text-gray-600 mt-1">
+                Periode: {fromDate} s/d {toDate}
+              </p>
+            </div>
+
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b-2 border-gray-300">
+                  <th className="text-left py-2 px-2">No. PO</th>
+                  <th className="text-left py-2 px-2">Pemasok</th>
+                  <th className="text-left py-2 px-2">Tanggal</th>
+                  <th className="text-right py-2 px-2">Total</th>
+                  <th className="text-left py-2 px-2">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.map((entry) => (
+                  <tr key={entry.name} className="border-b border-gray-200">
+                    <td className="py-2 px-2 font-medium">{entry.name}</td>
+                    <td className="py-2 px-2">{entry.supplier_name || entry.supplier}</td>
+                    <td className="py-2 px-2">{entry.transaction_date}</td>
+                    <td className="py-2 px-2 text-right">Rp {(entry.grand_total || 0).toLocaleString('id-ID')}</td>
+                    <td className="py-2 px-2">{entry.status}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-gray-300 font-bold">
+                  <td colSpan={3} className="py-2 px-2 text-right">TOTAL:</td>
+                  <td className="py-2 px-2 text-right">Rp {totalPurchases.toLocaleString('id-ID')}</td>
+                  <td className="py-2 px-2"></td>
+                </tr>
+              </tfoot>
+            </table>
+
+            <div className="mt-6 text-xs text-gray-500 text-center">
+              Dicetak pada: {new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}
+            </div>
+          </div>
         </PrintPreviewModal>
       )}
 

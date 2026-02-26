@@ -5,7 +5,7 @@
  */
 
 // Reuse InvoiceItem and TaxRow from sales-invoice.ts
-export { InvoiceItem, TaxRow } from './sales-invoice';
+export type { InvoiceItem, TaxRow } from './sales-invoice';
 
 /**
  * Request body for creating Purchase Invoice

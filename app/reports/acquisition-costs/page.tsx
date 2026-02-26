@@ -67,25 +67,6 @@ export default function AcquisitionCostsPage() {
       if (pageNum >= 1) setHppPage(pageNum);
     }
   }, [searchParams]);
-
-  // ✅ Update URL with debounce to prevent throttling
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    
-    const timeoutId = setTimeout(() => {
-      const newParams = new URLSearchParams(searchParams.toString());
-      if (hppPage > 1) {
-        newParams.set('hpp_page', hppPage.toString());
-      } else {
-        newParams.delete('hpp_page');
-      }
-      const newUrl = `${window.location.pathname}${newParams.toString() ? `?${newParams.toString()}` : ''}`;
-      window.history.replaceState({}, '', newUrl);
-    }, 100); // Debounce 100ms
-
-    return () => clearTimeout(timeoutId);
-  }, [hppPage, searchParams]);
-
   const fetchData = useCallback(async () => {
     if (!selectedCompany) return;
     setLoading(true);
@@ -181,8 +162,92 @@ export default function AcquisitionCostsPage() {
       </div>
 
       {showPrint && (
-        <PrintPreviewModal title={`Biaya Perolehan — ${selectedCompany}`} onClose={() => setShowPrint(false)} printUrl={printUrl} useContentFrame={false} allowPaperSettings={false}>
-          <iframe src={printUrl} title="Pratinjau" style={{ width: '210mm', height: '297mm', border: 0, background: '#fff', boxShadow: '0 8px 40px rgba(0,0,0,0.45)' }} />
+        <PrintPreviewModal 
+          title={`Biaya Perolehan — ${selectedCompany}`} 
+          onClose={() => setShowPrint(false)} 
+          printUrl=""
+          useContentFrame={true}
+          allowPaperSettings={true}
+        >
+          <div className="p-8 bg-white">
+            <div className="text-center mb-6">
+              <h2 className="text-xl font-bold">{selectedCompany}</h2>
+              <h3 className="text-lg font-semibold mt-2">Ongkir & Biaya Perolehan</h3>
+              <p className="text-sm text-gray-600 mt-1">
+                Periode: {dateFilter.from_date} s/d {dateFilter.to_date}
+              </p>
+            </div>
+
+            <div className="mb-6">
+              <h4 className="text-base font-semibold mb-3">Biaya Masuk HPP</h4>
+              <table className="w-full text-sm mb-4">
+                <thead>
+                  <tr className="border-b-2 border-gray-300">
+                    <th className="text-left py-2 px-2">Tanggal</th>
+                    <th className="text-left py-2 px-2">Voucher</th>
+                    <th className="text-left py-2 px-2">Akun</th>
+                    <th className="text-right py-2 px-2">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.hpp_costs.map((e: any, i: number) => (
+                    <tr key={i} className="border-b border-gray-200">
+                      <td className="py-2 px-2">{e.posting_date}</td>
+                      <td className="py-2 px-2">
+                        <div className="font-medium">{e.voucher_no}</div>
+                        <div className="text-xs text-gray-500">{e.voucher_type}</div>
+                      </td>
+                      <td className="py-2 px-2">{e.account}</td>
+                      <td className="py-2 px-2 text-right">Rp {Math.abs(e.amount).toLocaleString('id-ID')}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-gray-300 font-bold">
+                    <td colSpan={3} className="py-2 px-2 text-right">SUBTOTAL HPP:</td>
+                    <td className="py-2 px-2 text-right">Rp {hppTotal.toLocaleString('id-ID')}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+            <div>
+              <h4 className="text-base font-semibold mb-3">Beban Operasional</h4>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b-2 border-gray-300">
+                    <th className="text-left py-2 px-2">Tanggal</th>
+                    <th className="text-left py-2 px-2">Voucher</th>
+                    <th className="text-left py-2 px-2">Akun</th>
+                    <th className="text-right py-2 px-2">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.operational_costs.map((e: any, i: number) => (
+                    <tr key={i} className="border-b border-gray-200">
+                      <td className="py-2 px-2">{e.posting_date}</td>
+                      <td className="py-2 px-2">
+                        <div className="font-medium">{e.voucher_no}</div>
+                        <div className="text-xs text-gray-500">{e.voucher_type}</div>
+                      </td>
+                      <td className="py-2 px-2">{e.account}</td>
+                      <td className="py-2 px-2 text-right">Rp {Math.abs(e.amount).toLocaleString('id-ID')}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-gray-300 font-bold">
+                    <td colSpan={3} className="py-2 px-2 text-right">SUBTOTAL OPERASIONAL:</td>
+                    <td className="py-2 px-2 text-right">Rp {opTotal.toLocaleString('id-ID')}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+            <div className="mt-6 text-xs text-gray-500 text-center">
+              Dicetak pada: {new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}
+            </div>
+          </div>
         </PrintPreviewModal>
       )}
 

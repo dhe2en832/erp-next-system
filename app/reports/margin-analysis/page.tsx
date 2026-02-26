@@ -79,24 +79,6 @@ export default function MarginAnalysisPage() {
     }
   }, [searchParams]);
 
-  // ✅ Update URL with debounce to prevent throttling
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    
-    const timeoutId = setTimeout(() => {
-      const newParams = new URLSearchParams(searchParams.toString());
-      if (currentPage > 1) {
-        newParams.set('page', currentPage.toString());
-      } else {
-        newParams.delete('page');
-      }
-      const newUrl = `${window.location.pathname}${newParams.toString() ? `?${newParams.toString()}` : ''}`;
-      window.history.replaceState({}, '', newUrl);
-    }, 100); // Debounce 100ms
-
-    return () => clearTimeout(timeoutId);
-  }, [currentPage, searchParams]);
-
   const fetchData = useCallback(async () => {
     if (!selectedCompany) return;
     setLoading(true);
@@ -186,11 +168,48 @@ export default function MarginAnalysisPage() {
         <PrintPreviewModal 
           title={`Analisa Margin — ${selectedCompany}`} 
           onClose={() => setShowPrint(false)} 
-          paperMode="sheet"
-          printUrl={printUrl} 
-          useContentFrame={false}
+          printUrl=""
+          useContentFrame={true}
+          allowPaperSettings={true}
         >
-          <iframe src={printUrl} title="Pratinjau Margin" style={{ width: '210mm', height: '297mm', border: 0, background: '#fff', boxShadow: '0 8px 40px rgba(0,0,0,0.45)' }} />
+          <div className="p-8 bg-white">
+            <div className="text-center mb-6">
+              <h2 className="text-xl font-bold">{selectedCompany}</h2>
+              <h3 className="text-lg font-semibold mt-2">Analisa Margin per Unit</h3>
+              <p className="text-sm text-gray-600 mt-1">
+                Periode: {dateFilter.from_date} s/d {dateFilter.to_date}
+              </p>
+            </div>
+
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b-2 border-gray-300">
+                  <th className="text-left py-2 px-2">Kode Item</th>
+                  <th className="text-left py-2 px-2">Nama Item</th>
+                  <th className="text-right py-2 px-2">Avg Beli</th>
+                  <th className="text-right py-2 px-2">Avg Jual</th>
+                  <th className="text-right py-2 px-2">Margin/Unit</th>
+                  <th className="text-right py-2 px-2">Margin %</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.map((item, i) => (
+                  <tr key={i} className="border-b border-gray-200">
+                    <td className="py-2 px-2 font-medium">{item.item_code}</td>
+                    <td className="py-2 px-2">{item.item_name}</td>
+                    <td className="py-2 px-2 text-right">Rp {item.avg_buy_price.toLocaleString('id-ID', {maximumFractionDigits:0})}</td>
+                    <td className="py-2 px-2 text-right">Rp {item.avg_sell_price.toLocaleString('id-ID', {maximumFractionDigits:0})}</td>
+                    <td className="py-2 px-2 text-right font-medium">Rp {item.margin_per_unit.toLocaleString('id-ID', {maximumFractionDigits:0})}</td>
+                    <td className="py-2 px-2 text-right font-bold">{item.margin_pct.toFixed(1)}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <div className="mt-6 text-xs text-gray-500 text-center">
+              Dicetak pada: {new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}
+            </div>
+          </div>
         </PrintPreviewModal>
       )}
 

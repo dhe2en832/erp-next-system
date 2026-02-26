@@ -15,6 +15,11 @@ export interface AccountingPeriod {
   permanently_closed_on?: string;
   fiscal_year?: string;
   remarks?: string;
+  closed_documents?: Array<{
+    document_type?: string;
+    closed?: number;
+    [key: string]: any;
+  }>;
   creation: string;
   modified: string;
   modified_by: string;
@@ -84,6 +89,7 @@ export interface ClosingJournalEntry {
 
 export interface ClosingJournalAccount {
   account: string;
+  account_name?: string;
   debit_in_account_currency: number;
   credit_in_account_currency: number;
   user_remark?: string;

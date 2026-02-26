@@ -359,14 +359,9 @@ export async function POST(request: NextRequest) {
         data = { message: responseText };
       }
       
-      const errorResult = handleERPNextAPIError(response.status, data, JSON.stringify(payload));
+      const errorResult = handleERPNextAPIError(response, data, JSON.stringify(payload));
       
-      return NextResponse.json({
-        success: false,
-        message: errorResult.errorMessage,
-        error: responseText,
-        status: response.status
-      }, { status: response.status });
+      return errorResult;
     }
 
     let data;

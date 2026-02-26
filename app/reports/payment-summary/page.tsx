@@ -6,6 +6,8 @@ import { PaymentEntry } from '@/types/payment-details';
 import FilterSection from '@/components/reports/FilterSection';
 import SummaryCards, { SummaryCard } from '@/components/reports/SummaryCards';
 import PrintPreviewModal from '@/components/PrintPreviewModal';
+import SalesPersonDialog from '../../components/SalesPersonDialog';
+import { User, Users } from 'lucide-react';
 import {
   formatCurrency,
   formatToDDMMYYYY,
@@ -29,6 +31,8 @@ export default function PaymentSummaryPage() {
   const [filterParty, setFilterParty] = useState('');
   const [filterPaymentType, setFilterPaymentType] = useState('');
   const [filterModeOfPayment, setFilterModeOfPayment] = useState('');
+  const [filterSalesPerson, setFilterSalesPerson] = useState('');
+  const [showSalesPersonDialog, setShowSalesPersonDialog] = useState(false);
   
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = typeof window !== 'undefined' && window.innerWidth < 768 ? 10 : 20;
@@ -94,10 +98,12 @@ export default function PaymentSummaryPage() {
       
       const matchType = !filterPaymentType || payment.payment_type === filterPaymentType;
       const matchMode = !filterModeOfPayment || payment.mode_of_payment === filterModeOfPayment;
+      const matchSales = !filterSalesPerson || 
+        (payment.sales_person || '').toLowerCase().includes(filterSalesPerson.toLowerCase());
       
-      return matchParty && matchType && matchMode;
+      return matchParty && matchType && matchMode && matchSales;
     });
-  }, [data, filterParty, filterPaymentType, filterModeOfPayment]);
+  }, [data, filterParty, filterPaymentType, filterModeOfPayment, filterSalesPerson]);
 
   const summary = useMemo(() => {
     return calculatePaymentSummary(filteredData);
@@ -137,9 +143,14 @@ export default function PaymentSummaryPage() {
     setFilterParty('');
     setFilterPaymentType('');
     setFilterModeOfPayment('');
+    setFilterSalesPerson('');
     setCurrentPage(1);
     setError('');
   };
+
+  const handleSalesPersonSelect = useCallback((salesPerson: { name: string; full_name: string }) => {
+    setFilterSalesPerson(salesPerson.full_name);
+  }, []);
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
@@ -151,7 +162,7 @@ export default function PaymentSummaryPage() {
       setCurrentPage(1);
     }
     pageChangeSourceRef.current = 'filter';
-  }, [filterParty, filterPaymentType, filterModeOfPayment]);
+  }, [filterParty, filterPaymentType, filterModeOfPayment, filterSalesPerson]);
 
   if (loading && data.length === 0) {
     return (
@@ -226,6 +237,29 @@ export default function PaymentSummaryPage() {
                 <option value="Check">Check</option>
                 <option value="Credit Card">Credit Card</option>
               </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Sales Person
+              </label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Nama sales person..."
+                  value={filterSalesPerson}
+                  onChange={(e) => setFilterSalesPerson(e.target.value)}
+                  className="w-full px-3 py-2 pl-9 pr-10 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowSalesPersonDialog(true)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-indigo-600 transition-colors"
+                  title="Pilih dari daftar"
+                >
+                  <Users className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </>
         }
@@ -421,6 +455,13 @@ export default function PaymentSummaryPage() {
           </div>
         </PrintPreviewModal>
       )}
+
+      {/* Sales Person Dialog */}
+      <SalesPersonDialog
+        isOpen={showSalesPersonDialog}
+        onClose={() => setShowSalesPersonDialog(false)}
+        onSelect={handleSalesPersonSelect}
+      />
     </div>
   );
 }

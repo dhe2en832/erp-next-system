@@ -26,9 +26,7 @@ const createPeriodSchema = z.object({
   company: z.string().min(1, 'Perusahaan wajib dipilih'),
   start_date: z.string().min(1, 'Tanggal mulai wajib diisi'),
   end_date: z.string().min(1, 'Tanggal akhir wajib diisi'),
-  period_type: z.enum(['Monthly', 'Quarterly', 'Yearly'], {
-    errorMap: () => ({ message: 'Tipe periode tidak valid' })
-  }),
+  period_type: z.enum(['Monthly', 'Quarterly', 'Yearly']),
   fiscal_year: z.string().optional(),
   remarks: z.string().optional()
 }).refine(data => {
@@ -130,9 +128,9 @@ export default function CreatePeriodForm({ onSuccess, onCancel }: CreatePeriodFo
     } catch (err) {
       if (err instanceof z.ZodError) {
         const errors: Record<string, string> = {};
-        err.errors.forEach(error => {
-          if (error.path[0]) {
-            errors[error.path[0].toString()] = error.message;
+        err.issues.forEach(issue => {
+          if (issue.path[0]) {
+            errors[issue.path[0].toString()] = issue.message;
           }
         });
         setValidationErrors(errors);

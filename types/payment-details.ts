@@ -18,6 +18,7 @@ export interface PaymentEntry {
   received_amount?: number;
   status: string;
   docstatus: number;
+  sales_person?: string;
 }
 
 export interface PaymentWithReferences extends PaymentEntry {

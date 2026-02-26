@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Search, X, Eye, ArrowUp, ChevronLeft, ChevronRight, BookOpen, Calendar } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
@@ -378,6 +378,13 @@ export default function GLEntryPage() {
   // ✅ FIX: Track pagination change source to prevent race conditions
   const pageChangeSourceRef = useRef<'pagination' | 'filter' | 'init'>('init');
   const sentinelRef = useRef<HTMLDivElement>(null);
+
+  // ── Calculate Totals ──
+  const totals = useMemo(() => {
+    const totalDebit = glEntries.reduce((sum, entry) => sum + (entry.debit || 0), 0);
+    const totalCredit = glEntries.reduce((sum, entry) => sum + (entry.credit || 0), 0);
+    return { totalDebit, totalCredit };
+  }, [glEntries]);
   const hasMoreRef = useRef(false);
   const loadingMoreRef = useRef(false);
 
@@ -402,24 +409,6 @@ export default function GLEntryPage() {
       if (pageNum >= 1) setCurrentPage(pageNum);
     }
   }, [searchParams]);
-
-  // ✅ Update URL with debounce to prevent throttling (desktop only)
-  useEffect(() => {
-    if (isMobile || typeof window === 'undefined') return;
-    
-    const timeoutId = setTimeout(() => {
-      const newParams = new URLSearchParams(searchParams.toString());
-      if (currentPage > 1) {
-        newParams.set('page', currentPage.toString());
-      } else {
-        newParams.delete('page');
-      }
-      const newUrl = `${window.location.pathname}${newParams.toString() ? `?${newParams.toString()}` : ''}`;
-      window.history.replaceState({}, '', newUrl);
-    }, 100); // Debounce 100ms
-
-    return () => clearTimeout(timeoutId);
-  }, [currentPage, isMobile, searchParams]);
 
   // ✅ Reset page when filters change
   useEffect(() => {
@@ -714,6 +703,37 @@ export default function GLEntryPage() {
             {!hasMoreRef.current && !loading && glEntries.length > 0 && (
               <p className="text-center text-xs text-gray-400 py-4">Semua data telah dimuat</p>
             )}
+
+            {/* Totals Summary - Mobile */}
+            {glEntries.length > 0 && (
+              <div className="px-4 py-4 bg-indigo-50 border-t-2 border-indigo-200 sticky bottom-0">
+                <div className="space-y-2">
+                  <div className="text-sm font-semibold text-gray-700 mb-2">
+                    Total ({glEntries.length} entries):
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="text-center">
+                      <p className="text-xs text-gray-500 mb-1">Debit</p>
+                      <p className="text-sm font-bold text-red-700">
+                        {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(totals.totalDebit)}
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs text-gray-500 mb-1">Kredit</p>
+                      <p className="text-sm font-bold text-green-700">
+                        {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(totals.totalCredit)}
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs text-gray-500 mb-1">Selisih</p>
+                      <p className={`text-sm font-bold ${Math.abs(totals.totalDebit - totals.totalCredit) < 0.01 ? 'text-green-700' : 'text-orange-700'}`}>
+                        {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(Math.abs(totals.totalDebit - totals.totalCredit))}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           /* ── DESKTOP: Table ───────────────────────────────────────────── */
@@ -784,6 +804,37 @@ export default function GLEntryPage() {
                 </tbody>
               </table>
             </div>
+
+            {/* Totals Summary */}
+            {glEntries.length > 0 && (
+              <div className="px-4 py-4 bg-indigo-50 border-t-2 border-indigo-200">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-semibold text-gray-700">
+                    Total ({glEntries.length} entries):
+                  </div>
+                  <div className="flex items-center gap-6">
+                    <div className="text-right">
+                      <p className="text-xs text-gray-500 mb-0.5">Total Debit</p>
+                      <p className="text-base font-bold text-red-700">
+                        {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(totals.totalDebit)}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-gray-500 mb-0.5">Total Kredit</p>
+                      <p className="text-base font-bold text-green-700">
+                        {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(totals.totalCredit)}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-gray-500 mb-0.5">Selisih</p>
+                      <p className={`text-base font-bold ${Math.abs(totals.totalDebit - totals.totalCredit) < 0.01 ? 'text-green-700' : 'text-orange-700'}`}>
+                        {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(Math.abs(totals.totalDebit - totals.totalCredit))}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {!loading && totalPages > 0 && (
               <PaginationBar

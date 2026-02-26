@@ -1794,7 +1794,7 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
               status: editingPaymentStatus,
               references: formData.selected_invoices?.map(inv => ({
                 reference_doctype: formData.payment_type === 'Receive' ? 'Sales Invoice' : 'Purchase Invoice',
-                reference_name: inv.name,
+                reference_name: inv.invoice_name,
                 allocated_amount: inv.allocated_amount || 0,
               })),
               remarks: formData.custom_notes_payment,

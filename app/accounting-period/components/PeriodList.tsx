@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import Pagination from '../../components/Pagination';
 import type { AccountingPeriod } from '../../../types/accounting-period';
@@ -90,24 +91,6 @@ export default function PeriodList({ company }: PeriodListProps) {
       if (pageNum >= 1) setCurrentPage(pageNum);
     }
   }, [searchParams]);
-
-  // ✅ Update URL with debounce to prevent throttling
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    
-    const timeoutId = setTimeout(() => {
-      const newParams = new URLSearchParams(searchParams.toString());
-      if (currentPage > 1) {
-        newParams.set('page', currentPage.toString());
-      } else {
-        newParams.delete('page');
-      }
-      const newUrl = `${window.location.pathname}${newParams.toString() ? `?${newParams.toString()}` : ''}`;
-      window.history.replaceState({}, '', newUrl);
-    }, 100); // Debounce 100ms
-
-    return () => clearTimeout(timeoutId);
-  }, [currentPage, searchParams]);
 
   // Reset page when filters change
   useEffect(() => {
@@ -370,8 +353,7 @@ export default function PeriodList({ company }: PeriodListProps) {
                   paginatedPeriods.map((period) => (
                     <tr 
                       key={period.name} 
-                      className={`hover:bg-gray-50 cursor-pointer ${needsAttention(period) ? 'bg-red-50' : ''}`}
-                      onClick={() => router.push(`/accounting-period/${encodeURIComponent(period.name)}`)}
+                      className={`hover:bg-gray-50 ${needsAttention(period) ? 'bg-red-50' : ''}`}
                     >
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
@@ -403,15 +385,12 @@ export default function PeriodList({ company }: PeriodListProps) {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <button
-                          onClick={(e) => { 
-                            e.stopPropagation(); 
-                            router.push(`/accounting-period/${encodeURIComponent(period.name)}`); 
-                          }}
+                        <Link
+                          href={`/accounting-period/${encodeURIComponent(period.name)}`}
                           className="text-indigo-600 hover:text-indigo-900 font-medium"
                         >
                           Lihat Detail
-                        </button>
+                        </Link>
                       </td>
                     </tr>
                   ))
@@ -432,8 +411,7 @@ export default function PeriodList({ company }: PeriodListProps) {
               paginatedPeriods.map((period) => (
                 <div 
                   key={period.name} 
-                  className={`px-4 py-4 hover:bg-gray-50 cursor-pointer ${needsAttention(period) ? 'bg-red-50' : ''}`}
-                  onClick={() => router.push(`/accounting-period/${encodeURIComponent(period.name)}`)}
+                  className={`px-4 py-4 hover:bg-gray-50 ${needsAttention(period) ? 'bg-red-50' : ''}`}
                 >
                   <div className="space-y-3">
                     {/* Row 1: Period Name + Status Badge */}
@@ -473,6 +451,16 @@ export default function PeriodList({ company }: PeriodListProps) {
                           📅 {new Date(period.end_date).toLocaleDateString('id-ID')}
                         </p>
                       </div>
+                    </div>
+                    
+                    {/* Row 4: Action Button */}
+                    <div className="pt-3 border-t border-gray-100">
+                      <Link
+                        href={`/accounting-period/${encodeURIComponent(period.name)}`}
+                        className="block w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium text-center"
+                      >
+                        Lihat Detail
+                      </Link>
                     </div>
                   </div>
                 </div>

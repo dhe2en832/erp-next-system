@@ -8,7 +8,7 @@ import type { AccountingPeriod, AccountBalance, PeriodClosingLog } from '../../.
 export default function PeriodDetailPage() {
   const router = useRouter();
   const params = useParams();
-  const periodName = params.name as string;
+  const periodName = decodeURIComponent(params.name as string);
 
   const [period, setPeriod] = useState<AccountingPeriod | null>(null);
   const [accountBalances, setAccountBalances] = useState<AccountBalance[]>([]);

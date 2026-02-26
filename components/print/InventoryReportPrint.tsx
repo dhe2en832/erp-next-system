@@ -151,7 +151,7 @@ export default function InventoryReportPrint(props: InventoryReportPrintProps) {
   ];
 
   // Format row to include UOM in qty display
-  const formatRow = (row: InventoryReportData) => {
+  const formatRow = (row: Record<string, any>): Record<string, any> => {
     return {
       ...row,
       qty: row.uom ? `${formatQty(row.qty)} ${row.uom}` : formatQty(row.qty),

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import Pagination from '../components/Pagination';
@@ -84,30 +84,24 @@ export default function JournalPage() {
   const [totalRecords, setTotalRecords] = useState(0);
   const [hasMoreData, setHasMoreData] = useState(true);
   const [showBackToTop, setShowBackToTop] = useState(false);
+  const [submittingId, setSubmittingId] = useState<string | null>(null);
 
   // ✅ FIX: Track pagination change source to prevent race conditions
   const pageChangeSourceRef = useRef<'pagination' | 'filter' | 'init'>('init');
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+  // ── Calculate Totals ──
+  const totals = useMemo(() => {
+    const totalDebit = entries.reduce((sum, entry) => sum + (entry.total_debit || 0), 0);
+    const totalCredit = entries.reduce((sum, entry) => sum + (entry.total_credit || 0), 0);
+    return { totalDebit, totalCredit };
+  }, [entries]);
 
   // ── Sync URL page ──
   useEffect(() => {
     const p = searchParams.get('page');
     if (p && !isNaN(parseInt(p))) setCurrentPage(Math.max(1, parseInt(p)));
   }, [searchParams]);
-
-  // ✅ Update URL with debounce to prevent throttling (desktop only)
-  useEffect(() => {
-    if (isMobile || typeof window === 'undefined') return;
-    
-    const timeoutId = setTimeout(() => {
-      const params = new URLSearchParams(searchParams.toString());
-      currentPage > 1 ? params.set('page', String(currentPage)) : params.delete('page');
-      const newUrl = `${window.location.pathname}${params.toString() ? `?${params}` : ''}`;
-      window.history.replaceState({}, '', newUrl);
-    }, 100); // Debounce 100ms
-
-    return () => clearTimeout(timeoutId);
-  }, [currentPage, isMobile, searchParams]);
 
   // ── Company from localStorage/cookie ──
   useEffect(() => {
@@ -259,6 +253,39 @@ export default function JournalPage() {
     setCurrentPage(1);
   };
 
+  // ── Submit Journal Entry ──
+  const handleSubmit = async (e: React.MouseEvent, entryName: string) => {
+    e.stopPropagation(); // Prevent navigation to detail page
+    
+    if (!confirm(`Apakah Anda yakin ingin submit jurnal ${entryName}?`)) {
+      return;
+    }
+
+    setSubmittingId(entryName);
+    try {
+      const response = await fetch(`/api/finance/journal/${encodeURIComponent(entryName)}/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        alert('Jurnal berhasil di-submit!');
+        // Refresh data
+        fetchEntries(true);
+      } else {
+        alert(`Gagal submit jurnal: ${result.message || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error submitting journal:', error);
+      alert('Gagal submit jurnal. Silakan coba lagi.');
+    } finally {
+      setSubmittingId(null);
+    }
+  };
+
   // ── Skeleton ──
   const SkeletonCard = () => (
     <li className="px-4 py-4 border-b border-gray-100">
@@ -403,9 +430,10 @@ export default function JournalPage() {
               <div className="flex-1 grid grid-cols-12 gap-4">
                 <div className="col-span-3">Nama / Tipe</div>
                 <div className="col-span-2">Tanggal</div>
-                <div className="col-span-3">Catatan</div>
+                <div className="col-span-2">Catatan</div>
                 <div className="col-span-2 text-right">Debit / Credit</div>
                 <div className="col-span-2">Status</div>
+                <div className="col-span-1 text-center">Aksi</div>
               </div>
             </div>
           )}
@@ -449,6 +477,26 @@ export default function JournalPage() {
                           <p className="text-sm font-semibold text-rose-700">{formatCurrency(entry.total_credit)}</p>
                         </div>
                       </div>
+
+                      {/* Submit Button for Draft */}
+                      {entry.status === 'Draft' && (
+                        <div className="pt-2 border-t border-gray-100">
+                          <button
+                            onClick={(e) => handleSubmit(e, entry.name)}
+                            disabled={submittingId === entry.name}
+                            className="w-full px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          >
+                            {submittingId === entry.name ? (
+                              <span className="flex items-center justify-center gap-2">
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Submitting...
+                              </span>
+                            ) : (
+                              '✓ Submit Jurnal'
+                            )}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     // ── Desktop Row ──
@@ -461,7 +509,7 @@ export default function JournalPage() {
                         <p className="text-sm text-gray-900">{entry.posting_date}</p>
                         <p className="text-xs text-gray-500">Posting</p>
                       </div>
-                      <div className="col-span-3 min-w-0">
+                      <div className="col-span-2 min-w-0">
                         {entry.user_remark ? (
                           <p className="text-sm text-gray-600 truncate">{entry.user_remark}</p>
                         ) : (
@@ -476,6 +524,22 @@ export default function JournalPage() {
                         <span className={`inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full border ${getStatusBadgeClass(entry.status)}`}>
                           {entry.status}
                         </span>
+                      </div>
+                      <div className="col-span-1 text-center">
+                        {entry.status === 'Draft' && (
+                          <button
+                            onClick={(e) => handleSubmit(e, entry.name)}
+                            disabled={submittingId === entry.name}
+                            className="inline-flex items-center justify-center px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            title="Submit Jurnal"
+                          >
+                            {submittingId === entry.name ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              '✓ Submit'
+                            )}
+                          </button>
+                        )}
                       </div>
                     </div>
                   )}
@@ -535,6 +599,33 @@ export default function JournalPage() {
           {!hasMoreData && entries.length > 0 && (
             <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 text-center text-xs text-gray-500">
               ✓ Semua data telah dimuat
+            </div>
+          )}
+
+          {/* Totals Summary */}
+          {entries.length > 0 && (
+            <div className="px-4 py-4 bg-indigo-50 border-t-2 border-indigo-200">
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-semibold text-gray-700">
+                  Total ({entries.length} {useInfiniteScrollMode ? 'dari ' + totalRecords : 'entries'}):
+                </div>
+                <div className="flex items-center gap-6">
+                  <div className="text-right">
+                    <p className="text-xs text-gray-500 mb-0.5">Total Debit</p>
+                    <p className="text-base font-bold text-red-700">{formatCurrency(totals.totalDebit)}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-gray-500 mb-0.5">Total Kredit</p>
+                    <p className="text-base font-bold text-green-700">{formatCurrency(totals.totalCredit)}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-gray-500 mb-0.5">Selisih</p>
+                    <p className={`text-base font-bold ${Math.abs(totals.totalDebit - totals.totalCredit) < 0.01 ? 'text-green-700' : 'text-orange-700'}`}>
+                      {formatCurrency(Math.abs(totals.totalDebit - totals.totalCredit))}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 

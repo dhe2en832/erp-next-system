@@ -191,8 +191,8 @@ export default function Navbar() {
       icon: '📒',
       items: [
         { name: 'Bagan Akun', href: '/chart-of-accounts' },
-        { name: 'Buku Besar / Jurnal Umum', href: '/gl-entry' },
-        { name: 'Entri Jurnal', href: '/journal' },
+        { name: 'Buku Besar', href: '/gl-entry' },
+        { name: 'Jurnal Umum', href: '/journal' },
         { name: 'Periode Akuntansi', href: '/accounting-period', allowedRoles: ['System Manager', 'Accounts Manager', 'Accounts User'] }
       ]
     },

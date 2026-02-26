@@ -165,9 +165,9 @@ export default function SalesInvoiceDetailsPage() {
     setError('');
   };
 
-  const handleSalesPersonSelect = (salesPerson: { name: string; sales_person_name: string }) => {
+  const handleSalesPersonSelect = (salesPerson: { name: string; full_name: string }) => {
     setFilterSalesPerson(salesPerson.name);
-    setSelectedSalesPersonName(salesPerson.sales_person_name);
+    setSelectedSalesPersonName(salesPerson.full_name);
     setShowSalesPersonDialog(false);
   };
 
@@ -531,6 +531,7 @@ export default function SalesInvoiceDetailsPage() {
       {/* Sales Person Dialog */}
       {showSalesPersonDialog && (
         <SalesPersonDialog
+          isOpen={showSalesPersonDialog}
           onSelect={handleSalesPersonSelect}
           onClose={() => setShowSalesPersonDialog(false)}
         />

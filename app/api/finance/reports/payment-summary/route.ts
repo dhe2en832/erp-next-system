@@ -79,9 +79,64 @@ export async function GET(request: NextRequest) {
     const listData = await listResponse.json();
     const payments = listData.data || [];
 
+    // Fetch details including sales person for each payment
+    const detailPromises = payments.map(async (payment: any) => {
+      try {
+        const detailUrl = `${ERPNEXT_API_URL}/api/resource/Payment Entry/${payment.name}`;
+        const detailResponse = await fetch(detailUrl, {
+          method: 'GET',
+          headers,
+          signal: AbortSignal.timeout(30000)
+        });
+
+        if (!detailResponse.ok) {
+          return {
+            ...payment,
+            sales_person: ''
+          };
+        }
+
+        const detailData = await detailResponse.json();
+        
+        // Get sales person from first referenced Sales Invoice
+        let salesPerson = '';
+        const references = detailData.data.references || [];
+        
+        for (const ref of references) {
+          if (ref.reference_doctype === 'Sales Invoice' && ref.reference_name) {
+            try {
+              const invoiceUrl = `${ERPNEXT_API_URL}/api/resource/Sales Invoice/${ref.reference_name}?fields=["sales_team"]`;
+              const invoiceResponse = await fetch(invoiceUrl, { method: 'GET', headers, signal: AbortSignal.timeout(10000) });
+              
+              if (invoiceResponse.ok) {
+                const invoiceData = await invoiceResponse.json();
+                salesPerson = invoiceData.data?.sales_team?.[0]?.sales_person || '';
+                if (salesPerson) break;
+              }
+            } catch (error) {
+              console.error(`Error fetching sales person from ${ref.reference_name}:`, error);
+            }
+          }
+        }
+        
+        return {
+          ...payment,
+          sales_person: salesPerson
+        };
+      } catch (error) {
+        console.error(`Error fetching details for ${payment.name}:`, error);
+        return {
+          ...payment,
+          sales_person: ''
+        };
+      }
+    });
+
+    const paymentsWithSales = await Promise.all(detailPromises);
+
     const response: PaymentSummaryResponse = {
       success: true,
-      data: payments,
+      data: paymentsWithSales,
       message: 'Data retrieved successfully'
     };
 

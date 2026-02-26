@@ -3,9 +3,11 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Search, X, Eye, ArrowUp, ChevronLeft, ChevronRight,
-  Printer, AlertCircle, Calendar, User,
+  Printer, AlertCircle, Calendar, User, Users,
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import PrintPreviewModal from '../../../components/PrintPreviewModal';
+import SalesPersonDialog from '../../components/SalesPersonDialog';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -408,6 +410,8 @@ export default function AccountsReceivablePage() {
   const [selectedEntry, setSelectedEntry] = useState<AREntry | null>(null);
   const [selectedCompany, setSelectedCompany] = useState('');
   const [showBackToTop, setShowBackToTop] = useState(false);
+  const [showPrint, setShowPrint] = useState(false);
+  const [showSalesPersonDialog, setShowSalesPersonDialog] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filters, setFilters] = useState<FilterState>({
@@ -449,23 +453,6 @@ export default function AccountsReceivablePage() {
     }
   }, [searchParams]);
 
-  // Update URL with debounce to prevent throttling
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    
-    const timeoutId = setTimeout(() => {
-      const newParams = new URLSearchParams(searchParams.toString());
-      if (currentPage > 1) {
-        newParams.set('page', currentPage.toString());
-      } else {
-        newParams.delete('page');
-      }
-      const newUrl = `${window.location.pathname}${newParams.toString() ? `?${newParams.toString()}` : ''}`;
-      window.history.replaceState({}, '', newUrl);
-    }, 100); // Debounce 100ms
-
-    return () => clearTimeout(timeoutId);
-  }, [currentPage, searchParams]);
 
   // Reset ke page 1 saat filter berubah
   useEffect(() => {
@@ -562,6 +549,10 @@ export default function AccountsReceivablePage() {
     setFilters({ from_date: getYesterday(), to_date: getToday(), customer: '', voucher_no: '', sales_person: '' });
   };
 
+  const handleSalesPersonSelect = (salesPerson: { name: string; full_name: string }) => {
+    setFilters(prev => ({ ...prev, sales_person: salesPerson.full_name }));
+  };
+
   const hasExtraFilters = !!(searchTerm || filters.customer || filters.voucher_no || filters.sales_person);
 
   const inputCls = 'w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none bg-gray-50 text-gray-700 placeholder:text-gray-400';
@@ -652,15 +643,13 @@ export default function AccountsReceivablePage() {
                   {totalRecords.toLocaleString('id-ID')} faktur
                 </span>
               )}
-              <a
-                href={printUrl}
-                target="_blank"
-                rel="noreferrer"
+              <button
+                onClick={() => setShowPrint(true)}
                 className="hidden sm:inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 transition-colors shadow-sm shadow-indigo-200"
               >
                 <Printer className="w-4 h-4" />
                 Cetak
-              </a>
+              </button>
             </div>
           </div>
         </div>
@@ -727,8 +716,16 @@ export default function AccountsReceivablePage() {
                   placeholder="Nama sales person..."
                   value={filters.sales_person}
                   onChange={e => setFilters(prev => ({ ...prev, sales_person: e.target.value }))}
-                  className={`${inputCls} pl-9`}
+                  className={`${inputCls} pl-9 pr-10`}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowSalesPersonDialog(true)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-indigo-600 transition-colors"
+                  title="Pilih dari daftar"
+                >
+                  <Users className="w-4 h-4" />
+                </button>
               </div>
             </div>
 
@@ -930,6 +927,76 @@ export default function AccountsReceivablePage() {
           <ArrowUp className="w-4 h-4" />
         </button>
       )}
+
+      {/* Print Modal */}
+      {showPrint && (
+        <PrintPreviewModal
+          title={`Laporan Piutang Usaha — ${selectedCompany}`}
+          onClose={() => setShowPrint(false)}
+          printUrl=""
+          useContentFrame={true}
+          allowPaperSettings={true}
+        >
+          <div className="p-8 bg-white">
+            <div className="text-center mb-6">
+              <h2 className="text-xl font-bold">{selectedCompany}</h2>
+              <h3 className="text-lg font-semibold mt-2">Laporan Piutang Usaha</h3>
+              <p className="text-sm text-gray-600 mt-1">
+                Periode: {isoToDisplay(filters.from_date)} s/d {isoToDisplay(filters.to_date)}
+              </p>
+            </div>
+
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b-2 border-gray-300">
+                  <th className="text-left py-2 px-2">No. Faktur</th>
+                  <th className="text-left py-2 px-2">Tanggal</th>
+                  <th className="text-left py-2 px-2">Pelanggan</th>
+                  <th className="text-left py-2 px-2">Status</th>
+                  <th className="text-right py-2 px-2">Grand Total</th>
+                  <th className="text-right py-2 px-2">Outstanding</th>
+                </tr>
+              </thead>
+              <tbody>
+                {arEntries.map((entry, index) => (
+                  <tr key={entry.name || entry.voucher_no || `ar-${index}`} className="border-b border-gray-200">
+                    <td className="py-2 px-2 font-medium">{entry.voucher_no}</td>
+                    <td className="py-2 px-2">{formatDate(entry.posting_date)}</td>
+                    <td className="py-2 px-2">{entry.customer_name || entry.customer}</td>
+                    <td className="py-2 px-2">
+                      {calcOverdueDays(entry.due_date) > 0 ? 'Terlambat' : 'Tepat Waktu'}
+                    </td>
+                    <td className="py-2 px-2 text-right">{formatCurrency(entry.invoice_grand_total)}</td>
+                    <td className="py-2 px-2 text-right">{formatCurrency(entry.outstanding_amount || 0)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-gray-300 font-bold">
+                  <td colSpan={4} className="py-2 px-2 text-right">TOTAL:</td>
+                  <td className="py-2 px-2 text-right">
+                    {formatCurrency(arEntries.reduce((sum, e) => sum + (e.invoice_grand_total || 0), 0))}
+                  </td>
+                  <td className="py-2 px-2 text-right">
+                    {formatCurrency(arEntries.reduce((sum, e) => sum + (e.outstanding_amount || 0), 0))}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+
+            <div className="mt-6 text-xs text-gray-500 text-center">
+              Dicetak pada: {new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}
+            </div>
+          </div>
+        </PrintPreviewModal>
+      )}
+
+      {/* Sales Person Dialog */}
+      <SalesPersonDialog
+        isOpen={showSalesPersonDialog}
+        onClose={() => setShowSalesPersonDialog(false)}
+        onSelect={handleSalesPersonSelect}
+      />
     </div>
   );
 }

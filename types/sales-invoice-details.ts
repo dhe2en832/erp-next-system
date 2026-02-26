@@ -27,6 +27,7 @@ export interface SalesInvoiceWithItems {
   docstatus: number;
   grand_total: number;
   outstanding_amount?: number;
+  sales_person?: string;
   items: SalesInvoiceItem[];
   sales_team?: SalesTeamMember[];
 }

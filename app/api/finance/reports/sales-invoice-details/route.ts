@@ -95,6 +95,10 @@ export async function GET(request: NextRequest) {
         }
 
         const detailData = await detailResponse.json();
+        
+        // Get first sales person from sales_team child table
+        const salesPerson = detailData.data.sales_team?.[0]?.sales_person || '';
+        
         return {
           name: detailData.data.name,
           customer: detailData.data.customer,
@@ -105,6 +109,7 @@ export async function GET(request: NextRequest) {
           docstatus: detailData.data.docstatus,
           grand_total: detailData.data.grand_total,
           outstanding_amount: detailData.data.outstanding_amount,
+          sales_person: salesPerson,
           items: (detailData.data.items || []).map((item: any) => ({
             item_code: item.item_code,
             item_name: item.item_name,
