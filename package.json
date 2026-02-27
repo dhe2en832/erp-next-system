@@ -72,7 +72,9 @@
     "test:print-transaction-documents": "ts-node --project tsconfig.scripts.json tests/print-transaction-documents.test.tsx",
     "test:print-financial-reports": "ts-node --project tsconfig.scripts.json tests/print-financial-reports.test.tsx",
     "test:print-system-reports": "ts-node --project tsconfig.scripts.json tests/print-system-reports.test.tsx",
-    "test:item-list-pagination-bug": "ts-node --project tsconfig.scripts.json __tests__/item-list-pagination-bug-exploration.pbt.test.ts"
+    "test:item-list-pagination-bug": "ts-node --project tsconfig.scripts.json __tests__/item-list-pagination-bug-exploration.pbt.test.ts",
+    "test:user-update-405-bug": "ts-node --project tsconfig.scripts.json tests/user-update-405-bug-exploration.pbt.test.ts",
+    "test:user-update-405-preservation": "ts-node --project tsconfig.scripts.json tests/user-update-405-preservation.pbt.test.ts"
   },
   "dependencies": {
     "@types/node-fetch": "^2.6.13",

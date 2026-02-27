@@ -133,3 +133,103 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, message: msg }, { status: 500 });
   }
 }
+
+/**
+ * PUT /api/setup/users
+ * Update an existing user in ERPNext.
+ */
+export async function PUT(request: NextRequest) {
+  try {
+    const headers = getAuthHeaders(request);
+    if (!headers['Authorization'] && !headers['Cookie']) {
+      return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { name, email, full_name, new_password, roles, enabled } = body;
+
+    // Validate that name field exists (required to identify user)
+    if (!name) {
+      return NextResponse.json(
+        { success: false, message: 'Field name (identifier pengguna) harus diisi' },
+        { status: 400 }
+      );
+    }
+
+    // Validate that at least one field is being updated
+    if (!email && !full_name && !new_password && !roles && enabled === undefined) {
+      return NextResponse.json(
+        { success: false, message: 'Setidaknya satu field harus diperbarui' },
+        { status: 400 }
+      );
+    }
+
+    // Build update payload for ERPNext
+    const updatePayload: any = {};
+
+    // Include only fields provided in the request
+    if (email) {
+      updatePayload.email = email;
+    }
+
+    if (full_name) {
+      // Split full_name into first_name and last_name for ERPNext compatibility
+      updatePayload.first_name = full_name.split(' ')[0];
+      updatePayload.last_name = full_name.split(' ').slice(1).join(' ') || '';
+      updatePayload.full_name = full_name;
+    }
+
+    // Handle password conditionally (only include if provided)
+    if (new_password) {
+      updatePayload.new_password = new_password;
+    }
+
+    // Transform roles array to ERPNext format
+    if (roles && roles.length > 0) {
+      updatePayload.roles = roles.map((role: string) => ({ role }));
+    }
+
+    if (enabled !== undefined) {
+      updatePayload.enabled = enabled;
+    }
+
+    // Call ERPNext API to update user
+    const response = await fetch(
+      `${ERPNEXT_API_URL}/api/resource/User/${encodeURIComponent(name)}`,
+      {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(updatePayload),
+      }
+    );
+
+    const data = await response.json();
+
+    if (response.ok) {
+      return NextResponse.json({
+        success: true,
+        data: data.data,
+        message: `Pengguna ${name} berhasil diperbarui`,
+      });
+    } else {
+      // Parse _server_messages field (same logic as POST handler)
+      const errorMsg = data._server_messages
+        ? (() => {
+            try {
+              const msgs = JSON.parse(data._server_messages);
+              return typeof msgs[0] === 'string' ? JSON.parse(msgs[0]).message : msgs[0].message;
+            } catch {
+              return data.message || 'Gagal memperbarui pengguna';
+            }
+          })()
+        : data.message || 'Gagal memperbarui pengguna';
+      return NextResponse.json(
+        { success: false, message: errorMsg },
+        { status: response.status }
+      );
+    }
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : 'Unknown error';
+    return NextResponse.json({ success: false, message: msg }, { status: 500 });
+  }
+}
