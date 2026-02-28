@@ -28,18 +28,24 @@ from frappe import _
 from .gl_entry_sales import post_sales_invoice_gl_entry, validate_sales_invoice_for_gl_posting
 from .gl_entry_purchase import post_purchase_invoice_gl_entry, validate_purchase_invoice_for_gl_posting
 from .invoice_cancellation import cancel_invoice_with_gl_reversal
+from .credit_note_commission import on_credit_note_submit, on_credit_note_cancel
 
 
 def on_sales_invoice_submit(doc: Any, method: str = None) -> None:
     """
     Hook called when Sales Invoice is submitted.
     Posts GL Entry for discount and tax.
+    Also handles commission adjustment for Credit Notes.
     
     Args:
         doc: Sales Invoice document object
         method: Hook method name (not used)
     """
     try:
+        # Handle Credit Note commission adjustment first
+        if doc.is_return and doc.is_return == 1:
+            on_credit_note_submit(doc, method)
+        
         # Convert doc to dict for processing
         invoice_data = {
             "name": doc.name,
@@ -97,12 +103,17 @@ def on_sales_invoice_cancel(doc: Any, method: str = None) -> None:
     """
     Hook called when Sales Invoice is cancelled.
     Creates reversal GL Entry.
+    Also handles commission reversal for Credit Notes.
     
     Args:
         doc: Sales Invoice document object
         method: Hook method name (not used)
     """
     try:
+        # Handle Credit Note commission reversal first
+        if doc.is_return and doc.is_return == 1:
+            on_credit_note_cancel(doc, method)
+        
         # Get original GL entries
         original_gl_entries = frappe.get_all(
             "GL Entry",
@@ -277,6 +288,9 @@ def on_purchase_invoice_cancel(doc: Any, method: str = None) -> None:
 
 
 # Hook configuration to be added to ERPNext custom app
+# Note: Sales Invoice hooks handle both regular invoices and Credit Notes (is_return=1)
+# The on_sales_invoice_submit and on_sales_invoice_cancel functions check is_return
+# and call appropriate commission adjustment functions for Credit Notes
 DOC_EVENTS = {
     "Sales Invoice": {
         "on_submit": "erpnext_custom.hooks.on_sales_invoice_submit",

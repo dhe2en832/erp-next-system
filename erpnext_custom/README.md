@@ -134,8 +134,8 @@ Handles invoice cancellation with reversal GL Entries.
 ERPNext hooks configuration for automatic GL Entry posting.
 
 **Hooks:**
-- `on_sales_invoice_submit` - Post GL Entry when Sales Invoice is submitted
-- `on_sales_invoice_cancel` - Create reversal GL Entry when Sales Invoice is cancelled
+- `on_sales_invoice_submit` - Post GL Entry when Sales Invoice is submitted, handle Credit Note commission adjustment
+- `on_sales_invoice_cancel` - Create reversal GL Entry when Sales Invoice is cancelled, handle Credit Note commission reversal
 - `on_purchase_invoice_submit` - Post GL Entry when Purchase Invoice is submitted
 - `on_purchase_invoice_cancel` - Create reversal GL Entry when Purchase Invoice is cancelled
 
@@ -153,6 +153,37 @@ doc_events = {
     }
 }
 ```
+
+### 7. credit_note_commission.py
+
+Handles commission adjustments for Credit Notes (Sales Invoice returns).
+
+**Functions:**
+- `on_credit_note_submit(doc, method)` - Adjust commission when Credit Note is submitted
+- `on_credit_note_cancel(doc, method)` - Reverse commission when Credit Note is cancelled
+- `calculate_commission_adjustment(credit_note)` - Calculate total commission from Credit Note items
+- `validate_commission_adjustment(original_invoice, credit_note)` - Validate adjustment before applying
+
+**Features:**
+- Automatic commission reduction when Credit Note is submitted
+- Automatic commission restoration when Credit Note is cancelled
+- Non-blocking error handling (logs errors but doesn't prevent operations)
+- Audit trail with comments on both original invoice and Credit Note
+- Validation to prevent negative commission values
+
+**Example:**
+```python
+# When Credit Note is submitted:
+# Original Invoice: custom_total_komisi_sales = 100000
+# Credit Note: custom_total_komisi_sales = -30000
+# After submit: Original Invoice custom_total_komisi_sales = 70000
+
+# When Credit Note is cancelled:
+# Original Invoice: custom_total_komisi_sales = 70000
+# After cancel: Original Invoice custom_total_komisi_sales = 100000 (restored)
+```
+
+**Documentation:** See `CREDIT_NOTE_COMMISSION.md` for detailed installation and usage instructions.
 
 ## Testing
 

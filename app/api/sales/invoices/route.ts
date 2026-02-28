@@ -266,40 +266,95 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Create Sales Invoice using ERPNext REST API
-    const erpNextUrl = `${baseUrl}/api/resource/Sales Invoice`;
+    // Create Sales Invoice using frappe.client.insert
+    const erpNextUrl = `${baseUrl}/api/method/frappe.client.insert`;
     
-    console.log('ERPNext REST API URL:', erpNextUrl);
+    console.log('Using frappe.client.insert to create Sales Invoice');
 
-    // Prepare payload with proper ERPNext structure using VALID data
+    // Prepare payload with proper ERPNext structure
     const payload: any = {
+      doctype: 'Sales Invoice',
       company: invoiceData.company,
       customer: invoiceData.customer,
-      customer_name: invoiceData.customer_name,
       posting_date: invoiceData.posting_date,
       due_date: invoiceData.due_date || invoiceData.posting_date,
-      items: invoiceData.items || [],
       currency: invoiceData.currency || 'IDR',
-      // Use valid Price List
       selling_price_list: invoiceData.selling_price_list || 'Standard Jual',
       price_list_currency: invoiceData.price_list_currency || 'IDR',
       plc_conversion_rate: invoiceData.plc_conversion_rate || 1,
-      // Use valid Territory
-      territory: invoiceData.territory || 'Semua Wilayah',
-      // Skip tax_category to use system default (Tax Category is empty)
-      status: invoiceData.status || 'Draft',
-      docstatus: invoiceData.docstatus || 0,
-      // Custom fields
+      status: 'Draft',
+      docstatus: 0,
       custom_total_komisi_sales: invoiceData.custom_total_komisi_sales || 0,
       custom_notes_si: invoiceData.custom_notes_si || '',
-      // Write-off amount to prevent TypeError (must be 0, not null)
-      write_off_amount: 0,
-      base_write_off_amount: 0,
-      // Discount fields - Requirements 2.1, 2.2
+      // Discount fields
       discount_amount: invoiceData.discount_amount || 0,
-      discount_percentage: invoiceData.discount_percentage || 0,
       additional_discount_percentage: invoiceData.additional_discount_percentage || 0,
-      apply_discount_on: invoiceData.apply_discount_on || 'Net Total'
+      apply_discount_on: invoiceData.apply_discount_on || 'Net Total',
+      // Items - CRITICAL: Pre-populate custom_hpp_snapshot and custom_financial_cost_percent
+      items: await Promise.all((invoiceData.items || []).map(async (item: any, index: number) => {
+        let hppSnapshot = 0;
+        let financialCostPercent = 0;
+        
+        // Get HPP from Delivery Note Item if available
+        if (item.dn_detail) {
+          try {
+            const dnItemUrl = `${baseUrl}/api/resource/Delivery Note Item/${encodeURIComponent(item.dn_detail)}`;
+            const dnItemResponse = await fetch(dnItemUrl, {
+              method: 'GET',
+              headers: {
+                'Authorization': `token ${apiKey}:${apiSecret}`,
+                'Content-Type': 'application/json',
+              },
+            });
+            
+            if (dnItemResponse.ok) {
+              const dnItemData = await dnItemResponse.json();
+              hppSnapshot = dnItemData.data?.custom_hpp_snapshot || dnItemData.data?.incoming_rate || 0;
+              financialCostPercent = dnItemData.data?.custom_financial_cost_percent || 0;
+              console.log(`Item ${item.item_code}: HPP=${hppSnapshot}, FinCost=${financialCostPercent} from DN Item`);
+            }
+          } catch (error) {
+            console.error(`Error fetching DN item ${item.dn_detail}:`, error);
+          }
+        }
+        
+        // Fallback: Get Financial Cost from Item master if not from DN
+        if (financialCostPercent === 0) {
+          try {
+            const itemUrl = `${baseUrl}/api/resource/Item/${encodeURIComponent(item.item_code)}`;
+            const itemResponse = await fetch(itemUrl, {
+              method: 'GET',
+              headers: {
+                'Authorization': `token ${apiKey}:${apiSecret}`,
+                'Content-Type': 'application/json',
+              },
+            });
+            
+            if (itemResponse.ok) {
+              const itemData = await itemResponse.json();
+              financialCostPercent = itemData.data?.custom_financial_cost_percent || 0;
+              console.log(`Item ${item.item_code}: FinCost=${financialCostPercent} from Item master`);
+            }
+          } catch (error) {
+            console.error(`Error fetching Item ${item.item_code}:`, error);
+          }
+        }
+        
+        return {
+          item_code: item.item_code,
+          qty: item.qty,
+          rate: item.rate,
+          warehouse: item.warehouse,
+          delivery_note: item.delivery_note || undefined,
+          dn_detail: item.dn_detail || undefined,
+          sales_order: item.sales_order || undefined,
+          so_detail: item.so_detail || undefined,
+          custom_komisi_sales: item.custom_komisi_sales || 0,
+          // CRITICAL FIX: Pre-populate these fields to prevent "Not Saved" status
+          custom_hpp_snapshot: hppSnapshot,
+          custom_financial_cost_percent: financialCostPercent,
+        };
+      }))
     };
 
     // Add optional fields if provided
@@ -311,28 +366,22 @@ export async function POST(request: NextRequest) {
       payload.payment_terms_template = invoiceData.payment_terms_template;
     }
 
-    // Add tax fields - Requirement 2.3
+    // Tax handling: OPTIONAL - only if user selects tax template
+    // If user selects tax template, send both template name AND calculated tax rows
     if (invoiceData.taxes_and_charges) {
       payload.taxes_and_charges = invoiceData.taxes_and_charges;
+      console.log('Tax template selected by user:', invoiceData.taxes_and_charges);
+      
+      // Send pre-calculated tax rows from frontend
+      if (invoiceData.taxes && invoiceData.taxes.length > 0) {
+        payload.taxes = invoiceData.taxes;
+        console.log('Tax rows provided:', invoiceData.taxes.length, 'rows');
+      }
+    } else {
+      console.log('No tax template selected - invoice without tax');
     }
 
-    if (invoiceData.taxes && invoiceData.taxes.length > 0) {
-      payload.taxes = invoiceData.taxes;
-    }
-
-    // Add calculated totals if provided
-    if (invoiceData.grand_total) {
-      payload.grand_total = invoiceData.grand_total;
-      payload.total = invoiceData.total || invoiceData.grand_total;
-      payload.net_total = invoiceData.net_total || invoiceData.grand_total;
-      payload.base_total = invoiceData.base_total || invoiceData.grand_total;
-      payload.base_net_total = invoiceData.base_net_total || invoiceData.grand_total;
-      payload.base_grand_total = invoiceData.base_grand_total || invoiceData.grand_total;
-      payload.outstanding_amount = invoiceData.outstanding_amount || invoiceData.grand_total;
-    }
-
-    console.log('Final Payload with sales_team:', JSON.stringify(payload, null, 2));
-    console.log('Sales Team in payload:', payload.sales_team);
+    console.log('Payload for frappe.client.insert:', JSON.stringify(payload, null, 2));
 
     const response = await fetch(erpNextUrl, {
       method: 'POST',
@@ -340,7 +389,9 @@ export async function POST(request: NextRequest) {
         'Authorization': `token ${apiKey}:${apiSecret}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({
+        doc: payload
+      })
     });
 
     console.log('ERPNext Response Status:', response.status);
@@ -375,6 +426,87 @@ export async function POST(request: NextRequest) {
         message: 'Invalid JSON response from ERPNext',
         error: responseText
       }, { status: 500 });
+    }
+
+    // CRITICAL FIX: Force ERPNext to recognize document as "saved"
+    // After creating via API, ERPNext's form cache is not updated
+    // This causes "Not Saved" status which blocks Credit Note creation
+    // Solution: Fetch the latest document, clean __unsaved flags, and save to update cache
+    const invoiceName = data.message?.name || data.data?.name;
+    if (invoiceName) {
+      try {
+        console.log('Forcing document save to update ERPNext cache for:', invoiceName);
+        
+        // Step 1: Fetch the latest version of the document
+        const getUrl = `${baseUrl}/api/resource/Sales Invoice/${encodeURIComponent(invoiceName)}`;
+        const getResponse = await fetch(getUrl, {
+          method: 'GET',
+          headers: {
+            'Authorization': `token ${apiKey}:${apiSecret}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!getResponse.ok) {
+          console.warn('⚠️ Failed to fetch document for cache update');
+          throw new Error('Failed to fetch document');
+        }
+
+        const docData = await getResponse.json();
+        const latestDoc = docData.data;
+
+        // Step 2: Clean __unsaved flags from child tables
+        // This is critical - frappe.client.insert marks child tables as __unsaved
+        if (latestDoc.items && Array.isArray(latestDoc.items)) {
+          latestDoc.items = latestDoc.items.map((item: any) => {
+            const { __unsaved, ...cleanItem } = item;
+            return cleanItem;
+          });
+        }
+        if (latestDoc.sales_team && Array.isArray(latestDoc.sales_team)) {
+          latestDoc.sales_team = latestDoc.sales_team.map((team: any) => {
+            const { __unsaved, ...cleanTeam } = team;
+            return cleanTeam;
+          });
+        }
+        if (latestDoc.taxes && Array.isArray(latestDoc.taxes)) {
+          latestDoc.taxes = latestDoc.taxes.map((tax: any) => {
+            const { __unsaved, ...cleanTax } = tax;
+            return cleanTax;
+          });
+        }
+        if (latestDoc.payment_schedule && Array.isArray(latestDoc.payment_schedule)) {
+          latestDoc.payment_schedule = latestDoc.payment_schedule.map((schedule: any) => {
+            const { __unsaved, ...cleanSchedule } = schedule;
+            return cleanSchedule;
+          });
+        }
+
+        // Step 3: Save the cleaned document to update cache
+        const saveUrl = `${baseUrl}/api/method/frappe.client.save`;
+        const saveResponse = await fetch(saveUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `token ${apiKey}:${apiSecret}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            doc: latestDoc
+          })
+        });
+
+        if (saveResponse.ok) {
+          console.log('✅ Document cache updated successfully for:', invoiceName);
+        } else {
+          const errorText = await saveResponse.text();
+          console.warn('⚠️ Failed to update cache, but document is saved in database:', errorText);
+        }
+      } catch (cacheError) {
+        console.warn('⚠️ Cache update failed, but document is saved:', cacheError);
+        // Don't fail the request - document is already saved
+      }
+    } else {
+      console.warn('⚠️ No invoice name found in response, skipping cache update');
     }
 
     return NextResponse.json({

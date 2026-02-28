@@ -1,6 +1,6 @@
 # Implementation Plan
 
-- [x] 1. Write bug condition exploration test
+- [ ] 1. Write bug condition exploration test
   - **Property 1: Fault Condition** - PUT Request Returns 405 Error
   - **CRITICAL**: This test MUST FAIL on unfixed code - failure confirms the bug exists
   - **DO NOT attempt to fix the test or the code when it fails**
@@ -19,7 +19,7 @@
   - Mark task complete when test is written, run, and failure is documented
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6_
 
-- [x] 2. Write preservation property tests (BEFORE implementing fix)
+- [ ] 2. Write preservation property tests (BEFORE implementing fix)
   - **Property 2: Preservation** - GET and POST Method Behaviors
   - **IMPORTANT**: Follow observation-first methodology
   - Observe behavior on UNFIXED code for non-buggy inputs (GET and POST requests)
@@ -101,7 +101,7 @@
     - Confirm all tests still pass after fix (no regressions)
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
 
-- [x] 4. Checkpoint - Ensure all tests pass
+- [ ] 4. Checkpoint - Ensure all tests pass
   - Run all tests (exploration test + preservation tests)
   - Verify exploration test passes (bug is fixed)
   - Verify preservation tests pass (no regressions)

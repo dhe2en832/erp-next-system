@@ -74,7 +74,12 @@
     "test:print-system-reports": "ts-node --project tsconfig.scripts.json tests/print-system-reports.test.tsx",
     "test:item-list-pagination-bug": "ts-node --project tsconfig.scripts.json __tests__/item-list-pagination-bug-exploration.pbt.test.ts",
     "test:user-update-405-bug": "ts-node --project tsconfig.scripts.json tests/user-update-405-bug-exploration.pbt.test.ts",
-    "test:user-update-405-preservation": "ts-node --project tsconfig.scripts.json tests/user-update-405-preservation.pbt.test.ts"
+    "test:user-update-405-preservation": "ts-node --project tsconfig.scripts.json tests/user-update-405-preservation.pbt.test.ts",
+    "test:credit-note-validation": "ts-node --project tsconfig.scripts.json tests/credit-note-validation.test.ts",
+    "test:credit-note-calculation": "ts-node --project tsconfig.scripts.json tests/credit-note-calculation.test.ts",
+    "test:credit-note-api-post": "ts-node --project tsconfig.scripts.json tests/credit-note-api-post.test.ts",
+    "test:sales-invoice-not-saved-bug": "ts-node --project tsconfig.scripts.json __tests__/sales-invoice-not-saved-status-bug-exploration.pbt.test.ts",
+    "test:sales-invoice-cache-integration": "ts-node --project tsconfig.scripts.json __tests__/sales-invoice-cache-update-integration.test.ts"
   },
   "dependencies": {
     "@types/node-fetch": "^2.6.13",

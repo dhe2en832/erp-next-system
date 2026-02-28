@@ -35,12 +35,13 @@ function CommissionPrintContent({ company }: { company: string }) {
       </div>
 
       {/* Summary */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '12px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '8px', marginBottom: '12px' }}>
         {[
           { label: 'Total Penjualan', value: fmt(data.summary?.total_sales), color: '#2563eb' },
           { label: 'Total Terbayar', value: fmt(data.summary?.total_paid), color: '#16a34a' },
           { label: 'Potensi Komisi', value: fmt(data.summary?.potential_commission), color: '#ca8a04' },
           { label: 'Komisi Diperoleh', value: fmt(data.summary?.earned_commission), color: '#7c3aed' },
+          { label: 'Komisi Bersih', value: fmt(data.summary?.net_earned_commission), color: '#4f46e5' },
         ].map((s, i) => (
           <div key={i} style={{ border: '1px solid #e5e7eb', borderRadius: '4px', padding: '6px 8px' }}>
             <div style={{ fontSize: '8px', color: '#555' }}>{s.label}</div>
@@ -50,6 +51,11 @@ function CommissionPrintContent({ company }: { company: string }) {
       </div>
       <div style={{ fontSize: '9px', color: '#555', marginBottom: '10px' }}>
         Tarif Komisi: <strong>{data.summary?.commission_rate}%</strong> &mdash; Komisi dibayarkan setelah Sales Invoice berstatus &ldquo;Paid&rdquo;
+        {data.summary?.credit_note_adjustments > 0 && (
+          <span style={{ color: '#dc2626', marginLeft: '10px' }}>
+            &mdash; Penyesuaian Credit Note: <strong>{fmt(data.summary.credit_note_adjustments)}</strong>
+          </span>
+        )}
       </div>
 
       {/* Sales Orders */}
@@ -91,6 +97,8 @@ function CommissionPrintContent({ company }: { company: string }) {
                 <th style={{ background: '#1e293b', color: '#fff', padding: '3px 5px', textAlign: 'left', fontSize: '9px' }}>Pelanggan</th>
                 <th style={{ background: '#1e293b', color: '#fff', padding: '3px 5px', textAlign: 'right', fontSize: '9px' }}>Jumlah</th>
                 <th style={{ background: '#1e293b', color: '#fff', padding: '3px 5px', textAlign: 'right', fontSize: '9px' }}>Komisi</th>
+                <th style={{ background: '#1e293b', color: '#fff', padding: '3px 5px', textAlign: 'right', fontSize: '9px' }}>Peny. CN</th>
+                <th style={{ background: '#1e293b', color: '#fff', padding: '3px 5px', textAlign: 'right', fontSize: '9px' }}>Komisi Bersih</th>
               </tr>
             </thead>
             <tbody>
@@ -101,7 +109,13 @@ function CommissionPrintContent({ company }: { company: string }) {
                   <td style={{ padding: '2px 5px', borderBottom: '1px solid #e5e7eb' }}>{inv.customer_name || inv.customer || '-'}</td>
                   <td style={{ padding: '2px 5px', borderBottom: '1px solid #e5e7eb', textAlign: 'right' }}>{fmt(inv.base_grand_total)}</td>
                   <td style={{ padding: '2px 5px', borderBottom: '1px solid #e5e7eb', textAlign: 'right', color: '#7c3aed', fontWeight: 600 }}>
-                    {fmt((inv.base_grand_total || 0) * (data.summary?.commission_rate || 0) / 100)}
+                    {fmt(inv.custom_total_komisi_sales || 0)}
+                  </td>
+                  <td style={{ padding: '2px 5px', borderBottom: '1px solid #e5e7eb', textAlign: 'right', color: '#dc2626' }}>
+                    {inv.credit_note_adjustment > 0 ? `- ${fmt(inv.credit_note_adjustment)}` : '-'}
+                  </td>
+                  <td style={{ padding: '2px 5px', borderBottom: '1px solid #e5e7eb', textAlign: 'right', color: '#4f46e5', fontWeight: 700 }}>
+                    {fmt(inv.net_commission)}
                   </td>
                 </tr>
               ))}
