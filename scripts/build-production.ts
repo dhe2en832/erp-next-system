@@ -36,7 +36,7 @@ async function main() {
     
     // Lint check with production config
     console.log('\nStep 3: Running ESLint');
-    execSync('pnpm eslint --config eslint.config.production.mjs .', { stdio: 'inherit' });
+    execSync('npx eslint --config eslint.config.production.mjs .', { stdio: 'inherit' });
     
     // Backup current build
     console.log('\nStep 4: Backing up previous build');
