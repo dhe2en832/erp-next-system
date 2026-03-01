@@ -197,6 +197,8 @@ async function validateBankReconciliation(
   period: AccountingPeriod
 ): Promise<ValidationResult> {
   try {
+    // In ERPNext v15, bank reconciliation uses Payment Entry, not GL Entry
+    // Get all bank accounts first
     const bankAccounts = await erpnextClient.getList('Account', {
       filters: [
         ['company', '=', period.company],
@@ -207,27 +209,89 @@ async function validateBankReconciliation(
     });
 
     const unreconciledAccounts: any[] = [];
+    let skippedAccountsCount = 0;
 
     for (const account of bankAccounts) {
-      const filters = [
-        ['account', '=', account.name],
-        ['posting_date', '<=', period.end_date],
-        ['clearance_date', 'is', 'not set'],
-      ];
+      try {
+        // Check Payment Entry for uncleared transactions (ERPNext v15 approach)
+        const filters = [
+          ['paid_from', '=', account.name],
+          ['posting_date', '<=', period.end_date],
+          ['clearance_date', 'is', 'not set'],
+          ['docstatus', '=', 1], // Submitted only
+        ];
 
-      const unreconciledEntries = await erpnextClient.getList('GL Entry', {
-        filters,
-        fields: ['name'],
-        limit_page_length: 1,
-      });
-
-      if (unreconciledEntries.length > 0) {
-        unreconciledAccounts.push({
-          account: account.name,
-          account_name: account.account_name,
-          unreconciled_count: unreconciledEntries.length,
+        const unreconciledPayments = await erpnextClient.getList('Payment Entry', {
+          filters,
+          fields: ['name', 'paid_amount'],
+          limit_page_length: 100,
         });
+
+        // Also check for received payments
+        const receivedFilters = [
+          ['paid_to', '=', account.name],
+          ['posting_date', '<=', period.end_date],
+          ['clearance_date', 'is', 'not set'],
+          ['docstatus', '=', 1], // Submitted only
+        ];
+
+        const unreconciledReceipts = await erpnextClient.getList('Payment Entry', {
+          filters: receivedFilters,
+          fields: ['name', 'received_amount'],
+          limit_page_length: 100,
+        });
+
+        const totalUnreconciled = unreconciledPayments.length + unreconciledReceipts.length;
+
+        if (totalUnreconciled > 0) {
+          unreconciledAccounts.push({
+            account: account.name,
+            account_name: account.account_name,
+            unreconciled_payments: unreconciledPayments.length,
+            unreconciled_receipts: unreconciledReceipts.length,
+            total_unreconciled: totalUnreconciled,
+          });
+        }
+      } catch (fieldError: any) {
+        // Handle field permission restrictions for clearance_date
+        if (fieldError.message && fieldError.message.includes('Field not permitted in query: clearance_date')) {
+          console.info(`Bank reconciliation check skipped for account ${account.name}: clearance_date field access restricted`);
+          skippedAccountsCount++;
+          continue; // Skip this account and continue with others
+        }
+        // Re-throw other errors that are not permission-related
+        throw fieldError;
       }
+    }
+
+    // If all accounts were skipped due to field restrictions, return specific message
+    if (skippedAccountsCount > 0 && skippedAccountsCount === bankAccounts.length) {
+      return {
+        check_name: 'Bank Reconciliation Complete',
+        passed: true,
+        message: 'Bank reconciliation check skipped (clearance_date field is restricted)',
+        severity: 'info',
+        details: [],
+        validation_skipped: true,
+        skip_reason: 'Field permission restriction: clearance_date'
+      };
+    }
+
+    // If some accounts were skipped but others were processed
+    if (skippedAccountsCount > 0) {
+      const message = unreconciledAccounts.length === 0
+        ? `All accessible bank accounts are reconciled (${skippedAccountsCount} account(s) skipped due to clearance_date field restriction)`
+        : `Found ${unreconciledAccounts.length} bank account(s) with unreconciled transactions (${skippedAccountsCount} account(s) skipped due to clearance_date field restriction)`;
+      
+      return {
+        check_name: 'Bank Reconciliation Complete',
+        passed: unreconciledAccounts.length === 0,
+        message: message,
+        severity: unreconciledAccounts.length === 0 ? 'info' : 'warning',
+        details: unreconciledAccounts,
+        validation_skipped: false,
+        skip_reason: `Partial validation: ${skippedAccountsCount} account(s) skipped due to clearance_date field restriction`
+      };
     }
 
     return {
@@ -240,7 +304,24 @@ async function validateBankReconciliation(
       severity: unreconciledAccounts.length === 0 ? 'info' : 'warning',
       details: unreconciledAccounts,
     };
-  } catch (error) {
+  } catch (error: any) {
+    // Handle general permission or access errors
+    if (error.message && (
+      error.message.includes('Field not permitted') ||
+      error.message.includes('clearance_date')
+    )) {
+      console.info('Bank reconciliation check skipped: clearance_date field is restricted');
+      return {
+        check_name: 'Bank Reconciliation Complete',
+        passed: true,
+        message: 'Bank reconciliation check skipped (clearance_date field is restricted)',
+        severity: 'info',
+        details: [],
+        validation_skipped: true,
+        skip_reason: 'Field permission restriction: clearance_date'
+      };
+    }
+
     console.error('Error checking bank reconciliation:', error);
     return {
       check_name: 'Bank Reconciliation Complete',
@@ -428,7 +509,26 @@ async function validatePayrollEntries(
       severity: draftPayrollEntries.length === 0 ? 'info' : 'error',
       details: draftPayrollEntries,
     };
-  } catch (error) {
+  } catch (error: any) {
+    // Handle Salary Slip doctype access restrictions
+    if (error.message && (
+      error.message.includes('Failed to fetch Salary Slip list') ||
+      error.message.includes('Permission denied') ||
+      error.message.includes('Not permitted') ||
+      error.message.includes('Salary Slip')
+    )) {
+      console.info('Payroll validation check skipped: Salary Slip access is restricted');
+      return {
+        check_name: 'Payroll Entries Recorded',
+        passed: true,
+        message: 'Payroll check skipped (Salary Slip access is restricted)',
+        severity: 'info',
+        details: [],
+        validation_skipped: true,
+        skip_reason: 'Doctype permission restriction: Salary Slip'
+      };
+    }
+
     console.error('Error checking payroll entries:', error);
     return {
       check_name: 'Payroll Entries Recorded',

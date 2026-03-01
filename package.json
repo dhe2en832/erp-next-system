@@ -91,6 +91,7 @@
     "test:sales-invoice-not-saved-bug": "ts-node --project tsconfig.scripts.json __tests__/sales-invoice-not-saved-status-bug-exploration.pbt.test.ts",
     "test:sales-invoice-cache-integration": "ts-node --project tsconfig.scripts.json __tests__/sales-invoice-cache-update-integration.test.ts",
     "test:invoice-list-status-refresh-bug": "ts-node --project tsconfig.scripts.json __tests__/invoice-list-status-and-refresh-bug-exploration.pbt.test.ts",
+    "test:vps-deployment-runtime-fixes-bug": "ts-node --project tsconfig.scripts.json tests/vps-deployment-runtime-fixes-bug-exploration.pbt.test.ts",
     "replace-coa": "tsx scripts/replace-coa.ts",
     "update-coa": "tsx scripts/update-coa.ts",
     "fix-penjualan": "tsx scripts/fix-penjualan-account.ts",
@@ -119,6 +120,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/jest": "^30.0.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
@@ -126,6 +128,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "fast-check": "^4.5.3",
+    "jest": "^30.2.0",
     "tailwindcss": "^4",
     "ts-node": "^10.9.2",
     "tsx": "^4.21.0",

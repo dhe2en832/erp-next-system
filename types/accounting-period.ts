@@ -106,6 +106,8 @@ export interface ValidationResult {
     status?: string;
     [key: string]: any;
   }[];
+  validation_skipped?: boolean;
+  skip_reason?: string;
 }
 
 // API Request/Response Types
