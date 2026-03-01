@@ -7,6 +7,7 @@
     "build": "next build",
     "build:staging": "dotenv -e .env.staging -- tsx scripts/build-staging.ts",
     "build:production": "dotenv -e .env.production -- tsx scripts/build-production.ts",
+    "build:production:force": "dotenv -e .env.production -- tsx scripts/build-production-force.ts",
     "start": "next start",
     "start:staging": "dotenv -e .env.staging -- next start",
     "start:production": "dotenv -e .env.production -- next start",

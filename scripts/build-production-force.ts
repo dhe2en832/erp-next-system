@@ -8,7 +8,7 @@ async function confirmProduction(): Promise<boolean> {
   });
 
   return new Promise((resolve) => {
-    rl.question('⚠️  You are building for PRODUCTION. Continue? (yes/no): ', (answer) => {
+    rl.question('⚠️  You are building for PRODUCTION (FORCE MODE - skips ESLint). Continue? (yes/no): ', (answer) => {
       rl.close();
       resolve(answer.toLowerCase() === 'yes');
     });
@@ -16,7 +16,7 @@ async function confirmProduction(): Promise<boolean> {
 }
 
 async function main() {
-  console.log('🚀 Starting production build...\n');
+  console.log('🚀 Starting FORCE production build (ESLint disabled)...\n');
 
   // Confirmation prompt
   const confirmed = await confirmProduction();
@@ -30,18 +30,12 @@ async function main() {
     console.log('\nStep 1: Validating environment variables');
     execSync('tsx scripts/validate-env.ts', { stdio: 'inherit' });
     
-    // Type check
+    // Type check only (skip ESLint entirely)
     console.log('\nStep 2: Running TypeScript type check');
     execSync('tsc --noEmit', { stdio: 'inherit' });
     
-    // Lint check with production config - allow warnings
-    console.log('\nStep 3: Running ESLint (production mode)');
-    try {
-      execSync('npx eslint --config eslint.config.production.mjs . --max-warnings 10000', { stdio: 'inherit' });
-      console.log('✅ ESLint check passed');
-    } catch (lintError) {
-      console.log('⚠️  ESLint warnings detected, but continuing with build...');
-    }
+    console.log('\nStep 3: Skipping ESLint (FORCE MODE)');
+    console.log('⚠️  ESLint checks disabled for this build');
     
     // Backup current build
     console.log('\nStep 4: Backing up previous build');
@@ -52,24 +46,27 @@ async function main() {
       console.log('ℹ️  No previous build to backup');
     }
     
-    // Run Next.js build with ESLint disabled during build
-    console.log('\nStep 5: Building Next.js application');
-    execSync('ESLINT_NO_DEV_ERRORS=true next build', { 
+    // Run Next.js build with ESLint completely disabled
+    console.log('\nStep 5: Building Next.js application (ESLint disabled)');
+    execSync('next build', { 
       stdio: 'inherit',
       env: { 
         ...process.env, 
         ESLINT_NO_DEV_ERRORS: 'true',
-        DISABLE_ESLINT_PLUGIN: 'true'
+        DISABLE_ESLINT_PLUGIN: 'true',
+        NODE_ENV: 'production'
       }
     });
     
-    console.log('\n✅ Production build completed successfully!');
+    console.log('\n✅ FORCE production build completed successfully!');
     console.log('📦 Build output: .next/');
     console.log('💾 Backup: .next.backup/');
-    console.log('🚀 Deploy with: pnpm start');
+    console.log('🚀 Deploy with: pnpm start:production');
+    console.log('⚠️  Note: ESLint was disabled for this build');
   } catch (error) {
     console.error('\n❌ Production build failed');
     console.error('💾 Previous build preserved in .next.backup (if exists)');
+    console.error('Error:', error);
     process.exit(1);
   }
 }
