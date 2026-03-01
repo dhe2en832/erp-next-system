@@ -10,7 +10,7 @@
     "build:production:force": "dotenv -e .env.production -- tsx scripts/build-production-force.ts",
     "start": "next start",
     "start:staging": "dotenv -e .env.staging -- next start",
-    "start:production": "dotenv -e .env.production -- next start",
+    "start:production": "dotenv -e .env.production -- node .next/standalone/server.js",
     "rollback:production": "tsx scripts/rollback-production.ts",
     "validate:env": "tsx scripts/validate-env.ts",
     "lint": "eslint",
