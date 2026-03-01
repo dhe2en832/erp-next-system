@@ -96,13 +96,19 @@ export default function StockCardFilters({
     if (savedFilters) {
       try {
         const parsed = JSON.parse(savedFilters);
-        setLocalFilters(parsed);
-        onFilterChange(parsed);
+        // Use a callback to avoid direct setState in effect
+        setLocalFilters(prevFilters => {
+          if (JSON.stringify(prevFilters) !== JSON.stringify(parsed)) {
+            onFilterChange(parsed);
+            return parsed;
+          }
+          return prevFilters;
+        });
       } catch (error) {
         console.error('Failed to parse saved filters:', error);
       }
     }
-  }, []);
+  }, [onFilterChange]);
 
   // Save filters to sessionStorage whenever they change
   useEffect(() => {
@@ -151,7 +157,13 @@ export default function StockCardFilters({
       localFilters.dateRange.from_date,
       localFilters.dateRange.to_date
     );
-    setDateRangeError(error);
+    // Use callback to avoid direct setState in effect
+    setDateRangeError(prevError => {
+      if (prevError !== error) {
+        return error;
+      }
+      return prevError;
+    });
   }, [localFilters.dateRange.from_date, localFilters.dateRange.to_date, validateDateRange]);
 
   // Transaction type options (Indonesian labels)

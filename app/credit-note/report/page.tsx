@@ -41,7 +41,6 @@ export default function CreditNoteReportPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedCompany, setSelectedCompany] = useState('');
-  const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [groupBy, setGroupBy] = useState<'none' | 'customer' | 'reason'>('none');
   
   const [filters, setFilters] = useState<ReportFilters>(() => {
@@ -98,7 +97,7 @@ export default function CreditNoteReportPage() {
         // Filter by return_reason if specified (client-side filter)
         if (filters.return_reason) {
           data = data.filter((cn: CreditNote) => 
-            cn.items.some(item => item.return_reason === filters.return_reason)
+            cn.items.some(item => item.custom_return_reason === filters.return_reason)
           );
         }
         
@@ -124,7 +123,7 @@ export default function CreditNoteReportPage() {
     
     creditNotes.forEach(cn => {
       cn.items.forEach(item => {
-        const reason = item.return_reason || 'Unknown';
+        const reason = item.custom_return_reason || 'Unknown';
         if (!breakdown[reason]) {
           breakdown[reason] = { count: 0, amount: 0 };
         }
@@ -160,7 +159,7 @@ export default function CreditNoteReportPage() {
       const groups: Record<string, CreditNote[]> = {};
       creditNotes.forEach(cn => {
         cn.items.forEach(item => {
-          const key = item.return_reason || 'Unknown';
+          const key = item.custom_return_reason || 'Unknown';
           if (!groups[key]) groups[key] = [];
           if (!groups[key].includes(cn)) groups[key].push(cn);
         });
@@ -223,8 +222,8 @@ export default function CreditNoteReportPage() {
           'Qty': Math.abs(item.qty),
           'Rate': item.rate,
           'Amount': Math.abs(item.amount),
-          'Return Reason': item.return_reason,
-          'Notes': item.return_item_notes || ''
+          'Return Reason': item.custom_return_reason,
+          'Notes': item.custom_return_item_notes || ''
         });
       });
     });

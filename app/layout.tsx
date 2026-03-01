@@ -4,6 +4,8 @@ import "./globals.css";
 import Navbar from "./components/Navbar";
 import { ToastProvider } from "../lib/toast-context";
 import ToastContainer from "../components/ToastContainer";
+import { EnvironmentBadge } from "../components/EnvironmentBadge";
+import { validateEnv, getAppEnvironment } from '@/lib/env-validation';
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -14,6 +16,19 @@ export const metadata: Metadata = {
 
 // Force dynamic rendering for all pages (required for useSearchParams)
 export const dynamic = 'force-dynamic';
+
+// Validate environment on server startup
+if (typeof window === 'undefined') {
+  try {
+    const env = validateEnv();
+    const appEnv = getAppEnvironment();
+    console.log(`🚀 Application started in ${appEnv} mode`);
+    console.log(`🔗 Connected to: ${env.ERPNEXT_API_URL}`);
+  } catch (error) {
+    console.error('❌ Environment validation failed:', error);
+    throw error;
+  }
+}
 
 export default function RootLayout({
   children,
@@ -29,6 +44,7 @@ export default function RootLayout({
             {children}
           </main>
           <ToastContainer />
+          <EnvironmentBadge />
         </ToastProvider>
       </body>
     </html>
