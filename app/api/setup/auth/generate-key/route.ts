@@ -6,7 +6,7 @@ export async function POST(request: NextRequest) {
   try {
     const { usr, pwd } = await request.json();
 
-    console.log('=== Generate API Key ===');
+    // console.log('=== Generate API Key ===');
 
     // Step 1: Login to ERPNext
     const loginResponse = await fetch(`${ERPNEXT_API_URL}/api/method/login`, {
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     let apiKeyData = {};
     if (generateKeyResponse.ok) {
       apiKeyData = await generateKeyResponse.json();
-      console.log('API Key generated:', apiKeyData);
+      // console.log('API Key generated:', apiKeyData);
     }
 
     // Step 3: Get the generated API keys from user document

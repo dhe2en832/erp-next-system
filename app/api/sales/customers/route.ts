@@ -19,39 +19,39 @@ export async function GET(request: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const filters: any[] = [];
     
-    console.log('DEBUG - search param:', search);
-    console.log('DEBUG - search.trim():', search?.trim());
-    console.log('DEBUG - search condition:', search && search.trim());
+    // console.log('DEBUG - search param:', search);
+    // console.log('DEBUG - search.trim():', search?.trim());
+    // console.log('DEBUG - search condition:', search && search.trim());
     
     if (search && search.trim()) {
       const searchTrim = search.trim();
-      console.log('DEBUG - Building search filter for:', searchTrim);
+      // console.log('DEBUG - Building search filter for:', searchTrim);
       
       // Simple search by customer_name first
       filters.push(["customer_name", "like", `%${searchTrim}%`]);
       
-      console.log('DEBUG - Filters after search:', filters);
+      // console.log('DEBUG - Filters after search:', filters);
     }
     
     // Add company filter if provided (for multi-entity support)
-    if (company) {
-      // In ERPNext, customers don't have a direct company field
-      // They are linked via customer_group or territory
-      // For now, we'll skip company filtering for customers
-      // as they are typically shared across companies
-      console.log('DEBUG - Company filter provided but not applied for customers:', company);
-    }
+    // if (company) {
+    //   // In ERPNext, customers don't have a direct company field
+    //   // They are linked via customer_group or territory
+    //   // For now, we'll skip company filtering for customers
+    //   // as they are typically shared across companies
+    //   console.log('DEBUG - Company filter provided but not applied for customers:', company);
+    // }
     
     if (filters.length > 0) {
       erpNextUrl += `&filters=${encodeURIComponent(JSON.stringify(filters))}`;
     }
 
-    console.log('Customers ERPNext URL:', erpNextUrl);
-    console.log('Request params:', { search, limitPageLength, limitStart, company });
-    console.log('Search term value:', search);
-    console.log('Search term trimmed:', search?.trim());
-    console.log('Filters being applied:', filters);
-    console.log('Final URL:', erpNextUrl);
+    // console.log('Customers ERPNext URL:', erpNextUrl);
+    // console.log('Request params:', { search, limitPageLength, limitStart, company });
+    // console.log('Search term value:', search);
+    // console.log('Search term trimmed:', search?.trim());
+    // console.log('Filters being applied:', filters);
+    // console.log('Final URL:', erpNextUrl);
 
     const _ak = process.env.ERP_API_KEY;
     const _as = process.env.ERP_API_SECRET;
@@ -67,13 +67,13 @@ export async function GET(request: NextRequest) {
       headers,
     });
 
-    console.log('Customers API Raw Response Status:', response.status);
-    console.log('Customers API Raw Response Headers:', Object.fromEntries(response.headers.entries()));
+    // console.log('Customers API Raw Response Status:', response.status);
+    // console.log('Customers API Raw Response Headers:', Object.fromEntries(response.headers.entries()));
 
     let data;
     try {
       const responseText = await response.text();
-      console.log('Customers API Raw Response Text:', responseText);
+      // console.log('Customers API Raw Response Text:', responseText);
       data = JSON.parse(responseText);
     } catch (parseError) {
       console.error('❌ Failed to parse API response:', parseError);
@@ -85,7 +85,7 @@ export async function GET(request: NextRequest) {
 
     // If search filter causes error, try without filter
     if (!response.ok && search && search.trim()) {
-      console.log('🔄 Search filter failed, trying without filter...');
+      // console.log('🔄 Search filter failed, trying without filter...');
       const fallbackUrl = `${ERPNEXT_API_URL}/api/resource/Customer?fields=["name","customer_name"]&limit_page_length=${limitPageLength}&limit_start=${limitStart}`;
       
       const fallbackResponse = await fetch(fallbackUrl, {
@@ -95,7 +95,7 @@ export async function GET(request: NextRequest) {
       
       if (fallbackResponse.ok) {
         const fallbackData = await fallbackResponse.json();
-        console.log('✅ Fallback successful, got customers:', fallbackData.data?.length || 0);
+        // console.log('✅ Fallback successful, got customers:', fallbackData.data?.length || 0);
         return NextResponse.json({
           success: true,
           data: fallbackData.data || [],
@@ -104,15 +104,15 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    console.log('Customers API Parsed Response:', { 
-      status: response.status, 
-      success: response.ok,
-      dataLength: data.data?.length || 0,
-      hasData: !!data.data,
-      message: data.message,
-      excType: data.exc_type,
-      data: data 
-    });
+    // console.log('Customers API Parsed Response:', { 
+    //   status: response.status, 
+    //   success: response.ok,
+    //   dataLength: data.data?.length || 0,
+    //   hasData: !!data.data,
+    //   message: data.message,
+    //   excType: data.exc_type,
+    //   data: data 
+    // });
 
     if (response.ok) {
       return NextResponse.json({

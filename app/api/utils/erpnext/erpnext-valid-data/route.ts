@@ -17,7 +17,7 @@ async function fetchValidData(docType: string, fields: string[] = ["name"], filt
     url += `&filters=${JSON.stringify(filters)}`;
   }
 
-  console.log(`Fetching ${docType}:`, url);
+  // console.log(`Fetching ${docType}:`, url);
 
   const response = await fetch(url, {
     method: 'GET',
@@ -37,14 +37,14 @@ async function fetchValidData(docType: string, fields: string[] = ["name"], filt
 
 export async function GET(request: NextRequest) {
   try {
-    console.log('=== FETCH VALID ERPNEXT DATA ===');
+    // console.log('=== FETCH VALID ERPNEXT DATA ===');
 
     const results: any = {};
 
     // Fetch Price Lists
     try {
       results.priceLists = await fetchValidData('Price List');
-      console.log('Price Lists:', results.priceLists);
+      // console.log('Price Lists:', results.priceLists);
     } catch (error) {
       console.error('Error fetching Price Lists:', error);
       results.priceLists = [];
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
     // Fetch Tax Categories
     try {
       results.taxCategories = await fetchValidData('Tax Category');
-      console.log('Tax Categories:', results.taxCategories);
+      // console.log('Tax Categories:', results.taxCategories);
     } catch (error) {
       console.error('Error fetching Tax Categories:', error);
       results.taxCategories = [];
@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
     // Fetch Territories
     try {
       results.territories = await fetchValidData('Territory');
-      console.log('Territories:', results.territories);
+      // console.log('Territories:', results.territories);
     } catch (error) {
       console.error('Error fetching Territories:', error);
       results.territories = [];
@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
     // Fetch Income Accounts (filter by Income type)
     try {
       results.incomeAccounts = await fetchValidData('Account', ['name'], [['Account', 'root_type', '=', 'Income']]);
-      console.log('Income Accounts:', results.incomeAccounts);
+      // console.log('Income Accounts:', results.incomeAccounts);
     } catch (error) {
       console.error('Error fetching Income Accounts:', error);
       results.incomeAccounts = [];
@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
     // Fetch Warehouses
     try {
       results.warehouses = await fetchValidData('Warehouse');
-      console.log('Warehouses:', results.warehouses);
+      // console.log('Warehouses:', results.warehouses);
     } catch (error) {
       console.error('Error fetching Warehouses:', error);
       results.warehouses = [];
@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
     // Fetch Cost Centers
     try {
       results.costCenters = await fetchValidData('Cost Center');
-      console.log('Cost Centers:', results.costCenters);
+      // console.log('Cost Centers:', results.costCenters);
     } catch (error) {
       console.error('Error fetching Cost Centers:', error);
       results.costCenters = [];

@@ -12,6 +12,11 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* Custom grid columns for invoice list desktop layout */
+.grid-cols-13 {
+  grid-template-columns: repeat(13, minmax(0, 1fr));
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;

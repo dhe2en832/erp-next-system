@@ -30,10 +30,10 @@ export async function POST(
     
     if (apiKey && apiSecret) {
       headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-      console.log('Using API key authentication for submit');
+      // console.log('Using API key authentication for submit');
     } else if (sid) {
       headers['Cookie'] = `sid=${sid}`;
-      console.log('Using session-based authentication for submit');
+      // console.log('Using session-based authentication for submit');
       
       // Get CSRF token for ERPNext
       try {
@@ -48,7 +48,7 @@ export async function POST(
           const csrfData = await csrfResponse.json();
           if (csrfData.message && csrfData.message.csrf_token) {
             headers['X-Frappe-CSRF-Token'] = csrfData.message.csrf_token;
-            console.log('CSRF token added for submit');
+            // console.log('CSRF token added for submit');
           }
         }
       } catch (csrfError) {
@@ -61,7 +61,7 @@ export async function POST(
       );
     }
 
-    console.log('Submitting Sales Order:', name);
+    // console.log('Submitting Sales Order:', name);
 
     // Use REST API update as primary method (more reliable)
     let response;
@@ -77,8 +77,8 @@ export async function POST(
       });
 
       const responseText = await response.text();
-      console.log('Submit Sales Order ERPNext Response Status:', response.status);
-      console.log('Submit Sales Order ERPNext Response Text:', responseText);
+      // console.log('Submit Sales Order ERPNext Response Status:', response.status);
+      // console.log('Submit Sales Order ERPNext Response Text:', responseText);
       
       try {
         data = JSON.parse(responseText);
@@ -103,7 +103,7 @@ export async function POST(
 
     // Alternative submit method for 417 errors
     async function tryAlternativeSubmit(orderName: string, headers: Record<string, string>) {
-      console.log('Using alternative submit method with REST API update...');
+      // console.log('Using alternative submit method with REST API update...');
       
       try {
         const altResponse = await fetch(`${ERPNEXT_API_URL}/api/resource/Sales Order/${encodeURIComponent(orderName)}`, {
@@ -115,7 +115,7 @@ export async function POST(
         });
 
         const altData = await altResponse.json();
-        console.log('Alternative Submit Response:', altData);
+        // console.log('Alternative Submit Response:', altData);
 
         if (altResponse.ok) {
           const orderData = altData.docs?.[0] || altData.doc || altData.data || altData;
@@ -138,8 +138,8 @@ export async function POST(
         );
       }
     }
-    console.log('Submit Sales Order Response Status:', response.status);
-    console.log('Submit Sales Order Response Headers:', response.headers);
+    // console.log('Submit Sales Order Response Status:', response.status);
+    // console.log('Submit Sales Order Response Headers:', response.headers);
 
     if (response.ok) {
       const orderData = data.docs?.[0] || data.doc || data.data || data;

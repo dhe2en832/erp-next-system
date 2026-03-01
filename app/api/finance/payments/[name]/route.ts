@@ -50,7 +50,7 @@ export async function GET(
 ) {
   try {
     const { name } = await params;
-    console.log(`=== GET PAYMENT ENTRY ${name} ===`);
+    // console.log(`=== GET PAYMENT ENTRY ${name} ===`);
     
     const cookies = request.cookies;
     const sid = cookies.get('sid')?.value;
@@ -65,10 +65,10 @@ export async function GET(
     
     if (apiKey && apiSecret) {
       headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-      console.log('Using API key authentication for payment details');
+      // console.log('Using API key authentication for payment details');
     } else if (sid) {
       headers['Cookie'] = `sid=${sid}`;
-      console.log('Using session-based authentication for payment details');
+      // console.log('Using session-based authentication for payment details');
     } else {
       return NextResponse.json(
         { success: false, message: 'Unauthorized - No session or API key found' },
@@ -86,8 +86,8 @@ export async function GET(
     );
 
     const data = await response.json();
-    console.log('Payment Details Response Status:', response.status);
-    console.log('Payment Details Response Data:', data);
+    // console.log('Payment Details Response Status:', response.status);
+    // console.log('Payment Details Response Data:', data);
 
     if (response.ok) {
       return NextResponse.json({

@@ -21,11 +21,11 @@ export async function POST(
   { params }: { params: Promise<{ name: string }> }
 ) {
   try {
-    console.log('=== Sales Return Cancel API Called ===');
+    // console.log('=== Sales Return Cancel API Called ===');
     const { name } = await params;
     
-    console.log('Sales Return Name:', name);
-    console.log('Request Method:', request.method);
+    // console.log('Sales Return Name:', name);
+    // console.log('Request Method:', request.method);
     
     // Validate name parameter
     if (!name || name.trim() === '') {
@@ -46,11 +46,11 @@ export async function POST(
       );
     }
 
-    console.log('Cancelling sales return:', name);
-    console.log('Available auth methods:', { 
-      hasApiKey: !!headers['Authorization'], 
-      hasSession: !!headers['Cookie']
-    });
+    // console.log('Cancelling sales return:', name);
+    // console.log('Available auth methods:', { 
+    //   hasApiKey: !!headers['Authorization'], 
+    //   hasSession: !!headers['Cookie']
+    // });
 
     // Cancel the sales return by setting docstatus to 2
     // This will trigger ERPNext's cancel workflow including inventory reversal
@@ -59,10 +59,10 @@ export async function POST(
       docstatus: 2
     });
     
-    console.log('Making ERPNext Request:');
-    console.log('URL:', erpNextUrl);
-    console.log('Method: PUT');
-    console.log('Body:', requestBody);
+    // console.log('Making ERPNext Request:');
+    // console.log('URL:', erpNextUrl);
+    // console.log('Method: PUT');
+    // console.log('Body:', requestBody);
     
     const response = await fetch(erpNextUrl, {
       method: 'PUT',
@@ -74,7 +74,7 @@ export async function POST(
     });
 
     const responseText = await response.text();
-    console.log('Cancel Response Status:', response.status);
+    // console.log('Cancel Response Status:', response.status);
     
     let data;
     try {
@@ -89,7 +89,7 @@ export async function POST(
       );
     }
 
-    console.log('Cancel Response Data:', data);
+    // console.log('Cancel Response Data:', data);
     
     if (response.ok) {
       // Extract the document data from response

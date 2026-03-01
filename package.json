@@ -13,6 +13,7 @@
     "setup-purchase-tax-templates": "ts-node --project tsconfig.scripts.json scripts/setup-purchase-tax-templates.ts",
     "setup-all-tax-templates": "npm run create-tax-accounts && npm run setup-sales-tax-templates && npm run setup-purchase-tax-templates",
     "test:bug-exploration": "ts-node --project tsconfig.scripts.json tests/bug-exploration-discount-tax-api.test.ts",
+    "test:bug-exploration-profit-loss-zero": "ts-node --project tsconfig.scripts.json tests/bug-exploration-profit-loss-zero-values.test.ts",
     "test:tax-template-persistence": "ts-node --project tsconfig.scripts.json tests/tax-template-persistence.test.ts",
     "test:sales-invoice-validation": "ts-node --project tsconfig.scripts.json tests/sales-invoice-api-validation.test.ts",
     "test:sales-invoice-integration": "ts-node --project tsconfig.scripts.json tests/sales-invoice-api-integration.test.ts",
@@ -82,7 +83,18 @@
     "test:credit-note-calculation": "ts-node --project tsconfig.scripts.json tests/credit-note-calculation.test.ts",
     "test:credit-note-api-post": "ts-node --project tsconfig.scripts.json tests/credit-note-api-post.test.ts",
     "test:sales-invoice-not-saved-bug": "ts-node --project tsconfig.scripts.json __tests__/sales-invoice-not-saved-status-bug-exploration.pbt.test.ts",
-    "test:sales-invoice-cache-integration": "ts-node --project tsconfig.scripts.json __tests__/sales-invoice-cache-update-integration.test.ts"
+    "test:sales-invoice-cache-integration": "ts-node --project tsconfig.scripts.json __tests__/sales-invoice-cache-update-integration.test.ts",
+    "test:invoice-list-status-refresh-bug": "ts-node --project tsconfig.scripts.json __tests__/invoice-list-status-and-refresh-bug-exploration.pbt.test.ts",
+    "replace-coa": "tsx scripts/replace-coa.ts",
+    "update-coa": "tsx scripts/update-coa.ts",
+    "fix-penjualan": "tsx scripts/fix-penjualan-account.ts",
+    "fix-penjualan-company": "tsx scripts/fix-penjualan-with-company.ts",
+    "create-penjualan-barang": "tsx scripts/create-penjualan-barang-dagang.ts",
+    "finalize-coa": "tsx scripts/finalize-coa.ts",
+    "verify-coa": "tsx scripts/verify-coa.ts",
+    "validate-coa-data": "tsx scripts/validate-coa-data.ts",
+    "fix-duplicate-bac": "tsx scripts/fix-duplicate-bac-names.ts",
+    "clean-account-names": "tsx scripts/clean-account-names.ts"
   },
   "dependencies": {
     "@types/node-fetch": "^2.6.13",

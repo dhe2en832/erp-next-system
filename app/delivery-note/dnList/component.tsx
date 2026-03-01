@@ -224,7 +224,7 @@ export default function DeliveryNoteList() {
 
       params.append('filters', JSON.stringify(filters));
 
-      console.log('🔍 ERPNext API Params:', params.toString());
+      // console.log('🔍 ERPNext API Params:', params.toString());
 
       const response = await fetch(`/api/sales/delivery-notes?${params.toString()}`);
       const data = await response.json();
@@ -232,7 +232,7 @@ export default function DeliveryNoteList() {
       if (data.success) {
         const filteredData = data.data || [];
 
-        console.log('🔍 Sample DN Data:', filteredData.slice(0, 2));
+        // console.log('🔍 Sample DN Data:', filteredData.slice(0, 2));
 
         if (data.total_records !== undefined) {
           setTotalRecords(data.total_records);

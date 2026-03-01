@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
       erpNextUrl += `&filters=[["sales_person_name","like","%${search}%"]]`;
     }
 
-    console.log('Sales Persons ERPNext URL:', erpNextUrl);
+    // console.log('Sales Persons ERPNext URL:', erpNextUrl);
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
     });
 
     const data = await response.json();
-    console.log('Sales Persons API Response:', { status: response.status, data });
+    // console.log('Sales Persons API Response:', { status: response.status, data });
 
     if (response.ok && data.data) {
       // Transform sales person master data

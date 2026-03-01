@@ -689,12 +689,12 @@ export async function GET(request: NextRequest) {
     const data = await response.json();
     let stockLedgerEntries = data.data || [];
     
-    console.log('Stock Card API: Fetched entries', { 
-      count: stockLedgerEntries.length,
-      company,
-      item_code,
-      filters: { warehouse, from_date, to_date, customer, supplier, transaction_type }
-    });
+    // console.log('Stock Card API: Fetched entries', { 
+    //   count: stockLedgerEntries.length,
+    //   company,
+    //   item_code,
+    //   filters: { warehouse, from_date, to_date, customer, supplier, transaction_type }
+    // });
     
     // Enrich entries with item names, party info, and warehouse info (Requirement 9.1-9.6)
     try {
@@ -764,13 +764,13 @@ export async function GET(request: NextRequest) {
     const endIndex = startIndex + limit;
     const paginatedEntries = stockLedgerEntries.slice(startIndex, endIndex);
     
-    console.log('Stock Card API: Returning paginated results', {
-      page,
-      limit,
-      total_records,
-      total_pages,
-      returned_records: paginatedEntries.length
-    });
+    // console.log('Stock Card API: Returning paginated results', {
+    //   page,
+    //   limit,
+    //   total_records,
+    //   total_pages,
+    //   returned_records: paginatedEntries.length
+    // });
     
     // Return the enriched data with summary and pagination
     return NextResponse.json({

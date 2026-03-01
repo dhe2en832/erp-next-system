@@ -426,13 +426,13 @@ export default function SalesInvoiceMain() {
         const dueDate = await calculateDueDate(postingDate, firstSOName);
 
         // Debug logging
-        console.log('[DEBUG] DN Data:', {
-          postingDate,
-          dueDate,
-          salesTeam: completeDnData.sales_team,
-          paymentTerms: paymentTermsTemplate,
-          firstSOName
-        });
+        // console.log('[DEBUG] DN Data:', {
+        //   postingDate,
+        //   dueDate,
+        //   salesTeam: completeDnData.sales_team,
+        //   paymentTerms: paymentTermsTemplate,
+        //   firstSOName
+        // });
 
         setFormData({
           customer: completeDnData.customer || '',
@@ -461,14 +461,14 @@ export default function SalesInvoiceMain() {
           discount_percentage: completeDnData.discount_percentage || 0,
         });
         
-        console.log('[DEBUG] Setting formData dates:', { postingDate, dueDate });
+        // console.log('[DEBUG] Setting formData dates:', { postingDate, dueDate });
         
         // Copy sales_team from DN
         const loadedSalesTeam = completeDnData.sales_team?.map((member: any) => ({
           sales_person: member.sales_person || '',
           allocated_percentage: member.allocated_percentage || 0
         })) || [];
-        console.log('[DEBUG] Loaded sales_team:', loadedSalesTeam);
+        // console.log('[DEBUG] Loaded sales_team:', loadedSalesTeam);
         setSalesTeam(loadedSalesTeam);
         setShowDeliveryNoteDialog(false);
         setError('');
@@ -547,11 +547,11 @@ export default function SalesInvoiceMain() {
       
       const grandTotal = netTotal + totalTaxes;
 
-      console.log('[DEBUG] Submitting SI with sales_team:', salesTeam);
-      console.log('[DEBUG] FormData dates:', { posting: formData.posting_date, due: formData.due_date });
-      console.log('[DEBUG] Discount:', { amount: finalDiscountAmount, percentage: discountPercentage });
-      console.log('[DEBUG] Taxes:', taxesPayload);
-      console.log('[DEBUG] Totals:', { total, netTotal, totalTaxes, grandTotal });
+      // console.log('[DEBUG] Submitting SI with sales_team:', salesTeam);
+      // console.log('[DEBUG] FormData dates:', { posting: formData.posting_date, due: formData.due_date });
+      // console.log('[DEBUG] Discount:', { amount: finalDiscountAmount, percentage: discountPercentage });
+      // console.log('[DEBUG] Taxes:', taxesPayload);
+      // console.log('[DEBUG] Totals:', { total, netTotal, totalTaxes, grandTotal });
 
       const invoicePayload = {
         company: selectedCompany,
@@ -612,7 +612,7 @@ export default function SalesInvoiceMain() {
         total_taxes_and_charges: totalTaxes,
       };
 
-      console.log('[DEBUG] SI Payload:', JSON.stringify(invoicePayload, null, 2));
+      // console.log('[DEBUG] SI Payload:', JSON.stringify(invoicePayload, null, 2));
 
       // Use PUT if editing OR if doc was already created in this session (retry guard)
       const existingName = editingInvoice || createdDocName.current;
@@ -901,7 +901,7 @@ export default function SalesInvoiceMain() {
                 type="Sales"
                 value={selectedTaxTemplate?.name || ''}
                 onChange={(template) => {
-                  console.log('[DEBUG] Tax template selected:', template);
+                  // console.log('[DEBUG] Tax template selected:', template);
                   setSelectedTaxTemplate(template);
                   if (template) {
                     setFormData({ ...formData, taxes_and_charges: template.name });

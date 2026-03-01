@@ -21,8 +21,8 @@ export async function GET(request: NextRequest) {
     const company = searchParams.get('company');
     const searchTerm = searchParams.get('search');
 
-    console.log('Testing Items with pagination...');
-    console.log('Parameters:', { limit, start, company, searchTerm });
+    // console.log('Testing Items with pagination...');
+    // console.log('Parameters:', { limit, start, company, searchTerm });
 
     // Get total count using pagination loop
     let totalCount = 0;
@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
         
         pageStart += pageSize;
       }
-      console.log('Total count:', totalCount, searchTerm ? `(search: ${searchTerm})` : '');
+      // console.log('Total count:', totalCount, searchTerm ? `(search: ${searchTerm})` : '');
     } catch (error) {
       console.log('Error getting total count:', error);
     }
@@ -65,12 +65,12 @@ export async function GET(request: NextRequest) {
     // Build ERPNext URL with dynamic pagination
     let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Item?fields=["item_code","item_name","item_group","stock_uom","opening_stock","last_purchase_rate"]&limit_page_length=${limit}&limit_start=${start}`;
     
-    console.log('ERPNext URL:', erpNextUrl);
+    // console.log('ERPNext URL:', erpNextUrl);
     
     // Add search filter if provided (remove company filter)
     if (searchTerm) {
       erpNextUrl += `&filters=[["item_name","like","%${searchTerm}%"]]`;
-      console.log('Search filter applied for:', searchTerm);
+      // console.log('Search filter applied for:', searchTerm);
     }
 
     const response = await fetch(erpNextUrl, {
@@ -82,23 +82,23 @@ export async function GET(request: NextRequest) {
     });
 
     const data = await response.json();
-    console.log('Items API - Status:', response.status);
-    console.log('Items API - Full response structure:', JSON.stringify(data, null, 2));
+    // console.log('Items API - Status:', response.status);
+    // console.log('Items API - Full response structure:', JSON.stringify(data, null, 2));
     
     // Log structure details
-    if (data.data && data.data.length > 0) {
-      console.log('First item structure:', JSON.stringify(data.data[0], null, 2));
-      console.log('Available fields:', Object.keys(data.data[0]));
-      console.log('Price fields check:', {
-        last_purchase_rate: data.data[0].last_purchase_rate,
-        valuation_rate: data.data[0].valuation_rate
-      });
-    }
+    // if (data.data && data.data.length > 0) {
+    //   console.log('First item structure:', JSON.stringify(data.data[0], null, 2));
+    //   console.log('Available fields:', Object.keys(data.data[0]));
+    //   console.log('Price fields check:', {
+    //     last_purchase_rate: data.data[0].last_purchase_rate,
+    //     valuation_rate: data.data[0].valuation_rate
+    //   });
+    // }
 
     if (response.ok) {
       const totalRecords = totalCount || data.data?.length || 0;
-      console.log('API Response - Total records:', totalRecords);
-      console.log('API Response - Data length:', data.data?.length || 0);
+      // console.log('API Response - Total records:', totalRecords);
+      // console.log('API Response - Data length:', data.data?.length || 0);
       
       return NextResponse.json({
         success: true,

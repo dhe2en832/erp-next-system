@@ -4,7 +4,7 @@ const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
 
 export async function GET(request: NextRequest) {
   try {
-    console.log('=== GET COMPANY ACCOUNTS ===');
+    // console.log('=== GET COMPANY ACCOUNTS ===');
     
     const { searchParams } = new URL(request.url);
     const company = searchParams.get('company');

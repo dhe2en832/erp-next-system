@@ -27,7 +27,7 @@ export type AuthMethod = 'api_key' | 'session';
  */
 export async function getCSRFToken(sid: string): Promise<string | null> {
   try {
-    console.log('Fetching CSRF token from ERPNext...');
+    // console.log('Fetching CSRF token from ERPNext...');
     
     const response = await fetch(
       `${ERPNEXT_API_URL}/api/method/frappe.auth.get_csrf_token`,
@@ -43,11 +43,11 @@ export async function getCSRFToken(sid: string): Promise<string | null> {
       const data = await response.json();
       const token = data.message?.csrf_token || null;
       
-      if (token) {
-        console.log('CSRF token obtained successfully');
-      } else {
-        console.warn('CSRF token not found in response');
-      }
+      // if (token) {
+      //   console.log('CSRF token obtained successfully');
+      // } else {
+      //   console.warn('CSRF token not found in response');
+      // }
       
       return token;
     } else {
@@ -166,11 +166,11 @@ export function isRequestProtected(headers: Record<string, string>): boolean {
 export function logCSRFProtectionStatus(): void {
   const validation = validateCSRFProtection();
   
-  console.log('=== CSRF Protection Status ===');
-  console.log(`Protected: ${validation.protected}`);
-  console.log(`Method: ${validation.method}`);
-  console.log(`Message: ${validation.message}`);
-  console.log('==============================');
+  // console.log('=== CSRF Protection Status ===');
+  // console.log(`Protected: ${validation.protected}`);
+  // console.log(`Method: ${validation.method}`);
+  // console.log(`Message: ${validation.message}`);
+  // console.log('==============================');
 }
 
 /**

@@ -35,7 +35,7 @@ export default function SupplierDialog({ isOpen, onClose, onSelect, company }: S
       });
       const data = await response.json();
       
-      console.log('Suppliers API Response:', data);
+      // console.log('Suppliers API Response:', data);
       
       if (data.success) {
         setSuppliers(data.data || []);

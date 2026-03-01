@@ -6,7 +6,7 @@ const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
 // Helper function to get CSRF token from ERPNext
 async function getCSRFToken(sid: string): Promise<string | null> {
   try {
-    console.log('Attempting to get CSRF token with sid:', sid.substring(0, 10) + '...');
+    // console.log('Attempting to get CSRF token with sid:', sid.substring(0, 10) + '...');
     
     const response = await fetch(`${ERPNEXT_API_URL}/api/method/frappe.auth.get_csrf_token`, {
       method: 'GET',
@@ -17,14 +17,14 @@ async function getCSRFToken(sid: string): Promise<string | null> {
       credentials: 'include',
     });
 
-    console.log('CSRF Token Response Status:', response.status);
-    console.log('CSRF Token Response OK:', response.ok);
+    // console.log('CSRF Token Response Status:', response.status);
+    // console.log('CSRF Token Response OK:', response.ok);
 
     if (response.ok) {
       const data = await response.json();
-      console.log('CSRF Token Response Data:', data);
+      // console.log('CSRF Token Response Data:', data);
       const token = data.message?.csrf_token || null;
-      console.log('Extracted CSRF Token:', token ? token.substring(0, 10) + '...' : 'null');
+      // console.log('Extracted CSRF Token:', token ? token.substring(0, 10) + '...' : 'null');
       return token;
     } else {
       const errorText = await response.text();
@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
         );
       }
 
-      console.log(`Fetching Purchase Invoice ${id} for company ${company}`);
+      // console.log(`Fetching Purchase Invoice ${id} for company ${company}`);
 
       // Fetch single Purchase Invoice with all fields
       const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Purchase Invoice/${id}?fields=["*"]`;
@@ -85,7 +85,7 @@ export async function GET(request: NextRequest) {
       );
 
       const data = await response.json();
-      console.log('Purchase Invoice detail response:', data);
+      // console.log('Purchase Invoice detail response:', data);
 
       if (response.ok) {
         const invoice = data.data;
@@ -122,12 +122,12 @@ export async function GET(request: NextRequest) {
           invoice.items = [];
         }
         
-        console.log('Invoice with items:', invoice);
-        console.log('Items count:', invoice.items.length);
-        console.log('All invoice fields:', Object.keys(invoice));
-        console.log('Custom notes field value:', invoice.custom_note_pi);
-        console.log('Custom notes pr field value:', invoice.custom_notes_pr);
-        console.log('Remarks field value:', invoice.remarks);
+        // console.log('Invoice with items:', invoice);
+        // console.log('Items count:', invoice.items.length);
+        // console.log('All invoice fields:', Object.keys(invoice));
+        // console.log('Custom notes field value:', invoice.custom_note_pi);
+        // console.log('Custom notes pr field value:', invoice.custom_notes_pr);
+        // console.log('Remarks field value:', invoice.remarks);
 
         // Get supplier details for address display
         let supplierAddressDisplay = '';
@@ -187,7 +187,7 @@ export async function GET(request: NextRequest) {
           }))
         };
 
-        console.log('Transformed Purchase Invoice:', transformedInvoice);
+        // console.log('Transformed Purchase Invoice:', transformedInvoice);
 
         return NextResponse.json({
           success: true,
@@ -270,7 +270,7 @@ export async function GET(request: NextRequest) {
     );
 
     const data = await response.json();
-    console.log('Purchase Invoice response:', data);
+    // console.log('Purchase Invoice response:', data);
 
     if (response.ok) {
       // Add backward compatibility - Requirements 3.8, 14.2, 14.5
@@ -345,19 +345,19 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    console.log('Updating Purchase Invoice:', {
-      id,
-      supplier,
-      posting_date,
-      due_date,
-      company,
-      currency,
-      remarks,
-      items_count: items?.length || 0
-    });
+    // console.log('Updating Purchase Invoice:', {
+    //   id,
+    //   supplier,
+    //   posting_date,
+    //   due_date,
+    //   company,
+    //   currency,
+    //   remarks,
+    //   items_count: items?.length || 0
+    // });
 
-    console.log('Request body fields:', Object.keys(body));
-    console.log('Full request body:', body);
+    // console.log('Request body fields:', Object.keys(body));
+    // console.log('Full request body:', body);
 
     // Prepare invoice data for ERPNext
     const invoiceData = {
@@ -384,7 +384,7 @@ export async function PUT(request: NextRequest) {
       }))
     };
 
-    console.log('Invoice Data for ERPNext:', invoiceData);
+    // console.log('Invoice Data for ERPNext:', invoiceData);
 
     const response = await fetch(`${ERPNEXT_API_URL}/api/resource/Purchase Invoice/${id}`, {
       method: 'PUT',
@@ -396,11 +396,11 @@ export async function PUT(request: NextRequest) {
     });
 
     const data = await response.json();
-    console.log('ERPNext Update Response:', data);
-    console.log('ERPNext Update Response fields:', Object.keys(data.data || {}));
-    console.log('Remarks field in update response:', data.data?.remarks);
-    console.log('Custom notes field in update response:', data.data?.custom_notes_pi);
-    console.log('Custom notes pr field in update response:', data.data?.custom_notes_pr);
+    // console.log('ERPNext Update Response:', data);
+    // console.log('ERPNext Update Response fields:', Object.keys(data.data || {}));
+    // console.log('Remarks field in update response:', data.data?.remarks);
+    // console.log('Custom notes field in update response:', data.data?.custom_notes_pi);
+    // console.log('Custom notes pr field in update response:', data.data?.custom_notes_pr);
 
     if (response.ok) {
       return NextResponse.json({
@@ -430,7 +430,7 @@ export async function PUT(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('=== CREATE PURCHASE INVOICE - ERPNEXT REST API ===');
+    // console.log('=== CREATE PURCHASE INVOICE - ERPNEXT REST API ===');
     
     // Use API key authentication
     const apiKey = process.env.ERP_API_KEY;
@@ -446,7 +446,7 @@ export async function POST(request: NextRequest) {
     }
 
     const invoiceData: CreatePurchaseInvoiceRequest = await request.json();
-    console.log('Purchase Invoice Data:', JSON.stringify(invoiceData, null, 2));
+    // console.log('Purchase Invoice Data:', JSON.stringify(invoiceData, null, 2));
 
     if (!invoiceData.supplier || !invoiceData.company) {
       return NextResponse.json(
@@ -486,11 +486,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Priority rule: discount_amount > discount_percentage - Requirement 5.4
-    console.log('Discount validation passed:', {
-      discount_percentage: invoiceData.discount_percentage,
-      discount_amount: invoiceData.discount_amount,
-      subtotal
-    });
+    // console.log('Discount validation passed:', {
+    //   discount_percentage: invoiceData.discount_percentage,
+    //   discount_amount: invoiceData.discount_amount,
+    //   subtotal
+    // });
 
     // Validate tax template if provided - Requirements 5.3, 5.7
     if (invoiceData.taxes_and_charges) {
@@ -545,7 +545,7 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        console.log('Tax template validation passed:', invoiceData.taxes_and_charges);
+        // console.log('Tax template validation passed:', invoiceData.taxes_and_charges);
       } catch (error: any) {
         console.error('Tax template validation error:', error);
         return NextResponse.json({
@@ -556,17 +556,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    console.log('Creating Purchase Invoice:', {
-      supplier: invoiceData.supplier,
-      posting_date: invoiceData.posting_date,
-      due_date: invoiceData.due_date,
-      company: invoiceData.company,
-      currency: invoiceData.currency,
-      discount_amount: invoiceData.discount_amount,
-      discount_percentage: invoiceData.discount_percentage,
-      taxes_and_charges: invoiceData.taxes_and_charges,
-      items_count: invoiceData.items?.length || 0
-    });
+    // console.log('Creating Purchase Invoice:', {
+    //   supplier: invoiceData.supplier,
+    //   posting_date: invoiceData.posting_date,
+    //   due_date: invoiceData.due_date,
+    //   company: invoiceData.company,
+    //   currency: invoiceData.currency,
+    //   discount_amount: invoiceData.discount_amount,
+    //   discount_percentage: invoiceData.discount_percentage,
+    //   taxes_and_charges: invoiceData.taxes_and_charges,
+    //   items_count: invoiceData.items?.length || 0
+    // });
 
     // Prepare invoice data for ERPNext with discount and tax support
     const payload: any = {
@@ -622,12 +622,12 @@ export async function POST(request: NextRequest) {
       payload.outstanding_amount = invoiceData.outstanding_amount || invoiceData.grand_total;
     }
 
-    console.log('Final Payload:', JSON.stringify(payload, null, 2));
+    // console.log('Final Payload:', JSON.stringify(payload, null, 2));
 
     // Create Purchase Invoice using ERPNext REST API
     const erpNextUrl = `${baseUrl}/api/resource/Purchase Invoice`;
     
-    console.log('ERPNext REST API URL:', erpNextUrl);
+    // console.log('ERPNext REST API URL:', erpNextUrl);
 
     const response = await fetch(erpNextUrl, {
       method: 'POST',
@@ -638,10 +638,10 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify(payload)
     });
 
-    console.log('ERPNext Response Status:', response.status);
+    // console.log('ERPNext Response Status:', response.status);
 
     const responseText = await response.text();
-    console.log('ERPNext Response Text:', responseText);
+    // console.log('ERPNext Response Text:', responseText);
 
     if (!response.ok) {
       console.error('ERPNext API Error:', responseText);
@@ -656,7 +656,7 @@ export async function POST(request: NextRequest) {
     let data;
     try {
       data = JSON.parse(responseText);
-      console.log('ERPNext Success Response:', data);
+      // console.log('ERPNext Success Response:', data);
     } catch (parseError) {
       console.error('Error parsing JSON response:', parseError);
       return NextResponse.json({

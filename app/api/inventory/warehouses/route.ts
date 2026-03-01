@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     // Build ERPNext URL
     const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Warehouse?fields=["name","warehouse_name","company","is_group","parent_warehouse"]&filters=${encodeURIComponent(filters)}&order_by=warehouse_name&limit_page_length=500`;
 
-    console.log('Warehouses ERPNext URL:', erpNextUrl);
+    // console.log('Warehouses ERPNext URL:', erpNextUrl);
 
     const response = await fetch(
       erpNextUrl,
@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
     );
 
     const data = await response.json();
-    console.log('Warehouses response:', data);
+    // console.log('Warehouses response:', data);
 
     if (response.ok) {
       return NextResponse.json({
@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
     
     if (apiKey && apiSecret) {
       headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-      console.log('Using API Key authentication for warehouse POST');
+      // console.log('Using API Key authentication for warehouse POST');
     } else {
       // Fallback to session
       const cookies = request.cookies;
@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
       }
       
       headers['Cookie'] = `sid=${sid}`;
-      console.log('Using session authentication for warehouse POST');
+      // console.log('Using session authentication for warehouse POST');
     }
 
     const warehouseData = {
@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
       ...(parent_warehouse && { parent_warehouse })
     };
 
-    console.log('Creating warehouse:', warehouseData);
+    // console.log('Creating warehouse:', warehouseData);
 
     const response = await fetch(`${ERPNEXT_API_URL}/api/resource/Warehouse`, {
       method: 'POST',
@@ -130,11 +130,11 @@ export async function POST(request: NextRequest) {
 
     const data = await response.json();
     
-    console.log('Create Warehouse Response:', {
-      status: response.status,
-      warehouseData,
-      erpNextResponse: data
-    });
+    // console.log('Create Warehouse Response:', {
+    //   status: response.status,
+    //   warehouseData,
+    //   erpNextResponse: data
+    // });
 
     if (response.ok) {
       return NextResponse.json({
@@ -180,7 +180,7 @@ export async function PUT(request: NextRequest) {
     
     if (apiKey && apiSecret) {
       headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-      console.log('Using API Key authentication for warehouse PUT');
+      // console.log('Using API Key authentication for warehouse PUT');
     } else {
       // Fallback to session
       const cookies = request.cookies;
@@ -194,7 +194,7 @@ export async function PUT(request: NextRequest) {
       }
       
       headers['Cookie'] = `sid=${sid}`;
-      console.log('Using session authentication for warehouse PUT');
+      // console.log('Using session authentication for warehouse PUT');
     }
 
     const warehouseData = {
@@ -204,7 +204,7 @@ export async function PUT(request: NextRequest) {
       ...(parent_warehouse && { parent_warehouse })
     };
 
-    console.log('Updating warehouse:', { name, warehouseData });
+    // console.log('Updating warehouse:', { name, warehouseData });
 
     const response = await fetch(`${ERPNEXT_API_URL}/api/resource/Warehouse/${encodeURIComponent(name)}`, {
       method: 'PUT',
@@ -214,12 +214,12 @@ export async function PUT(request: NextRequest) {
 
     const data = await response.json();
     
-    console.log('Update Warehouse Response:', {
-      status: response.status,
-      name,
-      warehouseData,
-      erpNextResponse: data
-    });
+    // console.log('Update Warehouse Response:', {
+    //   status: response.status,
+    //   name,
+    //   warehouseData,
+    //   erpNextResponse: data
+    // });
 
     if (response.ok) {
       return NextResponse.json({

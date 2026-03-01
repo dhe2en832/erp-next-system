@@ -63,8 +63,8 @@ export async function GET(request: NextRequest) {
     const basicFields = ["name","voucher_type","posting_date","user_remark","company","creation","docstatus"];
     let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Journal Entry?fields=${encodeURIComponent(JSON.stringify(basicFields))}&filters=${encodeURIComponent(JSON.stringify(filters))}&limit_page_length=${limit_page_length}&limit_start=${start}&order_by=${encodeURIComponent(order_by)}`;
 
-    console.log('Journal ERPNext URL:', erpNextUrl);
-    console.log('Filters:', JSON.stringify(filters, null, 2));
+    // console.log('Journal ERPNext URL:', erpNextUrl);
+    // console.log('Filters:', JSON.stringify(filters, null, 2));
 
     const response = await fetch(erpNextUrl, {
       method: 'GET',
@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
     });
 
     const data = await response.json();
-    console.log('Journal Response (first 2 entries):', JSON.stringify(data.data?.slice(0, 2), null, 2));
+    // console.log('Journal Response (first 2 entries):', JSON.stringify(data.data?.slice(0, 2), null, 2));
 
     if (response.ok && data.data) {
       // Fetch detailed data for each entry to get accounts
@@ -92,7 +92,7 @@ export async function GET(request: NextRequest) {
               const detailData = await detailResponse.json();
               const accounts = detailData.data?.accounts || [];
               
-              console.log(`Accounts for ${entry.name}:`, accounts.length, 'entries');
+              // console.log(`Accounts for ${entry.name}:`, accounts.length, 'entries');
               
               accounts.forEach((acc: any) => {
                 const debit = parseFloat(acc.debit_in_account_currency || acc.debit || 0);
@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
                 total_credit += credit;
               });
               
-              console.log(`Totals for ${entry.name}: debit=${total_debit}, credit=${total_credit}`);
+              // console.log(`Totals for ${entry.name}: debit=${total_debit}, credit=${total_credit}`);
             }
           } catch (err) {
             console.error(`Failed to fetch accounts for ${entry.name}:`, err);

@@ -99,8 +99,8 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     
-    console.log('=== Create Delivery Note API Called ===');
-    console.log('Request body:', JSON.stringify(body).substring(0, 200));
+    // console.log('=== Create Delivery Note API Called ===');
+    // console.log('Request body:', JSON.stringify(body).substring(0, 200));
 
     // Build ERPNext API URL for creating delivery note
     const erpnextUrl = `${ERPNEXT_API_URL}/api/resource/Delivery Note`;

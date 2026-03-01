@@ -262,9 +262,11 @@ export default function ReviewBalancesPage() {
             Akun-akun ini akan ditutup ke laba ditahan
           </p>
         </div>
-        <div className="overflow-x-auto">
+        
+        {/* Scrollable Table Container - Max height 400px */}
+        <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50 sticky top-0 z-10">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Akun
@@ -319,22 +321,24 @@ export default function ReviewBalancesPage() {
                 ))
               )}
             </tbody>
-            {nominalAccounts.length > 0 && (
-              <tfoot className="bg-gray-50">
-                <tr>
-                  <td colSpan={4} className="px-6 py-3 text-sm font-semibold text-gray-900 text-right">
-                    Laba/Rugi Bersih:
-                  </td>
-                  <td className={`px-6 py-3 text-sm font-bold text-right ${
-                    netIncome >= 0 ? 'text-green-600' : 'text-red-600'
-                  }`}>
-                    {formatCurrency(netIncome)}
-                  </td>
-                </tr>
-              </tfoot>
-            )}
           </table>
         </div>
+        
+        {/* Net Income Summary - Outside scrollable container */}
+        {nominalAccounts.length > 0 && (
+          <div className="border-t border-gray-200 bg-gray-50 px-6 py-4">
+            <div className="flex justify-between items-center">
+              <span className="text-sm font-semibold text-gray-900">
+                Laba/Rugi Bersih:
+              </span>
+              <span className={`text-lg font-bold ${
+                netIncome >= 0 ? 'text-green-600' : 'text-red-600'
+              }`}>
+                {formatCurrency(netIncome)}
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Real Accounts (Asset, Liability, Equity) */}

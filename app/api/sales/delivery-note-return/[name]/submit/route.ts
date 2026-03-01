@@ -21,8 +21,8 @@ export async function POST(
 ) {
   try {
     const { name } = await params;
-    console.log('=== SUBMIT DELIVERY NOTE RETURN ===');
-    console.log('Return Name:', name);
+    // console.log('=== SUBMIT DELIVERY NOTE RETURN ===');
+    // console.log('Return Name:', name);
 
     const cookies = request.cookies;
     const sid = cookies.get('sid')?.value;
@@ -38,10 +38,10 @@ export async function POST(
     
     if (apiKey && apiSecret) {
       headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-      console.log('Using API key authentication');
+      // console.log('Using API key authentication');
     } else if (sid) {
       headers['Cookie'] = `sid=${sid}`;
-      console.log('Using session-based authentication');
+      // console.log('Using session-based authentication');
       
       try {
         const csrfResponse = await fetch(`${ERPNEXT_API_URL}/api/method/frappe.core.csrf.get_token`, {
@@ -53,7 +53,7 @@ export async function POST(
           const csrfData = await csrfResponse.json();
           if (csrfData.message?.csrf_token) {
             headers['X-Frappe-CSRF-Token'] = csrfData.message.csrf_token;
-            console.log('CSRF token added');
+            // console.log('CSRF token added');
           }
         }
       } catch (csrfError) {
@@ -106,8 +106,8 @@ export async function POST(
       }),
     };
 
-    console.log('Submitting delivery note return:', submitUrl);
-    console.log('Document modified timestamp:', currentDoc.data.modified);
+    // console.log('Submitting delivery note return:', submitUrl);
+    // console.log('Document modified timestamp:', currentDoc.data.modified);
 
     const response = await fetch(submitUrl, {
       method: 'POST',
@@ -116,7 +116,7 @@ export async function POST(
     });
 
     const responseText = await response.text();
-    console.log('Submit Response Status:', response.status);
+    // console.log('Submit Response Status:', response.status);
     
     let data;
     try {
@@ -131,7 +131,7 @@ export async function POST(
       );
     }
 
-    console.log('Submit Response Data:', data);
+    // console.log('Submit Response Data:', data);
 
     if (response.ok) {
       // Transform response to match frontend expectations

@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
       }, { status: 500 });
     }
 
-    console.log('Preview Sales Invoice Commission for DN:', delivery_note);
+    // console.log('Preview Sales Invoice Commission for DN:', delivery_note);
 
     // Call ERPNext method for commission preview
     const methodUrl = `${BASE_URL}/api/method/preview_sales_invoice_commission`;
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    console.log('Commission Preview Response Status:', response.status);
+    // console.log('Commission Preview Response Status:', response.status);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await response.json();
-    console.log('Commission Preview Response Data:', data);
+    // console.log('Commission Preview Response Data:', data);
 
     // Return the preview data directly from ERPNext
     return NextResponse.json({

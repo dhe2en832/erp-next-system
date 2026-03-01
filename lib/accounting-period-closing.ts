@@ -58,77 +58,76 @@ export interface AccountingPeriod {
 export async function getNominalAccountBalances(
   period: AccountingPeriod
 ): Promise<AccountBalance[]> {
-  // Get all GL entries for the period
-  const filters = [
-    ['company', '=', period.company],
-    ['posting_date', '>=', period.start_date],
-    ['posting_date', '<=', period.end_date],
-    ['is_cancelled', '=', 0]
-  ];
-  
-  const glEntries = await erpnextClient.getList('GL Entry', {
-    filters,
-    fields: ['account', 'debit', 'credit'],
-    limit_page_length: 999999
-  });
-  
-  // Aggregate by account
-  const accountMap = new Map<string, { debit: number; credit: number }>();
-  
-  for (const entry of glEntries) {
-    const existing = accountMap.get(entry.account) || { debit: 0, credit: 0 };
-    accountMap.set(entry.account, {
-      debit: existing.debit + (entry.debit || 0),
-      credit: existing.credit + (entry.credit || 0)
-    });
-  }
-  
-  // Get account details for accounts with balances
-  const accountNames = Array.from(accountMap.keys());
-  if (accountNames.length === 0) {
-    return [];
-  }
-  
-  const accounts = await erpnextClient.getList('Account', {
+  // Step 1: Fetch ALL Income/Expense accounts from Chart of Accounts first
+  const allNominalAccounts = await erpnextClient.getList('Account', {
     filters: [
-      ['name', 'in', accountNames],
+      ['company', '=', period.company],
       ['root_type', 'in', ['Income', 'Expense']],
       ['is_group', '=', 0]
     ],
     fields: ['name', 'account_name', 'account_type', 'root_type', 'is_group'],
     limit_page_length: 999999
   });
-  
-  // Build result with only non-zero balances
+
+  // Step 2: Initialize accountMap with all nominal accounts having zero balances
+  const accountMap = new Map<string, { debit: number; credit: number }>();
+  for (const account of allNominalAccounts) {
+    accountMap.set(account.name, { debit: 0, credit: 0 });
+  }
+
+  // Step 3: Query GL entries for the period and augment the accountMap
+  const filters = [
+    ['company', '=', period.company],
+    ['posting_date', '>=', period.start_date],
+    ['posting_date', '<=', period.end_date],
+    ['is_cancelled', '=', 0]
+  ];
+
+  const glEntries = await erpnextClient.getList('GL Entry', {
+    filters,
+    fields: ['account', 'debit', 'credit'],
+    limit_page_length: 999999
+  });
+
+  // Update existing entries in accountMap (don't create new ones)
+  for (const entry of glEntries) {
+    const existing = accountMap.get(entry.account);
+    if (existing) {
+      accountMap.set(entry.account, {
+        debit: existing.debit + (entry.debit || 0),
+        credit: existing.credit + (entry.credit || 0)
+      });
+    }
+  }
+
+  // Step 4: Build result from ALL nominal accounts (including zero-balance ones)
   const result: AccountBalance[] = [];
-  
-  for (const account of accounts) {
+
+  for (const account of allNominalAccounts) {
     const totals = accountMap.get(account.name);
     if (!totals) continue;
-    
+
     // Calculate balance based on account type
     // Income has credit balance (credit - debit)
     // Expense has debit balance (debit - credit)
     const balance = account.root_type === 'Income'
       ? totals.credit - totals.debit
       : totals.debit - totals.credit;
-    
-    // Only include accounts with non-zero balance
-    if (Math.abs(balance) > 0.01) {
-      result.push({
-        account: account.name,
-        account_name: account.account_name,
-        account_type: account.account_type,
-        root_type: account.root_type,
-        is_group: account.is_group,
-        debit: totals.debit,
-        credit: totals.credit,
-        balance: balance,
-        is_nominal: true
-      });
-    }
+
+    // Include ALL Income/Expense accounts (even with zero balance)
+    result.push({
+      account: account.name,
+      account_name: account.account_name,
+      account_type: account.account_type,
+      root_type: account.root_type,
+      is_group: account.is_group,
+      debit: totals.debit,
+      credit: totals.credit,
+      balance: balance,
+      is_nominal: true
+    });
   }
-  
+
   return result;
 }
 
@@ -180,7 +179,7 @@ export async function createClosingJournalEntry(
     if (account.root_type === 'Income' && Math.abs(account.balance) > 0.01) {
       journalAccounts.push({
         account: account.account,
-        debit_in_account_currency: Math.abs(account.balance),
+        debit_in_account_currency: account.balance, // Use actual balance (positive for income)
         credit_in_account_currency: 0,
         user_remark: `Closing ${account.account_name} for period ${period.period_name}`
       });
@@ -193,7 +192,7 @@ export async function createClosingJournalEntry(
       journalAccounts.push({
         account: account.account,
         debit_in_account_currency: 0,
-        credit_in_account_currency: Math.abs(account.balance),
+        credit_in_account_currency: account.balance, // Use actual balance (positive for expense)
         user_remark: `Closing ${account.account_name} for period ${period.period_name}`
       });
     }
@@ -377,7 +376,7 @@ export async function createAuditLog(logData: {
 export async function sendClosingNotifications(period: AccountingPeriod): Promise<void> {
   // TODO: Implement actual notification sending
   // For now, just log
-  console.log(`Notification: Period ${period.period_name} has been closed`);
+  // console.log(`Notification: Period ${period.period_name} has been closed`);
   
   // In production, this would:
   // 1. Get users with 'Accounts Manager' role

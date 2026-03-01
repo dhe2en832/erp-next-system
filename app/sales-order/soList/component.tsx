@@ -251,7 +251,7 @@ export default function SalesOrderList() {
 
       if (result.success) {
         const ordersData = result.data || [];
-        console.log('Unique statuses:', [...new Set(ordersData.map((o: SalesOrder) => o.status))]);
+        // console.log('Unique statuses:', [...new Set(ordersData.map((o: SalesOrder) => o.status))]);
 
 
         if (result.total_records !== undefined) {
@@ -459,12 +459,12 @@ export default function SalesOrderList() {
         }
         
         // Debug: Log available address fields
-        console.log('Order data for print:', {
-          address_display: orderData.address_display,
-          customer_address: orderData.customer_address,
-          shipping_address_name: orderData.shipping_address_name,
-          fetched_customer_address: customerAddress,
-        });
+        // console.log('Order data for print:', {
+        //   address_display: orderData.address_display,
+        //   customer_address: orderData.customer_address,
+        //   shipping_address_name: orderData.shipping_address_name,
+        //   fetched_customer_address: customerAddress,
+        // });
         
         setPrintOrderData({
           ...orderData,

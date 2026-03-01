@@ -8,16 +8,16 @@ export async function POST(
   { params }: { params: Promise<{ piName: string }> }
 ) {
   try {
-    console.log('=== SUBMIT API CALLED ===');
+    // console.log('=== SUBMIT API CALLED ===');
     
     // Await params in Next.js 15+
     const resolvedParams = await params;
-    console.log('Resolved params:', resolvedParams);
+    // console.log('Resolved params:', resolvedParams);
     
     const { piName } = resolvedParams;
     
-    console.log(`Extracted piName: ${piName}`);
-    console.log(`Submitting Purchase Invoice: ${piName}`);
+    // console.log(`Extracted piName: ${piName}`);
+    // console.log(`Submitting Purchase Invoice: ${piName}`);
 
     // Use API key authentication
     const apiKey = process.env.ERP_API_KEY;
@@ -36,7 +36,7 @@ export async function POST(
       'Authorization': `token ${apiKey}:${apiSecret}`,
     };
 
-    console.log('Using REST API PUT method to submit Purchase Invoice:', piName);
+    // console.log('Using REST API PUT method to submit Purchase Invoice:', piName);
 
     // Use REST API update method - most reliable approach
     const response = await fetch(`${ERPNEXT_API_URL}/api/resource/Purchase%20Invoice/${encodeURIComponent(piName)}`, {
@@ -48,8 +48,8 @@ export async function POST(
     });
 
     const responseText = await response.text();
-    console.log('Submit Purchase Invoice ERPNext Response Status:', response.status);
-    console.log('Submit Purchase Invoice ERPNext Response Text:', responseText);
+    // console.log('Submit Purchase Invoice ERPNext Response Status:', response.status);
+    // console.log('Submit Purchase Invoice ERPNext Response Text:', responseText);
 
     let data;
     try {

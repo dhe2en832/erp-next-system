@@ -66,14 +66,14 @@ export default function TaxTemplateSelect({
       const result = await response.json();
       
       if (result.success) {
-        console.log('[TaxTemplateSelect] Loaded templates:', {
-          count: result.data?.length || 0,
-          templates: result.data?.map((t: TaxTemplate) => ({
-            name: t.name,
-            title: t.title,
-            taxesCount: t.taxes?.length || 0
-          }))
-        });
+        // console.log('[TaxTemplateSelect] Loaded templates:', {
+        //   count: result.data?.length || 0,
+        //   templates: result.data?.map((t: TaxTemplate) => ({
+        //     name: t.name,
+        //     title: t.title,
+        //     taxesCount: t.taxes?.length || 0
+        //   }))
+        // });
         setTemplates(result.data || []);
       } else {
         throw new Error(result.error || 'Gagal mengambil data template pajak');
@@ -91,19 +91,19 @@ export default function TaxTemplateSelect({
     setSelectedValue(templateName);
 
     if (!templateName) {
-      console.log('[TaxTemplateSelect] Cleared template selection');
+      // console.log('[TaxTemplateSelect] Cleared template selection');
       onChange(null);
       return;
     }
 
     const selectedTemplate = templates.find(t => t.name === templateName);
     if (selectedTemplate) {
-      console.log('[TaxTemplateSelect] Selected template:', {
-        name: selectedTemplate.name,
-        title: selectedTemplate.title,
-        taxesCount: selectedTemplate.taxes?.length || 0,
-        taxes: selectedTemplate.taxes
-      });
+      // console.log('[TaxTemplateSelect] Selected template:', {
+      //   name: selectedTemplate.name,
+      //   title: selectedTemplate.title,
+      //   taxesCount: selectedTemplate.taxes?.length || 0,
+      //   taxes: selectedTemplate.taxes
+      // });
       onChange(selectedTemplate);
     } else {
       console.warn('[TaxTemplateSelect] Template not found:', templateName);

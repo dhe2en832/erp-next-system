@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
     const liabilityAccount = commission_expense_account || `2150.0001 - Hutang Komisi Sales - ${companyAbbr}`;
     const cashAccount = paid_from_account;
 
-    console.log('[DEBUG] Using accounts:', { liabilityAccount, cashAccount, company });
+    // console.log('[DEBUG] Using accounts:', { liabilityAccount, cashAccount, company });
 
     // Step 1: Create Journal Entry for commission payment
     // Debit: Hutang Komisi Sales (liability) with Party Type Employee if employee_id provided
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
     }
 
     const journalEntryName = jeData.data?.name;
-    console.log('Journal Entry created:', journalEntryName);
+    // console.log('Journal Entry created:', journalEntryName);
 
     // Step 1b: Submit the Journal Entry (docstatus = 1)
     if (journalEntryName) {
@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
         );
         const submitData = await submitResponse.json();
         if (submitResponse.ok) {
-          console.log('Journal Entry submitted:', journalEntryName);
+          // console.log('Journal Entry submitted:', journalEntryName);
         } else {
           console.error('Failed to submit Journal Entry:', submitData);
         }

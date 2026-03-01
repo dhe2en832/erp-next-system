@@ -18,7 +18,7 @@ export async function GET(
     }
 
     const { item_code } = await params;
-    console.log('Fetching item details for:', item_code);
+    // console.log('Fetching item details for:', item_code);
 
     // Build ERPNext URL to get specific item by item_code
     const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Item/${encodeURIComponent(item_code)}?fields=["item_code","item_name","description","item_group","stock_uom","opening_stock","valuation_rate","standard_rate","brand","custom_financial_cost_percent"]`;
@@ -32,8 +32,8 @@ export async function GET(
     });
 
     const data = await response.json();
-    console.log('Item detail API - Status:', response.status);
-    console.log('Item detail API - Response:', JSON.stringify(data, null, 2));
+    // console.log('Item detail API - Status:', response.status);
+    // console.log('Item detail API - Response:', JSON.stringify(data, null, 2));
 
     if (response.ok && data.data) {
       return NextResponse.json({

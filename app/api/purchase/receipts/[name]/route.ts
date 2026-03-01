@@ -11,8 +11,8 @@ export async function GET(
     const { searchParams } = new URL(request.url);
     const company = searchParams.get('company');
 
-    console.log('Purchase Receipt Name:', name);
-    console.log('Company:', company);
+    // console.log('Purchase Receipt Name:', name);
+    // console.log('Company:', company);
 
     if (!company) {
       return NextResponse.json(
@@ -35,7 +35,7 @@ export async function GET(
     // Fetch full document without fields param - ERPNext returns complete doc with child tables
     const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Purchase Receipt/${encodeURIComponent(name)}`;
 
-    console.log('Fetch Purchase Receipt URL:', erpNextUrl);
+    // console.log('Fetch Purchase Receipt URL:', erpNextUrl);
 
     const response = await fetch(
       erpNextUrl,
@@ -79,8 +79,8 @@ export async function PUT(
     const { name } = await params;
     const purchaseReceiptData = await request.json();
 
-    console.log('Updating Purchase Receipt:', name);
-    console.log('Purchase Receipt Data:', purchaseReceiptData);
+    // console.log('Updating Purchase Receipt:', name);
+    // console.log('Purchase Receipt Data:', purchaseReceiptData);
 
     // Use API key authentication
     const apiKey = process.env.ERP_API_KEY;
@@ -132,7 +132,7 @@ export async function DELETE(
   try {
     const { name } = await params;
 
-    console.log('Deleting Purchase Receipt:', name);
+    // console.log('Deleting Purchase Receipt:', name);
 
     // Use API key authentication
     const apiKey = process.env.ERP_API_KEY;

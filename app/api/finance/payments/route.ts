@@ -4,7 +4,7 @@ const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
 
 export async function GET(request: NextRequest) {
   try {
-    console.log('=== Payment API Called ===');
+    // console.log('=== Payment API Called ===');
     
     const { searchParams } = new URL(request.url);
     const filters = searchParams.get('filters');
@@ -96,7 +96,7 @@ export async function GET(request: NextRequest) {
       erpNextUrl += '&order_by=creation desc';
     }
 
-    console.log('Payment ERPNext URL:', erpNextUrl);
+    // console.log('Payment ERPNext URL:', erpNextUrl);
 
     const response = await fetch(erpNextUrl, {
       method: 'GET',
@@ -104,7 +104,7 @@ export async function GET(request: NextRequest) {
     });
 
     const responseText = await response.text();
-    console.log('Payment ERPNext Response Status:', response.status);
+    // console.log('Payment ERPNext Response Status:', response.status);
     
     let data;
     try {
@@ -119,7 +119,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    console.log('Payment API Response:', { status: response.status, data });
+    // console.log('Payment API Response:', { status: response.status, data });
 
     if (response.ok) {
       return NextResponse.json({
@@ -133,12 +133,12 @@ export async function GET(request: NextRequest) {
       if (data.exc) {
         try {
           const excData = JSON.parse(data.exc);
-          console.log('Parsed Exception Data:', excData);
+          // console.log('Parsed Exception Data:', excData);
           errorMessage = excData.exc_type && excData.message 
             ? `${excData.exc_type}: ${excData.message}`
             : excData.exc_type || excData.message || 'Failed to fetch payments';
         } catch (e) {
-          console.log('Failed to parse exception, using raw data');
+          // console.log('Failed to parse exception, using raw data');
           errorMessage = data.message || data.exc || 'Failed to fetch payments';
         }
       } else if (data.message) {
@@ -146,10 +146,10 @@ export async function GET(request: NextRequest) {
       } else if (data._server_messages) {
         try {
           const serverMessages = JSON.parse(data._server_messages);
-          console.log('Parsed Server Messages:', serverMessages);
+          // console.log('Parsed Server Messages:', serverMessages);
           errorMessage = serverMessages[0]?.message || serverMessages[0] || errorMessage;
         } catch (e) {
-          console.log('Failed to parse server messages, using raw data');
+          // console.log('Failed to parse server messages, using raw data');
           errorMessage = data._server_messages;
         }
       } else if (data.error) {
@@ -219,17 +219,17 @@ export async function PUT(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('=== CREATE PAYMENT ENTRY ===');
-    console.log('🚨 POST REQUEST RECEIVED');
+    // console.log('=== CREATE PAYMENT ENTRY ===');
+    // console.log('🚨 POST REQUEST RECEIVED');
     
     const paymentData = await request.json();
-    console.log('🚨 BACKEND RAW BODY:', paymentData);
-    console.log('🚨 BACKEND paid_amount:', paymentData.paid_amount);
-    console.log('🚨 BACKEND received_amount:', paymentData.received_amount);
-    console.log('🚨 BACKEND payment_type:', paymentData.payment_type);
-    console.log('🚨 BACKEND type field:', paymentData.type);
-    console.log('🚨 BACKEND paid_from:', paymentData.paid_from);
-    console.log('🚨 BACKEND paid_to:', paymentData.paid_to);
+    // console.log('🚨 BACKEND RAW BODY:', paymentData);
+    // console.log('🚨 BACKEND paid_amount:', paymentData.paid_amount);
+    // console.log('🚨 BACKEND received_amount:', paymentData.received_amount);
+    // console.log('🚨 BACKEND payment_type:', paymentData.payment_type);
+    // console.log('🚨 BACKEND type field:', paymentData.type);
+    // console.log('🚨 BACKEND paid_from:', paymentData.paid_from);
+    // console.log('🚨 BACKEND paid_to:', paymentData.paid_to);
 
     const cookies = request.cookies;
     const sid = cookies.get('sid')?.value;
@@ -242,15 +242,15 @@ export async function POST(request: NextRequest) {
     const apiKey = process.env.ERP_API_KEY;
     const apiSecret = process.env.ERP_API_SECRET;
     
-    console.log(' API Key Available:', !!apiKey);
-    console.log(' API Secret Available:', !!apiSecret);
+    // console.log(' API Key Available:', !!apiKey);
+    // console.log(' API Secret Available:', !!apiSecret);
     
     if (apiKey && apiSecret) {
       headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-      console.log('Using API key authentication for payment');
+      // console.log('Using API key authentication for payment');
     } else if (sid) {
       headers['Cookie'] = `sid=${sid}`;
-      console.log('Using session-based authentication for payment');
+      // console.log('Using session-based authentication for payment');
       
       // Get CSRF token for ERPNext
       try {
@@ -265,7 +265,7 @@ export async function POST(request: NextRequest) {
           const csrfData = await csrfResponse.json();
           if (csrfData.message && csrfData.message.csrf_token) {
             headers['X-Frappe-CSRF-Token'] = csrfData.message.csrf_token;
-            console.log('CSRF token added to payment headers');
+            // console.log('CSRF token added to payment headers');
           }
         } else {
           console.warn('Failed to get CSRF token for payment, proceeding without it');
@@ -341,18 +341,18 @@ export async function POST(request: NextRequest) {
       custom_notes_payment: paymentData.custom_notes_payment || '',
     };
 
-    console.log('🚨 BACKEND FINAL PAYLOAD:', paymentPayload);
-    console.log('🚨 BACKEND FINAL paid_amount:', paymentPayload.paid_amount);
-    console.log('🚨 BACKEND FINAL received_amount:', paymentPayload.received_amount);
-    console.log('🚨 BACKEND FINAL type:', paymentPayload.type);
-    console.log('🚨 BACKEND FINAL paid_from:', paymentPayload.paid_from);
-    console.log('🚨 BACKEND FINAL paid_to:', paymentPayload.paid_to);
-    console.log('Payment Payload:', paymentPayload);
-    console.log('ERPNext API URL:', `${ERPNEXT_API_URL}/api/resource/Payment Entry`);
-    console.log('Request Headers:', headers);
+    // console.log('🚨 BACKEND FINAL PAYLOAD:', paymentPayload);
+    // console.log('🚨 BACKEND FINAL paid_amount:', paymentPayload.paid_amount);
+    // console.log('🚨 BACKEND FINAL received_amount:', paymentPayload.received_amount);
+    // console.log('🚨 BACKEND FINAL type:', paymentPayload.type);
+    // console.log('🚨 BACKEND FINAL paid_from:', paymentPayload.paid_from);
+    // console.log('🚨 BACKEND FINAL paid_to:', paymentPayload.paid_to);
+    // console.log('Payment Payload:', paymentPayload);
+    // console.log('ERPNext API URL:', `${ERPNEXT_API_URL}/api/resource/Payment Entry`);
+    // console.log('Request Headers:', headers);
 
-    // ENABLED FOR PRODUCTION - POSTING ACTUAL PAYMENTS TO ERPNext
-    console.log('� POSTING PAYMENT TO ERPNext');
+    // // ENABLED FOR PRODUCTION - POSTING ACTUAL PAYMENTS TO ERPNext
+    // console.log('� POSTING PAYMENT TO ERPNext');
     
     const response = await fetch(`${ERPNEXT_API_URL}/api/resource/Payment Entry`, {
       method: 'POST',
@@ -361,9 +361,9 @@ export async function POST(request: NextRequest) {
     });
 
     const data = await response.json();
-    console.log('Payment Response Status:', response.status);
-    console.log('Payment Response Headers:', Object.fromEntries(response.headers.entries()));
-    console.log('Payment Response Data:', data);
+    // console.log('Payment Response Status:', response.status);
+    // console.log('Payment Response Headers:', Object.fromEntries(response.headers.entries()));
+    // console.log('Payment Response Data:', data);
 
     if (response.ok) {
       return NextResponse.json({

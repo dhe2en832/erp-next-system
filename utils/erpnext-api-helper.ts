@@ -13,13 +13,13 @@ import { NextResponse } from 'next/server';
 export function extractERPNextErrorMessage(data: any, defaultMessage: string = 'Operation failed'): string {
   let errorMessage = defaultMessage;
   
-  console.log('Extracting error from data keys:', Object.keys(data));
+  // console.log('Extracting error from data keys:', Object.keys(data));
   
   // Priority 1: Parse _server_messages (most user-friendly)
   if (data._server_messages) {
     try {
       const serverMessages = JSON.parse(data._server_messages);
-      console.log('Parsed serverMessages:', serverMessages);
+      // console.log('Parsed serverMessages:', serverMessages);
       
       if (Array.isArray(serverMessages) && serverMessages.length > 0) {
         const firstMessage = typeof serverMessages[0] === 'string' 
@@ -29,7 +29,7 @@ export function extractERPNextErrorMessage(data: any, defaultMessage: string = '
         if (firstMessage.message) {
           // Remove HTML tags from message
           errorMessage = firstMessage.message.replace(/<[^>]*>/g, '');
-          console.log('Extracted from _server_messages:', errorMessage);
+          // console.log('Extracted from _server_messages:', errorMessage);
           return errorMessage;
         }
       }
@@ -42,7 +42,7 @@ export function extractERPNextErrorMessage(data: any, defaultMessage: string = '
   if (data.exc) {
     try {
       const excArray = JSON.parse(data.exc);
-      console.log('Parsed exc array, length:', excArray.length);
+      // console.log('Parsed exc array, length:', excArray.length);
       
       if (Array.isArray(excArray) && excArray.length > 0) {
         const excString = excArray[0];
@@ -54,7 +54,7 @@ export function extractERPNextErrorMessage(data: any, defaultMessage: string = '
           const parts = lastLine.split(':');
           if (parts.length > 1) {
             errorMessage = parts.slice(1).join(':').trim();
-            console.log('Extracted from exc:', errorMessage);
+            // console.log('Extracted from exc:', errorMessage);
             return errorMessage;
           }
         }
@@ -66,17 +66,17 @@ export function extractERPNextErrorMessage(data: any, defaultMessage: string = '
   
   // Priority 3: Use data.message if available
   if (data.message) {
-    console.log('Using data.message:', data.message);
+    // console.log('Using data.message:', data.message);
     return data.message;
   }
   
   // Priority 4: Use exception field
   if (data.exception) {
-    console.log('Using data.exception:', data.exception);
+    // console.log('Using data.exception:', data.exception);
     return data.exception;
   }
   
-  console.log('Using default message:', errorMessage);
+  // console.log('Using default message:', errorMessage);
   return errorMessage;
 }
 

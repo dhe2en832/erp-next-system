@@ -9,7 +9,7 @@ export async function POST(
   try {
     const { name } = await params;
     
-    console.log('Completing PO:', name);
+    // console.log('Completing PO:', name);
 
     // Use API key authentication
     const apiKey = process.env.ERP_API_KEY;
@@ -27,7 +27,7 @@ export async function POST(
       'Authorization': `token ${apiKey}:${apiSecret}`,
     };
 
-    console.log('Using REST API PUT method to complete PO:', name);
+    // console.log('Using REST API PUT method to complete PO:', name);
 
     // Use REST API update method - most reliable approach
     const response = await fetch(`${ERPNEXT_API_URL}/api/resource/Purchase Order/${encodeURIComponent(name)}`, {
@@ -40,8 +40,8 @@ export async function POST(
     });
 
     const responseText = await response.text();
-    console.log('Complete PO ERPNext Response Status:', response.status);
-    console.log('Complete PO ERPNext Response Text:', responseText);
+    // console.log('Complete PO ERPNext Response Status:', response.status);
+    // console.log('Complete PO ERPNext Response Text:', responseText);
 
     let data;
     try {
@@ -59,7 +59,7 @@ export async function POST(
       // ERPNext REST API returns different structure
       const orderData = data.docs?.[0] || data.doc || data.data || data;
       
-      console.log('PO completed successfully:', orderData);
+      // console.log('PO completed successfully:', orderData);
       
       return NextResponse.json({
         success: true,
@@ -69,16 +69,16 @@ export async function POST(
     } else {
       let errorMessage = 'Failed to complete Purchase Order';
       
-      console.log('Full Error Response:', data);
+      // console.log('Full Error Response:', data);
       
       // Comprehensive error parsing
       if (data.exc) {
         try {
           const excData = JSON.parse(data.exc);
-          console.log('Parsed Exception Data:', excData);
+          // console.log('Parsed Exception Data:', excData);
           errorMessage = `${excData.exc_type}: ${excData.message}`;
         } catch (e) {
-          console.log('Failed to parse exception, using raw data');
+          // console.log('Failed to parse exception, using raw data');
           errorMessage = data.message || data.exc || 'Failed to complete Purchase Order';
         }
       } else if (data.message) {
@@ -86,10 +86,10 @@ export async function POST(
       } else if (data._server_messages) {
         try {
           const serverMessages = JSON.parse(data._server_messages);
-          console.log('Parsed Server Messages:', serverMessages);
+          // console.log('Parsed Server Messages:', serverMessages);
           errorMessage = serverMessages[0]?.message || serverMessages[0] || errorMessage;
         } catch (e) {
-          console.log('Failed to parse server messages, using raw data');
+          // console.log('Failed to parse server messages, using raw data');
           errorMessage = data._server_messages;
         }
       } else if (data.error) {

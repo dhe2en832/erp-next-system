@@ -31,13 +31,13 @@ export default function InvoiceSummary({
   taxes = []
 }: InvoiceSummaryProps) {
   const calculations = useMemo(() => {
-    console.log('[InvoiceSummary] Recalculating with:', {
-      itemsCount: items.length,
-      discountAmount,
-      discountPercentage,
-      taxesCount: taxes.length,
-      taxes: taxes
-    });
+    // console.log('[InvoiceSummary] Recalculating with:', {
+    //   itemsCount: items.length,
+    //   discountAmount,
+    //   discountPercentage,
+    //   taxesCount: taxes.length,
+    //   taxes: taxes
+    // });
 
     // Calculate subtotal from items
     const subtotal = items.reduce((sum, item) => {

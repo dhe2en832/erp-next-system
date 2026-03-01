@@ -10,7 +10,7 @@ export async function POST(
   try {
     const { name } = await params;
     
-    console.log('Submitting Purchase Receipt:', name);
+    // console.log('Submitting Purchase Receipt:', name);
 
     // Use API key authentication
     const apiKey = process.env.ERP_API_KEY;
@@ -28,7 +28,7 @@ export async function POST(
       'Authorization': `token ${apiKey}:${apiSecret}`,
     };
 
-    console.log('Using REST API PUT method to submit Purchase Receipt:', name);
+    // console.log('Using REST API PUT method to submit Purchase Receipt:', name);
 
     // Use REST API update method - most reliable approach
     const response = await fetch(`${ERPNEXT_API_URL}/api/resource/Purchase Receipt/${encodeURIComponent(name)}`, {
@@ -40,8 +40,8 @@ export async function POST(
     });
 
     const responseText = await response.text();
-    console.log('Submit Purchase Receipt ERPNext Response Status:', response.status);
-    console.log('Submit Purchase Receipt ERPNext Response Text:', responseText);
+    // console.log('Submit Purchase Receipt ERPNext Response Status:', response.status);
+    // console.log('Submit Purchase Receipt ERPNext Response Text:', responseText);
 
     let data;
     try {

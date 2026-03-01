@@ -22,7 +22,7 @@ const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
  */
 export async function GET(request: NextRequest) {
   try {
-    console.log('=== Delivery Note Return API Called ===');
+    // console.log('=== Delivery Note Return API Called ===');
     
     const { searchParams } = new URL(request.url);
     const filters = searchParams.get('filters');
@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
       erpNextUrl += '&order_by=creation desc';
     }
 
-    console.log('Delivery Note Return ERPNext URL:', erpNextUrl);
+    // console.log('Delivery Note Return ERPNext URL:', erpNextUrl);
 
     const response = await fetch(erpNextUrl, {
       method: 'GET',
@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
     });
 
     const responseText = await response.text();
-    console.log('Delivery Note Return ERPNext Response Status:', response.status);
+    // console.log('Delivery Note Return ERPNext Response Status:', response.status);
     
     let data;
     try {
@@ -121,7 +121,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    console.log('Delivery Note Return API Response:', { status: response.status, data });
+    // console.log('Delivery Note Return API Response:', { status: response.status, data });
 
     if (response.ok) {
       // Transform data to match frontend expectations
@@ -173,12 +173,12 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const returnData = await request.json();
-    console.log('=== CREATE DELIVERY NOTE RETURN ===');
-    console.log('Delivery Note Return POST Payload:', JSON.stringify(returnData, null, 2));
+    // console.log('=== CREATE DELIVERY NOTE RETURN ===');
+    // console.log('Delivery Note Return POST Payload:', JSON.stringify(returnData, null, 2));
 
     const cookies = request.cookies;
     const sid = cookies.get('sid')?.value;
-    console.log('Session ID (sid):', sid ? 'Present' : 'Missing');
+    // console.log('Session ID (sid):', sid ? 'Present' : 'Missing');
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -192,10 +192,10 @@ export async function POST(request: NextRequest) {
     
     if (apiKey && apiSecret) {
       headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-      console.log('Using API key authentication (priority)');
+      // console.log('Using API key authentication (priority)');
     } else if (sid) {
       headers['Cookie'] = `sid=${sid}`;
-      console.log('Using session-based authentication');
+      // console.log('Using session-based authentication');
       
       // Get CSRF token for ERPNext
       try {
@@ -210,7 +210,7 @@ export async function POST(request: NextRequest) {
           const csrfData = await csrfResponse.json();
           if (csrfData.message && csrfData.message.csrf_token) {
             headers['X-Frappe-CSRF-Token'] = csrfData.message.csrf_token;
-            console.log('CSRF token added to headers');
+            // console.log('CSRF token added to headers');
           }
         }
       } catch (csrfError) {
@@ -279,14 +279,14 @@ export async function POST(request: NextRequest) {
       return_notes: returnData.return_notes || returnData.custom_notes,
     };
 
-    console.log('Making request to ERPNext with headers:', { ...headers, Authorization: headers.Authorization ? '***' : 'None' });
+    // console.log('Making request to ERPNext with headers:', { ...headers, Authorization: headers.Authorization ? '***' : 'None' });
 
     // Use ERPNext's make_return method to ensure proper return handling
     // This will automatically set dn_detail and update returned_qty in original DN
     const makeReturnUrl = `${ERPNEXT_API_URL}/api/method/erpnext.stock.doctype.delivery_note.delivery_note.make_sales_return`;
     
-    console.log('Using make_sales_return method for proper return handling');
-    console.log('Return against DN:', returnData.return_against);
+    // console.log('Using make_sales_return method for proper return handling');
+    // console.log('Return against DN:', returnData.return_against);
 
     const response = await fetch(makeReturnUrl, {
       method: 'POST',
@@ -297,7 +297,7 @@ export async function POST(request: NextRequest) {
     });
 
     const responseText = await response.text();
-    console.log('Make Return Response Status:', response.status);
+    // console.log('Make Return Response Status:', response.status);
     
     let returnTemplate;
     try {
@@ -320,7 +320,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('Return template generated, customizing with user data...');
+    // console.log('Return template generated, customizing with user data...');
 
     // Customize the return template with user's data
     returnTemplate.posting_date = returnData.posting_date;
@@ -355,18 +355,18 @@ export async function POST(request: NextRequest) {
       });
 
     // Log important fields for debugging
-    console.log('Return template fields check:', {
-      company: returnTemplate.company,
-      customer: returnTemplate.customer,
-      is_return: returnTemplate.is_return,
-      return_against: returnTemplate.return_against,
-      items_count: returnTemplate.items?.length,
-      has_totals: {
-        total: returnTemplate.total,
-        grand_total: returnTemplate.grand_total,
-      },
-      first_item_warehouse: returnTemplate.items?.[0]?.warehouse,
-    });
+    // console.log('Return template fields check:', {
+    //   company: returnTemplate.company,
+    //   customer: returnTemplate.customer,
+    //   is_return: returnTemplate.is_return,
+    //   return_against: returnTemplate.return_against,
+    //   items_count: returnTemplate.items?.length,
+    //   has_totals: {
+    //     total: returnTemplate.total,
+    //     grand_total: returnTemplate.grand_total,
+    //   },
+    //   first_item_warehouse: returnTemplate.items?.[0]?.warehouse,
+    // });
     
     // Validate that all items have warehouse
     const itemsWithoutWarehouse = returnTemplate.items.filter((item: any) => !item.warehouse);
@@ -374,10 +374,10 @@ export async function POST(request: NextRequest) {
       console.warn('WARNING: Some items missing warehouse:', itemsWithoutWarehouse.map((i: any) => i.item_code));
     }
     
-    console.log('Customized return template:', JSON.stringify(returnTemplate).substring(0, 500));
+    // console.log('Customized return template:', JSON.stringify(returnTemplate).substring(0, 500));
 
     // Fetch stock levels for each item before saving
-    console.log('Fetching stock levels for items...');
+    // console.log('Fetching stock levels for items...');
     for (const item of returnTemplate.items) {
       if (item.item_code && item.warehouse) {
         try {
@@ -397,7 +397,7 @@ export async function POST(request: NextRequest) {
             const stockData = await stockResponse.json();
             if (stockData.data && stockData.data.length > 0) {
               item.actual_qty = stockData.data[0].actual_qty || 0;
-              console.log(`Stock for ${item.item_code} at ${item.warehouse}: ${item.actual_qty}`);
+              // console.log(`Stock for ${item.item_code} at ${item.warehouse}: ${item.actual_qty}`);
             }
           }
         } catch (stockError) {
@@ -415,7 +415,7 @@ export async function POST(request: NextRequest) {
     });
 
     const saveResponseText = await saveResponse.text();
-    console.log('Save Return Response Status:', saveResponse.status);
+    // console.log('Save Return Response Status:', saveResponse.status);
     
     let saveData;
     try {
@@ -430,7 +430,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('Delivery Note Return Save Response Data:', saveData);
+    // console.log('Delivery Note Return Save Response Data:', saveData);
 
     if (saveResponse.ok) {
       const savedDocName = saveData.data?.name;
@@ -438,7 +438,7 @@ export async function POST(request: NextRequest) {
       // CRITICAL: Update company_total_stock for each item after save
       // This is a workaround because the Python validation hook doesn't seem to be triggered
       if (savedDocName && saveData.data?.items) {
-        console.log('Updating company_total_stock for each item...');
+        // console.log('Updating company_total_stock for each item...');
         
         for (const item of saveData.data.items) {
           if (item.name && item.item_code && item.warehouse) {
@@ -474,7 +474,7 @@ export async function POST(request: NextRequest) {
                   );
                   
                   if (updateResponse.ok) {
-                    console.log(`✓ Updated company_total_stock for ${item.item_code}: ${actualQty}`);
+                    // console.log(`✓ Updated company_total_stock for ${item.item_code}: ${actualQty}`);
                     item.company_total_stock = actualQty; // Update in memory
                   } else {
                     console.warn(`⚠ Failed to update company_total_stock for ${item.item_code}`);
@@ -490,7 +490,7 @@ export async function POST(request: NextRequest) {
       
       // Refresh document using frappe.desk.form.load.getdoc to get all calculated fields
       if (savedDocName) {
-        console.log('Refreshing document with getdoc to get all fields...');
+        // console.log('Refreshing document with getdoc to get all fields...');
         try {
           const refreshResponse = await fetch(
             `${ERPNEXT_API_URL}/api/method/frappe.desk.form.load.getdoc?` + new URLSearchParams({
@@ -502,7 +502,7 @@ export async function POST(request: NextRequest) {
           
           if (refreshResponse.ok) {
             const refreshData = await refreshResponse.json();
-            console.log('Document refreshed with getdoc successfully');
+            // console.log('Document refreshed with getdoc successfully');
             
             // getdoc returns data in message.docs[0]
             const refreshedDoc = refreshData.message?.docs?.[0];

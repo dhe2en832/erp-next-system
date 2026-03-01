@@ -68,11 +68,11 @@ export async function PUT(
   { params }: { params: Promise<{ name: string }> }
 ) {
   try {
-    console.log('=== UPDATE SALES INVOICE - ERPNEXT REST API ===');
+    // console.log('=== UPDATE SALES INVOICE - ERPNEXT REST API ===');
     
     const { name: invoiceName } = await params;
     const invoiceData = await request.json();
-    console.log('Invoice Data:', JSON.stringify(invoiceData, null, 2));
+    // console.log('Invoice Data:', JSON.stringify(invoiceData, null, 2));
 
     // Get API credentials from environment variables
     const apiKey = process.env.ERP_API_KEY;
@@ -90,7 +90,7 @@ export async function PUT(
     // Update Sales Invoice using ERPNext REST API
     const erpNextUrl = `${baseUrl}/api/resource/Sales Invoice/${invoiceName}`;
     
-    console.log('ERPNext REST API URL:', erpNextUrl);
+    // console.log('ERPNext REST API URL:', erpNextUrl);
 
     // Prepare payload with proper ERPNext structure
     const payload: any = {
@@ -124,7 +124,7 @@ export async function PUT(
       payload.outstanding_amount = invoiceData.outstanding_amount || invoiceData.grand_total;
     }
 
-    console.log('Final Payload:', JSON.stringify(payload, null, 2));
+    // console.log('Final Payload:', JSON.stringify(payload, null, 2));
 
     const response = await fetch(erpNextUrl, {
       method: 'PUT',
@@ -135,10 +135,10 @@ export async function PUT(
       body: JSON.stringify(payload)
     });
 
-    console.log('ERPNext Response Status:', response.status);
+    // console.log('ERPNext Response Status:', response.status);
 
     const responseText = await response.text();
-    console.log('ERPNext Response Text:', responseText);
+    // console.log('ERPNext Response Text:', responseText);
 
     if (!response.ok) {
       console.error('ERPNext API Error:', responseText);
@@ -153,7 +153,7 @@ export async function PUT(
     let data;
     try {
       data = JSON.parse(responseText);
-      console.log('ERPNext Success Response:', data);
+      // console.log('ERPNext Success Response:', data);
     } catch (parseError) {
       console.error('Error parsing JSON response:', parseError);
       return NextResponse.json({

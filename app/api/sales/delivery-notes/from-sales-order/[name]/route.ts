@@ -30,10 +30,10 @@ export async function POST(
     
     if (apiKey && apiSecret) {
       headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-      console.log('Using API key authentication for delivery note creation');
+      // console.log('Using API key authentication for delivery note creation');
     } else if (sid) {
       headers['Cookie'] = `sid=${sid}`;
-      console.log('Using session-based authentication for delivery note creation');
+      // console.log('Using session-based authentication for delivery note creation');
       
       // Get CSRF token for ERPNext
       try {
@@ -48,7 +48,7 @@ export async function POST(
           const csrfData = await csrfResponse.json();
           if (csrfData.message && csrfData.message.csrf_token) {
             headers['X-Frappe-CSRF-Token'] = csrfData.message.csrf_token;
-            console.log('CSRF token added to headers');
+            // console.log('CSRF token added to headers');
           }
         }
       } catch (csrfError) {
@@ -62,7 +62,7 @@ export async function POST(
       );
     }
 
-    console.log('Creating Delivery Note from Sales Order:', name);
+    // console.log('Creating Delivery Note from Sales Order:', name);
 
     // Use ERPNext's make_delivery_note method
     const response = await fetch(`${ERPNEXT_API_URL}/api/method/erpnext.stock.doctype.delivery_note.delivery_note.make_delivery_note`, {
@@ -75,7 +75,7 @@ export async function POST(
     });
 
     const data = await response.json();
-    console.log('Make Delivery Note Response:', { status: response.status, data });
+    // console.log('Make Delivery Note Response:', { status: response.status, data });
 
     if (response.ok) {
       // The response should contain the delivery note data

@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
       erpNextUrl += `&order_by=${orderBy}`;
     }
 
-    console.log('Sales Order ERPNext URL:', erpNextUrl);
+    // console.log('Sales Order ERPNext URL:', erpNextUrl);
 
     const apiKey = process.env.ERP_API_KEY;
     const apiSecret = process.env.ERP_API_SECRET;
@@ -94,7 +94,7 @@ export async function GET(request: NextRequest) {
     });
 
     const data = await response.json();
-    console.log('Sales Order API Response:', { status: response.status, data });
+    // console.log('Sales Order API Response:', { status: response.status, data });
 
     if (response.ok) {
       return NextResponse.json({
@@ -141,10 +141,10 @@ export async function PUT(request: NextRequest) {
     
     if (apiKey && apiSecret) {
       headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-      console.log('Using API key authentication for update');
+      // console.log('Using API key authentication for update');
     } else if (sid) {
       headers['Cookie'] = `sid=${sid}`;
-      console.log('Using session-based authentication for update');
+      // console.log('Using session-based authentication for update');
     } else {
       console.error('No authentication available - no session and no API keys');
       return NextResponse.json(
@@ -153,7 +153,7 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    console.log('Making update request to ERPNext with headers:', { ...headers, Authorization: headers.Authorization ? '***' : 'None' });
+    // console.log('Making update request to ERPNext with headers:', { ...headers, Authorization: headers.Authorization ? '***' : 'None' });
 
     const response = await fetch(`${ERPNEXT_API_URL}/api/resource/Sales Order/${name}`, {
       method: 'PUT',
@@ -186,11 +186,11 @@ export async function PUT(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const orderData = await request.json();
-    console.log('Sales Order POST Payload:', JSON.stringify(orderData, null, 2));
+    // console.log('Sales Order POST Payload:', JSON.stringify(orderData, null, 2));
 
     const cookies = request.cookies;
     const sid = cookies.get('sid')?.value;
-    console.log('Session ID (sid):', sid ? 'Present' : 'Missing');
+    // console.log('Session ID (sid):', sid ? 'Present' : 'Missing');
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -202,10 +202,10 @@ export async function POST(request: NextRequest) {
     
     if (apiKey && apiSecret) {
       headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-      console.log('Using API key authentication (priority)');
+      // console.log('Using API key authentication (priority)');
     } else if (sid) {
       headers['Cookie'] = `sid=${sid}`;
-      console.log('Using session-based authentication');
+      // console.log('Using session-based authentication');
       
       // Get CSRF token for ERPNext
       try {
@@ -220,7 +220,7 @@ export async function POST(request: NextRequest) {
           const csrfData = await csrfResponse.json();
           if (csrfData.message && csrfData.message.csrf_token) {
             headers['X-Frappe-CSRF-Token'] = csrfData.message.csrf_token;
-            console.log('CSRF token added to headers');
+            // console.log('CSRF token added to headers');
           }
         }
       } catch (csrfError) {
@@ -234,7 +234,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('Making request to ERPNext with headers:', { ...headers, Authorization: headers.Authorization ? '***' : 'None' });
+    // console.log('Making request to ERPNext with headers:', { ...headers, Authorization: headers.Authorization ? '***' : 'None' });
 
     const response = await fetch(`${ERPNEXT_API_URL}/api/resource/Sales Order`, {
       method: 'POST',
@@ -243,8 +243,8 @@ export async function POST(request: NextRequest) {
     });
 
     const data = await response.json();
-    console.log('Sales Order ERPNext Response Status:', response.status);
-    console.log('Sales Order ERPNext Response Data:', data);
+    // console.log('Sales Order ERPNext Response Status:', response.status);
+    // console.log('Sales Order ERPNext Response Data:', data);
 
     if (response.ok) {
       return NextResponse.json({
@@ -255,16 +255,16 @@ export async function POST(request: NextRequest) {
       // Extract detailed error message from ERPNext
       let errorMessage = 'Failed to create sales order';
       
-      console.log('Error parsing - data keys:', Object.keys(data));
-      console.log('Error parsing - data.exc:', data.exc);
-      console.log('Error parsing - data.message:', data.message);
-      console.log('Error parsing - data._server_messages:', data._server_messages);
+      // console.log('Error parsing - data keys:', Object.keys(data));
+      // console.log('Error parsing - data.exc:', data.exc);
+      // console.log('Error parsing - data.message:', data.message);
+      // console.log('Error parsing - data._server_messages:', data._server_messages);
       
       if (data.exc) {
         // Parse ERPNext exception
         try {
           const excData = JSON.parse(data.exc);
-          console.log('Parsed excData:', excData);
+          // console.log('Parsed excData:', excData);
           
           if (excData.exc_type === 'MandatoryError') {
             errorMessage = `Missing required field: ${excData.message}`;
@@ -278,7 +278,7 @@ export async function POST(request: NextRequest) {
             errorMessage = `${excData.exc_type}: ${excData.message}`;
           }
         } catch (_e) {
-          console.log('Failed to parse exc, using fallback');
+          // console.log('Failed to parse exc, using fallback');
           errorMessage = data.message || data.exc || 'Failed to create sales order';
         }
       } else if (data.message) {
@@ -286,10 +286,10 @@ export async function POST(request: NextRequest) {
       } else if (data._server_messages) {
         try {
           const serverMessages = JSON.parse(data._server_messages);
-          console.log('Parsed serverMessages:', serverMessages);
+          // console.log('Parsed serverMessages:', serverMessages);
           errorMessage = serverMessages[0]?.message || serverMessages[0] || errorMessage;
         } catch (_e) {
-          console.log('Failed to parse _server_messages, using raw value');
+          // console.log('Failed to parse _server_messages, using raw value');
           errorMessage = data._server_messages;
         }
       } else if (data.exc_type && data.exc_message) {
@@ -297,7 +297,7 @@ export async function POST(request: NextRequest) {
       } else {
         // Last resort - try to extract any meaningful info
         const dataStr = JSON.stringify(data);
-        console.log('Last resort - full data:', dataStr);
+        // console.log('Last resort - full data:', dataStr);
         errorMessage = `ERPNext Error: ${dataStr.substring(0, 200)}...`;
       }
       

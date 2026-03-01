@@ -115,7 +115,7 @@ export async function GET(request: Request) {
       if (commissionPaymentsForInvoice.length > 0 && relatedCreditNotes.length > 0) {
         const latestPaymentDate = commissionPaymentsForInvoice
           .map((p: any) => new Date(p.payment_date))
-          .sort((a, b) => b.getTime() - a.getTime())[0];
+          .sort((a: Date, b: Date) => b.getTime() - a.getTime())[0];
         
         hasPostPaymentCreditNote = relatedCreditNotes.some((cn: any) => {
           const cnDate = new Date(cn.posting_date);

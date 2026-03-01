@@ -16,15 +16,15 @@ export async function GET(
 ) {
   try {
     const { name } = await params;
-    console.log('=== GET DELIVERY NOTE RETURN DETAIL ===');
-    console.log('Return Name:', name);
+    // console.log('=== GET DELIVERY NOTE RETURN DETAIL ===');
+    // console.log('Return Name:', name);
 
     const headers = getErpAuthHeaders(request);
 
     // Use form.load.getdoc method for complete data with child tables
     const erpNextUrl = `${ERPNEXT_API_URL}/api/method/frappe.desk.form.load.getdoc?doctype=Delivery Note&name=${encodeURIComponent(name)}`;
     
-    console.log('Delivery Note Return Detail URL:', erpNextUrl);
+    // console.log('Delivery Note Return Detail URL:', erpNextUrl);
 
     const response = await fetch(erpNextUrl, {
       method: 'GET',
@@ -32,7 +32,7 @@ export async function GET(
     });
 
     const responseText = await response.text();
-    console.log('Delivery Note Return Detail Response Status:', response.status);
+    // console.log('Delivery Note Return Detail Response Status:', response.status);
     
     let data;
     try {
@@ -47,7 +47,7 @@ export async function GET(
       );
     }
 
-    console.log('Delivery Note Return Detail Response:', data);
+    // console.log('Delivery Note Return Detail Response:', data);
 
     if (response.ok) {
       const doc = data.docs?.[0] || data.message;
@@ -98,9 +98,9 @@ export async function PUT(
     const { name } = await params;
     const updateData = await request.json();
     
-    console.log('=== UPDATE DELIVERY NOTE RETURN ===');
-    console.log('Return Name:', name);
-    console.log('Update Data:', JSON.stringify(updateData, null, 2));
+    // console.log('=== UPDATE DELIVERY NOTE RETURN ===');
+    // console.log('Return Name:', name);
+    // console.log('Update Data:', JSON.stringify(updateData, null, 2));
 
     const cookies = request.cookies;
     const sid = cookies.get('sid')?.value;

@@ -21,15 +21,15 @@ export async function GET(
   { params }: { params: Promise<{ name: string }> }
 ) {
   try {
-    console.log('=== PO Items API Called ===');
+    // console.log('=== PO Items API Called ===');
     const { name } = await params;
     const { searchParams } = new URL(request.url);
     const company = searchParams.get('company');
 
-    console.log('Request params:', { name, company });
+    // console.log('Request params:', { name, company });
 
     if (!company) {
-      console.log('ERROR: Company is required');
+      // console.log('ERROR: Company is required');
       return NextResponse.json(
         { success: false, message: 'Company is required' },
         { status: 400 }
@@ -41,14 +41,14 @@ export async function GET(
     const apiSecret = process.env.ERP_API_SECRET;
     const erpNextUrl = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
 
-    console.log('Environment check:', {
-      apiKey: !!apiKey,
-      apiSecret: !!apiSecret,
-      erpNextUrl
-    });
+    // console.log('Environment check:', {
+    //   apiKey: !!apiKey,
+    //   apiSecret: !!apiSecret,
+    //   erpNextUrl
+    // });
 
     if (!apiKey || !apiSecret) {
-      console.log('ERROR: ERPNext API credentials not configured');
+      // console.log('ERROR: ERPNext API credentials not configured');
       return NextResponse.json(
         { success: false, message: 'ERPNext API credentials not configured' },
         { status: 500 }
@@ -56,9 +56,9 @@ export async function GET(
     }
 
     // TEMPORARILY SKIP connection test for debugging
-    console.log('=== Skipping connection test, proceeding with PO fetch ===');
+    // console.log('=== Skipping connection test, proceeding with PO fetch ===');
 
-    console.log('=== Proceeding with PO fetch ===');
+    // console.log('=== Proceeding with PO fetch ===');
 
     // First get PO details - use proper URL encoding
     const poFields = JSON.stringify([
@@ -72,7 +72,7 @@ export async function GET(
 
     const poUrl = `${erpNextUrl}/api/resource/Purchase Order?fields=${encodeURIComponent(poFields)}&filters=${encodeURIComponent(poFilters)}`;
 
-    console.log('Fetch PO details URL:', poUrl);
+    // console.log('Fetch PO details URL:', poUrl);
 
     const poResponse = await fetch(poUrl, {
       method: 'GET',
@@ -82,15 +82,15 @@ export async function GET(
       },
     });
 
-    console.log('PO Response status:', poResponse.status);
-    console.log('PO Response ok:', poResponse.ok);
+    // console.log('PO Response status:', poResponse.status);
+    // console.log('PO Response ok:', poResponse.ok);
 
     if (!poResponse.ok) {
       const errorText = await poResponse.text();
       console.error('PO fetch failed:', poResponse.status, errorText);
 
       // Return fallback empty response instead of error
-      console.log('Returning fallback empty response for PO details');
+      // console.log('Returning fallback empty response for PO details');
       return NextResponse.json({
         success: true,
         data: {
@@ -108,19 +108,19 @@ export async function GET(
     }
 
     const poDataResponse = await poResponse.json();
-    console.log('PO response data:', poDataResponse);
-    console.log('PO data type:', typeof poDataResponse.data);
-    console.log('PO data:', poDataResponse.data);
+    // console.log('PO response data:', poDataResponse);
+    // console.log('PO data type:', typeof poDataResponse.data);
+    // console.log('PO data:', poDataResponse.data);
 
     const poList = poDataResponse.data;
-    console.log('PO list:', poList);
-    console.log('PO list type:', Array.isArray(poList) ? 'array' : typeof poList);
+    // console.log('PO list:', poList);
+    // console.log('PO list type:', Array.isArray(poList) ? 'array' : typeof poList);
 
     const po = Array.isArray(poList) ? poList[0] : poList;
-    console.log('Extracted PO:', po);
+    // console.log('Extracted PO:', po);
 
     if (!po) {
-      console.log('PO not found, returning fallback');
+      // console.log('PO not found, returning fallback');
       return NextResponse.json(
         { success: false, message: 'Purchase Order tidak ditemukan' },
         { status: 404 }
@@ -136,8 +136,8 @@ export async function GET(
 
     const itemsUrl = `${erpNextUrl}/api/resource/Purchase Order Item?fields=${encodeURIComponent(itemFields)}&filters=${encodeURIComponent(itemFilters)}&order_by=idx asc`;
 
-    console.log('=== FETCHING ITEMS ===');
-    console.log('Items URL:', itemsUrl);
+    // console.log('=== FETCHING ITEMS ===');
+    // console.log('Items URL:', itemsUrl);
 
     const itemsResponse = await fetch(itemsUrl, {
       method: 'GET',
@@ -147,28 +147,28 @@ export async function GET(
       },
     });
 
-    console.log('Items Response status:', itemsResponse.status);
-    console.log('Items Response ok:', itemsResponse.ok);
+    // console.log('Items Response status:', itemsResponse.status);
+    // console.log('Items Response ok:', itemsResponse.ok);
 
     let items = [];
     if (itemsResponse.ok) {
       const itemsData = await itemsResponse.json();
-      console.log('Raw items response:', itemsData);
-      console.log('Items data type:', typeof itemsData.data);
-      console.log('Items data:', itemsData.data);
+      // console.log('Raw items response:', itemsData);
+      // console.log('Items data type:', typeof itemsData.data);
+      // console.log('Items data:', itemsData.data);
       items = itemsData.data || [];
-      console.log('Extracted items array:', items);
-      console.log('Extracted items count:', items.length);
+      // console.log('Extracted items array:', items);
+      // console.log('Extracted items count:', items.length);
     } else {
       const errorText = await itemsResponse.text();
       console.error('Items fetch failed:', itemsResponse.status, errorText);
-      console.log('Items fetch failed, using empty array');
+      // console.log('Items fetch failed, using empty array');
       // Continue with empty items array
       items = [];
     }
 
-    console.log('Final items to process:', items);
-    console.log('Final items count:', items.length);
+    // console.log('Final items to process:', items);
+    // console.log('Final items count:', items.length);
 
     const processedItems = items.map((item: ERPNextPOItem) => ({
       item_code: item.item_code,
@@ -188,7 +188,7 @@ export async function GET(
       remaining_qty: (item.qty || 0) - (item.received_qty || 0)
     }));
 
-    console.log('Processed items count:', processedItems.length);
+    // console.log('Processed items count:', processedItems.length);
 
     return NextResponse.json({
       success: true,

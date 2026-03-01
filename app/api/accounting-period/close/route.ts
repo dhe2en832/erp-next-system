@@ -189,11 +189,11 @@ async function createClosingJournalEntry(
   const journalAccounts: any[] = [];
 
   // Log accounts for debugging
-  console.log('=== Closing Journal Debug ===');
-  console.log('Nominal accounts found:', nominalAccounts.length);
-  nominalAccounts.forEach(acc => {
-    console.log(`- ${acc.account}: ${acc.account_name} (${acc.root_type}) = ${acc.balance}`);
-  });
+  // console.log('=== Closing Journal Debug ===');
+  // console.log('Nominal accounts found:', nominalAccounts.length);
+  // nominalAccounts.forEach(acc => {
+  //   console.log(`- ${acc.account}: ${acc.account_name} (${acc.root_type}) = ${acc.balance}`);
+  // });
 
   // Close income accounts (debit income to zero out credit balance)
   for (const account of nominalAccounts) {
@@ -219,15 +219,15 @@ async function createClosingJournalEntry(
     }
   }
 
-  console.log('Journal accounts to be created:', journalAccounts.length);
-  journalAccounts.forEach(acc => {
-    console.log(`- ${acc.account}: D=${acc.debit_in_account_currency}, C=${acc.credit_in_account_currency}`);
-  });
-  console.log('=== End Debug ===');
+  // console.log('Journal accounts to be created:', journalAccounts.length);
+  // journalAccounts.forEach(acc => {
+  //   console.log(`- ${acc.account}: D=${acc.debit_in_account_currency}, C=${acc.credit_in_account_currency}`);
+  // });
+  // console.log('=== End Debug ===');
 
   // If no nominal accounts with balance, skip journal creation
   if (journalAccounts.length === 0 && netIncome === 0) {
-    console.log('No nominal accounts with balance found. Skipping closing journal creation.');
+    // console.log('No nominal accounts with balance found. Skipping closing journal creation.');
     return {
       name: 'NO_CLOSING_JOURNAL',
       message: 'No closing journal needed - no income or expense accounts with balance',
@@ -242,7 +242,7 @@ async function createClosingJournalEntry(
     // Use cascading: Income/Expense → Current Period Profit
     targetAccount = config.current_period_profit_account;
     targetRemark = `Transfer net income to Current Period Profit for ${period.period_name}`;
-    console.log('Using cascading profit accounts - target:', targetAccount);
+    // console.log('Using cascading profit accounts - target:', targetAccount);
   }
 
   // Add target account entry (balancing entry)
@@ -385,9 +385,9 @@ async function createCascadingJournalEntries(
   netIncome: number,
   mainJournalName: string
 ): Promise<void> {
-  console.log('=== Creating Cascading Journal Entries ===');
-  console.log('Net Income:', netIncome);
-  console.log('Period Type:', period.period_type);
+  // console.log('=== Creating Cascading Journal Entries ===');
+  // console.log('Net Income:', netIncome);
+  // console.log('Period Type:', period.period_type);
 
   // Step 2: Transfer from Current Period Profit to Current Year Profit
   if (config.current_period_profit_account && config.current_year_profit_account) {
@@ -435,7 +435,7 @@ async function createCascadingJournalEntries(
     });
 
     await erpnextClient.submit('Journal Entry', step2Journal.name);
-    console.log('Step 2 Journal created:', step2Journal.name);
+    // console.log('Step 2 Journal created:', step2Journal.name);
   }
 
   // Step 3: If year-end period, transfer from Current Year Profit to Retained Earnings
@@ -494,11 +494,11 @@ async function createCascadingJournalEntries(
       });
 
       await erpnextClient.submit('Journal Entry', step3Journal.name);
-      console.log('Step 3 Journal created (Year-end):', step3Journal.name);
+      // console.log('Step 3 Journal created (Year-end):', step3Journal.name);
     }
   }
 
-  console.log('=== Cascading Journal Entries Complete ===');
+  // console.log('=== Cascading Journal Entries Complete ===');
 }
 
 /**

@@ -21,13 +21,13 @@ export async function GET(
     const { name } = await params;
     
     // Debug logging
-    console.log('=== Sales Return Detail API Called ===');
-    console.log('Sales Return name parameter:', name);
-    console.log('Sales Return name type:', typeof name);
+    // console.log('=== Sales Return Detail API Called ===');
+    // console.log('Sales Return name parameter:', name);
+    // console.log('Sales Return name type:', typeof name);
     
     // Validate name parameter
     if (!name || name.trim() === '') {
-      console.log('Sales Return API - Name is empty or null');
+      // console.log('Sales Return API - Name is empty or null');
       return NextResponse.json(
         { success: false, message: 'Sales Return name is required' },
         { status: 400 }
@@ -35,7 +35,7 @@ export async function GET(
     }
     
     if (name === 'undefined' || name === 'null' || name === 'undefined/') {
-      console.log('Sales Return API - Invalid name value:', name);
+      // console.log('Sales Return API - Invalid name value:', name);
       return NextResponse.json(
         { success: false, message: 'Invalid sales return name provided' },
         { status: 400 }
@@ -53,7 +53,7 @@ export async function GET(
       );
     }
 
-    console.log('Sales Return API - Fetching sales return:', name);
+    // console.log('Sales Return API - Fetching sales return:', name);
     
     // Use ERPNext's form.load.getdoc method to get complete document data
     // This method returns the document with all child tables populated
@@ -65,11 +65,11 @@ export async function GET(
       }
     );
 
-    console.log('Sales Return API - ERPNext Response status:', response.status);
+    // console.log('Sales Return API - ERPNext Response status:', response.status);
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.log('Sales Return API - ERPNext Error:', errorText);
+      // console.log('Sales Return API - ERPNext Error:', errorText);
       
       let errorData;
       try {
@@ -85,14 +85,14 @@ export async function GET(
     }
 
     const data = await response.json();
-    console.log('Sales Return API - Success, data keys:', Object.keys(data));
+    // console.log('Sales Return API - Success, data keys:', Object.keys(data));
 
     // form.load.getdoc returns data in different structure
     // The actual document data is in data.docs or data.doc
     const salesReturnData = data.docs?.[0] || data.doc || data;
     
-    console.log('Sales Return API - Sales Return data keys:', Object.keys(salesReturnData || {}));
-    console.log('Sales Return API - Items count:', salesReturnData?.items?.length || 0);
+    // console.log('Sales Return API - Sales Return data keys:', Object.keys(salesReturnData || {}));
+    // console.log('Sales Return API - Items count:', salesReturnData?.items?.length || 0);
 
     return NextResponse.json({
       success: true,
@@ -123,8 +123,8 @@ export async function PUT(
   try {
     const { name } = await params;
     
-    console.log('=== Sales Return Update API Called ===');
-    console.log('Sales Return name:', name);
+    // console.log('=== Sales Return Update API Called ===');
+    // console.log('Sales Return name:', name);
     
     // Validate name parameter
     if (!name || name === 'undefined') {
@@ -135,7 +135,7 @@ export async function PUT(
     }
 
     const body = await request.json();
-    console.log('Sales Return PUT Payload:', JSON.stringify(body, null, 2));
+    // console.log('Sales Return PUT Payload:', JSON.stringify(body, null, 2));
     
     // Remove name from body to avoid conflicts
     const { name: _n, ...updateData } = body;
@@ -185,7 +185,7 @@ export async function PUT(
     );
 
     const responseText = await response.text();
-    console.log('Sales Return PUT Response Status:', response.status);
+    // console.log('Sales Return PUT Response Status:', response.status);
     
     let data;
     try {
@@ -200,7 +200,7 @@ export async function PUT(
       );
     }
 
-    console.log('Sales Return PUT Response Data:', data);
+    // console.log('Sales Return PUT Response Data:', data);
 
     if (response.ok) {
       return NextResponse.json({

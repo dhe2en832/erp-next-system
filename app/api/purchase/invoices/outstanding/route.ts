@@ -21,10 +21,10 @@ export async function GET(request: NextRequest) {
     
     if (apiKey && apiSecret) {
       headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-      console.log('Using API key authentication for outstanding purchase invoices');
+      // console.log('Using API key authentication for outstanding purchase invoices');
     } else if (sid) {
       headers['Cookie'] = `sid=${sid}`;
-      console.log('Using session-based authentication for outstanding purchase invoices');
+      // console.log('Using session-based authentication for outstanding purchase invoices');
     } else {
       return NextResponse.json(
         { success: false, message: 'Unauthorized - No session or API key found' },
@@ -54,8 +54,8 @@ export async function GET(request: NextRequest) {
     // Build ERPNext URL for Purchase Invoice
     const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Purchase Invoice?fields=["name","supplier","supplier_name","posting_date","due_date","grand_total","outstanding_amount","status"]&filters=${encodeURIComponent(filtersString)}&order_by=due_date&limit_page_length=100`;
 
-    console.log('Outstanding Purchase Invoices ERPNext URL:', erpNextUrl);
-    console.log('Filters:', filters);
+    // console.log('Outstanding Purchase Invoices ERPNext URL:', erpNextUrl);
+    // console.log('Filters:', filters);
 
     const response = await fetch(erpNextUrl, {
       method: 'GET',
@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
     });
 
     const data = await response.json();
-    console.log('Purchase Invoices response:', data);
+    // console.log('Purchase Invoices response:', data);
 
     if (response.ok) {
       return NextResponse.json({

@@ -147,6 +147,9 @@ export default function SalesInvoiceList() {
   
   // Ref untuk tracking pagination source (prevent race conditions)
   const pageChangeSourceRef = useRef<'pagination' | 'filter' | 'init'>('init');
+  
+  // Ref untuk tracking mount/navigation untuk forced refresh
+  const hasInitialFetchRef = useRef(false);
 
   // ─────────────────────────────────────────────────────────
   // Sync URL dengan page state (bookmark/share)
@@ -266,7 +269,10 @@ export default function SalesInvoiceList() {
       params.append('filters', JSON.stringify(filters));
 
       // 🔍 DEBUG: Log filters yang dikirim ke API
-      console.log('🔍 ERPNext Filters:', JSON.stringify(filters));
+      // console.log('🔍 ERPNext Filters:', JSON.stringify(filters));
+
+      // Cache-busting: Add timestamp to prevent browser caching
+      params.append('_t', Date.now().toString());
 
       const response = await fetch(`/api/sales/invoices?${params.toString()}`);
       const data = await response.json();
@@ -321,6 +327,9 @@ export default function SalesInvoiceList() {
 
   // Fetch when page changes (separated from filter logic)
   useEffect(() => {
+    // Skip if initial fetch from mount effect hasn't run yet
+    if (!hasInitialFetchRef.current) return;
+    
     // Always reset for desktop pagination
     // Only append for mobile infinite scroll when page > 1
     const shouldReset = !useInfiniteScrollMode || currentPage === 1;
@@ -330,12 +339,29 @@ export default function SalesInvoiceList() {
 
   // Trigger fetch when filters change (after page reset)
   useEffect(() => {
+    // Skip if initial fetch from mount effect hasn't run yet
+    if (!hasInitialFetchRef.current) return;
+    
     if (pageChangeSourceRef.current === 'filter') {
       const shouldReset = !useInfiniteScrollMode || currentPage === 1;
       fetchInvoices(shouldReset);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateFilter, searchTerm, statusFilter, documentNumberFilter]);
+
+  // ─────────────────────────────────────────────────────────
+  // Forced Refresh on Component Mount (after navigation)
+  // ─────────────────────────────────────────────────────────
+  useEffect(() => {
+    // Trigger a forced refresh when component mounts
+    // This ensures fresh data when users navigate back to the list from detail view
+    // The cache-busting parameter from Task 3.4 ensures we get fresh data from server
+    if (!hasInitialFetchRef.current) {
+      hasInitialFetchRef.current = true;
+      fetchInvoices(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty dependency array - runs once per mount
 
   // ─────────────────────────────────────────────────────────
   // Infinite Scroll Handler (Mobile Only)
@@ -649,13 +675,14 @@ export default function SalesInvoiceList() {
           {!isMobile && invoices.length > 0 && (
             <div className="hidden sm:flex items-center px-4 py-3 bg-gray-50 border-b border-gray-200 text-xs font-medium text-gray-500 uppercase">
               <div className="flex-1 min-w-0">
-                <div className="grid grid-cols-12 gap-4">
-                  <div className="col-span-3">Dokumen / Pelanggan</div>
+                <div className="grid grid-cols-13 gap-4">
+                  <div className="col-span-2">Dokumen / Pelanggan</div>
+                  <div className="col-span-1">Status</div>
                   <div className="col-span-2">Tanggal</div>
                   <div className="col-span-2">Jatuh Tempo</div>
                   <div className="col-span-2 text-right">Total</div>
                   <div className="col-span-2 text-right">Pembayaran</div>
-                  <div className="col-span-1 text-right">Aksi</div>
+                  <div className="col-span-2 text-right">Aksi</div>
                 </div>
               </div>
             </div>
@@ -739,11 +766,16 @@ export default function SalesInvoiceList() {
                     </div>
                   ) : (
                     // ─── Desktop Row Layout ───
-                    <div className="grid grid-cols-12 gap-4 items-center">
-                      <div className="col-span-3 min-w-0">
+                    <div className="grid grid-cols-13 gap-4 items-center">
+                      <div className="col-span-2 min-w-0">
                         <p className="text-sm font-semibold text-indigo-600 truncate">{invoice.name}</p>
                         <p className="text-xs text-gray-600 mt-0.5 truncate">{invoice.customer_name || invoice.customer}</p>
                         {invoice.custom_notes_si && <p className="text-xs text-gray-400 truncate mt-1">📝 {invoice.custom_notes_si}</p>}
+                      </div>
+                      <div className="col-span-1">
+                        <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full border ${getStatusBadgeClass(invoice.status)}`}>
+                          {getStatusLabel(invoice.status)}
+                        </span>
                       </div>
                       <div className="col-span-2">
                         <p className="text-sm text-gray-900">{invoice.posting_date}</p>
@@ -770,7 +802,7 @@ export default function SalesInvoiceList() {
                         </div>
                         <p className="text-xs text-gray-500 mt-0.5">{Math.round(getPaymentPercent(invoice))}%</p>
                       </div>
-                      <div className="col-span-1">
+                      <div className="col-span-2">
                         <div className="flex items-center justify-end gap-1">
                           <button onClick={(e) => handlePrint(invoice.name, e)} className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Cetak">
                             <Printer className="h-4 w-4" />

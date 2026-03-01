@@ -22,7 +22,7 @@ const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
  */
 export async function GET(request: NextRequest) {
   try {
-    console.log('=== GET TAX TEMPLATES ===');
+    // console.log('=== GET TAX TEMPLATES ===');
     
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type');
@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
     // Note: We need to fetch full documents to get child table data
     const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/${encodeURIComponent(docType)}?filters=${encodeURIComponent(JSON.stringify(filters))}`;
     
-    console.log('Tax Template ERPNext URL:', erpNextUrl);
+    // console.log('Tax Template ERPNext URL:', erpNextUrl);
 
     const response = await fetch(erpNextUrl, {
       method: 'GET',
@@ -90,7 +90,7 @@ export async function GET(request: NextRequest) {
     });
 
     const data = await response.json();
-    console.log('Tax Template Response Status:', response.status);
+    // console.log('Tax Template Response Status:', response.status);
 
     if (!response.ok) {
       return NextResponse.json({
@@ -103,12 +103,12 @@ export async function GET(request: NextRequest) {
     const templateNames = data.data || [];
     const templates = [];
 
-    console.log(`Fetching details for ${templateNames.length} templates...`);
+    // console.log(`Fetching details for ${templateNames.length} templates...`);
 
     for (const templateName of templateNames) {
       try {
         const detailUrl = `${ERPNEXT_API_URL}/api/resource/${encodeURIComponent(docType)}/${encodeURIComponent(templateName.name)}`;
-        console.log(`Fetching template detail: ${detailUrl}`);
+        // console.log(`Fetching template detail: ${detailUrl}`);
         
         const detailResponse = await fetch(detailUrl, {
           method: 'GET',
@@ -122,7 +122,7 @@ export async function GET(request: NextRequest) {
           const detailData = await detailResponse.json();
           const template = detailData.data;
           
-          console.log(`Template ${template.name} has ${(template.taxes || []).length} tax rows`);
+          // console.log(`Template ${template.name} has ${(template.taxes || []).length} tax rows`);
           
           templates.push({
             name: template.name,
@@ -144,8 +144,8 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    console.log(`Found ${templates.length} active tax templates for ${type}`);
-    console.log('Templates with taxes:', JSON.stringify(templates, null, 2));
+    // console.log(`Found ${templates.length} active tax templates for ${type}`);
+    // console.log('Templates with taxes:', JSON.stringify(templates, null, 2));
 
     return NextResponse.json({
       success: true,

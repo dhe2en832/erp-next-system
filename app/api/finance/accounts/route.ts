@@ -28,7 +28,7 @@ async function erpFetch(path: string) {
 // Helper to calculate account balance from GL entries
 async function getAccountBalance(account: string): Promise<number> {
   try {
-    console.log(`Calculating balance for account: ${account}`);
+    // console.log(`Calculating balance for account: ${account}`);
     const response = await erpFetch(`/api/resource/GL Entry?filters=[["account","=","${account}"]]&fields=["debit","credit"]&limit_page_length=1000`);
     
     // Handle different response structures
@@ -40,20 +40,20 @@ async function getAccountBalance(account: string): Promise<number> {
       glEntries = response;
     }
     
-    console.log(`GL Data response for ${account}:`, JSON.stringify(glEntries.slice(0, 3), null, 2));
+    // console.log(`GL Data response for ${account}:`, JSON.stringify(glEntries.slice(0, 3), null, 2));
     
-    if (glEntries.length === 0) {
-      console.log(`No GL entries found for account ${account}, returning 0`);
-      return 0;
-    }
+    // if (glEntries.length === 0) {
+    //   console.log(`No GL entries found for account ${account}, returning 0`);
+    //   return 0;
+    // }
     
-    console.log(`Found ${glEntries.length} GL entries for account ${account}`);
+    // console.log(`Found ${glEntries.length} GL entries for account ${account}`);
     
     const totalDebit = glEntries.reduce((sum: number, entry: { debit?: number }) => sum + (entry.debit || 0), 0);
     const totalCredit = glEntries.reduce((sum: number, entry: { credit?: number }) => sum + (entry.credit || 0), 0);
     
     const balance = totalDebit - totalCredit;
-    console.log(`Balance for ${account}: Debit=${totalDebit}, Credit=${totalCredit}, Balance=${balance}`);
+    // console.log(`Balance for ${account}: Debit=${totalDebit}, Credit=${totalCredit}, Balance=${balance}`);
     
     return balance;
   } catch (error) {
@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const account = searchParams.get('account') || '';
 
-    console.log('COA API - Account param:', account);
+    // console.log('COA API - Account param:', account);
 
     if (account) {
       // Fetch Journal for specific account - fix the filter syntax
@@ -105,7 +105,7 @@ export async function GET(request: NextRequest) {
       }
     } else {
       // Fetch COA REAL dari ERPNext - TANPA MOCK DATA
-      console.log('Fetching REAL COA from ERPNext...');
+      // console.log('Fetching REAL COA from ERPNext...');
       
       try {
         // Fetch semua accounts dengan limit yang lebih besar dan field yang lengkap
@@ -118,21 +118,21 @@ export async function GET(request: NextRequest) {
           throw new Error('Invalid response format from ERPNext');
         }
         
-        console.log('Successfully fetched REAL COA from ERPNext:', accounts.length, 'accounts');
+        // console.log('Successfully fetched REAL COA from ERPNext:', accounts.length, 'accounts');
         
         // Filter accounts untuk company yang aktif (BAC)
         const filteredAccounts = accounts.filter((acc: Record<string, unknown>) => 
           (acc.name as string).includes(' - BAC')
         );
         
-        console.log('Filtered accounts for company:', filteredAccounts.length, 'accounts');
+        // console.log('Filtered accounts for company:', filteredAccounts.length, 'accounts');
         
         // Only calculate balance for detail accounts (is_group = 0) to improve performance
         const detailAccounts = filteredAccounts.filter((acc: Record<string, unknown>) => 
           (acc.is_group as number) === 0
         );
         
-        console.log('Calculating balance for detail accounts only:', detailAccounts.length, 'accounts');
+        // console.log('Calculating balance for detail accounts only:', detailAccounts.length, 'accounts');
         
         // Calculate real balance for each detail account from GL entries
         const accountsWithBalance = await Promise.all(
@@ -154,7 +154,7 @@ export async function GET(request: NextRequest) {
           })
         );
         
-        console.log('Successfully calculated balances for all accounts');
+        // console.log('Successfully calculated balances for all accounts');
         
         return NextResponse.json({ success: true, accounts: accountsWithBalance });
         

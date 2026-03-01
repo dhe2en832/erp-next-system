@@ -191,7 +191,7 @@ export default function PurchaseOrderMain() {
         // Check if PO status is non-Draft to set view mode
         if (poData.status && poData.status !== 'Draft') {
           setIsViewMode(true);
-          console.log('PO is in view mode (non-Draft status):', poData.status);
+          // console.log('PO is in view mode (non-Draft status):', poData.status);
         }
         
         // Fill form with PO data
@@ -218,11 +218,11 @@ export default function PurchaseOrderMain() {
               setShippingAddress(address);
               setBillingAddress(address);
               
-              console.log('Supplier info loaded for PO:', {
-                supplier: poData.supplier,
-                address: address,
-                contact: contact
-              });
+              // console.log('Supplier info loaded for PO:', {
+              //   supplier: poData.supplier,
+              //   address: address,
+              //   contact: contact
+              // });
             }
           } catch (supplierError) {
             console.error('Error fetching supplier details for PO:', supplierError);
@@ -258,7 +258,7 @@ export default function PurchaseOrderMain() {
           });
         }
         
-        console.log('PO data loaded successfully:', poData);
+        // console.log('PO data loaded successfully:', poData);
       } else {
         setError(data.message || 'Gagal memuat data PO');
       }
@@ -334,7 +334,7 @@ export default function PurchaseOrderMain() {
       
       if (!response.ok) {
         // API tidak ada atau error, gunakan fallback data
-        console.log('Terms API not available, using fallback data');
+        // console.log('Terms API not available, using fallback data');
         setTermsList([
           { name: 'Standar', terms: 'Syarat dan ketentuan standar berlaku' }
         ]);
@@ -347,7 +347,7 @@ export default function PurchaseOrderMain() {
         setTermsList(data.data || []);
       } else {
         // API error, gunakan fallback
-        console.log('Terms API error, using fallback data');
+        // console.log('Terms API error, using fallback data');
         setTermsList([
           { name: 'Standar', terms: 'Syarat dan ketentuan standar berlaku' }
         ]);
@@ -367,7 +367,7 @@ export default function PurchaseOrderMain() {
       
       if (!response.ok) {
         // API tidak ada atau error, gunakan fallback data
-        console.log('Tax templates API not available, using fallback data');
+        // console.log('Tax templates API not available, using fallback data');
         setTaxTemplates([
           { name: 'PPN 11%', tax_rate: 11, description: 'Pajak Pertambahan Nilang 11%' }
         ]);
@@ -380,7 +380,7 @@ export default function PurchaseOrderMain() {
         setTaxTemplates(data.data || []);
       } else {
         // API error, gunakan fallback
-        console.log('Tax templates API error, using fallback data');
+        // console.log('Tax templates API error, using fallback data');
         setTaxTemplates([
           { name: 'PPN 11%', tax_rate: 11, description: 'Pajak Pertambahan Nilang 11%' }
         ]);
@@ -479,14 +479,14 @@ export default function PurchaseOrderMain() {
     setShowSupplierDialog(false);
     setSupplierSearchTerm('');
     
-    console.log('Supplier selected:', supplierCode, supplierName);
+    // console.log('Supplier selected:', supplierCode, supplierName);
     
     // Ambil detail supplier dari API
     try {
       const response = await fetch(`/api/purchase/suppliers/${supplierCode}`);
       const data = await response.json();
       
-      console.log('Supplier detail response:', data);
+      // console.log('Supplier detail response:', data);
       
       if (data.success && data.data) {
         const supplierDetail = data.data;
@@ -500,14 +500,14 @@ export default function PurchaseOrderMain() {
         setShippingAddress(address); // Alamat Supplier (visible) - sudah diformat
         setBillingAddress(address);
         
-        console.log('Supplier info filled from API:', {
-          name: supplierDetail.name,
-          supplier_name: supplierDetail.supplier_name,
-          address: address,
-          contact: contact
-        });
+        // console.log('Supplier info filled from API:', {
+        //   name: supplierDetail.name,
+        //   supplier_name: supplierDetail.supplier_name,
+        //   address: address,
+        //   contact: contact
+        // });
       } else {
-        console.log('Failed to fetch supplier detail:', data.message);
+        // console.log('Failed to fetch supplier detail:', data.message);
         // Set kosong jika gagal
         setContactPerson('');
         setDeliveryLocation('');
@@ -546,9 +546,9 @@ export default function PurchaseOrderMain() {
 
   // Check stock for selected item
   const checkItemStock = async (itemCode: string, itemIndex: number, currentItem: PurchaseOrderItem) => {
-    console.log('Checking stock for item:', itemCode, 'at index:', itemIndex, 'company:', selectedCompany);
-    console.log('Current item passed to stock check:', currentItem);
-    console.log('Using warehouse from item details:', currentItem.warehouse);
+    // console.log('Checking stock for item:', itemCode, 'at index:', itemIndex, 'company:', selectedCompany);
+    // console.log('Current item passed to stock check:', currentItem);
+    // console.log('Using warehouse from item details:', currentItem.warehouse);
     
     // Use warehouse from item details
     const itemWarehouse = currentItem.warehouse;
@@ -557,13 +557,13 @@ export default function PurchaseOrderMain() {
       const response = await fetch(`/api/inventory/check?item_code=${itemCode}&company=${selectedCompany}`);
       const data = await response.json();
       
-      console.log('Stock check response:', data);
+      // console.log('Stock check response:', data);
       
       if (!data.error && data.length > 0) {
         // Find stock info untuk warehouse dari item details
         const selectedWarehouseStock = data.find((stock: any) => stock.warehouse === itemWarehouse);
         
-        console.log('Selected warehouse stock:', selectedWarehouseStock);
+        // console.log('Selected warehouse stock:', selectedWarehouseStock);
         
         if (selectedWarehouseStock) {
           // Update item dengan stock info dari warehouse item
@@ -575,7 +575,7 @@ export default function PurchaseOrderMain() {
             reserved_stock: selectedWarehouseStock.reserved,
           };
           
-          console.log('Updated item with warehouse stock:', updatedItem);
+          // console.log('Updated item with warehouse stock:', updatedItem);
           
           // Update selectedItems dengan updated item
           setSelectedItems(prev => 
@@ -584,9 +584,9 @@ export default function PurchaseOrderMain() {
             )
           );
           
-          console.log('Selected items updated with warehouse stock');
+          // console.log('Selected items updated with warehouse stock');
         } else {
-          console.log('No stock data found for item warehouse:', itemWarehouse);
+          // console.log('No stock data found for item warehouse:', itemWarehouse);
           // Jika warehouse tidak ditemukan di stock data, set stock ke 0
           const updatedItem = {
             ...currentItem,
@@ -603,7 +603,7 @@ export default function PurchaseOrderMain() {
           );
         }
       } else {
-        console.log('No stock data found for item:', itemCode);
+        // console.log('No stock data found for item:', itemCode);
         // Set stock ke 0 jika tidak ada data
         const updatedItem = {
           ...currentItem,
@@ -639,7 +639,7 @@ export default function PurchaseOrderMain() {
   };
 
   const handleItemSelect = async (item: { item_code: string; item_name: string; stock_uom?: string }) => {
-    console.log('Item selected:', item);
+    // console.log('Item selected:', item);
     
     if (currentItemIndex === null) return;
     
@@ -652,26 +652,26 @@ export default function PurchaseOrderMain() {
     let rate = 0;
     try {
       // Coba dengan "Standar Pembelian"
-      console.log('Trying to fetch price for item:', item.item_code, 'company:', selectedCompany);
+      // console.log('Trying to fetch price for item:', item.item_code, 'company:', selectedCompany);
       const priceResponse = await fetch(`/api/inventory/items/price?item_code=${item.item_code}&price_list=Standar%20Pembelian&company=${selectedCompany}`);
       const priceResult = await priceResponse.json();
       
-      console.log('Price API response:', priceResult);
+      // console.log('Price API response:', priceResult);
       
       if (priceResult.success && priceResult.data) {
         rate = priceResult.data.price_list_rate;
-        console.log('Item price fetched successfully:', rate);
+        // console.log('Item price fetched successfully:', rate);
       } else {
-        console.log('No price found from Standar Pembelian, using default rate 0');
+        // console.log('No price found from Standar Pembelian, using default rate 0');
         // Coba tanpa price list (gunakan default)
         const defaultResponse = await fetch(`/api/inventory/items/price?item_code=${item.item_code}&company=${selectedCompany}`);
         const defaultResult = await defaultResponse.json();
         
-        console.log('Default price API response:', defaultResult);
+        // console.log('Default price API response:', defaultResult);
         
         if (defaultResult.success && defaultResult.data) {
           rate = defaultResult.data.price_list_rate || defaultResult.data.rate || 0;
-          console.log('Item price fetched from default:', rate);
+          // console.log('Item price fetched from default:', rate);
         }
       }
     } catch (error) {
@@ -680,7 +680,7 @@ export default function PurchaseOrderMain() {
     
     // Get current item to preserve existing fields
     const currentItem = selectedItems[currentItemIndex];
-    console.log('Current item before update:', currentItem);
+    // console.log('Current item before update:', currentItem);
     
     // Update existing item at specific index
     const newItems = [...selectedItems];
@@ -699,11 +699,11 @@ export default function PurchaseOrderMain() {
       reserved_stock: 0
     };
 
-    console.log('Updated item with rate:', newItems[currentItemIndex]);
-    console.log('Rate set to:', rate);
-    console.log('Amount calculated:', newItems[currentItemIndex].amount);
+    // console.log('Updated item with rate:', newItems[currentItemIndex]);
+    // console.log('Rate set to:', rate);
+    // console.log('Amount calculated:', newItems[currentItemIndex].amount);
 
-    console.log('Updated item before stock check:', newItems[currentItemIndex]);
+    // console.log('Updated item before stock check:', newItems[currentItemIndex]);
     
     setSelectedItems(newItems);
     setShowItemDialog(false);
@@ -848,7 +848,7 @@ export default function PurchaseOrderMain() {
         }))
       };
 
-      console.log('Sending PO data:', purchaseOrderData);
+      // console.log('Sending PO data:', purchaseOrderData);
 
       // Use PUT if editing OR if doc was already created in this session (retry guard)
       const existingId = isEditMode ? poId : createdDocName.current;
@@ -941,7 +941,7 @@ export default function PurchaseOrderMain() {
 
       {success && (
         <>
-          {console.log('Rendering success alert with message:', success)}
+          {/* {console.log('Rendering success alert with message:', success)} */}
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
               <div className="flex items-center mb-4">

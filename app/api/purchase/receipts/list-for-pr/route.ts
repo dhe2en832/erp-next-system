@@ -26,14 +26,14 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    console.log('Fetching PO list for PR for company:', company, 'supplier:', supplier);
+    // console.log('Fetching PO list for PR for company:', company, 'supplier:', supplier);
 
     // Try ERPNext custom method first
     try {
       const erpNextUrl = supplier 
         ? `${ERPNEXT_API_URL}/api/method/fetch_po_list_for_pr?company=${encodeURIComponent(company)}&supplier=${encodeURIComponent(supplier)}`
         : `${ERPNEXT_API_URL}/api/method/fetch_po_list_for_pr?company=${encodeURIComponent(company)}`;
-      console.log('Trying custom method:', erpNextUrl);
+      // console.log('Trying custom method:', erpNextUrl);
       
       const response = await fetch(erpNextUrl, {
         method: 'GET',
@@ -44,12 +44,12 @@ export async function GET(request: NextRequest) {
         credentials: 'include',
       });
 
-      console.log('ERPNext Custom Method Status:', response.status);
+      // console.log('ERPNext Custom Method Status:', response.status);
 
       if (response.ok) {
         const data = await response.json();
-        console.log('ERPNext Custom Method Response:', data);
-        console.log('Custom method returned items:', data.message?.data?.length || 0);
+        // console.log('ERPNext Custom Method Response:', data);
+        // console.log('Custom method returned items:', data.message?.data?.length || 0);
         
         // Add debug info to response
         const debuggedData = {
@@ -66,14 +66,14 @@ export async function GET(request: NextRequest) {
         return NextResponse.json(debuggedData);
       } else {
         const errorData = await response.text();
-        console.log('Custom method failed:', errorData);
+        // console.log('Custom method failed:', errorData);
       }
     } catch (customMethodError) {
       console.log('Custom method not available, using standard API...', customMethodError);
     }
 
     // Fallback to standard ERPNext API - filter POs that don't have PRs yet
-    console.log('Using standard ERPNext API for Purchase Orders...');
+    // console.log('Using standard ERPNext API for Purchase Orders...');
     
     // Build filters array
     let filtersArray = [
@@ -85,17 +85,17 @@ export async function GET(request: NextRequest) {
     // Add supplier filter if provided
     if (supplier) {
       filtersArray.push(["supplier", "=", supplier]);
-      console.log('Adding supplier filter:', supplier);
+      // console.log('Adding supplier filter:', supplier);
     } else {
-      console.log('No supplier filter - fetching all suppliers');
+      // console.log('No supplier filter - fetching all suppliers');
     }
     
     const filters = JSON.stringify(filtersArray);
     
     const standardUrl = `${ERPNEXT_API_URL}/api/resource/Purchase Order?fields=["name","supplier","supplier_name","transaction_date","company","grand_total","status","per_received"]&filters=${encodeURIComponent(filters)}&order_by=transaction_date desc&limit_page_length=100`;
     
-    console.log('Standard API URL:', standardUrl);
-    console.log('Filters being used:', filters);
+    // console.log('Standard API URL:', standardUrl);
+    // console.log('Filters being used:', filters);
     
     const response = await fetch(standardUrl, {
       method: 'GET',
@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
       credentials: 'include',
     });
 
-    console.log('Standard API Status:', response.status);
+    // console.log('Standard API Status:', response.status);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -118,8 +118,8 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await response.json();
-    console.log('Standard API Response:', data);
-    console.log('Standard API returned items:', data.data?.length || 0);
+    // console.log('Standard API Response:', data);
+    // console.log('Standard API returned items:', data.data?.length || 0);
 
     // Filter out POs that are already fully received (per_received >= 100)
     const filteredPOs = (data.data || []).filter((po: any) => {
@@ -127,7 +127,7 @@ export async function GET(request: NextRequest) {
       return perReceived < 100; // Only show POs that are not fully received
     });
 
-    console.log('Filtered POs after removing fully received:', filteredPOs.length);
+    // console.log('Filtered POs after removing fully received:', filteredPOs.length);
 
     // Transform to expected format
     const transformedData = {
@@ -146,8 +146,8 @@ export async function GET(request: NextRequest) {
       }
     };
 
-    console.log('Transformed data items:', transformedData.message.data.length);
-    console.log('Final transformed data:', JSON.stringify(transformedData, null, 2));
+    // console.log('Transformed data items:', transformedData.message.data.length);
+    // console.log('Final transformed data:', JSON.stringify(transformedData, null, 2));
 
     // Add debug info to response
     const debuggedData = {

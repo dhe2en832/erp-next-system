@@ -41,8 +41,8 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    console.log('=== BOUNCE WARKAT PAYMENT ===');
-    console.log('Payload:', { company, payment_entry, reason, payment_type });
+    // console.log('=== BOUNCE WARKAT PAYMENT ===');
+    // console.log('Payload:', { company, payment_entry, reason, payment_type });
 
     const erpUrl = `${ERPNEXT_API_URL}/api/method/bounce_warkat_payment`;
 
@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
     });
 
     const data = await response.json();
-    console.log('Bounce Warkat Response:', response.status, data);
+    // console.log('Bounce Warkat Response:', response.status, data);
 
     if (response.ok && data.message) {
       return NextResponse.json({

@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
       erpNextUrl += `&filters=${encodeURIComponent(JSON.stringify(filters))}`;
     }
 
-    console.log('Employees ERPNext URL:', erpNextUrl);
+    // console.log('Employees ERPNext URL:', erpNextUrl);
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
     });
 
     const data = await response.json();
-    console.log('Employees API Response:', { status: response.status, dataLength: data.data?.length });
+    // console.log('Employees API Response:', { status: response.status, dataLength: data.data?.length });
 
     if (response.ok) {
       // Transform employee data

@@ -194,7 +194,7 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
   const triggerAutoSelection = useCallback((accounts: any, paymentType: string, paymentMode: string) => {
     if (!accounts || !paymentType || !paymentMode) return;
 
-    console.log('triggerAutoSelection called:', { paymentType, paymentMode, isEditMode });
+    // console.log('triggerAutoSelection called:', { paymentType, paymentMode, isEditMode });
 
     const selectableList = getSelectableAccounts(paymentMode, paymentType);
     const firstSelectable = selectableList.length > 0 ? selectableList[0].name : '';
@@ -202,7 +202,7 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
       ? (accounts.default_receivable_account || '')
       : (accounts.default_payable_account || '');
 
-    console.log('Auto-selection values:', { firstSelectable, autoAccount });
+    // console.log('Auto-selection values:', { firstSelectable, autoAccount });
 
     if (paymentType === 'Receive') {
       setFormData(prev => ({
@@ -225,7 +225,7 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
 
   // Auto-update accounts when payment type or mode changes
   useEffect(() => {
-    console.log('useEffect auto-selection:', { isEditMode, payment_type: formData.payment_type, mode_of_payment: formData.mode_of_payment, hasCompanyAccounts: !!companyAccounts.default_payable_account });
+    // console.log('useEffect auto-selection:', { isEditMode, payment_type: formData.payment_type, mode_of_payment: formData.mode_of_payment, hasCompanyAccounts: !!companyAccounts.default_payable_account });
     if (isEditMode) return;
     if (!companyAccounts || !selectedCompany) return;
     // Don't auto-select if paid_from already has a valid warkat/bank account (for edit mode safety)
@@ -383,12 +383,12 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
         ? paymentDetails.paid_to 
         : paymentDetails.paid_to?.name || '';
 
-      console.log('Edit Payment - Accounts:', { 
-        paid_from: paidFromAccount, 
-        paid_to: paidToAccount,
-        payment_type: paymentDetails.payment_type,
-        mode_of_payment: paymentDetails.mode_of_payment 
-      });
+      // console.log('Edit Payment - Accounts:', { 
+      //   paid_from: paidFromAccount, 
+      //   paid_to: paidToAccount,
+      //   payment_type: paymentDetails.payment_type,
+      //   mode_of_payment: paymentDetails.mode_of_payment 
+      // });
 
       setFormData({
         payment_type: paymentDetails.payment_type as 'Receive' | 'Pay',
@@ -1061,7 +1061,7 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
           <div>
             <h3 className="text-lg font-medium text-gray-900 mb-4">Pemilihan Akun</h3>
             {(() => {
-              console.log('Render - payment_type:', formData.payment_type, 'paid_from:', formData.paid_from, 'paid_to:', formData.paid_to);
+              // console.log('Render - payment_type:', formData.payment_type, 'paid_from:', formData.paid_from, 'paid_to:', formData.paid_to);
               return null;
             })()}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

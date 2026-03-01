@@ -18,14 +18,14 @@ export async function GET(
       );
     }
 
-    console.log('=== Delivery Note Detail API Called ===');
-    console.log('DN Name:', name);
+    // console.log('=== Delivery Note Detail API Called ===');
+    // console.log('DN Name:', name);
 
     // Fetch full delivery note with items using form.load.getdoc
     const erpnextUrl = `${ERPNEXT_API_URL}/api/method/frappe.desk.form.load.getdoc`;
     
-    console.log('ERPNext URL:', erpnextUrl);
-    console.log('Request body:', JSON.stringify({ doctype: 'Delivery Note', name: name }));
+    // console.log('ERPNext URL:', erpnextUrl);
+    // console.log('Request body:', JSON.stringify({ doctype: 'Delivery Note', name: name }));
 
     const response = await fetch(erpnextUrl, {
       method: 'POST',
@@ -39,7 +39,7 @@ export async function GET(
       }),
     });
 
-    console.log('ERPNext Response Status:', response.status);
+    // console.log('ERPNext Response Status:', response.status);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -51,13 +51,13 @@ export async function GET(
     }
 
     const data = await response.json();
-    console.log('ERPNext Response:', JSON.stringify(data).substring(0, 200));
+    // console.log('ERPNext Response:', JSON.stringify(data).substring(0, 200));
 
     if (data.message && data.message.docs && data.message.docs.length > 0) {
       const deliveryNote = data.message.docs[0];
       
-      console.log('DN Found:', deliveryNote.name);
-      console.log('DN Items count:', deliveryNote.items?.length || 0);
+      // console.log('DN Found:', deliveryNote.name);
+      // console.log('DN Items count:', deliveryNote.items?.length || 0);
 
       return NextResponse.json({
         success: true,
@@ -65,7 +65,7 @@ export async function GET(
       });
     } else {
       // Fallback: Try using resource API with fields parameter to include child tables
-      console.log('Trying fallback: resource API');
+      // console.log('Trying fallback: resource API');
       const resourceUrl = `${ERPNEXT_API_URL}/api/resource/Delivery Note/${name}?fields=["*"]`;
       
       const resourceResponse = await fetch(resourceUrl, {
@@ -78,7 +78,7 @@ export async function GET(
 
       if (resourceResponse.ok) {
         const resourceData = await resourceResponse.json();
-        console.log('Resource API success, items count:', resourceData.data?.items?.length || 0);
+        // console.log('Resource API success, items count:', resourceData.data?.items?.length || 0);
         
         return NextResponse.json({
           success: true,
@@ -86,7 +86,7 @@ export async function GET(
         });
       }
 
-      console.log('DN not found in both APIs');
+      // console.log('DN not found in both APIs');
       return NextResponse.json(
         { success: false, message: 'Surat jalan tidak ditemukan' },
         { status: 404 }

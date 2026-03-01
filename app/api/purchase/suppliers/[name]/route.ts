@@ -28,11 +28,11 @@ async function fetchFromErpNext(url: string, headers: Record<string, string>, me
     headers,
   });
 
-  console.log('Response status:', response.status);
-  console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+  // console.log('Response status:', response.status);
+  // console.log('Response headers:', Object.fromEntries(response.headers.entries()));
 
   const data = await response.json();
-  console.log('Supplier detail response:', data);
+  // console.log('Supplier detail response:', data);
 
   if (response.ok && data.data) {
     return NextResponse.json({
@@ -41,7 +41,7 @@ async function fetchFromErpNext(url: string, headers: Record<string, string>, me
       message: 'Supplier detail fetched successfully'
     });
   } else {
-    console.log('API Response Error:', data);
+    // console.log('API Response Error:', data);
     return NextResponse.json(
       { success: false, message: data.message || data.exc || 'Failed to fetch supplier detail' },
       { status: response.status }
@@ -51,8 +51,8 @@ async function fetchFromErpNext(url: string, headers: Record<string, string>, me
 
 async function handleSupplier(request: NextRequest, name: string, method: 'GET' | 'PUT') {
   try {
-    console.log('Supplier Detail API - ERPNext URL:', ERPNEXT_API_URL);
-    console.log('Supplier Detail API - Supplier Name:', name);
+    // console.log('Supplier Detail API - ERPNext URL:', ERPNEXT_API_URL);
+    // console.log('Supplier Detail API - Supplier Name:', name);
     
     const cookies = request.cookies;
     const sid = cookies.get('sid')?.value;
@@ -65,18 +65,18 @@ async function handleSupplier(request: NextRequest, name: string, method: 'GET' 
     const apiKey = process.env.ERP_API_KEY;
     const apiSecret = process.env.ERP_API_SECRET;
     
-    console.log('Supplier Detail API - API Key Available:', !!apiKey);
-    console.log('Supplier Detail API - API Secret Available:', !!apiSecret);
-    console.log('Supplier Detail API - Session ID Available:', !!sid);
+    // console.log('Supplier Detail API - API Key Available:', !!apiKey);
+    // console.log('Supplier Detail API - API Secret Available:', !!apiSecret);
+    // console.log('Supplier Detail API - Session ID Available:', !!sid);
     
     if (apiKey && apiSecret) {
       headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-      console.log('Using API key authentication for supplier detail');
+      // console.log('Using API key authentication for supplier detail');
     } else if (sid) {
       headers['Cookie'] = `sid=${sid}`;
-      console.log('Using session-based authentication for supplier detail');
+      // console.log('Using session-based authentication for supplier detail');
     } else {
-      console.log('No authentication found - returning 401');
+      // console.log('No authentication found - returning 401');
       return NextResponse.json(
         { success: false, message: 'Unauthorized - No session or API key found' },
         { status: 401 }
@@ -85,7 +85,7 @@ async function handleSupplier(request: NextRequest, name: string, method: 'GET' 
 
     // Build ERPNext URL untuk detail supplier
     const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Supplier/${name}`;
-    console.log('Supplier Detail ERPNext URL:', erpNextUrl);
+    // console.log('Supplier Detail ERPNext URL:', erpNextUrl);
 
     if (method === 'GET') {
       // direct fetch by name

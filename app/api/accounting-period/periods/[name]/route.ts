@@ -18,7 +18,7 @@ export async function GET(
       periodName = decodeURIComponent(periodName);
     }
 
-    console.log('Fetching period:', periodName);
+    // console.log('Fetching period:', periodName);
 
     // Fetch period details from ERPNext
     const period = await erpnextClient.get<AccountingPeriod>('Accounting Period', periodName);

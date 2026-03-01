@@ -151,8 +151,8 @@ export default function StockEntryList() {
       
       params.append('filters', JSON.stringify(filtersArray));
       
-      console.log('Fetch entries params:', params.toString());
-      console.log('Filters array:', filtersArray);
+      // console.log('Fetch entries params:', params.toString());
+      // console.log('Filters array:', filtersArray);
 
       const response = await fetch(`/api/inventory/stock-entry?${params}`);
       const data = await response.json();
@@ -185,7 +185,7 @@ export default function StockEntryList() {
     try {
       const response = await fetch(`/api/inventory/warehouses?company=${selectedCompany}`);
       const data = await response.json();
-      console.log('Warehouses data:', data); // Debug log
+      // console.log('Warehouses data:', data); // Debug log
       if (data.success) setWarehouses(data.data || []);
     } catch (err) {
       console.error('Gagal memuat gudang:', err);

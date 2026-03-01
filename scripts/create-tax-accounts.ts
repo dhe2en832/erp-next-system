@@ -68,9 +68,9 @@ async function createAccount(config: AccountConfig) {
 
   const url = `${ERPNEXT_API_URL}/api/resource/Account`;
   
-  console.log(`\n📝 Creating Account: ${config.account_number} - ${config.account_name}`);
-  console.log(`   Company: ${config.company}`);
-  console.log(`   Parent: ${config.parent_account}`);
+  // console.log(`\n📝 Creating Account: ${config.account_number} - ${config.account_name}`);
+  // console.log(`   Company: ${config.company}`);
+  // console.log(`   Parent: ${config.parent_account}`);
 
   try {
     const response = await fetch(url, {
@@ -87,7 +87,7 @@ async function createAccount(config: AccountConfig) {
     if (!response.ok) {
       // Check if account already exists
       if (response.status === 409 || responseText.includes('already exists')) {
-        console.log(`   ⚠️  Account already exists, skipping...`);
+        // console.log(`   ⚠️  Account already exists, skipping...`);
         return { success: true, exists: true };
       }
       
@@ -98,8 +98,8 @@ async function createAccount(config: AccountConfig) {
     }
 
     const data = JSON.parse(responseText);
-    console.log(`   ✅ Account created successfully`);
-    console.log(`   Account ID: ${data.data?.name || 'N/A'}`);
+    // console.log(`   ✅ Account created successfully`);
+    // console.log(`   Account ID: ${data.data?.name || 'N/A'}`);
     
     return { success: true, data: data.data };
   } catch (error: any) {
@@ -109,10 +109,10 @@ async function createAccount(config: AccountConfig) {
 }
 
 async function main() {
-  console.log('='.repeat(60));
-  console.log('🚀 Create Tax Accounts for ERPNext');
-  console.log('   Creating accounts for all companies');
-  console.log('='.repeat(60));
+  // console.log('='.repeat(60));
+  // console.log('🚀 Create Tax Accounts for ERPNext');
+  // console.log('   Creating accounts for all companies');
+  // console.log('='.repeat(60));
 
   // Verify API credentials
   if (!API_KEY || !API_SECRET) {
@@ -121,20 +121,20 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`\n✅ API credentials configured`);
-  console.log(`   API URL: ${ERPNEXT_API_URL}`);
+  // console.log(`\n✅ API credentials configured`);
+  // console.log(`   API URL: ${ERPNEXT_API_URL}`);
 
   // Get list of companies
-  console.log('\n🔍 Fetching company list...');
+  // console.log('\n🔍 Fetching company list...');
   const companies = await getCompanyList();
-  console.log(`   Found ${companies.length} companies:`);
+  // console.log(`   Found ${companies.length} companies:`);
   companies.forEach(c => console.log(`   - ${c}`));
 
   // Create accounts for each company
   for (const company of companies) {
-    console.log(`\n${'='.repeat(60)}`);
-    console.log(`📊 Creating tax accounts for: ${company}`);
-    console.log('='.repeat(60));
+    // console.log(`\n${'='.repeat(60)}`);
+    // console.log(`📊 Creating tax accounts for: ${company}`);
+    // console.log('='.repeat(60));
 
     // Extract company abbreviation (e.g., "BAC" from "Berkat Abadi Cirebon")
     const companyAbbr = company.split(' ').map(w => w[0]).join('').toUpperCase();
@@ -193,11 +193,11 @@ async function main() {
         });
       }
       
-      console.log(`\n✅ Tax accounts setup completed for ${company}`);
-      console.log('\n📋 Summary:');
-      results.forEach(r => {
-        console.log(`   ${r.account}: ${r.status}`);
-      });
+      // console.log(`\n✅ Tax accounts setup completed for ${company}`);
+      // console.log('\n📋 Summary:');
+      // results.forEach(r => {
+      //   console.log(`   ${r.account}: ${r.status}`);
+      // });
       
     } catch (error: any) {
       console.error(`\n❌ Setup failed for ${company}:`, error.message);
@@ -205,9 +205,9 @@ async function main() {
     }
   }
 
-  console.log('\n' + '='.repeat(60));
-  console.log('✅ All companies processed');
-  console.log('='.repeat(60));
+  // console.log('\n' + '='.repeat(60));
+  // console.log('✅ All companies processed');
+  // console.log('='.repeat(60));
 }
 
 // Run the script

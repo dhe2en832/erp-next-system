@@ -181,11 +181,11 @@ export default function PurchaseInvoiceMain() {
 
       if (data.message && data.message.success) {
         const invoice = data.message.data;
-        console.log('Purchase Invoice data received:', invoice);
+        // console.log('Purchase Invoice data received:', invoice);
 
         // Set form data from fetched invoice
-        console.log('Setting form data with invoice:', invoice);
-        console.log('Invoice items:', invoice.items);
+        // console.log('Setting form data with invoice:', invoice);
+        // console.log('Invoice items:', invoice.items);
 
         setFormData({
           supplier: invoice.supplier,
@@ -211,7 +211,7 @@ export default function PurchaseInvoiceMain() {
           custom_notes_pi: invoice.custom_notes_pi || ''
         });
 
-        console.log('Form data set successfully');
+        // console.log('Form data set successfully');
       } else {
         // Handle permission error specifically
         if (data.message && data.message.message && data.message.message.includes('izin')) {
@@ -253,19 +253,19 @@ export default function PurchaseInvoiceMain() {
       setPurchaseReceiptsLoading(true);
       setPurchaseReceiptsError('');
 
-      console.log('Fetching available purchase receipts for company:', selectedCompany);
+      // console.log('Fetching available purchase receipts for company:', selectedCompany);
 
       const response = await fetch(`/api/purchase/receipts/list-for-pi?company=${encodeURIComponent(selectedCompany)}`, {
         credentials: 'include'
       });
 
       const data = await response.json();
-      console.log('Purchase Receipts API Response:', data);
+      // console.log('Purchase Receipts API Response:', data);
 
       if (data.message?.success) {
         const receipts = data.message.data || [];
-        console.log('Available Purchase Receipts:', receipts);
-        console.log('PR Search Term:', prSearchTerm);
+        // console.log('Available Purchase Receipts:', receipts);
+        // console.log('PR Search Term:', prSearchTerm);
 
         const filteredReceipts = receipts.filter((receipt: PurchaseReceipt) =>
           prSearchTerm === '' ||
@@ -273,8 +273,8 @@ export default function PurchaseInvoiceMain() {
           receipt.supplier_name.toLowerCase().includes(prSearchTerm.toLowerCase())
         );
 
-        console.log('Filtered Purchase Receipts:', filteredReceipts);
-        console.log('Filtered count:', filteredReceipts.length);
+        // console.log('Filtered Purchase Receipts:', filteredReceipts);
+        // console.log('Filtered count:', filteredReceipts.length);
 
         setPurchaseReceipts(receipts);
       } else {
@@ -291,30 +291,30 @@ export default function PurchaseInvoiceMain() {
   }, [selectedCompany]);
 
   // Debug formData.items changes
-  useEffect(() => {
-    console.log('=== formData.items Debug ===');
-    console.log('Total items:', formData.items.length);
-    console.log('Items detail:', formData.items);
-    console.log('Items with item_code:', formData.items.filter(item => item.item_code));
-    console.log('Items with item_name:', formData.items.filter(item => item.item_name));
-    console.log('========================');
-  }, [formData.items]);
+  // useEffect(() => {
+  //   console.log('=== formData.items Debug ===');
+  //   console.log('Total items:', formData.items.length);
+  //   console.log('Items detail:', formData.items);
+  //   console.log('Items with item_code:', formData.items.filter(item => item.item_code));
+  //   console.log('Items with item_name:', formData.items.filter(item => item.item_name));
+  //   console.log('========================');
+  // }, [formData.items]);
 
   // Handle purchase receipt selection
   const handleSelectPurchaseReceipt = async (prName: string) => {
     try {
-      console.log('Fetching detail for PR:', prName);
+      // console.log('Fetching detail for PR:', prName);
 
       const response = await fetch(`/api/purchase/receipts/detail-for-pi/${prName}`, {
         credentials: 'include'
       });
 
       const data = await response.json();
-      console.log('PR Detail Response:', data);
+      // console.log('PR Detail Response:', data);
 
       if (data.message?.success) {
         const prData: PurchaseReceiptDetail = data.message.data;
-        console.log('PR Detail Data:', prData);
+        // console.log('PR Detail Data:', prData);
 
         // Map PR data to Purchase Invoice form
         const mappedFormData: PurchaseInvoiceFormData = {
@@ -344,18 +344,18 @@ export default function PurchaseInvoiceMain() {
           }))
         };
 
-        console.log('Mapped Form Data:', mappedFormData);
-        console.log('Items in mapped data:', mappedFormData.items);
-        console.log('Sample item fields:', mappedFormData.items[0] ? {
-          purchase_receipt_item: mappedFormData.items[0].purchase_receipt_item,
-          purchase_order_item: mappedFormData.items[0].purchase_order_item,
-          received_qty: mappedFormData.items[0].received_qty,  // Add this
-          rejected_qty: mappedFormData.items[0].rejected_qty   // Add this
-        } : 'No items');
-        console.log('PR Data items sample:', prData.items[0] ? {
-          received_qty: prData.items[0].received_qty,
-          rejected_qty: prData.items[0].rejected_qty
-        } : 'No PR items');
+        // console.log('Mapped Form Data:', mappedFormData);
+        // console.log('Items in mapped data:', mappedFormData.items);
+        // console.log('Sample item fields:', mappedFormData.items[0] ? {
+        //   purchase_receipt_item: mappedFormData.items[0].purchase_receipt_item,
+        //   purchase_order_item: mappedFormData.items[0].purchase_order_item,
+        //   received_qty: mappedFormData.items[0].received_qty,  // Add this
+        //   rejected_qty: mappedFormData.items[0].rejected_qty   // Add this
+        // } : 'No items');
+        // console.log('PR Data items sample:', prData.items[0] ? {
+        //   received_qty: prData.items[0].received_qty,
+        //   rejected_qty: prData.items[0].rejected_qty
+        // } : 'No PR items');
         setFormData(mappedFormData);
         setShowPurchaseReceiptDialog(false);
         setError('');
@@ -515,10 +515,10 @@ export default function PurchaseInvoiceMain() {
       
       const grandTotal = netTotal + totalTaxes;
 
-      console.log('[DEBUG] Submitting PI with discount and taxes');
-      console.log('[DEBUG] Discount:', { amount: finalDiscountAmount, percentage: discountPercentage });
-      console.log('[DEBUG] Taxes:', taxesPayload);
-      console.log('[DEBUG] Totals:', { total, netTotal, totalTaxes, grandTotal });
+      // console.log('[DEBUG] Submitting PI with discount and taxes');
+      // console.log('[DEBUG] Discount:', { amount: finalDiscountAmount, percentage: discountPercentage });
+      // console.log('[DEBUG] Taxes:', taxesPayload);
+      // console.log('[DEBUG] Totals:', { total, netTotal, totalTaxes, grandTotal });
 
       // ERPNext compliant payload for Purchase Invoice
       let invoiceData = {
@@ -566,18 +566,18 @@ export default function PurchaseInvoiceMain() {
         total_taxes_and_charges: totalTaxes,
       };
 
-      console.log('=== FINAL PAYLOAD DEBUG ===');
-      console.log('Valid Items:', validItems);
-      console.log('Sample valid item:', validItems[0] ? {
-        purchase_receipt_item: validItems[0].purchase_receipt_item,
-        purchase_order_item: validItems[0].purchase_order_item,
-        purchase_receipt: validItems[0].purchase_receipt,
-        purchase_order: validItems[0].purchase_order,
-        received_qty: validItems[0].received_qty,  // Add this
-        rejected_qty: validItems[0].rejected_qty   // Add this
-      } : 'No valid items');
-      console.log('Invoice Data Items:', JSON.stringify(invoiceData.items, null, 2));
-      console.log('Sending Purchase Invoice data:', invoiceData);
+      // console.log('=== FINAL PAYLOAD DEBUG ===');
+      // console.log('Valid Items:', validItems);
+      // console.log('Sample valid item:', validItems[0] ? {
+      //   purchase_receipt_item: validItems[0].purchase_receipt_item,
+      //   purchase_order_item: validItems[0].purchase_order_item,
+      //   purchase_receipt: validItems[0].purchase_receipt,
+      //   purchase_order: validItems[0].purchase_order,
+      //   received_qty: validItems[0].received_qty,  // Add this
+      //   rejected_qty: validItems[0].rejected_qty   // Add this
+      // } : 'No valid items');
+      // console.log('Invoice Data Items:', JSON.stringify(invoiceData.items, null, 2));
+      // console.log('Sending Purchase Invoice data:', invoiceData);
 
       let isSuccess = false;  // Track success state - declare outside try block
       
@@ -588,7 +588,7 @@ export default function PurchaseInvoiceMain() {
         const apiUrl = isUpdate && existingId ? `/api/purchase/invoices?id=${existingId}` : '/api/purchase/invoices';
         const method = isUpdate && existingId ? 'PUT' : 'POST';
 
-        console.log(`${isUpdate ? 'Updating' : 'Creating'} Purchase Invoice with ${method} ${apiUrl}`);
+        // console.log(`${isUpdate ? 'Updating' : 'Creating'} Purchase Invoice with ${method} ${apiUrl}`);
 
         // For update, don't include doctype in payload
         if (isUpdate) {
@@ -604,7 +604,7 @@ export default function PurchaseInvoiceMain() {
         });
 
         const data = await response.json();
-        console.log('Submit Response:', data);
+        // console.log('Submit Response:', data);
         
         if (data.success) {
           isSuccess = true;
@@ -1212,9 +1212,9 @@ export default function PurchaseInvoiceMain() {
                         receipt.name.toLowerCase().includes(prSearchTerm.toLowerCase()) ||
                         receipt.supplier_name.toLowerCase().includes(prSearchTerm.toLowerCase());
 
-                      if (!matches) {
-                        console.log('Filtered out receipt:', receipt.name, '-', receipt.supplier_name, 'Search term:', prSearchTerm);
-                      }
+                      // if (!matches) {
+                      //   console.log('Filtered out receipt:', receipt.name, '-', receipt.supplier_name, 'Search term:', prSearchTerm);
+                      // }
 
                       return matches;
                     })

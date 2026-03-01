@@ -30,14 +30,14 @@ export async function POST(
     
     if (apiKey && apiSecret) {
       headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-      console.log('Using API Key authentication for stock entry submit');
+      // console.log('Using API Key authentication for stock entry submit');
     } else {
       // Fallback to session
       headers['Cookie'] = `sid=${sid}`;
-      console.log('Using session authentication for stock entry submit');
+      // console.log('Using session authentication for stock entry submit');
     }
 
-    console.log('Submitting stock entry:', entryName);
+    // console.log('Submitting stock entry:', entryName);
 
     const response = await fetch(`${ERPNEXT_API_URL}/api/resource/Stock Entry/${encodeURIComponent(entryName)}`, {
       method: 'PUT',
@@ -50,11 +50,11 @@ export async function POST(
 
     const data = await response.json();
     
-    console.log('Submit Stock Entry Response:', {
-      status: response.status,
-      entryName,
-      erpNextResponse: data
-    });
+    // console.log('Submit Stock Entry Response:', {
+    //   status: response.status,
+    //   entryName,
+    //   erpNextResponse: data
+    // });
 
     if (response.ok) {
       return NextResponse.json({

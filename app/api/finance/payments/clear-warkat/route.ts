@@ -41,8 +41,8 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    console.log('=== CLEAR WARKAT PAYMENT ===');
-    console.log('Payload:', { company, payment_entry, bank_account, payment_type, clearance_date });
+    // console.log('=== CLEAR WARKAT PAYMENT ===');
+    // console.log('Payload:', { company, payment_entry, bank_account, payment_type, clearance_date });
 
     const erpUrl = `${ERPNEXT_API_URL}/api/method/clear_warkat_payment`;
 
@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
     });
 
     const data = await response.json();
-    console.log('Clear Warkat Response:', response.status, data);
+    // console.log('Clear Warkat Response:', response.status, data);
 
     if (response.ok && data.message) {
       return NextResponse.json({

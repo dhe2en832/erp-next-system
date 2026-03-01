@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
     // Build ERPNext URL
     const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Stock Ledger Entry?fields=["name","item_code","warehouse","posting_date","posting_time","voucher_type","voucher_no","actual_qty","qty_after_transaction","valuation_rate","stock_value","company"]&filters=${encodeURIComponent(filters)}&order_by=posting_date desc, posting_time desc&limit_page_length=100`;
 
-    console.log('Stock Ledger ERPNext URL:', erpNextUrl);
+    // console.log('Stock Ledger ERPNext URL:', erpNextUrl);
 
     const response = await fetch(
       erpNextUrl,
@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
     );
 
     const data = await response.json();
-    console.log('Stock Ledger response:', data);
+    // console.log('Stock Ledger response:', data);
 
     if (response.ok) {
       return NextResponse.json({

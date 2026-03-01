@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
       if (countResponse.ok) {
         const countData = await countResponse.json();
         totalCount = countData.message || 0;
-        console.log('📊 Total count from ERPNext:', totalCount);
+        // console.log('📊 Total count from ERPNext:', totalCount);
       } else {
         console.log('⚠️ Count request failed:', countResponse.status);
       }
@@ -103,18 +103,18 @@ export async function GET(request: NextRequest) {
     //   start_param: start,
     // }, null, 2));
     
-    console.log('✅ Items API Response:', { 
-      status: response.status, 
-      count: data.data?.length,
-      total_count: data.total_count,
-      message: data.message
-    });
+    // console.log('✅ Items API Response:', { 
+    //   status: response.status, 
+    //   count: data.data?.length,
+    //   total_count: data.total_count,
+    //   message: data.message
+    // });
 
     if (response.ok) {
       // Use total_count from first request, or from data response, or fallback to data length
       const finalTotalCount = totalCount || data.total_count || data.data?.length || 0;
       
-      console.log('✅ Final total count:', finalTotalCount);
+      // console.log('✅ Final total count:', finalTotalCount);
       
       return NextResponse.json({
         success: true,

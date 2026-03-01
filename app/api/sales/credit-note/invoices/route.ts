@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
     // Build ERPNext URL with query params
     const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Sales Invoice?${searchParams.toString()}`;
     
-    console.log('Fetching paid invoices:', erpNextUrl);
+    // console.log('Fetching paid invoices:', erpNextUrl);
 
     const response = await fetch(erpNextUrl, {
       method: 'GET',

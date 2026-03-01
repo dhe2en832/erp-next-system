@@ -34,9 +34,9 @@ import { DiscountInput } from '@/components/invoice';
   subtotal={1000000}
   discountPercentage={10}
   discountAmount={100000}
-  onChange={(data) => {
-    console.log('Discount:', data);
-  }}
+  // onChange={(data) => {
+  //   console.log('Discount:', data);
+  // }}
   type="percentage"
 />
 ```
@@ -89,9 +89,9 @@ import { TaxTemplateSelect } from '@/components/invoice';
 <TaxTemplateSelect
   type="Sales"
   value="PPN 11%"
-  onChange={(template) => {
-    console.log('Selected template:', template);
-  }}
+  // onChange={(template) => {
+  //   console.log('Selected template:', template);
+  // }}
   company="BAC"
 />
 ```

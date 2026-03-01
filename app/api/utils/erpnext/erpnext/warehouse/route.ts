@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
     const filters = JSON.stringify([["company", "=", company]]);
     const erpNextUrl = `${ERPNEXT_URL}/api/resource/Warehouse?fields=${fields}&filters=${filters}`;
 
-    console.log('Fetching warehouses from ERPNext:', erpNextUrl);
+    // console.log('Fetching warehouses from ERPNext:', erpNextUrl);
 
     // Make request to ERPNext
     const response = await fetch(erpNextUrl, {
@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
     }
 
     const data: ERPNextResponse = await response.json();
-    console.log('ERPNext response:', data);
+    // console.log('ERPNext response:', data);
 
     // Filter out group warehouses (parent_warehouse is null for root groups)
     // Only show actual warehouses, not group warehouses

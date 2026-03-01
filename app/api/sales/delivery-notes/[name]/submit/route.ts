@@ -7,12 +7,12 @@ export async function POST(
   { params }: { params: Promise<{ name: string }> }
 ) {
   try {
-    console.log('=== DELIVERY NOTE SUBMIT API CALLED ===');
+    // console.log('=== DELIVERY NOTE SUBMIT API CALLED ===');
     const { name } = await params;
     
-    console.log('Delivery Note Name:', name);
-    console.log('Request Method:', request.method);
-    console.log('Request Headers:', Object.fromEntries(request.headers.entries()));
+    // console.log('Delivery Note Name:', name);
+    // console.log('Request Method:', request.method);
+    // console.log('Request Headers:', Object.fromEntries(request.headers.entries()));
     
     // Validate name parameter
     if (!name || name.trim() === '') {
@@ -29,18 +29,18 @@ export async function POST(
     const apiKey = process.env.ERP_API_KEY;
     const apiSecret = process.env.ERP_API_SECRET;
     
-    console.log('Submitting delivery note:', name);
-    console.log('Available auth methods:', { 
-      hasApiKey: !!(apiKey && apiSecret), 
-      hasSession: !!sid 
-    });
+    // console.log('Submitting delivery note:', name);
+    // console.log('Available auth methods:', { 
+    //   hasApiKey: !!(apiKey && apiSecret), 
+    //   hasSession: !!sid 
+    // });
 
     let response: Response | undefined;
     let data: Record<string, unknown> | undefined;
 
     if (apiKey && apiSecret) {
       // Try API Key authentication first
-      console.log('Using API key authentication');
+      // console.log('Using API key authentication');
       
       try {
         const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Delivery%20Note/${encodeURIComponent(name)}`;
@@ -48,14 +48,14 @@ export async function POST(
           docstatus: 1
         });
         
-        console.log('Making ERPNext Request:');
-        console.log('URL:', erpNextUrl);
-        console.log('Method: PUT');
-        console.log('Headers:', {
-          'Authorization': `token ${apiKey}:${apiSecret}`,
-          'Content-Type': 'application/json',
-        });
-        console.log('Body:', requestBody);
+        // console.log('Making ERPNext Request:');
+        // console.log('URL:', erpNextUrl);
+        // console.log('Method: PUT');
+        // console.log('Headers:', {
+        //   'Authorization': `token ${apiKey}:${apiSecret}`,
+        //   'Content-Type': 'application/json',
+        // });
+        // console.log('Body:', requestBody);
         
         response = await fetch(erpNextUrl, {
           method: 'PUT',
@@ -67,7 +67,7 @@ export async function POST(
         });
 
         data = await response.json();
-        console.log('API Key Response:', { status: response.status, data });
+        // console.log('API Key Response:', { status: response.status, data });
         
         if (response.ok) {
           return NextResponse.json({
@@ -80,8 +80,8 @@ export async function POST(
           let errorMessage = 'Failed to submit delivery note';
           
           if (data && typeof data === 'object') {
-            console.log('Error data keys:', Object.keys(data));
-            console.log('Full error data:', JSON.stringify(data, null, 2));
+            // console.log('Error data keys:', Object.keys(data));
+            // console.log('Full error data:', JSON.stringify(data, null, 2));
             
             // Handle ERPNext exception format
             if ('exception' in data) {

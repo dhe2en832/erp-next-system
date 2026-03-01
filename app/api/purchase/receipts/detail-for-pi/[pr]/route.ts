@@ -11,7 +11,7 @@ export async function GET(
     const resolvedParams = await params;
     const { pr } = resolvedParams;
 
-    console.log('PR Detail API - Params:', resolvedParams);
+    // console.log('PR Detail API - Params:', resolvedParams);
 
     if (!pr) {
       return NextResponse.json(
@@ -31,7 +31,7 @@ export async function GET(
       );
     }
 
-    console.log('Fetching PR detail for:', pr);
+    // console.log('Fetching PR detail for:', pr);
 
     // Try ERPNext custom method first
     try {
@@ -46,19 +46,19 @@ export async function GET(
         credentials: 'include',
       });
 
-      console.log('ERPNext Custom Method Detail Status:', response.status);
+      // console.log('ERPNext Custom Method Detail Status:', response.status);
 
       if (response.ok) {
         const data = await response.json();
-        console.log('ERPNext Custom Method Detail Response:', data);
+        // console.log('ERPNext Custom Method Detail Response:', data);
         return NextResponse.json(data);
       }
     } catch (customMethodError) {
-      console.log('Custom method not available, using standard API...');
+      // console.log('Custom method not available, using standard API...');
     }
 
     // Fallback to standard ERPNext API
-    console.log('Using standard ERPNext API for Purchase Receipt detail...');
+    // console.log('Using standard ERPNext API for Purchase Receipt detail...');
     
     // Get Purchase Receipt with items
     const prUrl = `${ERPNEXT_API_URL}/api/resource/Purchase Receipt/${pr}?fields=["name","supplier","supplier_name","posting_date","company","currency","items"]`;
@@ -72,7 +72,7 @@ export async function GET(
       credentials: 'include',
     });
 
-    console.log('Standard API Detail Status:', response.status);
+    // console.log('Standard API Detail Status:', response.status);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -84,7 +84,7 @@ export async function GET(
     }
 
     const data = await response.json();
-    console.log('Standard API Detail Response:', data);
+    // console.log('Standard API Detail Response:', data);
 
     // Transform to expected format
     const transformedData = {
@@ -99,11 +99,11 @@ export async function GET(
           currency: data.data.currency || 'IDR',
           custom_notes_pr: '', // Not available in standard API
           items: (data.data.items || []).map((item: any) => {
-            console.log('Mapping PR item:', {
-              name: item.name,
-              purchase_order: item.purchase_order,
-              purchase_order_item: item.purchase_order_item
-            });
+            // console.log('Mapping PR item:', {
+            //   name: item.name,
+            //   purchase_order: item.purchase_order,
+            //   purchase_order_item: item.purchase_order_item
+            // });
             
             return {
               item_code: item.item_code,

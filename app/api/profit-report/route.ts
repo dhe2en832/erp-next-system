@@ -19,7 +19,7 @@ export async function POST(request: Request) {
       mode: mode || 'valuation',
       include_hpp,
     });
-    console.log('Profit report raw', { from_date, to_date, company: effectiveCompany, mode, include_hpp }, data);
+    // console.log('Profit report raw', { from_date, to_date, company: effectiveCompany, mode, include_hpp }, data);
     const normalized = normalizeProfitReport(data);
 
     return NextResponse.json({ success: true, data: normalized });

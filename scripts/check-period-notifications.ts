@@ -89,30 +89,30 @@ async function fetchPeriodClosingConfig(): Promise<PeriodClosingConfig> {
  * Main function to check periods and send notifications
  */
 async function checkPeriodsAndSendNotifications(): Promise<void> {
-  console.log('='.repeat(60));
-  console.log('Checking Accounting Periods for Notifications');
-  console.log(`Run Time: ${new Date().toISOString()}`);
-  console.log('='.repeat(60));
+  // console.log('='.repeat(60));
+  // console.log('Checking Accounting Periods for Notifications');
+  // console.log(`Run Time: ${new Date().toISOString()}`);
+  // console.log('='.repeat(60));
 
   try {
     // Fetch configuration
     const config = await fetchPeriodClosingConfig();
-    console.log(`\nConfiguration loaded:`);
-    console.log(`  Email notifications enabled: ${config.enable_email_notifications}`);
-    console.log(`  Reminder days before end: ${config.reminder_days_before_end}`);
-    console.log(`  Escalation days after end: ${config.escalation_days_after_end}`);
+    // console.log(`\nConfiguration loaded:`);
+    // console.log(`  Email notifications enabled: ${config.enable_email_notifications}`);
+    // console.log(`  Reminder days before end: ${config.reminder_days_before_end}`);
+    // console.log(`  Escalation days after end: ${config.escalation_days_after_end}`);
 
     if (!config.enable_email_notifications) {
-      console.log('\nEmail notifications are disabled. Exiting.');
+      // console.log('\nEmail notifications are disabled. Exiting.');
       return;
     }
 
     // Fetch open periods
     const openPeriods = await fetchOpenPeriods();
-    console.log(`\nFound ${openPeriods.length} open period(s)`);
+    // console.log(`\nFound ${openPeriods.length} open period(s)`);
 
     if (openPeriods.length === 0) {
-      console.log('No open periods to check. Exiting.');
+      // console.log('No open periods to check. Exiting.');
       return;
     }
 
@@ -124,27 +124,27 @@ async function checkPeriodsAndSendNotifications(): Promise<void> {
     for (const period of openPeriods) {
       const daysFromEnd = calculateDaysFromEndDate(period.end_date);
       
-      console.log(`\nChecking period: ${period.period_name}`);
-      console.log(`  Company: ${period.company}`);
-      console.log(`  End Date: ${period.end_date}`);
-      console.log(`  Days from end: ${daysFromEnd}`);
+      // console.log(`\nChecking period: ${period.period_name}`);
+      // console.log(`  Company: ${period.company}`);
+      // console.log(`  End Date: ${period.end_date}`);
+      // console.log(`  Days from end: ${daysFromEnd}`);
 
       try {
         // Check if reminder should be sent
         if (daysFromEnd === config.reminder_days_before_end) {
-          console.log(`  → Sending reminder notification (${daysFromEnd} days before end)`);
+          // console.log(`  → Sending reminder notification (${daysFromEnd} days before end)`);
           await processNotificationsForPeriod(period, config);
           remindersSent++;
         }
         // Check if overdue notification should be sent
         else if (daysFromEnd < 0 && daysFromEnd > -config.escalation_days_after_end) {
-          console.log(`  → Sending overdue notification (${Math.abs(daysFromEnd)} days after end)`);
+          // console.log(`  → Sending overdue notification (${Math.abs(daysFromEnd)} days after end)`);
           await processNotificationsForPeriod(period, config);
           overduesSent++;
         }
         // Check if escalation should be sent
         else if (daysFromEnd === -config.escalation_days_after_end) {
-          console.log(`  → Sending escalation notification (${Math.abs(daysFromEnd)} days after end)`);
+          // console.log(`  → Sending escalation notification (${Math.abs(daysFromEnd)} days after end)`);
           await processNotificationsForPeriod(period, config);
           escalationsSent++;
         }
@@ -157,13 +157,13 @@ async function checkPeriodsAndSendNotifications(): Promise<void> {
     }
 
     // Summary
-    console.log('\n' + '='.repeat(60));
-    console.log('Notification Summary:');
-    console.log(`  Reminders sent: ${remindersSent}`);
-    console.log(`  Overdue notifications sent: ${overduesSent}`);
-    console.log(`  Escalations sent: ${escalationsSent}`);
-    console.log(`  Total notifications: ${remindersSent + overduesSent + escalationsSent}`);
-    console.log('='.repeat(60));
+    // console.log('\n' + '='.repeat(60));
+    // console.log('Notification Summary:');
+    // console.log(`  Reminders sent: ${remindersSent}`);
+    // console.log(`  Overdue notifications sent: ${overduesSent}`);
+    // console.log(`  Escalations sent: ${escalationsSent}`);
+    // console.log(`  Total notifications: ${remindersSent + overduesSent + escalationsSent}`);
+    // console.log('='.repeat(60));
 
   } catch (error: any) {
     console.error('\n✗ Error checking periods:', error.message);
@@ -174,7 +174,7 @@ async function checkPeriodsAndSendNotifications(): Promise<void> {
 // Run the job
 checkPeriodsAndSendNotifications()
   .then(() => {
-    console.log('\n✓ Job completed successfully');
+    // console.log('\n✓ Job completed successfully');
     process.exit(0);
   })
   .catch((error) => {

@@ -162,8 +162,8 @@ export default function Navbar() {
         { name: 'Pesanan Penjualan', href: '/sales-order' },
         { name: 'Surat Jalan', href: '/delivery-note' },
         { name: 'Faktur Penjualan', href: '/invoice' },
-        { name: 'Retur Penjualan', href: '/sales-return' },
-        { name: 'Credit Note', href: '/credit-note' }
+        { name: 'Retur Barang', href: '/sales-return' },
+        { name: 'Retur Penjualan / Kredit Memo', href: '/credit-note' }
       ]
     },
     {

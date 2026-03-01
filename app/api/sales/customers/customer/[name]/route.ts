@@ -47,7 +47,7 @@ export async function GET(
       erpNextUrl += `?fields=${fieldsParam}`;
     }
 
-    console.log('Fetching customer detail from ERPNext:', erpNextUrl);
+    // console.log('Fetching customer detail from ERPNext:', erpNextUrl);
 
     const response = await fetch(erpNextUrl, {
       method: 'GET',
@@ -55,7 +55,7 @@ export async function GET(
     });
 
     const data = await response.json();
-    console.log('Customer detail ERPNext Response:', data);
+    // console.log('Customer detail ERPNext Response:', data);
 
     if (response.ok) {
       return NextResponse.json({

@@ -8,11 +8,11 @@ export async function POST(
   { params }: { params: Promise<{ name: string }> }
 ) {
   try {
-    console.log('=== SUBMIT SALES INVOICE ===');
+    // console.log('=== SUBMIT SALES INVOICE ===');
     
     const { name } = await params;
     const invoiceName = name;
-    console.log('Submitting Sales Invoice:', invoiceName);
+    // console.log('Submitting Sales Invoice:', invoiceName);
     
     const cookies = request.cookies;
     const sid = cookies.get('sid')?.value;
@@ -27,10 +27,10 @@ export async function POST(
     
     if (apiKey && apiSecret) {
       headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-      console.log('Using API key authentication for submit');
+      // console.log('Using API key authentication for submit');
     } else if (sid) {
       headers['Cookie'] = `sid=${sid}`;
-      console.log('Using session-based authentication for submit');
+      // console.log('Using session-based authentication for submit');
       
       // Get CSRF token for ERPNext
       try {
@@ -45,7 +45,7 @@ export async function POST(
           const csrfData = await csrfResponse.json();
           if (csrfData.message && csrfData.message.csrf_token) {
             headers['X-Frappe-CSRF-Token'] = csrfData.message.csrf_token;
-            console.log('CSRF token added to headers');
+            // console.log('CSRF token added to headers');
           }
         } else {
           console.warn('Failed to get CSRF token, proceeding without it');
@@ -62,7 +62,7 @@ export async function POST(
 
     // Submit invoice menggunakan ERPNext API
     const submitUrl = `${ERPNEXT_API_URL}/api/resource/Sales%20Invoice/${invoiceName}`;
-    console.log('Submit URL:', submitUrl);
+    // console.log('Submit URL:', submitUrl);
 
     // Get current invoice data to verify custom fields before submit
     try {
@@ -73,12 +73,12 @@ export async function POST(
       
       if (getCurrentData.ok) {
         const currentData = await getCurrentData.json();
-        console.log('Current Invoice Data Before Submit:', {
-          name: currentData.data.name,
-          custom_total_komisi_sales: currentData.data.custom_total_komisi_sales,
-          items_count: currentData.data.items?.length || 0,
-          items_with_commission: currentData.data.items?.filter((item: any) => item.custom_komisi_sales > 0).length || 0
-        });
+        // console.log('Current Invoice Data Before Submit:', {
+        //   name: currentData.data.name,
+        //   custom_total_komisi_sales: currentData.data.custom_total_komisi_sales,
+        //   items_count: currentData.data.items?.length || 0,
+        //   items_with_commission: currentData.data.items?.filter((item: any) => item.custom_komisi_sales > 0).length || 0
+        // });
 
         // Auto-fill employee for sales team if missing
         const salesTeam = currentData.data.sales_team || [];
@@ -110,7 +110,7 @@ export async function POST(
                 body: JSON.stringify({ sales_team: updatedSalesTeam }),
               });
               const updateData = await updateRes.json();
-              console.log('Updated sales_team with employee mapping before submit:', { status: updateRes.status, data: updateData });
+              // console.log('Updated sales_team with employee mapping before submit:', { status: updateRes.status, data: updateData });
             } catch (updateErr) {
               console.warn('Failed to update sales_team before submit:', updateErr);
             }
@@ -131,8 +131,8 @@ export async function POST(
     });
 
     const result = await response.json();
-    console.log('Submit Response Status:', response.status);
-    console.log('Submit Response Data:', result);
+    // console.log('Submit Response Status:', response.status);
+    // console.log('Submit Response Data:', result);
 
     if (response.ok) {
       return NextResponse.json({ success: true, message: `Sales Invoice ${invoiceName} berhasil diajukan`, data: result });

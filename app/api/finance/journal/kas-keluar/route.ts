@@ -102,8 +102,8 @@ export async function POST(request: NextRequest) {
       total_credit: totalNominal,
     };
 
-    console.log('Kas Keluar Payload:', JSON.stringify(journalPayload, null, 2));
-    console.log('Total accounts:', accounts.length);
+    // console.log('Kas Keluar Payload:', JSON.stringify(journalPayload, null, 2));
+    // console.log('Total accounts:', accounts.length);
 
     const response = await fetch(`${ERPNEXT_API_URL}/api/resource/Journal Entry`, {
       method: 'POST',
@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
     });
 
     const data = await response.json();
-    console.log('ERPNext Response:', JSON.stringify(data, null, 2));
+    // console.log('ERPNext Response:', JSON.stringify(data, null, 2));
 
     if (response.ok) {
       return NextResponse.json({

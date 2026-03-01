@@ -45,10 +45,10 @@ export interface CreditNoteItem {
   delivered_qty: number;
   /** Already returned quantity */
   returned_qty: number;
-  /** Reason for return */
-  return_reason: CreditNoteReturnReason;
-  /** Additional notes (required for "Other" reason) */
-  return_item_notes?: string;
+  /** Reason for return (custom field in ERPNext) */
+  custom_return_reason: CreditNoteReturnReason;
+  /** Additional notes (required for "Other" reason, custom field in ERPNext) */
+  custom_return_item_notes?: string;
   /** Commission value for this item (negative for returns) */
   custom_komisi_sales: number;
 }
@@ -82,8 +82,8 @@ export interface CreditNote {
   grand_total: number;
   /** Total commission adjustment (negative) */
   custom_total_komisi_sales: number;
-  /** Additional notes */
-  return_notes?: string;
+  /** Additional notes (custom field in ERPNext) */
+  custom_return_notes?: string;
   /** Line items */
   items: CreditNoteItem[];
   /** Creation timestamp */
@@ -223,12 +223,12 @@ export interface CreateCreditNoteRequest {
     amount: number;
     warehouse: string;
     sales_invoice_item: string; // Reference to original item
-    return_reason: string;
-    return_item_notes?: string;
+    custom_return_reason: string;
+    custom_return_item_notes?: string;
     custom_komisi_sales: number; // From original invoice
   }>;
-  /** Additional notes */
-  return_notes?: string;
+  /** Additional notes (custom field in ERPNext) */
+  custom_return_notes?: string;
 }
 
 /**

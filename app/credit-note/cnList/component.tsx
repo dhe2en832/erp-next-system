@@ -18,6 +18,9 @@ import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
 import { Printer, FileText, Send, ArrowUp, Loader2, RotateCcw, XCircle } from 'lucide-react';
 import ErrorDialog from '../../../components/ErrorDialog';
 import { CreditNote } from '../../../types/credit-note';
+// import PrintPreviewModal from '../../../components/PrintPreviewModal';
+import PrintPreviewModal from '../../../components/print/PrintPreviewModal'; 
+import CreditNotePrint from '../../../components/print/CreditNotePrint';
 
 export const dynamic = 'force-dynamic';
 
@@ -88,6 +91,11 @@ export default function CreditNoteList() {
   const [totalRecords, setTotalRecords] = useState(0);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const [hasMoreData, setHasMoreData] = useState(true);
+
+  // Print preview states
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
+  const [printData, setPrintData] = useState<any>(null);
+  const [loadingPrintData, setLoadingPrintData] = useState(false);
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const pageChangeSourceRef = useRef<'pagination' | 'filter' | 'init'>('init');
@@ -323,9 +331,55 @@ export default function CreditNoteList() {
     }
   };
 
-  const handlePrint = (creditNoteName: string, e: React.MouseEvent) => {
+  const handlePrint = async (creditNoteName: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    window.open(`/print/credit-note?name=${encodeURIComponent(creditNoteName)}`, '_blank');
+    await fetchDataForPrint(creditNoteName);
+    setShowPrintPreview(true);
+  };
+
+  const fetchDataForPrint = async (creditNoteName: string) => {
+    setLoadingPrintData(true);
+    try {
+      const response = await fetch(`/api/sales/credit-note/${encodeURIComponent(creditNoteName)}`);
+      const result = await response.json();
+      
+      if (result.success) {
+        const creditNoteData = result.data;
+        
+        // Fetch customer address separately if not available
+        let customerAddress = creditNoteData.address_display || 
+                             creditNoteData.customer_address || 
+                             creditNoteData.shipping_address_name || 
+                             '';
+        
+        // If no address found, try to fetch from customer
+        if (!customerAddress && creditNoteData.customer) {
+          try {
+            const customerResponse = await fetch(`/api/sales/customers/customer/${encodeURIComponent(creditNoteData.customer)}`);
+            const customerResult = await customerResponse.json();
+            if (customerResult.success && customerResult.data) {
+              customerAddress = customerResult.data.primary_address || 
+                              customerResult.data.customer_primary_address ||
+                              '';
+            }
+          } catch (err) {
+            console.error('Failed to fetch customer address:', err);
+          }
+        }
+        
+        setPrintData({
+          ...creditNoteData,
+          customer_address: customerAddress,
+        });
+      } else {
+        alert('Gagal memuat data untuk print');
+      }
+    } catch (error) {
+      console.error('Error fetching data for print:', error);
+      alert('Terjadi kesalahan saat memuat data');
+    } finally {
+      setLoadingPrintData(false);
+    }
   };
 
   const handleCardClick = (creditNoteName: string) => {
@@ -550,17 +604,9 @@ export default function CreditNoteList() {
                               <Send className="h-3 w-3" /> Ajukan
                             </button>
                           )}
-                          {cn.status === 'Submitted' && (
-                            <button 
-                              onClick={(e) => handleCancelCreditNote(cn.name, e)} 
-                              className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-red-600 rounded-lg hover:bg-red-700"
-                            >
-                              <XCircle className="h-3 w-3" /> Batal
-                            </button>
-                          )}
                         </div>
                       </div>
-                      {cn.return_notes && <p className="text-xs text-gray-400 italic truncate">📝 {cn.return_notes}</p>}
+                      {cn.custom_return_notes && <p className="text-xs text-gray-400 italic truncate">📝 {cn.custom_return_notes}</p>}
                     </div>
 
                   ) : (
@@ -569,7 +615,7 @@ export default function CreditNoteList() {
                       <div className="col-span-3 min-w-0">
                         <p className="text-sm font-semibold text-indigo-600 truncate">{cn.name}</p>
                         <p className="text-xs text-gray-600 mt-0.5 truncate">{cn.customer_name}</p>
-                        {cn.return_notes && <p className="text-xs text-gray-400 truncate mt-1">📝 {cn.return_notes}</p>}
+                        {cn.custom_return_notes && <p className="text-xs text-gray-400 truncate mt-1">📝 {cn.custom_return_notes}</p>}
                       </div>
                       <div className="col-span-2">
                         <p className="text-sm text-gray-900">{cn.posting_date}</p>
@@ -602,11 +648,6 @@ export default function CreditNoteList() {
                           {cn.status === 'Draft' && (
                             <button onClick={(e) => handleSubmitCreditNote(cn.name, e)} className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg" title="Ajukan">
                               <Send className="h-4 w-4" />
-                            </button>
-                          )}
-                          {cn.status === 'Submitted' && (
-                            <button onClick={(e) => handleCancelCreditNote(cn.name, e)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg" title="Batalkan">
-                              <XCircle className="h-4 w-4" />
                             </button>
                           )}
                         </div>
@@ -704,6 +745,23 @@ export default function CreditNoteList() {
         >
           <ArrowUp className="h-5 w-5" />
         </button>
+      )}
+
+      {/* Print Preview Modal */}
+      {showPrintPreview && printData && (
+        <PrintPreviewModal
+          title={`Credit Note ${printData.name}`}
+          onClose={() => {
+            setShowPrintPreview(false);
+            setPrintData(null);
+          }}
+          paperMode="continuous"
+        >
+          <CreditNotePrint 
+            data={printData} 
+            companyName={selectedCompany}
+          />
+        </PrintPreviewModal>
       )}
     </div>
   );

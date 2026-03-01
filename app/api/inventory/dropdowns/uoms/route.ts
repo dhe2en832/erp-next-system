@@ -25,10 +25,10 @@ export async function GET(request: NextRequest) {
 
     const data = await response.json();
     
-    console.log('UOMs API Response:', {
-      status: response.status,
-      data: data
-    });
+    // console.log('UOMs API Response:', {
+    //   status: response.status,
+    //   data: data
+    // });
 
     if (response.ok && data.data) {
       return NextResponse.json({

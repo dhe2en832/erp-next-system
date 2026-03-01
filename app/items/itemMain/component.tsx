@@ -141,31 +141,31 @@ export default function ItemMain() {
   }, [itemCode]);
 
   // Debug: Log formData changes
-  useEffect(() => {
-    console.log('FormData updated - custom_financial_cost_percent:', formData.custom_financial_cost_percent);
-  }, [formData.custom_financial_cost_percent]);
+  // useEffect(() => {
+  //   console.log('FormData updated - custom_financial_cost_percent:', formData.custom_financial_cost_percent);
+  // }, [formData.custom_financial_cost_percent]);
 
   const fetchItemDetails = async (code: string) => {
     setLoading(true);
     try {
-      console.log('Fetching item details for code:', code);
+      // console.log('Fetching item details for code:', code);
       const response = await fetch(`/api/inventory/items/${encodeURIComponent(code)}`, { credentials: 'include' });
       const data = await response.json();
-      console.log('=== API Response START ===');
-      console.log('Full API Response:', JSON.stringify(data, null, 2));
-      console.log('=== API Response END ===');
+      // console.log('=== API Response START ===');
+      // console.log('Full API Response:', JSON.stringify(data, null, 2));
+      // console.log('=== API Response END ===');
       
       if (data.success && data.data) {
         const item = data.data;
-        console.log('Item object:', item);
-        console.log('Item custom_financial_cost_percent from API:', item.custom_financial_cost_percent);
-        console.log('Type of custom_financial_cost_percent:', typeof item.custom_financial_cost_percent);
+        // console.log('Item object:', item);
+        // console.log('Item custom_financial_cost_percent from API:', item.custom_financial_cost_percent);
+        // console.log('Type of custom_financial_cost_percent:', typeof item.custom_financial_cost_percent);
         setEditingItem(item);
         
         // Use nullish coalescing (??) instead of logical OR (||) to preserve 0 values
         const financialCostPercent = item.custom_financial_cost_percent ?? 0;
-        console.log('Setting custom_financial_cost_percent to:', financialCostPercent);
-        console.log('Type after nullish coalescing:', typeof financialCostPercent);
+        // console.log('Setting custom_financial_cost_percent to:', financialCostPercent);
+        // console.log('Type after nullish coalescing:', typeof financialCostPercent);
         
         const initialFormData = {
           item_code: item.item_code,
@@ -182,8 +182,8 @@ export default function ItemMain() {
           custom_financial_cost_percent: financialCostPercent,
         };
         
-        console.log('Initial formData object:', initialFormData);
-        console.log('Initial formData with custom_financial_cost_percent:', initialFormData.custom_financial_cost_percent);
+        // console.log('Initial formData object:', initialFormData);
+        // console.log('Initial formData with custom_financial_cost_percent:', initialFormData.custom_financial_cost_percent);
         setFormData(initialFormData);
         
         // Initialize price inputs with formatted values
@@ -224,7 +224,7 @@ export default function ItemMain() {
       
       if (valuationResponse.ok && valuationData.success && valuationData.data[itemCode]) {
         setFormData(prev => {
-          console.log('Before valuation update - custom_financial_cost_percent:', prev.custom_financial_cost_percent);
+          // console.log('Before valuation update - custom_financial_cost_percent:', prev.custom_financial_cost_percent);
           const updated = {
             ...prev,
             valuation_rate: valuationData.data[itemCode],
@@ -233,14 +233,14 @@ export default function ItemMain() {
           if (preserveFinancialCostPercent !== undefined) {
             updated.custom_financial_cost_percent = preserveFinancialCostPercent;
           }
-          console.log('After valuation update - custom_financial_cost_percent:', updated.custom_financial_cost_percent);
+          // console.log('After valuation update - custom_financial_cost_percent:', updated.custom_financial_cost_percent);
           return updated;
         });
       }
       
       if (purchaseResponse.ok && purchaseData.success) {
         setFormData(prev => {
-          console.log('Before purchase price update - custom_financial_cost_percent:', prev.custom_financial_cost_percent);
+          // console.log('Before purchase price update - custom_financial_cost_percent:', prev.custom_financial_cost_percent);
           const updated = {
             ...prev,
             last_purchase_rate: purchaseData.data.price_list_rate || 0,
@@ -249,7 +249,7 @@ export default function ItemMain() {
           if (preserveFinancialCostPercent !== undefined) {
             updated.custom_financial_cost_percent = preserveFinancialCostPercent;
           }
-          console.log('After purchase price update - custom_financial_cost_percent:', updated.custom_financial_cost_percent);
+          // console.log('After purchase price update - custom_financial_cost_percent:', updated.custom_financial_cost_percent);
           return updated;
         });
         setPriceInputs(prev => ({
@@ -260,7 +260,7 @@ export default function ItemMain() {
       
       if (sellingResponse.ok && sellingData.success) {
         setFormData(prev => {
-          console.log('Before selling price update - custom_financial_cost_percent:', prev.custom_financial_cost_percent);
+          // console.log('Before selling price update - custom_financial_cost_percent:', prev.custom_financial_cost_percent);
           const updated = {
             ...prev,
             standard_rate: sellingData.data.price_list_rate || 0,
@@ -269,7 +269,7 @@ export default function ItemMain() {
           if (preserveFinancialCostPercent !== undefined) {
             updated.custom_financial_cost_percent = preserveFinancialCostPercent;
           }
-          console.log('After selling price update - custom_financial_cost_percent:', updated.custom_financial_cost_percent);
+          // console.log('After selling price update - custom_financial_cost_percent:', updated.custom_financial_cost_percent);
           return updated;
         });
         setPriceInputs(prev => ({
@@ -278,13 +278,13 @@ export default function ItemMain() {
         }));
       }
       
-      console.log('After fetchItemPricing - formData will be updated');
+      // console.log('After fetchItemPricing - formData will be updated');
     } catch (err) {
       console.error('Error fetching item pricing:', err);
     } finally {
       setValuationRateLoading(false);
       // Log final state after all pricing updates
-      console.log('fetchItemPricing completed');
+      // console.log('fetchItemPricing completed');
     }
   };
 

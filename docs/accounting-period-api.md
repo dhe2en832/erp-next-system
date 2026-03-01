@@ -642,7 +642,7 @@ const validateResponse = await fetch('/api/accounting-period/validate', {
 const validation = await validateResponse.json();
 
 if (!validation.all_passed) {
-  console.log('Validation failed:', validation.validations);
+  // console.log('Validation failed:', validation.validations);
   return;
 }
 
@@ -651,7 +651,7 @@ const previewResponse = await fetch(
   '/api/accounting-period/preview-closing/ACC-PERIOD-2024-01'
 );
 const preview = await previewResponse.json();
-console.log('Net income:', preview.data.net_income);
+// console.log('Net income:', preview.data.net_income);
 
 // 3. Close period
 const closeResponse = await fetch('/api/accounting-period/close', {
@@ -664,7 +664,7 @@ const closeResponse = await fetch('/api/accounting-period/close', {
 });
 
 const result = await closeResponse.json();
-console.log('Period closed:', result.message);
+// console.log('Period closed:', result.message);
 ```
 
 ### Example 2: Reopen Period with Reason
@@ -681,9 +681,9 @@ const response = await fetch('/api/accounting-period/reopen', {
 });
 
 const result = await response.json();
-if (result.success) {
-  console.log('Period reopened successfully');
-}
+// if (result.success) {
+//   console.log('Period reopened successfully');
+// }
 ```
 
 ## Support

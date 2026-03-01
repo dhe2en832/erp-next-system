@@ -4,7 +4,7 @@ const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
 
 export async function GET(request: NextRequest) {
   try {
-    console.log('Suppliers API - ERPNext URL:', ERPNEXT_API_URL);
+    // console.log('Suppliers API - ERPNext URL:', ERPNEXT_API_URL);
     
     const { searchParams } = new URL(request.url);
     const company = searchParams.get('company');
@@ -23,18 +23,18 @@ export async function GET(request: NextRequest) {
     const apiKey = process.env.ERP_API_KEY;
     const apiSecret = process.env.ERP_API_SECRET;
     
-    console.log('Suppliers API - API Key Available:', !!apiKey);
-    console.log('Suppliers API - API Secret Available:', !!apiSecret);
-    console.log('Suppliers API - Session ID Available:', !!sid);
+    // console.log('Suppliers API - API Key Available:', !!apiKey);
+    // console.log('Suppliers API - API Secret Available:', !!apiSecret);
+    // console.log('Suppliers API - Session ID Available:', !!sid);
     
     if (apiKey && apiSecret) {
       headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-      console.log('Using API key authentication for suppliers');
+      // console.log('Using API key authentication for suppliers');
     } else if (sid) {
       headers['Cookie'] = `sid=${sid}`;
-      console.log('Using session-based authentication for suppliers');
+      // console.log('Using session-based authentication for suppliers');
     } else {
-      console.log('No authentication found - returning 401');
+      // console.log('No authentication found - returning 401');
       return NextResponse.json(
         { success: false, message: 'Unauthorized - No session or API key found' },
         { status: 401 }
@@ -51,9 +51,9 @@ export async function GET(request: NextRequest) {
     // Note: In ERPNext, suppliers don't have a direct company field
     // They are typically shared across companies
     // Company parameter is accepted but not used for filtering
-    if (company) {
-      console.log('Suppliers API - Company parameter provided but not applied:', company);
-    }
+    // if (company) {
+    //   console.log('Suppliers API - Company parameter provided but not applied:', company);
+    // }
     
     if (search && search.trim()) {
       // Add search condition - search by name first (simple approach)
@@ -61,16 +61,16 @@ export async function GET(request: NextRequest) {
       filters.push(["name", "like", `%${searchTrim}%`]);
     }
 
-    console.log('Suppliers API - Search term:', search);
-    console.log('Suppliers API - Company filter:', company);
-    console.log('Suppliers API - Final filters:', filters);
+    // console.log('Suppliers API - Search term:', search);
+    // console.log('Suppliers API - Company filter:', company);
+    // console.log('Suppliers API - Final filters:', filters);
 
     const filtersString = JSON.stringify(filters);
 
     // Build ERPNext URL sederhana - hanya ambil name dan supplier_name
     const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Supplier?fields=["name","supplier_name"]&filters=${encodeURIComponent(filtersString)}&order_by=supplier_name&limit_page_length=${limitPageLength}&limit_start=${limitStart}`;
 
-    console.log('Suppliers ERPNext URL:', erpNextUrl);
+    // console.log('Suppliers ERPNext URL:', erpNextUrl);
 
     const response = await fetch(
       erpNextUrl,
@@ -80,24 +80,24 @@ export async function GET(request: NextRequest) {
       }
     );
 
-    console.log('Response status:', response.status);
-    console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+    // console.log('Response status:', response.status);
+    // console.log('Response headers:', Object.fromEntries(response.headers.entries()));
 
     const data = await response.json();
-    console.log('Suppliers response:', data);
-    console.log('First supplier data sample:', data.data && data.data.length > 0 ? data.data[0] : 'No data');
+    // console.log('Suppliers response:', data);
+    // console.log('First supplier data sample:', data.data && data.data.length > 0 ? data.data[0] : 'No data');
     
     // Log all available fields untuk debugging
-    if (data.data && data.data.length > 0) {
-      console.log('Available fields in supplier:', Object.keys(data.data[0]));
-    }
+    // if (data.data && data.data.length > 0) {
+    //   console.log('Available fields in supplier:', Object.keys(data.data[0]));
+    // }
 
     // If search is provided, also search by supplier_name and combine results
     let finalData = data.data || [];
     
     if (search && search.trim() && response.ok) {
       try {
-        console.log('Performing hybrid search - also searching by supplier_name');
+        // console.log('Performing hybrid search - also searching by supplier_name');
         
         // Second API call to search by supplier_name
         const supplierNameFilters = [
@@ -108,7 +108,7 @@ export async function GET(request: NextRequest) {
         const supplierNameFiltersString = JSON.stringify(supplierNameFilters);
         const supplierNameUrl = `${ERPNEXT_API_URL}/api/resource/Supplier?fields=["name","supplier_name"]&filters=${encodeURIComponent(supplierNameFiltersString)}&order_by=supplier_name&limit_page_length=${limitPageLength}&limit_start=${limitStart}`;
         
-        console.log('Supplier name search URL:', supplierNameUrl);
+        // console.log('Supplier name search URL:', supplierNameUrl);
         
         const supplierNameResponse = await fetch(supplierNameUrl, {
           method: 'GET',
@@ -117,7 +117,7 @@ export async function GET(request: NextRequest) {
         
         if (supplierNameResponse.ok) {
           const supplierNameData = await supplierNameResponse.json();
-          console.log('Supplier name search response:', supplierNameData);
+          // console.log('Supplier name search response:', supplierNameData);
           
           // Combine and deduplicate results
           const supplierNameResults = supplierNameData.data || [];
@@ -129,7 +129,7 @@ export async function GET(request: NextRequest) {
           );
           
           finalData = uniqueResults;
-          console.log('Combined unique results:', finalData.length);
+          // console.log('Combined unique results:', finalData.length);
         }
       } catch (error) {
         console.error('Error in hybrid search:', error);

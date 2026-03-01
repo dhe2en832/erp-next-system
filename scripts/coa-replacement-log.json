@@ -1,0 +1,15 @@
+{
+  "timestamp": "2026-02-28T16:38:15.704Z",
+  "duration_ms": 3846,
+  "summary": {
+    "total_accounts": 173,
+    "created": 4,
+    "updated": 0,
+    "skipped": 169,
+    "failed": 0
+  },
+  "errors": [],
+  "execution_time": "2026-02-28T16:38:15.705Z",
+  "data_file": "/home/limina/projects/erp-next-system/scripts/new-coa-data.json",
+  "api_url": "http://localhost:8000"
+}

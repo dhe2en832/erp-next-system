@@ -51,7 +51,7 @@ export default function CustomerDialog({ isOpen, onClose, onSelect, company }: C
         params.append('company', company);
       }
       
-      console.log('🔍 Searching customers with term:', debouncedSearchTerm.trim());
+      // console.log('🔍 Searching customers with term:', debouncedSearchTerm.trim());
       const response = await fetch(`/api/sales/customers?${params.toString()}`, {
         credentials: 'include'
       });
@@ -76,7 +76,7 @@ export default function CustomerDialog({ isOpen, onClose, onSelect, company }: C
         
         // If server-side search failed, try client-side filtering as fallback
         if (debouncedSearchTerm.trim() && customers.length === 0) {
-          console.log('🔄 Server search returned empty, trying client-side filtering...');
+          // console.log('🔄 Server search returned empty, trying client-side filtering...');
           try {
             // Fetch all customers without search
             const allParams = new URLSearchParams();
@@ -94,7 +94,7 @@ export default function CustomerDialog({ isOpen, onClose, onSelect, company }: C
                   customer.name.toLowerCase().includes(searchTermLower) ||
                   customer.customer_name.toLowerCase().includes(searchTermLower)
                 );
-                console.log('✅ Client-side filtering found:', customers.length, 'customers');
+                // console.log('✅ Client-side filtering found:', customers.length, 'customers');
               }
             }
           } catch (fallbackError) {
@@ -103,7 +103,7 @@ export default function CustomerDialog({ isOpen, onClose, onSelect, company }: C
         }
         
         setCustomers(customers);
-        console.log('✅ Final customers count:', customers.length);
+        // console.log('✅ Final customers count:', customers.length);
         setError(null);
       } else {
         const errorMessage = data.message || 'Failed to fetch customers';

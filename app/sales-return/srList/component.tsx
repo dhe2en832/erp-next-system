@@ -209,7 +209,7 @@ export default function SalesReturnList() {
       params.append('filters', JSON.stringify(filters));
 
       // 🔍 DEBUG: Log filters yang dikirim ke API
-      console.log('🔍 ERPNext Filters:', JSON.stringify(filters));
+      // console.log('🔍 ERPNext Filters:', JSON.stringify(filters));
 
       const response = await fetch(`/api/sales/delivery-note-return?${params.toString()}`);
       const data = await response.json();

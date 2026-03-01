@@ -15,8 +15,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    console.log('Projects API - Company:', company);
-    console.log('Projects API - Search:', search);
+    // console.log('Projects API - Company:', company);
+    // console.log('Projects API - Search:', search);
 
     // Build filters array
     const filters = [
@@ -29,12 +29,12 @@ export async function GET(request: NextRequest) {
       filters.push(['project_name', 'like', `%${search}%`]);
     }
 
-    console.log('Projects API - Final Filters:', filters);
+    // console.log('Projects API - Final Filters:', filters);
 
     // Get projects from ERPNext
     const url = `${ERPNEXT_API_URL}/api/resource/Project?fields=["name","project_name","company","status","expected_start_date","expected_end_date"]&filters=${encodeURIComponent(JSON.stringify(filters))}&order_by=project_name asc&limit_page_length=100`;
 
-    console.log('Projects API - URL:', url);
+    // console.log('Projects API - URL:', url);
 
     const response = await fetch(url, {
       method: 'GET',
@@ -44,11 +44,11 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    console.log('Projects API - Response Status:', response.status);
+    // console.log('Projects API - Response Status:', response.status);
 
     if (response.ok) {
       const data = await response.json();
-      console.log('Projects API - Response Data:', data);
+      // console.log('Projects API - Response Data:', data);
 
       if (data.success && data.data) {
         // Format projects for dropdown
@@ -76,7 +76,7 @@ export async function GET(request: NextRequest) {
       }
     } else {
       const errorText = await response.text();
-      console.log('Projects API - Error:', errorText);
+      // console.log('Projects API - Error:', errorText);
       
       return NextResponse.json({
         success: false,

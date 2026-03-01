@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     // Call ERPNext API to fetch Purchase Invoice detail
     const erpnextUrl = `${ERPNEXT_API_URL}/api/method/fetch_pi_detail?pi=${encodeURIComponent(pi)}`;
     
-    console.log('Fetching PI detail from ERPNext:', erpnextUrl);
+    // console.log('Fetching PI detail from ERPNext:', erpnextUrl);
     
     const response = await fetch(erpnextUrl, {
       method: 'GET',
@@ -49,8 +49,8 @@ export async function GET(request: NextRequest) {
     });
 
     const responseText = await response.text();
-    console.log('ERPNext Response Status:', response.status);
-    console.log('ERPNext Response Text:', responseText);
+    // console.log('ERPNext Response Status:', response.status);
+    // console.log('ERPNext Response Text:', responseText);
 
     if (!response.ok) {
       // Handle ERPNext errors

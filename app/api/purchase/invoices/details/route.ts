@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     // Build ERPNext URL to get specific purchase invoice details
     const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Purchase Invoice/${encodeURIComponent(invoiceName)}?fields=["name","supplier","supplier_name","posting_date","due_date","grand_total","outstanding_amount","status"]`;
 
-    console.log('Purchase Invoice Details ERPNext URL:', erpNextUrl);
+    // console.log('Purchase Invoice Details ERPNext URL:', erpNextUrl);
 
     const response = await fetch(
       erpNextUrl,
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
     );
 
     const data = await response.json();
-    console.log('Purchase Invoice Details response:', data);
+    // console.log('Purchase Invoice Details response:', data);
 
     if (response.ok) {
       return NextResponse.json({

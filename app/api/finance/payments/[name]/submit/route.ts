@@ -9,7 +9,7 @@ export async function POST(
 ) {
   try {
     const { name } = await params;
-    console.log(`=== SUBMIT PAYMENT ENTRY ${name} ===`);
+    // console.log(`=== SUBMIT PAYMENT ENTRY ${name} ===`);
     
     const cookies = request.cookies;
     const sid = cookies.get('sid')?.value;
@@ -24,10 +24,10 @@ export async function POST(
     
     if (apiKey && apiSecret) {
       headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-      console.log('Using API key authentication for payment submit');
+      // console.log('Using API key authentication for payment submit');
     } else if (sid) {
       headers['Cookie'] = `sid=${sid}`;
-      console.log('Using session-based authentication for payment submit');
+      // console.log('Using session-based authentication for payment submit');
       
       // Get CSRF token for ERPNext
       try {
@@ -42,7 +42,7 @@ export async function POST(
           const csrfData = await csrfResponse.json();
           if (csrfData.message && csrfData.message.csrf_token) {
             headers['X-Frappe-CSRF-Token'] = csrfData.message.csrf_token;
-            console.log('CSRF token added to payment submit headers');
+            // console.log('CSRF token added to payment submit headers');
           }
         } else {
           console.warn('Failed to get CSRF token for payment submit, proceeding without it');
@@ -68,8 +68,8 @@ export async function POST(
     });
 
     const data = await response.json();
-    console.log('Payment Submit Response Status:', response.status);
-    console.log('Payment Submit Response Data:', data);
+    // console.log('Payment Submit Response Status:', response.status);
+    // console.log('Payment Submit Response Data:', data);
 
     if (response.ok) {
       return NextResponse.json({ success: true, data: data.data, message: `Payment Entry ${name} berhasil diajukan` });

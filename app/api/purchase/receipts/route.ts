@@ -4,7 +4,7 @@ const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
 
 export async function GET(request: NextRequest) {
   try {
-    console.log('=== Purchase Receipts API Called ===');
+    // console.log('=== Purchase Receipts API Called ===');
     
     const { searchParams } = new URL(request.url);
     const company = searchParams.get('company');
@@ -18,10 +18,10 @@ export async function GET(request: NextRequest) {
     const orderBy = searchParams.get('order_by');
     const supplier = searchParams.get('supplier');
 
-    console.log('Request params:', { company, search, documentNumber, status, fromDate, toDate, orderBy, supplier });
+    // console.log('Request params:', { company, search, documentNumber, status, fromDate, toDate, orderBy, supplier });
 
     if (!company) {
-      console.log('ERROR: Company is required');
+      // console.log('ERROR: Company is required');
       return NextResponse.json(
         { success: false, message: 'Company is required' },
         { status: 400 }
@@ -44,16 +44,16 @@ export async function GET(request: NextRequest) {
     
     if (search) {
       // Search by supplier name or PR number
-      console.log('Adding search filter for:', search);
+      // console.log('Adding search filter for:', search);
       filters += `,["supplier_name","like","%${search}%"]`;
-      console.log('Supplier search filter added:', filters);
+      // console.log('Supplier search filter added:', filters);
     }
     
     if (documentNumber) {
       // Search by PR number/document number
-      console.log('Adding document number filter for:', documentNumber);
+      // console.log('Adding document number filter for:', documentNumber);
       filters += `,["name","like","%${documentNumber}%"]`;
-      console.log('Document number filter added:', filters);
+      // console.log('Document number filter added:', filters);
     }
     
     if (status) {
@@ -131,7 +131,7 @@ export async function POST(request: NextRequest) {
   try {
     const purchaseReceiptData = await request.json();
 
-    console.log('Creating Purchase Receipt:', purchaseReceiptData);
+    // console.log('Creating Purchase Receipt:', purchaseReceiptData);
 
     // Use API key authentication
     const apiKey = process.env.ERP_API_KEY;

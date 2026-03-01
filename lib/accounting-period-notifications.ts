@@ -295,7 +295,7 @@ export async function processNotificationsForPeriod(
       period,
       daysUntilEnd: checks.daysFromEnd
     });
-    console.log(`Sent reminder notification for period ${period.period_name}`);
+    // console.log(`Sent reminder notification for period ${period.period_name}`);
   }
 
   if (checks.sendOverdue) {
@@ -303,7 +303,7 @@ export async function processNotificationsForPeriod(
       period,
       daysAfterEnd: Math.abs(checks.daysFromEnd)
     });
-    console.log(`Sent overdue notification for period ${period.period_name}`);
+    // console.log(`Sent overdue notification for period ${period.period_name}`);
   }
 
   if (checks.sendEscalation) {
@@ -311,6 +311,6 @@ export async function processNotificationsForPeriod(
       period,
       daysAfterEnd: Math.abs(checks.daysFromEnd)
     });
-    console.log(`Sent escalation notification for period ${period.period_name}`);
+    // console.log(`Sent escalation notification for period ${period.period_name}`);
   }
 }

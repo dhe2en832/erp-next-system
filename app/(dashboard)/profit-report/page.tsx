@@ -94,9 +94,6 @@ export default function ProfitReportPage() {
       if (!res.ok || !json.success) {
         throw new Error(json.message || "Gagal memuat laporan");
       }
-      console.log("API Response:", json.data);
-      console.log("by_invoice type:", typeof json.data?.by_invoice);
-      console.log("by_invoice:", json.data?.by_invoice);
       setData(json.data);
     } catch (err: any) {
       setError(err?.message || "Gagal memuat laporan");

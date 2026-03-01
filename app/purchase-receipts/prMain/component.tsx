@@ -95,7 +95,7 @@ export default function PurchaseReceiptMain() {
   const [postingDate, setPostingDate] = useState(new Date().toISOString().split('T')[0]);
   const [purchaseOrder, setPurchaseOrder] = useState('');
   const handlePOSelect = (po: PurchaseOrder) => {
-    console.log('handlePOSelect called with PO:', po);
+    // console.log('handlePOSelect called with PO:', po);
     fetchPOItems(po.name);
     setPoSearchCode('');
     setPoSearchSupplier('');
@@ -202,16 +202,16 @@ export default function PurchaseReceiptMain() {
     const id = urlParams.get('id');
     const name = urlParams.get('name');
 
-    console.log('URL params check - id:', id, 'name:', name, 'company:', selectedCompany);
+    // console.log('URL params check - id:', id, 'name:', name, 'company:', selectedCompany);
 
     if (id) {
-      console.log('Edit mode - fetching PR:', id);
+      // console.log('Edit mode - fetching PR:', id);
       setIsEditMode(true);
       setIsViewMode(false);
       setPrId(id);
       fetchPurchaseReceipt(id);
     } else if (name) {
-      console.log('View mode - fetching PR:', name);
+      // console.log('View mode - fetching PR:', name);
       setIsViewMode(true);
       setIsEditMode(false);
       setPrId(name);
@@ -220,13 +220,13 @@ export default function PurchaseReceiptMain() {
   }, [selectedCompany]);
 
   // Debug useEffect to monitor selectedItems
-  useEffect(() => {
-    console.log('=== DEBUG selectedItems ===');
-    console.log('Length:', selectedItems.length);
-    console.log('Items:', selectedItems);
-    console.log('EditMode:', isEditMode, 'ViewMode:', isViewMode);
-    console.log('========================');
-  }, [selectedItems, isEditMode, isViewMode]);
+  // useEffect(() => {
+  //   console.log('=== DEBUG selectedItems ===');
+  //   console.log('Length:', selectedItems.length);
+  //   console.log('Items:', selectedItems);
+  //   console.log('EditMode:', isEditMode, 'ViewMode:', isViewMode);
+  //   console.log('========================');
+  // }, [selectedItems, isEditMode, isViewMode]);
 
   const fetchSuppliers = async () => {
     if (!selectedCompany) return;
@@ -236,7 +236,7 @@ export default function PurchaseReceiptMain() {
       const data = await response.json();
 
       if (data.success) {
-        console.log('Fetched suppliers:', data.data);
+        // console.log('Fetched suppliers:', data.data);
         setSuppliers(data.data || []);
       }
     } catch (err) {
@@ -255,9 +255,9 @@ export default function PurchaseReceiptMain() {
 
       if (data.success) {
         const receipt = data.data;
-        console.log('Fetched Purchase Receipt:', receipt);
-        console.log('Items count:', receipt.items?.length || 0);
-        console.log('Raw Items data:', receipt.items);
+        // console.log('Fetched Purchase Receipt:', receipt);
+        // console.log('Items count:', receipt.items?.length || 0);
+        // console.log('Raw Items data:', receipt.items);
         
         // Set basic header fields
         setSupplier(receipt.supplier);
@@ -279,7 +279,7 @@ export default function PurchaseReceiptMain() {
         
         if (receipt.items && Array.isArray(receipt.items) && receipt.items.length > 0) {
           processedItems = receipt.items.map((item: any) => {
-            console.log('Processing item:', item);
+            // console.log('Processing item:', item);
             
             // Ensure all required fields are present
             const processedItem: PurchaseReceiptItem = {
@@ -298,12 +298,12 @@ export default function PurchaseReceiptMain() {
               schedule_date: item.schedule_date || '',
             };
             
-            console.log('Processed item:', processedItem);
+            // console.log('Processed item:', processedItem);
             return processedItem;
           });
         }
         
-        console.log('Final processed items:', processedItems);
+        // console.log('Final processed items:', processedItems);
         setSelectedItems(processedItems);
         
         // If no PO in header, get from first item
@@ -314,7 +314,7 @@ export default function PurchaseReceiptMain() {
           }
         }
       } else {
-        console.log('Failed to fetch Purchase Receipt:', data.message);
+        // console.log('Failed to fetch Purchase Receipt:', data.message);
         setError(data.message || 'Gagal mengambil data penerimaan barang');
       }
     } catch (err) {
@@ -339,7 +339,7 @@ export default function PurchaseReceiptMain() {
 
       if (data.message && data.message.success) {
         const poData = data.message.data;
-        console.log('PO data fetched:', poData);
+        // console.log('PO data fetched:', poData);
         
         // Set form fields from PO data
         setSupplier(poData.supplier);
@@ -375,11 +375,11 @@ export default function PurchaseReceiptMain() {
           schedule_date: item.schedule_date,
         }));
 
-        console.log('Converted PR items:', prItems);
+        // console.log('Converted PR items:', prItems);
         setSelectedItems(prItems);
         setShowPODialog(false);
       } else {
-        console.log('fetchPOItems failed:', data.message);
+        // console.log('fetchPOItems failed:', data.message);
         setError(data.message || 'Gagal mengambil data barang pesanan pembelian');
       }
     } catch (err) {
@@ -690,12 +690,12 @@ export default function PurchaseReceiptMain() {
       let url = `/api/purchase/receipts/list-for-pr?company=${encodeURIComponent(selectedCompany)}`;
       if (supplier) {
         url += `&supplier=${encodeURIComponent(supplier)}`;
-        console.log('Fetching POs for supplier:', supplier);
+        // console.log('Fetching POs for supplier:', supplier);
       } else {
         console.log('Fetching POs for all suppliers');
       }
 
-      console.log('Final URL:', url);
+      // console.log('Final URL:', url);
 
       const response = await fetch(url);
 
@@ -713,11 +713,11 @@ export default function PurchaseReceiptMain() {
         poData = data.data;
       }
 
-      console.log('PO List for PR:', poData.length, 'items');
-      console.log('PO Data:', poData);
-      if (supplier) {
-        console.log('Filtered by supplier:', supplier);
-      }
+      // console.log('PO List for PR:', poData.length, 'items');
+      // console.log('PO Data:', poData);
+      // if (supplier) {
+      //   console.log('Filtered by supplier:', supplier);
+      // }
       setPurchaseOrders(poData);
     } catch (err) {
       console.error('Error fetching purchase orders for PR:', err);

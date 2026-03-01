@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
     const limitPageLength = searchParams.get('limit_page_length') || '20';
     const limitStart = searchParams.get('limit_start') || '0';
 
-    console.log('Stock Entry API Parameters:', { filters, orderBy, limitPageLength, limitStart });
+    // console.log('Stock Entry API Parameters:', { filters, orderBy, limitPageLength, limitStart });
 
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     const apiKey = process.env.ERP_API_KEY;
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
       }
     }
     
-    console.log('Parsed filters array:', filtersArray);
+    // console.log('Parsed filters array:', filtersArray);
 
     // Build ERPNext URL
     let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Stock Entry?fields=["name","posting_date","posting_time","purpose","company","from_warehouse","to_warehouse","total_amount","docstatus"]&limit_page_length=${limitPageLength}&limit_start=${limitStart}&order_by=posting_date desc,posting_time desc`;
@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
       erpNextUrl += `&filters=${encodeURIComponent(JSON.stringify(filtersArray))}`;
     }
 
-    console.log('Stock Entry ERPNext URL:', erpNextUrl);
+    // console.log('Stock Entry ERPNext URL:', erpNextUrl);
 
     const response = await fetch(erpNextUrl, {
       method: 'GET',
@@ -64,16 +64,16 @@ export async function GET(request: NextRequest) {
     });
 
     const data = await response.json();
-    console.log('Stock Entry ERPNext Response:', {
-      status: response.status,
-      dataCount: data.data?.length || 0,
-      firstFew: data.data?.slice(0, 3)?.map((e: any) => ({ 
-        name: e.name, 
-        from_warehouse: e.from_warehouse, 
-        to_warehouse: e.to_warehouse,
-        purpose: e.purpose
-      }))
-    });
+    // console.log('Stock Entry ERPNext Response:', {
+    //   status: response.status,
+    //   dataCount: data.data?.length || 0,
+    //   firstFew: data.data?.slice(0, 3)?.map((e: any) => ({ 
+    //     name: e.name, 
+    //     from_warehouse: e.from_warehouse, 
+    //     to_warehouse: e.to_warehouse,
+    //     purpose: e.purpose
+    //   }))
+    // });
 
     if (response.ok) {
       return NextResponse.json({

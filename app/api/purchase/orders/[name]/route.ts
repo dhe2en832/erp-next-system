@@ -11,8 +11,8 @@ export async function GET(
     const { searchParams } = new URL(request.url);
     const company = searchParams.get('company');
 
-    console.log('PO Name:', name);
-    console.log('Company:', company);
+    // console.log('PO Name:', name);
+    // console.log('Company:', company);
 
     if (!company) {
       return NextResponse.json(
@@ -35,7 +35,7 @@ export async function GET(
     // Build ERPNext URL to get specific PO
     const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Purchase Order/${name}?fields=["*"]`;
 
-    console.log('Fetch PO ERPNext URL:', erpNextUrl);
+    // console.log('Fetch PO ERPNext URL:', erpNextUrl);
 
     const response = await fetch(
       erpNextUrl,
@@ -49,7 +49,7 @@ export async function GET(
     );
 
     const data = await response.json();
-    console.log('Fetch PO response:', data);
+    // console.log('Fetch PO response:', data);
 
     if (response.ok) {
       return NextResponse.json({
@@ -79,8 +79,8 @@ export async function PUT(
     const { name } = await params;
     const purchaseOrderData = await request.json();
 
-    console.log('Updating PO:', name);
-    console.log('PO Data:', purchaseOrderData);
+    // console.log('Updating PO:', name);
+    // console.log('PO Data:', purchaseOrderData);
 
     // Use API key authentication
     const apiKey = process.env.ERP_API_KEY;

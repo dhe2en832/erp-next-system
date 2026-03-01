@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
       // Remove the sales person filter from ERPNext query since it's in a child table
     }
 
-    console.log('Payable Invoices URL:', erpNextUrl);
+    // console.log('Payable Invoices URL:', erpNextUrl);
 
     const response = await fetch(erpNextUrl, { method: 'GET', headers });
     const data = await response.json();
@@ -76,7 +76,7 @@ export async function GET(request: NextRequest) {
     if (!response.ok) {
       // If custom_commission_paid field doesn't exist, retry without it
       if (data.message?.includes('custom_commission_paid') || data.exc_type === 'frappe.exceptions.FieldDoesNotExistError') {
-        console.log('custom_commission_paid field not found, retrying without it...');
+        // console.log('custom_commission_paid field not found, retrying without it...');
         const fallbackFilters = [
           ['docstatus', '=', '1'],
           ['company', '=', company],

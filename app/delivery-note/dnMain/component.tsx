@@ -248,7 +248,7 @@ export default function DeliveryNoteMain() {
       const existingName = createdDocName.current;
       const isUpdate = !!existingName;
 
-      console.log('[DEBUG] DN Payload:', deliveryNotePayload, 'isUpdate:', isUpdate, 'name:', existingName);
+      // console.log('[DEBUG] DN Payload:', deliveryNotePayload, 'isUpdate:', isUpdate, 'name:', existingName);
 
       const response = await fetch(
         isUpdate ? `/api/sales/delivery-notes/${existingName}` : '/api/sales/delivery-notes',

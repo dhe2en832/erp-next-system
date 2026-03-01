@@ -6,15 +6,15 @@ export async function GET(request: Request) {
 
     if (!itemCode) return NextResponse.json({ error: "item_code is required" }, { status: 400 });
 
-    console.log('Stock check request for item:', itemCode);
-    console.log('ERP_URL:', process.env.ERPNEXT_API_URL);
-    console.log('API Key exists:', !!process.env.ERP_API_KEY);
-    console.log('API Secret exists:', !!process.env.ERP_API_SECRET);
+    // console.log('Stock check request for item:', itemCode);
+    // console.log('ERP_URL:', process.env.ERPNEXT_API_URL);
+    // console.log('API Key exists:', !!process.env.ERP_API_KEY);
+    // console.log('API Secret exists:', !!process.env.ERP_API_SECRET);
 
     try {
         // Query ke DocType Bin untuk mendapatkan stok per gudang
         const erpUrl = `${process.env.ERPNEXT_API_URL}/api/resource/Bin?fields=["warehouse","actual_qty","reserved_qty"]&filters=[["item_code","=","${itemCode}"]]`;
-        console.log('ERPNext URL:', erpUrl);
+        // console.log('ERPNext URL:', erpUrl);
         
         const response = await fetch(erpUrl, {
             headers: {
@@ -23,22 +23,22 @@ export async function GET(request: Request) {
             },
         });
 
-        console.log('ERPNext response status:', response.status);
-        console.log('ERPNext response headers:', response.headers);
+        // console.log('ERPNext response status:', response.status);
+        // console.log('ERPNext response headers:', response.headers);
 
         if (!response.ok) {
             const errorText = await response.text();
-            console.log('ERPNext error response:', errorText);
+            // console.log('ERPNext error response:', errorText);
             return NextResponse.json({ 
                 error: `ERPNext API Error: ${response.status} - ${errorText}` 
             }, { status: response.status });
         }
 
         const result = await response.json();
-        console.log('ERPNext data result:', result);
+        // console.log('ERPNext data result:', result);
         
         if (!result.data) {
-            console.log('No data found in ERPNext response');
+            // console.log('No data found in ERPNext response');
             return NextResponse.json([]);
         }
 
@@ -50,13 +50,13 @@ export async function GET(request: Request) {
             reserved: bin.reserved_qty
         }));
 
-        console.log('Formatted stock data:', stockData);
+        // console.log('Formatted stock data:', stockData);
 
         // Filter hanya warehouse yang ada stok (available > 0)
         const availableStock = stockData.filter((stock: any) => stock.available > 0);
         
         if (availableStock.length === 0) {
-            console.log('No available stock, returning all warehouses');
+            // console.log('No available stock, returning all warehouses');
             // Jika tidak ada stok tersedia, kirim semua warehouse dengan available = 0
             const zeroStockData = stockData.map((stock: any) => ({
                 ...stock,

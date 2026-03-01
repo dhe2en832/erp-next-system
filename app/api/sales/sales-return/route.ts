@@ -96,7 +96,7 @@ export async function GET(request: NextRequest) {
       erpNextUrl += '&order_by=creation desc';
     }
 
-    console.log('Sales Return ERPNext URL:', erpNextUrl);
+    // console.log('Sales Return ERPNext URL:', erpNextUrl);
 
     const response = await fetch(erpNextUrl, {
       method: 'GET',
@@ -104,7 +104,7 @@ export async function GET(request: NextRequest) {
     });
 
     const responseText = await response.text();
-    console.log('Sales Return ERPNext Response Status:', response.status);
+    // console.log('Sales Return ERPNext Response Status:', response.status);
     
     let data;
     try {
@@ -119,7 +119,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    console.log('Sales Return API Response:', { status: response.status, data });
+    // console.log('Sales Return API Response:', { status: response.status, data });
 
     if (response.ok) {
       return NextResponse.json({
@@ -157,12 +157,12 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const salesReturnData = await request.json();
-    console.log('=== CREATE SALES RETURN ===');
-    console.log('Sales Return POST Payload:', JSON.stringify(salesReturnData, null, 2));
+    // console.log('=== CREATE SALES RETURN ===');
+    // console.log('Sales Return POST Payload:', JSON.stringify(salesReturnData, null, 2));
 
     const cookies = request.cookies;
     const sid = cookies.get('sid')?.value;
-    console.log('Session ID (sid):', sid ? 'Present' : 'Missing');
+    // console.log('Session ID (sid):', sid ? 'Present' : 'Missing');
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -176,10 +176,10 @@ export async function POST(request: NextRequest) {
     
     if (apiKey && apiSecret) {
       headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-      console.log('Using API key authentication (priority)');
+      // console.log('Using API key authentication (priority)');
     } else if (sid) {
       headers['Cookie'] = `sid=${sid}`;
-      console.log('Using session-based authentication');
+      // console.log('Using session-based authentication');
       
       // Get CSRF token for ERPNext
       try {
@@ -194,7 +194,7 @@ export async function POST(request: NextRequest) {
           const csrfData = await csrfResponse.json();
           if (csrfData.message && csrfData.message.csrf_token) {
             headers['X-Frappe-CSRF-Token'] = csrfData.message.csrf_token;
-            console.log('CSRF token added to headers');
+            // console.log('CSRF token added to headers');
           }
         }
       } catch (csrfError) {
@@ -253,7 +253,7 @@ export async function POST(request: NextRequest) {
     // Ensure doctype is set
     salesReturnData.doctype = 'Sales Return';
 
-    console.log('Making request to ERPNext with headers:', { ...headers, Authorization: headers.Authorization ? '***' : 'None' });
+    // console.log('Making request to ERPNext with headers:', { ...headers, Authorization: headers.Authorization ? '***' : 'None' });
 
     const response = await fetch(`${ERPNEXT_API_URL}/api/resource/Sales Return`, {
       method: 'POST',
@@ -262,7 +262,7 @@ export async function POST(request: NextRequest) {
     });
 
     const responseText = await response.text();
-    console.log('Sales Return ERPNext Response Status:', response.status);
+    // console.log('Sales Return ERPNext Response Status:', response.status);
     
     let data;
     try {
@@ -277,7 +277,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('Sales Return ERPNext Response Data:', data);
+    // console.log('Sales Return ERPNext Response Data:', data);
 
     if (response.ok) {
       return NextResponse.json({

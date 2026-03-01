@@ -4,7 +4,7 @@ const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
 
 export async function GET(request: NextRequest) {
   try {
-    console.log('=== Purchase Orders API Called ===');
+    // console.log('=== Purchase Orders API Called ===');
     
     const { searchParams } = new URL(request.url);
     const company = searchParams.get('company');
@@ -17,10 +17,10 @@ export async function GET(request: NextRequest) {
     const toDate = searchParams.get('to_date');
     const orderBy = searchParams.get('order_by');
 
-    console.log('Request params:', { company, search, documentNumber, status, fromDate, toDate, orderBy });
+    // console.log('Request params:', { company, search, documentNumber, status, fromDate, toDate, orderBy });
 
     if (!company) {
-      console.log('ERROR: Company is required');
+      // console.log('ERROR: Company is required');
       return NextResponse.json(
         { success: false, message: 'Company is required' },
         { status: 400 }
@@ -31,16 +31,16 @@ export async function GET(request: NextRequest) {
     const apiKey = process.env.ERP_API_KEY;
     const apiSecret = process.env.ERP_API_SECRET;
 
-    console.log('API Key exists:', !!apiKey);
-    console.log('API Secret exists:', !!apiSecret);
+    // console.log('API Key exists:', !!apiKey);
+    // console.log('API Secret exists:', !!apiSecret);
 
-    if (!apiKey || !apiSecret) {
-      console.log('ERROR: ERPNext API credentials not configured');
-      return NextResponse.json(
-        { success: false, message: 'ERPNext API credentials not configured' },
-        { status: 500 }
-      );
-    }
+    // if (!apiKey || !apiSecret) {
+    //   console.log('ERROR: ERPNext API credentials not configured');
+    //   return NextResponse.json(
+    //     { success: false, message: 'ERPNext API credentials not configured' },
+    //     { status: 500 }
+    //   );
+    // }
 
     // Build ERPNext API URL
     let filters = [
@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
     // Add additional filters if provided
     if (search) {
       // Search by supplier name or PO number
-      console.log('Adding search filter for:', search);
+      // console.log('Adding search filter for:', search);
       filters.push(["supplier_name", "like", `%${search}%`]);
     }
 
@@ -102,7 +102,7 @@ export async function GET(request: NextRequest) {
 
     const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Purchase Order?${params}`;
 
-    console.log('ERPNext PO URL:', erpNextUrl);
+    // console.log('ERPNext PO URL:', erpNextUrl);
 
     const response = await fetch(erpNextUrl, {
       method: 'GET',
@@ -122,7 +122,7 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await response.json();
-    console.log('ERPNext response data count:', data.data?.length || 0);
+    // console.log('ERPNext response data count:', data.data?.length || 0);
 
     // Transform data to match frontend interface
     const transformedData = (data.data || []).map((po: any) => ({

@@ -21,8 +21,8 @@ export async function POST(
 ) {
   try {
     const { name } = await params;
-    console.log('=== CANCEL DELIVERY NOTE RETURN ===');
-    console.log('Return Name:', name);
+    // console.log('=== CANCEL DELIVERY NOTE RETURN ===');
+    // console.log('Return Name:', name);
 
     const cookies = request.cookies;
     const sid = cookies.get('sid')?.value;
@@ -38,10 +38,10 @@ export async function POST(
     
     if (apiKey && apiSecret) {
       headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-      console.log('Using API key authentication');
+      // console.log('Using API key authentication');
     } else if (sid) {
       headers['Cookie'] = `sid=${sid}`;
-      console.log('Using session-based authentication');
+      // console.log('Using session-based authentication');
       
       try {
         const csrfResponse = await fetch(`${ERPNEXT_API_URL}/api/method/frappe.core.csrf.get_token`, {
@@ -53,7 +53,7 @@ export async function POST(
           const csrfData = await csrfResponse.json();
           if (csrfData.message?.csrf_token) {
             headers['X-Frappe-CSRF-Token'] = csrfData.message.csrf_token;
-            console.log('CSRF token added');
+            // console.log('CSRF token added');
           }
         }
       } catch (csrfError) {
@@ -103,7 +103,7 @@ export async function POST(
       name: name,
     };
 
-    console.log('Cancelling delivery note return:', cancelUrl);
+    // console.log('Cancelling delivery note return:', cancelUrl);
 
     const response = await fetch(cancelUrl, {
       method: 'POST',
@@ -112,7 +112,7 @@ export async function POST(
     });
 
     const responseText = await response.text();
-    console.log('Cancel Response Status:', response.status);
+    // console.log('Cancel Response Status:', response.status);
     
     let data;
     try {
@@ -127,7 +127,7 @@ export async function POST(
       );
     }
 
-    console.log('Cancel Response Data:', data);
+    // console.log('Cancel Response Data:', data);
 
     if (response.ok) {
       // Transform response to match frontend expectations

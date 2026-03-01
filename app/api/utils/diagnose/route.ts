@@ -11,7 +11,7 @@ export async function GET() {
     const diagnostics: Record<string, any> = {};
     
     // 1. Check Delivery Note doctype
-    console.log('1. Checking Delivery Note doctype...');
+    // console.log('1. Checking Delivery Note doctype...');
     try {
       const dnDoctypeResponse = await fetch(`${ERPNEXT_API_URL}/api/resource/DocType/Delivery%20Note`, {
         method: 'GET',
@@ -44,7 +44,7 @@ export async function GET() {
     }
     
     // 2. Check Delivery Note Item doctype
-    console.log('2. Checking Delivery Note Item doctype...');
+    // console.log('2. Checking Delivery Note Item doctype...');
     try {
       const dnItemDoctypeResponse = await fetch(`${ERPNEXT_API_URL}/api/resource/DocType/Delivery%20Note%20Item`, {
         method: 'GET',
@@ -77,7 +77,7 @@ export async function GET() {
     }
     
     // 3. Check user permissions
-    console.log('3. Checking user permissions...');
+    // console.log('3. Checking user permissions...');
     try {
       const userResponse = await fetch(`${ERPNEXT_API_URL}/api/resource/User/${process.env.ERP_API_KEY}`, {
         method: 'GET',
@@ -109,7 +109,7 @@ export async function GET() {
     }
     
     // 4. Check available items
-    console.log('4. Checking available items...');
+    // console.log('4. Checking available items...');
     try {
       const itemsResponse = await fetch(`${ERPNEXT_API_URL}/api/resource/Item?fields=["name","item_name","item_group"]&limit_page_length=5`, {
         method: 'GET',
@@ -144,7 +144,7 @@ export async function GET() {
     }
     
     // 5. Check warehouses
-    console.log('5. Checking warehouses...');
+    // console.log('5. Checking warehouses...');
     try {
       const warehouseResponse = await fetch(`${ERPNEXT_API_URL}/api/resource/Warehouse?fields=["name","warehouse_name"]&limit_page_length=5`, {
         method: 'GET',
@@ -178,7 +178,7 @@ export async function GET() {
     }
     
     // 6. Test creating a simple DN item directly
-    console.log('6. Testing direct DN item creation...');
+    // console.log('6. Testing direct DN item creation...');
     try {
       const testItemPayload = {
         parent: "MAT-DN-2026-00007",

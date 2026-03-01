@@ -14,6 +14,7 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 import LoadingButton from '@/components/LoadingButton';
 import ErrorDialog from '@/components/ErrorDialog';
 import SalesInvoiceDialog from '@/components/credit-note/SalesInvoiceDialog';
+import BrowserStyleDatePicker from '@/components/BrowserStyleDatePicker';
 import { CreditNote, CreditNoteFormData, CreditNoteFormItem, CreditNoteItem, SalesInvoice, CreditNoteReturnReason } from '@/types/credit-note';
 import { validateRequiredFields, validateReturnQuantity, validateReturnReason, validateDateFormat, convertDateToAPIFormat, convertDateToDisplayFormat } from '@/lib/credit-note-validation';
 import { calculateCreditNoteTotal, calculateCreditNoteCommission, calculateRemainingQty } from '@/lib/credit-note-calculation';
@@ -124,8 +125,8 @@ export default function CreditNoteMain() {
             delivered_qty: item.delivered_qty,
             returned_qty: item.returned_qty,
             remaining_qty: calculateRemainingQty(item.delivered_qty, item.returned_qty),
-            return_reason: item.return_reason,
-            return_notes: item.return_item_notes || '',
+            return_reason: item.custom_return_reason,
+            return_notes: item.custom_return_item_notes || '',
             custom_komisi_sales: Math.abs(item.custom_komisi_sales || 0),
             selected: true,
           })),
@@ -274,13 +275,22 @@ export default function CreditNoteMain() {
   const calculateTotals = () => {
     const selectedItems = formData.items.filter((item: CreditNoteFormItem) => item.selected && item.qty > 0);
     const grandTotal = calculateCreditNoteTotal(formData.items);
+    
+    // For existing credit notes (read-only or edit mode), use the stored commission values directly
+    // For new credit notes, calculate proportional commission
     const totalCommission = selectedItems.reduce((sum: number, item: CreditNoteFormItem) => {
-      const commission = calculateCreditNoteCommission(
-        item.custom_komisi_sales,
-        item.qty,
-        item.delivered_qty
-      );
-      return sum + Math.abs(commission);
+      if (creditNote) {
+        // Existing credit note: use stored commission value (already in form as positive)
+        return sum + item.custom_komisi_sales;
+      } else {
+        // New credit note: calculate proportional commission
+        const commission = calculateCreditNoteCommission(
+          item.custom_komisi_sales,
+          item.qty,
+          item.delivered_qty
+        );
+        return sum + Math.abs(commission);
+      }
     }, 0);
 
     return { grandTotal, totalCommission };
@@ -516,19 +526,15 @@ export default function CreditNoteMain() {
               </h1>
               {creditNote && (
                 <p className="text-sm text-gray-500 mt-1">
-                  Status: <span className={`font-medium ${
-                    creditNote.status === 'Draft' ? 'text-yellow-600' :
-                    creditNote.status === 'Submitted' ? 'text-green-600' :
-                    'text-gray-600'
-                  }`}>{creditNote.status}</span>
+                  Status: {creditNote.docstatus === 0 ? 'Draft' : creditNote.docstatus === 1 ? 'Submitted' : 'Cancelled'}
                 </p>
               )}
             </div>
           </div>
-
+          
           {/* Action Buttons */}
           <div className="flex items-center gap-2">
-            {creditNote && creditNote.docstatus === 1 && (
+            {creditNote && creditNote.docstatus === 0 && !isReadOnly && (
               <LoadingButton
                 onClick={handleCancel}
                 loading={cancelling}
@@ -619,14 +625,11 @@ export default function CreditNoteMain() {
                   <p className="text-sm font-semibold text-gray-900">{creditNote?.posting_date}</p>
                 ) : (
                   <div>
-                    <input
-                      type="text"
+                    <BrowserStyleDatePicker
                       value={formData.posting_date}
-                      onChange={(e) => handlePostingDateChange(e.target.value)}
+                      onChange={(value: string) => handlePostingDateChange(value)}
+                      className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                       placeholder="DD/MM/YYYY"
-                      className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                        fieldErrors.posting_date ? 'border-red-500' : 'border-gray-300'
-                      }`}
                     />
                     {fieldErrors.posting_date && (
                       <p className="mt-1 text-sm text-red-600">{fieldErrors.posting_date}</p>
@@ -640,7 +643,7 @@ export default function CreditNoteMain() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Catatan</label>
               {isReadOnly ? (
-                <p className="text-sm text-gray-900">{creditNote?.return_notes || '-'}</p>
+                <p className="text-sm text-gray-900">{creditNote?.custom_return_notes || '-'}</p>
               ) : (
                 <textarea
                   value={formData.custom_notes}
