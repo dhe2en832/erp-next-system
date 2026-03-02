@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { formatCurrency } from '@/utils/format';
 
 const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
 
@@ -27,16 +28,45 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, message: 'Company is required' }, { status: 400 });
     }
 
+    // Validate date range (Bug #4 fix)
+    const { validateDateRange } = await import('@/utils/report-validation');
+    const dateValidation = validateDateRange(fromDate, toDate);
+    if (!dateValidation.valid) {
+      return NextResponse.json(
+        { success: false, message: dateValidation.error },
+        { status: 400 }
+      );
+    }
+
     const headers = getAuthHeaders(request);
     if (!headers['Authorization'] && !headers['Cookie']) {
       return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
     }
 
-    // Fetch GL Entries for Cash/Bank accounts
+    // Bug #6 fix: Query Account master to get Cash/Bank accounts by account_type
+    const accountsUrl = `${ERPNEXT_API_URL}/api/resource/Account?fields=${encodeURIComponent(JSON.stringify(['name']))}&filters=${encodeURIComponent(JSON.stringify([['company', '=', company], ['account_type', 'in', ['Cash', 'Bank']]]))}&limit_page_length=500`;
+
+    const accountsResp = await fetch(accountsUrl, { method: 'GET', headers });
+    if (!accountsResp.ok) {
+      return NextResponse.json(
+        { success: false, message: 'Failed to fetch cash/bank accounts' },
+        { status: accountsResp.status }
+      );
+    }
+
+    const accountsData = await accountsResp.json();
+    const cashBankAccounts = (accountsData.data || []).map((acc: any) => acc.name);
+
+    // Handle empty cashBankAccounts case
+    if (cashBankAccounts.length === 0) {
+      return NextResponse.json({ success: true, data: [] });
+    }
+
+    // Fetch GL Entries for these accounts
     const fields = ['account', 'posting_date', 'debit', 'credit', 'voucher_type', 'voucher_no'];
-    const filters: string[][] = [
+    const filters: any[] = [
       ['company', '=', company],
-      ['account', 'like', '%Kas%'],
+      ['account', 'in', cashBankAccounts],
     ];
 
     if (fromDate) filters.push(['posting_date', '>=', fromDate]);
@@ -48,32 +78,32 @@ export async function GET(request: NextRequest) {
     const data = await response.json();
 
     if (response.ok) {
-      // Also try to fetch Bank account entries
-      const bankFilters: string[][] = [
-        ['company', '=', company],
-        ['account', 'like', '%Bank%'],
-      ];
-      if (fromDate) bankFilters.push(['posting_date', '>=', fromDate]);
-      if (toDate) bankFilters.push(['posting_date', '<=', toDate]);
+      // Sort entries by posting_date ascending for proper balance calculation
+      const sortedEntries = (data.data || []).sort((a: any, b: any) => {
+        const dateA = new Date(a.posting_date).getTime();
+        const dateB = new Date(b.posting_date).getTime();
+        return dateA - dateB;
+      });
 
-      const bankUrl = `${ERPNEXT_API_URL}/api/resource/GL Entry?fields=${encodeURIComponent(JSON.stringify(fields))}&filters=${encodeURIComponent(JSON.stringify(bankFilters))}&order_by=posting_date desc&limit_page_length=500`;
-
-      let bankEntries: any[] = [];
-      try {
-        const bankResponse = await fetch(bankUrl, { method: 'GET', headers });
-        if (bankResponse.ok) {
-          const bankData = await bankResponse.json();
-          bankEntries = bankData.data || [];
-        }
-      } catch {
-        // Continue without bank entries
-      }
-
-      const allEntries = [...(data.data || []), ...bankEntries].sort((a, b) =>
-        new Date(b.posting_date).getTime() - new Date(a.posting_date).getTime()
-      );
-
-      return NextResponse.json({ success: true, data: allEntries });
+      // Calculate running balance
+      let runningBalance = 0;
+      const entries = sortedEntries.map((entry: any) => {
+        const debit = entry.debit || 0;
+        const credit = entry.credit || 0;
+        runningBalance += debit - credit;
+        
+        return {
+          ...entry,
+          balance: runningBalance,
+          formatted_debit: formatCurrency(debit),
+          formatted_credit: formatCurrency(credit),
+        };
+      });
+      
+      // Reverse to show most recent first
+      entries.reverse();
+      
+      return NextResponse.json({ success: true, data: entries });
     } else {
       return NextResponse.json(
         { success: false, message: data.message || 'Failed to fetch cash flow data' },

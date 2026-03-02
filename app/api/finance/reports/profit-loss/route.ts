@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { formatCurrency } from '@/utils/format';
+import { validateDateRange } from '@/utils/report-validation';
+import { isDiscountAccount } from '@/utils/account-helpers';
 
 const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
 
@@ -40,27 +43,21 @@ interface ProfitLossSummary {
   net_profit: number;
 }
 
-/**
- * Format currency in Indonesian Rupiah format
- * @param amount - The amount to format
- * @returns Formatted string like "Rp 1.000.000,00"
- */
-function formatCurrency(amount: number): string {
-  const absAmount = Math.abs(amount);
-  const formatted = new Intl.NumberFormat('id-ID', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(absAmount);
-  
-  return `Rp ${formatted}`;
-}
-
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const company = searchParams.get('company') || process.env.ERP_DEFAULT_COMPANY || process.env.ERP_COMPANY;
     const fromDate = searchParams.get('from_date');
     const toDate = searchParams.get('to_date');
+
+    // Validate date range
+    const dateValidation = validateDateRange(fromDate, toDate);
+    if (!dateValidation.valid) {
+      return NextResponse.json(
+        { success: false, message: dateValidation.error },
+        { status: 400 }
+      );
+    }
 
     const sid = request.cookies.get('sid')?.value;
     if (!sid) {
@@ -167,16 +164,17 @@ export async function GET(request: NextRequest) {
         formatted_amount: formatCurrency(amount),
       };
 
-      // Check for discount accounts (contra accounts)
-      // 4300 - Potongan Penjualan (Sales Discount - contra to Income)
-      if (row.account.includes('4300') || master.account_name.toLowerCase().includes('potongan penjualan')) {
-        salesDiscountAmount = row.debit - row.credit; // Debit balance for contra income
-        incomeAccounts.push(line);
-      }
-      // 5300 - Potongan Pembelian (Purchase Discount - contra to COGS)
-      else if (row.account.includes('5300') || master.account_name.toLowerCase().includes('potongan pembelian')) {
-        purchaseDiscountAmount = row.credit - row.debit; // Credit balance for contra expense
-        expenseAccounts.push(line);
+      // Check for discount accounts using flexible detection
+      if (isDiscountAccount(master)) {
+        if (rootType === 'Income' || master.parent_account?.toLowerCase().includes('income')) {
+          // Sales Discount (contra to Income) - debit balance
+          salesDiscountAmount += row.debit - row.credit;
+          incomeAccounts.push(line);
+        } else if (accountType === 'Cost of Goods Sold' || master.parent_account?.toLowerCase().includes('cost of goods sold')) {
+          // Purchase Discount (contra to COGS) - credit balance
+          purchaseDiscountAmount += row.credit - row.debit;
+          expenseAccounts.push(line);
+        }
       }
       else if (rootType === 'Income') {
         incomeAccounts.push(line);

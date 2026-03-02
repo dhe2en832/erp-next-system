@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { formatCurrency } from '@/utils/format';
 
 const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
 
@@ -46,7 +47,33 @@ export async function GET(request: NextRequest) {
     if (response.ok) {
       const invoices = data.data || [];
       
-      // Fetch sales team for each invoice
+      // Fetch Sales Returns
+      const returnFields = ['name', 'return_against', 'grand_total', 'outstanding_amount'];
+      const returnFilters = [
+        ['docstatus', '=', '1'],
+        ['company', '=', company],
+        ['is_return', '=', '1'],
+      ];
+
+      const returnsUrl = `${ERPNEXT_API_URL}/api/resource/Sales Invoice?fields=${encodeURIComponent(JSON.stringify(returnFields))}&filters=${encodeURIComponent(JSON.stringify(returnFilters))}&limit_page_length=500`;
+
+      let returnsMap = new Map<string, number>();
+      try {
+        const returnsResponse = await fetch(returnsUrl, { method: 'GET', headers });
+        if (returnsResponse.ok) {
+          const returnsData = await returnsResponse.json();
+          (returnsData.data || []).forEach((ret: any) => {
+            const originalInvoice = ret.return_against || ret.name;
+            const returnAmount = Math.abs(ret.grand_total || 0);
+            returnsMap.set(originalInvoice, (returnsMap.get(originalInvoice) || 0) + returnAmount);
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching sales returns:', error);
+        // Continue without returns if fetch fails
+      }
+      
+      // Fetch sales team for each invoice and adjust outstanding amounts
       const invoicesWithSales = await Promise.all(
         invoices.map(async (inv: any) => {
           try {
@@ -57,6 +84,10 @@ export async function GET(request: NextRequest) {
             // Get first sales person from sales_team child table
             const salesPerson = salesTeamData.data?.sales_team?.[0]?.sales_person || '';
             
+            // Adjust outstanding amount for returns
+            const returnAmount = returnsMap.get(inv.name) || 0;
+            const adjustedOutstanding = Math.max(0, inv.outstanding_amount - returnAmount);
+            
             return {
               voucher_no: inv.name,
               customer: inv.customer,
@@ -64,12 +95,21 @@ export async function GET(request: NextRequest) {
               posting_date: inv.posting_date,
               due_date: inv.due_date,
               invoice_grand_total: inv.grand_total,
-              outstanding_amount: inv.outstanding_amount,
+              outstanding_amount: adjustedOutstanding,
+              return_amount: returnAmount,
               voucher_type: 'Sales Invoice',
               sales_person: salesPerson,
+              formatted_grand_total: formatCurrency(inv.grand_total),
+              formatted_outstanding: formatCurrency(adjustedOutstanding),
+              formatted_return_amount: formatCurrency(returnAmount),
             };
           } catch (error) {
             console.error(`Error fetching sales team for ${inv.name}:`, error);
+            
+            // Adjust outstanding amount for returns even if sales team fetch fails
+            const returnAmount = returnsMap.get(inv.name) || 0;
+            const adjustedOutstanding = Math.max(0, inv.outstanding_amount - returnAmount);
+            
             return {
               voucher_no: inv.name,
               customer: inv.customer,
@@ -77,15 +117,22 @@ export async function GET(request: NextRequest) {
               posting_date: inv.posting_date,
               due_date: inv.due_date,
               invoice_grand_total: inv.grand_total,
-              outstanding_amount: inv.outstanding_amount,
+              outstanding_amount: adjustedOutstanding,
+              return_amount: returnAmount,
               voucher_type: 'Sales Invoice',
               sales_person: '',
+              formatted_grand_total: formatCurrency(inv.grand_total),
+              formatted_outstanding: formatCurrency(adjustedOutstanding),
+              formatted_return_amount: formatCurrency(returnAmount),
             };
           }
         })
       );
       
-      return NextResponse.json({ success: true, data: invoicesWithSales, total_records: invoicesWithSales.length });
+      // Filter out invoices with zero outstanding after returns
+      const filteredInvoices = invoicesWithSales.filter(inv => inv.outstanding_amount > 0);
+      
+      return NextResponse.json({ success: true, data: filteredInvoices, total_records: filteredInvoices.length });
     } else {
       return NextResponse.json(
         { success: false, message: data.message || 'Failed to fetch accounts receivable' },

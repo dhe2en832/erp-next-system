@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthHeaders } from '@/lib/report-auth-helper';
 import { PurchaseInvoiceWithItems, PurchaseInvoiceDetailsResponse } from '@/types/purchase-invoice-details';
+import { validateDateRange } from '@/utils/report-validation';
 
 const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
 
@@ -15,6 +16,15 @@ export async function GET(request: NextRequest) {
     if (!company) {
       return NextResponse.json(
         { success: false, message: 'Company parameter is required' },
+        { status: 400 }
+      );
+    }
+
+    // Validate date range
+    const dateValidation = validateDateRange(fromDate, toDate);
+    if (!dateValidation.valid) {
+      return NextResponse.json(
+        { success: false, message: dateValidation.error },
         { status: 400 }
       );
     }

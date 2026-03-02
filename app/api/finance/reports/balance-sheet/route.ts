@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { formatCurrency } from '@/utils/format';
+import { validateDateRange } from '@/utils/report-validation';
+import { isCurrentAsset, isCurrentLiability } from '@/utils/account-helpers';
 
 const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
 
@@ -39,26 +42,20 @@ interface BalanceSheetSummary {
   total_liabilities_and_equity: number;
 }
 
-/**
- * Format currency in Indonesian Rupiah format
- * @param amount - The amount to format
- * @returns Formatted string like "Rp 1.000.000,00"
- */
-function formatCurrency(amount: number): string {
-  const absAmount = Math.abs(amount);
-  const formatted = new Intl.NumberFormat('id-ID', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(absAmount);
-  
-  return `Rp ${formatted}`;
-}
-
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const company = searchParams.get('company') || process.env.ERP_DEFAULT_COMPANY || process.env.ERP_COMPANY;
     const asOfDate = searchParams.get('as_of_date');
+
+    // Validate date range (Bug #4 fix)
+    const dateValidation = validateDateRange(null, asOfDate);
+    if (!dateValidation.valid) {
+      return NextResponse.json(
+        { success: false, message: dateValidation.error },
+        { status: 400 }
+      );
+    }
 
     const sid = request.cookies.get('sid')?.value;
     if (!sid) {
@@ -164,34 +161,16 @@ export async function GET(request: NextRequest) {
         formatted_amount: formatCurrency(amount),
       };
 
-      // Categorize accounts
+      // Categorize accounts (Bug #9 fix - use account_type instead of hardcoded numbers)
       if (rootType === 'Asset') {
-        // Current Assets: Cash, Bank, Receivable, Stock, Tax (1410 - Pajak Dibayar Dimuka)
-        if (
-          accountType === 'Cash' ||
-          accountType === 'Bank' ||
-          accountType === 'Receivable' ||
-          accountType === 'Stock' ||
-          accountType === 'Tax' ||
-          row.account.includes('1410') ||
-          master.account_name.toLowerCase().includes('pajak dibayar dimuka')
-        ) {
+        if (isCurrentAsset(master)) {
           currentAssets.push(line);
         } else {
           // Fixed Assets
           fixedAssets.push(line);
         }
       } else if (rootType === 'Liability') {
-        // Current Liabilities: Payable, Tax (2210, 2230, 2240)
-        if (
-          accountType === 'Payable' ||
-          accountType === 'Tax' ||
-          row.account.includes('2210') ||
-          row.account.includes('2230') ||
-          row.account.includes('2240') ||
-          master.account_name.toLowerCase().includes('hutang ppn') ||
-          master.account_name.toLowerCase().includes('hutang pph')
-        ) {
+        if (isCurrentLiability(master)) {
           currentLiabilities.push(line);
         } else {
           // Long-term Liabilities
@@ -202,6 +181,42 @@ export async function GET(request: NextRequest) {
       }
     });
 
+    // Bug #1 Fix: Calculate Net P/L and add to equity
+    let netProfitLoss = 0;
+    try {
+      // Query Income accounts (root_type = 'Income')
+      const incomeAccountNames = Array.from(accountMasterMap.values())
+        .filter(acc => acc.root_type === 'Income')
+        .map(acc => acc.name);
+
+      // Query Expense accounts (root_type = 'Expense')
+      const expenseAccountNames = Array.from(accountMasterMap.values())
+        .filter(acc => acc.root_type === 'Expense')
+        .map(acc => acc.name);
+
+      // Calculate total income from GL entries
+      let totalIncome = 0;
+      (glData.data || []).forEach((entry: GlEntry) => {
+        if (incomeAccountNames.includes(entry.account)) {
+          totalIncome += (entry.credit || 0) - (entry.debit || 0);
+        }
+      });
+
+      // Calculate total expense from GL entries
+      let totalExpense = 0;
+      (glData.data || []).forEach((entry: GlEntry) => {
+        if (expenseAccountNames.includes(entry.account)) {
+          totalExpense += (entry.debit || 0) - (entry.credit || 0);
+        }
+      });
+
+      // Net P/L = Income - Expense
+      netProfitLoss = totalIncome - totalExpense;
+    } catch (error) {
+      console.error('Error calculating Net P/L:', error);
+      // Continue without Net P/L if calculation fails
+    }
+
     // Calculate summary
     const totalCurrentAssets = currentAssets.reduce((sum, acc) => sum + acc.amount, 0);
     const totalFixedAssets = fixedAssets.reduce((sum, acc) => sum + acc.amount, 0);
@@ -211,7 +226,8 @@ export async function GET(request: NextRequest) {
     const totalLongTermLiabilities = longTermLiabilities.reduce((sum, acc) => sum + acc.amount, 0);
     const totalLiabilities = totalCurrentLiabilities + totalLongTermLiabilities;
 
-    const totalEquity = equityAccounts.reduce((sum, acc) => sum + acc.amount, 0);
+    // Add Net P/L to equity (Bug #1 fix)
+    const totalEquity = equityAccounts.reduce((sum, acc) => sum + acc.amount, 0) + netProfitLoss;
     const totalLiabilitiesAndEquity = totalLiabilities + totalEquity;
 
     const summary: BalanceSheetSummary = {
@@ -233,8 +249,10 @@ export async function GET(request: NextRequest) {
         current_liabilities: currentLiabilities,
         long_term_liabilities: longTermLiabilities,
         equity: equityAccounts,
+        net_profit_loss: netProfitLoss,
         summary: {
           ...summary,
+          net_profit_loss: netProfitLoss,
           formatted: {
             total_current_assets: formatCurrency(summary.total_current_assets),
             total_fixed_assets: formatCurrency(summary.total_fixed_assets),
@@ -244,6 +262,7 @@ export async function GET(request: NextRequest) {
             total_liabilities: formatCurrency(summary.total_liabilities),
             total_equity: formatCurrency(summary.total_equity),
             total_liabilities_and_equity: formatCurrency(summary.total_liabilities_and_equity),
+            net_profit_loss: formatCurrency(netProfitLoss),
           },
         },
         as_of_date: asOfDate,

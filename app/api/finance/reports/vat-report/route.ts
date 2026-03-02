@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { formatCurrency } from '@/utils/format';
+import { validateDateRange } from '@/utils/report-validation';
 
 const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
 
@@ -8,6 +10,7 @@ interface VatInvoiceDetail {
   customer_supplier: string;
   dpp: number; // Dasar Pengenaan Pajak (base amount before tax)
   ppn: number; // PPN amount
+  tax_rate: number; // Tax rate as percentage (e.g., 11 for 11%)
   formatted_dpp: string;
   formatted_ppn: string;
 }
@@ -40,18 +43,36 @@ interface VatReportData {
 }
 
 /**
- * Format currency in Indonesian Rupiah format
- * @param amount - The amount to format
- * @returns Formatted string like "Rp 1.000.000,00"
+ * Extract tax rate from invoice document
+ * @param voucherNo - Invoice number
+ * @param voucherType - Type of voucher (Sales Invoice or Purchase Invoice)
+ * @param headers - HTTP headers for API request
+ * @returns Tax rate as decimal (e.g., 0.11 for 11%)
  */
-function formatCurrency(amount: number): string {
-  const absAmount = Math.abs(amount);
-  const formatted = new Intl.NumberFormat('id-ID', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(absAmount);
-  
-  return `Rp ${formatted}`;
+async function getTaxRateForInvoice(
+  voucherNo: string,
+  voucherType: string,
+  headers: Record<string, string>
+): Promise<number> {
+  try {
+    // Determine doctype based on voucher type
+    const doctype = voucherType === 'Sales Invoice' ? 'Sales Invoice' : 'Purchase Invoice';
+    const invoiceUrl = `${ERPNEXT_API_URL}/api/resource/${doctype}/${voucherNo}?fields=["taxes"]`;
+    const response = await fetch(invoiceUrl, { method: 'GET', headers });
+
+    if (response.ok) {
+      const data = await response.json();
+      const taxes = data.data?.taxes || [];
+      if (taxes.length > 0 && taxes[0].rate) {
+        return taxes[0].rate / 100; // Convert percentage to decimal
+      }
+    }
+  } catch (error) {
+    console.error(`Error fetching tax rate for ${voucherNo}:`, error);
+  }
+
+  // Default to 11% if unable to determine
+  return 0.11;
 }
 
 export async function GET(request: NextRequest) {
@@ -78,6 +99,15 @@ export async function GET(request: NextRequest) {
     if (!company) {
       return NextResponse.json(
         { success: false, message: 'Company is required' },
+        { status: 400 }
+      );
+    }
+
+    // Validate date range
+    const dateValidation = validateDateRange(fromDate, toDate);
+    if (!dateValidation.valid) {
+      return NextResponse.json(
+        { success: false, message: dateValidation.error },
         { status: 400 }
       );
     }
@@ -125,20 +155,23 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    // Convert to array and calculate DPP (base amount)
-    const ppnOutputInvoices: VatInvoiceDetail[] = Array.from(ppnOutputMap.entries()).map(([invoiceNo, data]) => {
-      // DPP = PPN / 0.11 (assuming 11% tax rate)
-      const dpp = data.ppn / 0.11;
-      return {
-        tanggal: data.tanggal,
-        nomor_invoice: invoiceNo,
-        customer_supplier: data.customer,
-        dpp: dpp,
-        ppn: data.ppn,
-        formatted_dpp: formatCurrency(dpp),
-        formatted_ppn: formatCurrency(data.ppn),
-      };
-    });
+    // Convert to array and calculate DPP (base amount) with dynamic tax rate
+    const ppnOutputInvoices: VatInvoiceDetail[] = await Promise.all(
+      Array.from(ppnOutputMap.entries()).map(async ([invoiceNo, data]) => {
+        const taxRate = await getTaxRateForInvoice(invoiceNo, 'Sales Invoice', _h);
+        const dpp = data.ppn / taxRate;
+        return {
+          tanggal: data.tanggal,
+          nomor_invoice: invoiceNo,
+          customer_supplier: data.customer,
+          dpp: dpp,
+          ppn: data.ppn,
+          tax_rate: taxRate * 100, // Store as percentage
+          formatted_dpp: formatCurrency(dpp),
+          formatted_ppn: formatCurrency(data.ppn),
+        };
+      })
+    );
 
     // Query PPN Input (Purchase Tax - Account 1410 - Pajak Dibayar Dimuka)
     const ppnInputFilters = [...glFilters, ['account', 'like', '%1410%']];
@@ -174,20 +207,23 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    // Convert to array and calculate DPP (base amount)
-    const ppnInputInvoices: VatInvoiceDetail[] = Array.from(ppnInputMap.entries()).map(([invoiceNo, data]) => {
-      // DPP = PPN / 0.11 (assuming 11% tax rate)
-      const dpp = data.ppn / 0.11;
-      return {
-        tanggal: data.tanggal,
-        nomor_invoice: invoiceNo,
-        customer_supplier: data.supplier,
-        dpp: dpp,
-        ppn: data.ppn,
-        formatted_dpp: formatCurrency(dpp),
-        formatted_ppn: formatCurrency(data.ppn),
-      };
-    });
+    // Convert to array and calculate DPP (base amount) with dynamic tax rate
+    const ppnInputInvoices: VatInvoiceDetail[] = await Promise.all(
+      Array.from(ppnInputMap.entries()).map(async ([invoiceNo, data]) => {
+        const taxRate = await getTaxRateForInvoice(invoiceNo, 'Purchase Invoice', _h);
+        const dpp = data.ppn / taxRate;
+        return {
+          tanggal: data.tanggal,
+          nomor_invoice: invoiceNo,
+          customer_supplier: data.supplier,
+          dpp: dpp,
+          ppn: data.ppn,
+          tax_rate: taxRate * 100, // Store as percentage
+          formatted_dpp: formatCurrency(dpp),
+          formatted_ppn: formatCurrency(data.ppn),
+        };
+      })
+    );
 
     // Calculate summary
     const ppnKurangLebihBayar = totalPpnOutput - totalPpnInput;

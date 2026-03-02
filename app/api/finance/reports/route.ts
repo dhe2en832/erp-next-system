@@ -144,7 +144,22 @@ export async function GET(request: NextRequest) {
         })
         .sort((a, b) => a.account.localeCompare(b.account));
     } else if (report === 'balance-sheet') {
-      processedData = Array.from(accountMap.values())
+      // Bug #1 Fix: Calculate Net P/L from Income and Expense accounts
+      let netProfitLoss = 0;
+      Array.from(accountMap.values()).forEach(row => {
+        const master = accountMasterMap.get(row.account);
+        const rootType = master?.root_type || '';
+        if (rootType === 'Income') {
+          // Income: credit normal balance
+          netProfitLoss += (row.credit - row.debit);
+        } else if (rootType === 'Expense') {
+          // Expense: debit normal balance (subtract from net P/L)
+          netProfitLoss -= (row.debit - row.credit);
+        }
+      });
+
+      // Process Balance Sheet accounts
+      const balanceSheetAccounts = Array.from(accountMap.values())
         .map(row => {
           const master = accountMasterMap.get(row.account);
           const rootType = master?.root_type || '';
@@ -164,8 +179,24 @@ export async function GET(request: NextRequest) {
             balance: balance,
           };
         })
-        .filter(Boolean)
-        .sort((a: any, b: any) => a.account.localeCompare(b.account));
+        .filter(Boolean);
+
+      // Add Net P/L as a virtual Equity account if non-zero
+      // Net P/L is added to Equity with the SAME sign (profit = positive equity, loss = negative equity)
+      if (Math.abs(netProfitLoss) > 0.01) {
+        balanceSheetAccounts.push({
+          account: '__net_profit_loss__',
+          account_name: 'Laba/Rugi Berjalan',
+          account_number: '',
+          root_type: 'Equity',
+          root_type_label: 'Ekuitas',
+          account_type: 'Equity',
+          sub_category: 'Laba/Rugi Berjalan',
+          balance: netProfitLoss, // Positive for profit, negative for loss (will reduce equity)
+        });
+      }
+
+      processedData = balanceSheetAccounts.sort((a: any, b: any) => a.account.localeCompare(b.account));
     } else if (report === 'profit-loss') {
       processedData = Array.from(accountMap.values())
         .map(row => {

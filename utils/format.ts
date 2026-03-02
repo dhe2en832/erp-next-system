@@ -19,16 +19,18 @@ export function formatAddress(html: string): string {
 
 /**
  * Format currency dengan locale Indonesia
- * @param value - Nilai angka
+ * Consistent format: "Rp 1.000.000,00" (space after Rp, dot for thousands, comma for decimals)
+ * @param amount - Nilai angka
  * @returns String yang diformat sebagai currency IDR
  */
-export function formatCurrency(value: number): string {
-  return value.toLocaleString('id-ID', {
-    style: 'currency',
-    currency: 'IDR',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0
-  });
+export function formatCurrency(amount: number): string {
+  const absAmount = Math.abs(amount);
+  const formatted = new Intl.NumberFormat('id-ID', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(absAmount);
+  
+  return `Rp ${formatted}`;
 }
 
 /**

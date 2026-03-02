@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { validateDateRange } from '@/utils/report-validation';
 
 const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
 
@@ -16,6 +17,15 @@ export async function GET(request: NextRequest) {
 
     if (!company) {
       return NextResponse.json({ success: false, message: 'Company required' }, { status: 400 });
+    }
+
+    // Validate date range
+    const dateValidation = validateDateRange(from_date, to_date);
+    if (!dateValidation.valid) {
+      return NextResponse.json(
+        { success: false, message: dateValidation.error },
+        { status: 400 }
+      );
     }
 
     const _h: Record<string, string> = { 'Content-Type': 'application/json' };

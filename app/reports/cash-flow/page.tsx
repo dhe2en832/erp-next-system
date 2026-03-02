@@ -338,8 +338,8 @@ export default function CashFlowPage() {
           ) : data.length === 0 ? (
             <tr><td colSpan={6} className="px-6 py-10 text-center text-gray-500">Tidak ada data alur kas</td></tr>
           ) : (
-            data.map((entry) => (
-              <tr key={entry.name} className="hover:bg-gray-50 transition-colors">
+            data.map((entry, index) => (
+              <tr key={entry.name || `cash-flow-${index}`} className="hover:bg-gray-50 transition-colors">
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{entry.posting_date}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm">
                   <div className="text-gray-900 font-medium">{entry.voucher_type || '-'}</div>
@@ -357,6 +357,20 @@ export default function CashFlowPage() {
                 </td>
               </tr>
             ))
+          )}
+          {!loading && data.length > 0 && (
+            <tr className="bg-gray-50 font-bold border-t-2 border-gray-300">
+              <td colSpan={3} className="px-6 py-4 text-right text-sm text-gray-900">TOTAL:</td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 text-right">
+                {formatCurrency(totalDebit)}
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600 text-right">
+                {formatCurrency(totalCredit)}
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
+                {formatCurrency(totalDebit - totalCredit)}
+              </td>
+            </tr>
           )}
         </tbody>
       </table>
@@ -404,8 +418,8 @@ export default function CashFlowPage() {
       ) : data.length === 0 ? (
         <div className="text-center py-10 text-gray-500 bg-white rounded-lg shadow">Tidak ada data alur kas</div>
       ) : (
-        data.map((entry) => (
-          <div key={entry.name} className="bg-white p-4 rounded-lg shadow border border-gray-100">
+        data.map((entry, index) => (
+          <div key={entry.name || `cash-flow-mobile-${index}`} className="bg-white p-4 rounded-lg shadow border border-gray-100">
             <div className="flex justify-between items-start mb-2">
               <span className="text-xs font-semibold text-gray-500 bg-gray-100 px-2 py-1 rounded">{entry.posting_date}</span>
               <span className="text-xs font-bold text-gray-700">{entry.voucher_type || 'Umum'}</span>
