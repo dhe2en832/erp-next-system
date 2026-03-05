@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 
 export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const { searchParams } = new URL(request.url);
     const filters = searchParams.get('filters');
@@ -12,21 +18,17 @@ export async function GET(request: NextRequest) {
 
     // console.log('Stock Entry API Parameters:', { filters, orderBy, limitPageLength, limitStart });
 
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    const apiKey = process.env.ERP_API_KEY;
-    const apiSecret = process.env.ERP_API_SECRET;
     const sid = request.cookies.get('sid')?.value;
 
-    if (apiKey && apiSecret) {
-      headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-    } else if (sid) {
-      headers['Cookie'] = `sid=${sid}`;
-    } else {
+    if (!sid) {
       return NextResponse.json(
         { success: false, message: 'Unauthorized' },
         { status: 401 }
       );
     }
+
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
 
     // Parse filters array (similar to payment API)
     let filtersArray: any[] = [];
@@ -49,25 +51,18 @@ export async function GET(request: NextRequest) {
     
     // console.log('Parsed filters array:', filtersArray);
 
-    // Build ERPNext URL
-    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Stock Entry?fields=["name","posting_date","posting_time","purpose","company","from_warehouse","to_warehouse","total_amount","docstatus"]&limit_page_length=${limitPageLength}&limit_start=${limitStart}&order_by=posting_date desc,posting_time desc`;
-    
-    if (filtersArray.length > 0) {
-      erpNextUrl += `&filters=${encodeURIComponent(JSON.stringify(filtersArray))}`;
-    }
-
-    // console.log('Stock Entry ERPNext URL:', erpNextUrl);
-
-    const response = await fetch(erpNextUrl, {
-      method: 'GET',
-      headers,
+    // Use client method instead of fetch
+    const data = await client.getList('Stock Entry', {
+      fields: ['name', 'posting_date', 'posting_time', 'purpose', 'company', 'from_warehouse', 'to_warehouse', 'total_amount', 'docstatus'],
+      filters: filtersArray,
+      limit_page_length: parseInt(limitPageLength),
+      start: parseInt(limitStart),
+      order_by: 'posting_date desc,posting_time desc'
     });
 
-    const data = await response.json();
     // console.log('Stock Entry ERPNext Response:', {
-    //   status: response.status,
-    //   dataCount: data.data?.length || 0,
-    //   firstFew: data.data?.slice(0, 3)?.map((e: any) => ({ 
+    //   dataCount: data?.length || 0,
+    //   firstFew: data?.slice(0, 3)?.map((e: any) => ({ 
     //     name: e.name, 
     //     from_warehouse: e.from_warehouse, 
     //     to_warehouse: e.to_warehouse,
@@ -75,44 +70,34 @@ export async function GET(request: NextRequest) {
     //   }))
     // });
 
-    if (response.ok) {
-      return NextResponse.json({
-        success: true,
-        data: data.data || [],
-        total: data.data?.length || 0,
-      });
-    } else {
-      return NextResponse.json(
-        { success: false, message: data.exc || data.message || 'Failed to fetch stock entries' },
-        { status: response.status }
-      );
-    }
-  } catch (error) {
-    console.error('Stock Entry API error:', error);
-    return NextResponse.json(
-      { success: false, message: 'Internal server error' },
-      { status: 500 }
-    );
+    return NextResponse.json({
+      success: true,
+      data: data || [],
+      total: data?.length || 0,
+    });
+  } catch (error: unknown) {
+    logSiteError(error, 'GET /api/inventory/stock-entry', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    const statusCode = errorResponse.errorType === 'authentication' ? 401 : 500;
+    return NextResponse.json(errorResponse, { status: statusCode });
   }
 }
 
 export async function POST(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    const apiKey = process.env.ERP_API_KEY;
-    const apiSecret = process.env.ERP_API_SECRET;
     const sid = request.cookies.get('sid')?.value;
 
-    if (apiKey && apiSecret) {
-      headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-    } else if (sid) {
-      headers['Cookie'] = `sid=${sid}`;
-    } else {
+    if (!sid) {
       return NextResponse.json(
         { success: false, message: 'Unauthorized' },
         { status: 401 }
       );
     }
+
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
 
     const body = await request.json();
     const { purpose, posting_date, posting_time, from_warehouse, to_warehouse, items, company } = body;
@@ -173,30 +158,17 @@ export async function POST(request: NextRequest) {
       }))
     };
 
-    const response = await fetch(`${ERPNEXT_API_URL}/api/resource/Stock Entry`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(entryData),
+    // Use client method instead of fetch
+    const data = await client.insert('Stock Entry', entryData);
+
+    return NextResponse.json({
+      success: true,
+      data: data,
     });
-
-    const data = await response.json();
-
-    if (response.ok) {
-      return NextResponse.json({
-        success: true,
-        data: data.data,
-      });
-    } else {
-      return NextResponse.json(
-        { success: false, message: data.exc || data.message || 'Failed to create stock entry' },
-        { status: response.status }
-      );
-    }
-  } catch (error) {
-    console.error('Stock Entry creation error:', error);
-    return NextResponse.json(
-      { success: false, message: 'Internal server error' },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    logSiteError(error, 'POST /api/inventory/stock-entry', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    const statusCode = errorResponse.errorType === 'authentication' ? 401 : 500;
+    return NextResponse.json(errorResponse, { status: statusCode });
   }
 }

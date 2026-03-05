@@ -1,91 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { parseErpError } from '../../../../../../utils/erp-error';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ name: string }> }
 ) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const { name } = await params;
-    // console.log(`=== SUBMIT PAYMENT ENTRY ${name} ===`);
-    
-    const cookies = request.cookies;
-    const sid = cookies.get('sid')?.value;
 
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
+    // Get site-aware client (handles dual authentication: API Key → session cookie fallback)
+    const client = await getERPNextClientForRequest(request);
 
-    // Prioritize API Key authentication
-    const apiKey = process.env.ERP_API_KEY;
-    const apiSecret = process.env.ERP_API_SECRET;
-    
-    if (apiKey && apiSecret) {
-      headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-      // console.log('Using API key authentication for payment submit');
-    } else if (sid) {
-      headers['Cookie'] = `sid=${sid}`;
-      // console.log('Using session-based authentication for payment submit');
-      
-      // Get CSRF token for ERPNext
-      try {
-        const csrfResponse = await fetch(`${ERPNEXT_API_URL}/api/method/frappe.core.csrf.get_token`, {
-          method: 'GET',
-          headers: {
-            'Cookie': `sid=${sid}`,
-          },
-        });
-        
-        if (csrfResponse.ok) {
-          const csrfData = await csrfResponse.json();
-          if (csrfData.message && csrfData.message.csrf_token) {
-            headers['X-Frappe-CSRF-Token'] = csrfData.message.csrf_token;
-            // console.log('CSRF token added to payment submit headers');
-          }
-        } else {
-          console.warn('Failed to get CSRF token for payment submit, proceeding without it');
-        }
-      } catch (csrfError) {
-        console.warn('Error getting CSRF token for payment submit:', csrfError);
-      }
-    } else {
-      return NextResponse.json(
-        { success: false, message: 'Unauthorized - No session or API key found' },
-        { status: 401 }
-      );
-    }
+    // Use client submit method instead of fetch
+    const data = await client.submit('Payment Entry', name);
 
-    // Submit payment entry using ERPNext submit method
-    const response = await fetch(`${ERPNEXT_API_URL}/api/resource/Payment Entry/${name}`, {
-      method: 'PUT',
-      headers: headers,
-      body: JSON.stringify({
-        docstatus: 1, // Submit the document
-        status: 'Submitted'
-      }),
+    return NextResponse.json({ 
+      success: true, 
+      data, 
+      message: `Payment Entry ${name} berhasil diajukan` 
     });
 
-    const data = await response.json();
-    // console.log('Payment Submit Response Status:', response.status);
-    // console.log('Payment Submit Response Data:', data);
-
-    if (response.ok) {
-      return NextResponse.json({ success: true, data: data.data, message: `Payment Entry ${name} berhasil diajukan` });
-    } else {
-      const errorMessage = parseErpError(data, 'Gagal mengajukan Payment Entry');
-      console.error('Submit Payment error:', { status: response.status, errorMessage });
-      return NextResponse.json({ success: false, message: errorMessage }, { status: response.status });
-    }
-
   } catch (error: unknown) {
-    console.error('Payment Submit Error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Internal server error';
-    return NextResponse.json({
-      success: false,
-      message: errorMessage,
-      error: error
-    }, { status: 500 });
+    logSiteError(error, 'POST /api/finance/payments/[name]/submit', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

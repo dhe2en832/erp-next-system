@@ -7,9 +7,12 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getErpAuthHeaders } from '@/utils/erpnext-auth';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+import {
+  getERPNextClientForRequest,
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError
+} from '@/lib/api-helpers';
 
 /**
  * GET /api/sales/credit-note/invoices
@@ -17,40 +20,62 @@ const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
  * Fetch paid Sales Invoices for Credit Note selection
  */
 export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const { searchParams } = new URL(request.url);
     
-    // Get authentication headers
-    const headers = getErpAuthHeaders(request);
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
 
-    // Build ERPNext URL with query params
-    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Sales Invoice?${searchParams.toString()}`;
+    // Build filters from search params
+    const filters: any[][] = [];
     
-    // console.log('Fetching paid invoices:', erpNextUrl);
+    // Parse filters from searchParams if provided
+    const filtersParam = searchParams.get('filters');
+    if (filtersParam) {
+      try {
+        const parsedFilters = JSON.parse(filtersParam);
+        if (Array.isArray(parsedFilters)) {
+          filters.push(...parsedFilters);
+        }
+      } catch (e) {
+        // Ignore invalid filter JSON
+      }
+    }
+    
+    // Parse fields from searchParams
+    const fieldsParam = searchParams.get('fields');
+    let fields: string[] | undefined;
+    if (fieldsParam) {
+      try {
+        fields = JSON.parse(fieldsParam);
+      } catch (e) {
+        // Use default fields if parsing fails
+      }
+    }
+    
+    // Get limit
+    const limit = searchParams.get('limit_page_length') 
+      ? parseInt(searchParams.get('limit_page_length')!) 
+      : undefined;
 
-    const response = await fetch(erpNextUrl, {
-      method: 'GET',
-      headers,
+    // Fetch invoices using client
+    const invoices = await client.getList('Sales Invoice', {
+      fields,
+      filters: filters.length > 0 ? filters : undefined,
+      limit_page_length: limit
     });
 
-    const data = await response.json();
+    return NextResponse.json({
+      success: true,
+      data: invoices || [],
+    });
 
-    if (response.ok) {
-      return NextResponse.json({
-        success: true,
-        data: data.data || [],
-      });
-    } else {
-      return NextResponse.json(
-        { success: false, message: 'Failed to fetch invoices' },
-        { status: response.status }
-      );
-    }
   } catch (error) {
-    console.error('Error fetching paid invoices:', error);
-    return NextResponse.json(
-      { success: false, message: 'Internal server error' },
-      { status: 500 }
-    );
+    logSiteError(error, 'GET /api/sales/credit-note/invoices', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    const statusCode = errorResponse.errorType === 'authentication' ? 401 : 500;
+    return NextResponse.json(errorResponse, { status: statusCode });
   }
 }

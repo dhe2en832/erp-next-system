@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+import {
+  getERPNextClientForRequest,
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError
+} from '@/lib/api-helpers';
 
 interface VatInvoiceDetail {
   tanggal: string;
@@ -15,6 +19,8 @@ interface VatInvoiceDetail {
  * Export VAT Report to Excel in SPT PPN format
  */
 export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+
   try {
     const { searchParams } = new URL(request.url);
     const company = searchParams.get('company') || process.env.ERP_DEFAULT_COMPANY || process.env.ERP_COMPANY;
@@ -26,15 +32,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
     }
 
-    const _ak = process.env.ERP_API_KEY;
-    const _as = process.env.ERP_API_SECRET;
-    const _h: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (_ak && _as) {
-      _h['Authorization'] = `token ${_ak}:${_as}`;
-    } else {
-      _h['Cookie'] = `sid=${sid}`;
-    }
-
     if (!company) {
       return NextResponse.json(
         { success: false, message: 'Company is required' },
@@ -42,8 +39,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const client = await getERPNextClientForRequest(request);
+
     // Build GL Entry filters with date range
-    const glFilters: any[] = [['company', '=', company]];
+    const glFilters: any[][] = [['company', '=', company]];
     if (fromDate) {
       glFilters.push(['posting_date', '>=', fromDate]);
     }
@@ -53,23 +52,18 @@ export async function GET(request: NextRequest) {
 
     // Query PPN Output (Sales Tax - Account 2210 - Hutang PPN)
     const ppnOutputFilters = [...glFilters, ['account', 'like', '%2210%']];
-    const ppnOutputUrl = `${ERPNEXT_API_URL}/api/resource/GL Entry?fields=["posting_date","voucher_no","against","credit","debit"]&filters=${encodeURIComponent(JSON.stringify(ppnOutputFilters))}&order_by=posting_date&limit_page_length=5000`;
-    
-    const ppnOutputResp = await fetch(ppnOutputUrl, { method: 'GET', headers: _h });
-    const ppnOutputApiData = await ppnOutputResp.json();
-
-    if (!ppnOutputResp.ok) {
-      return NextResponse.json(
-        { success: false, message: ppnOutputApiData.exc || ppnOutputApiData.message || 'Failed to fetch PPN Output data' },
-        { status: ppnOutputResp.status }
-      );
-    }
+    const ppnOutputApiData = await client.getList('GL Entry', {
+      fields: ['posting_date', 'voucher_no', 'against', 'credit', 'debit'],
+      filters: ppnOutputFilters,
+      order_by: 'posting_date',
+      limit_page_length: 5000
+    });
 
     // Process PPN Output entries
     const ppnOutputMap = new Map<string, { tanggal: string; customer: string; ppn: number }>();
     let totalPpnOutput = 0;
 
-    (ppnOutputApiData.data || []).forEach((entry: any) => {
+    (ppnOutputApiData || []).forEach((entry: any) => {
       const ppnAmount = (entry.credit || 0) - (entry.debit || 0);
       if (ppnAmount > 0 && entry.voucher_no) {
         if (!ppnOutputMap.has(entry.voucher_no)) {
@@ -98,23 +92,18 @@ export async function GET(request: NextRequest) {
 
     // Query PPN Input (Purchase Tax - Account 1410 - Pajak Dibayar Dimuka)
     const ppnInputFilters = [...glFilters, ['account', 'like', '%1410%']];
-    const ppnInputUrl = `${ERPNEXT_API_URL}/api/resource/GL Entry?fields=["posting_date","voucher_no","against","debit","credit"]&filters=${encodeURIComponent(JSON.stringify(ppnInputFilters))}&order_by=posting_date&limit_page_length=5000`;
-    
-    const ppnInputResp = await fetch(ppnInputUrl, { method: 'GET', headers: _h });
-    const ppnInputApiData = await ppnInputResp.json();
-
-    if (!ppnInputResp.ok) {
-      return NextResponse.json(
-        { success: false, message: ppnInputApiData.exc || ppnInputApiData.message || 'Failed to fetch PPN Input data' },
-        { status: ppnInputResp.status }
-      );
-    }
+    const ppnInputApiData = await client.getList('GL Entry', {
+      fields: ['posting_date', 'voucher_no', 'against', 'debit', 'credit'],
+      filters: ppnInputFilters,
+      order_by: 'posting_date',
+      limit_page_length: 5000
+    });
 
     // Process PPN Input entries
     const ppnInputMap = new Map<string, { tanggal: string; supplier: string; ppn: number }>();
     let totalPpnInput = 0;
 
-    (ppnInputApiData.data || []).forEach((entry: any) => {
+    (ppnInputApiData || []).forEach((entry: any) => {
       const ppnAmount = (entry.debit || 0) - (entry.credit || 0);
       if (ppnAmount > 0 && entry.voucher_no) {
         if (!ppnInputMap.has(entry.voucher_no)) {
@@ -223,11 +212,9 @@ export async function GET(request: NextRequest) {
         'Content-Disposition': `attachment; filename="${filename}"`,
       },
     });
-  } catch (error) {
-    console.error('VAT Report Export API error:', error);
-    return NextResponse.json(
-      { success: false, message: 'Internal server error' },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    logSiteError(error, 'GET /api/finance/reports/vat-report/export', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

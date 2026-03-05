@@ -1,22 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
-
-function getAuthHeaders(request: NextRequest): Record<string, string> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  const sid = request.cookies.get('sid')?.value;
-  const apiKey = process.env.ERP_API_KEY;
-  const apiSecret = process.env.ERP_API_SECRET;
-
-  if (apiKey && apiSecret) {
-    headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-  } else if (sid) {
-    headers['Cookie'] = `sid=${sid}`;
-  }
-  return headers;
-}
+import {
+  getERPNextClientForRequest,
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError
+} from '@/lib/api-helpers';
 
 export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const { searchParams } = new URL(request.url);
     const name = searchParams.get('name');
@@ -25,30 +17,24 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, message: 'Name parameter is required' }, { status: 400 });
     }
 
-    const headers = getAuthHeaders(request);
-    if (!headers['Authorization'] && !headers['Cookie']) {
-      return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
-    }
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
 
-    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Sales Person/${encodeURIComponent(name)}`;
-    const response = await fetch(erpNextUrl, { method: 'GET', headers });
-    const data = await response.json();
+    const data = await client.get('Sales Person', name);
 
-    if (response.ok) {
-      return NextResponse.json({ success: true, data: data.data });
-    } else {
-      return NextResponse.json(
-        { success: false, message: data.message || 'Failed to fetch sales person detail' },
-        { status: response.status }
-      );
-    }
-  } catch (error) {
-    console.error('Sales Person Detail API Error:', error);
-    return NextResponse.json({ success: false, message: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ success: true, data });
+
+  } catch (error: unknown) {
+    logSiteError(error, 'GET /api/sales/sales-persons/detail', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    const statusCode = errorResponse.errorType === 'authentication' ? 401 : 500;
+    return NextResponse.json(errorResponse, { status: statusCode });
   }
 }
 
 export async function PUT(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const { searchParams } = new URL(request.url);
     const name = searchParams.get('name');
@@ -57,32 +43,18 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ success: false, message: 'Name parameter is required' }, { status: 400 });
     }
 
-    const headers = getAuthHeaders(request);
-    if (!headers['Authorization'] && !headers['Cookie']) {
-      return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
-    }
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
 
     const body = await request.json();
-    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Sales Person/${encodeURIComponent(name)}`;
+    const data = await client.update('Sales Person', name, body);
 
-    const response = await fetch(erpNextUrl, {
-      method: 'PUT',
-      headers,
-      body: JSON.stringify({ data: body }),
-    });
+    return NextResponse.json({ success: true, data });
 
-    const data = await response.json();
-
-    if (response.ok) {
-      return NextResponse.json({ success: true, data: data.data });
-    } else {
-      return NextResponse.json(
-        { success: false, message: data.message || 'Failed to update sales person' },
-        { status: response.status }
-      );
-    }
-  } catch (error) {
-    console.error('Sales Person Detail PUT API Error:', error);
-    return NextResponse.json({ success: false, message: 'Internal server error' }, { status: 500 });
+  } catch (error: unknown) {
+    logSiteError(error, 'PUT /api/sales/sales-persons/detail', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    const statusCode = errorResponse.errorType === 'authentication' ? 401 : 500;
+    return NextResponse.json(errorResponse, { status: statusCode });
   }
 }

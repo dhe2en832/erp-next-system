@@ -13,7 +13,6 @@
 import { NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
 import { getERPNextClientForSite, ERPNextMultiClient } from './erpnext-multi';
-import { getSite, getAllSites } from './site-config';
 import { erpnextClient } from './erpnext';
 
 /**
@@ -61,25 +60,43 @@ export async function getERPNextClientForRequest(
 ): Promise<ERPNextMultiClient | typeof erpnextClient> {
   const siteId = await getSiteIdFromRequest(request);
 
-  // If site ID specified, use that site
+  // If site ID specified, construct site config from environment
   if (siteId) {
-    const siteConfig = getSite(siteId);
-    if (!siteConfig) {
-      throw new Error(`Site not found: ${siteId}`);
+    // Construct site config from site ID
+    // Format: bac-batasku-cloud -> https://bac.batasku.cloud
+    const siteName = siteId.replace(/-/g, '.');
+    const apiUrl = `https://${siteName}`;
+    
+    // Load credentials from environment
+    const { loadSiteCredentials } = await import('./site-credentials');
+    const tempSite: any = {
+      id: siteId,
+      name: siteName,
+      apiUrl: apiUrl,
+      apiKey: 'env',
+      apiSecret: 'env',
+    };
+    
+    const credentials = loadSiteCredentials(tempSite);
+    
+    // If credentials found in environment, use them
+    if (credentials.apiKey !== 'env' && credentials.apiSecret !== 'env') {
+      const siteConfig = {
+        ...tempSite,
+        apiKey: credentials.apiKey,
+        apiSecret: credentials.apiSecret,
+        displayName: siteName.split('.')[0].toUpperCase(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      
+      return getERPNextClientForSite(siteConfig);
+    } else {
+      throw new Error(`Site not found and no environment credentials: ${siteId}`);
     }
-    return getERPNextClientForSite(siteConfig);
   }
 
-  // No site ID - check if multi-site is configured
-  const allSites = getAllSites();
-  
-  if (allSites.length > 0) {
-    // Multi-site configured - use default site
-    const defaultSite = allSites.find(s => s.isDefault) || allSites[0];
-    return getERPNextClientForSite(defaultSite);
-  }
-
-  // No multi-site config - fall back to legacy single-site client
+  // No site ID - fall back to legacy single-site client
   return erpnextClient;
 }
 

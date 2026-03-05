@@ -1,22 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
-
-function getAuthHeaders(request: NextRequest): Record<string, string> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  const sid = request.cookies.get('sid')?.value;
-  const apiKey = process.env.ERP_API_KEY;
-  const apiSecret = process.env.ERP_API_SECRET;
-
-  if (apiKey && apiSecret) {
-    headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-  } else if (sid) {
-    headers['Cookie'] = `sid=${sid}`;
-  }
-  return headers;
-}
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 
 export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const { searchParams } = new URL(request.url);
     const company = searchParams.get('company');
@@ -29,8 +21,8 @@ export async function GET(request: NextRequest) {
     const limitPageLength = parseInt(searchParams.get('limit_page_length') || '20', 10);
     const limitStart = parseInt(searchParams.get('limit_start') || '0', 10);
 
-    const headers = getAuthHeaders(request);
-    if (!headers['Authorization'] && !headers['Cookie']) {
+    const sid = request.cookies.get('sid')?.value;
+    if (!sid) {
       return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
     }
 
@@ -38,8 +30,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, message: 'Company is required' }, { status: 400 });
     }
 
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
+
     // Build filters - show ALL submitted invoices with commission (paid & unpaid)
-    const filters: string[][] = [
+    const filters: any[][] = [
       ['docstatus', '=', '1'],
       ['company', '=', company],
       ['outstanding_amount', '=', '0'],
@@ -59,25 +54,50 @@ export async function GET(request: NextRequest) {
       'custom_commission_paid', 'status', 'sales_team'
     ];
 
-    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Sales Invoice?fields=${encodeURIComponent(JSON.stringify(fields))}&filters=${encodeURIComponent(JSON.stringify(filters))}&order_by=posting_date desc&limit_start=${limitStart}&limit_page_length=${limitPageLength}`;
+    try {
+      // Try to fetch with custom_commission_paid field
+      let invoices = await client.getList('Sales Invoice', {
+        fields,
+        filters,
+        order_by: 'posting_date desc',
+        limit_page_length: limitPageLength,
+        start: limitStart
+      });
 
-    // If sales_person filter is provided, we need a different approach
-    // since sales_team is a child table
-    if (salesPerson) {
-      // First get all matching invoices, then filter by sales person in the response
-      // Remove the sales person filter from ERPNext query since it's in a child table
-    }
+      // Filter results: only include invoices with commission > 0
+      invoices = (invoices || []).filter((inv: any) =>
+        (inv.custom_total_komisi_sales || 0) > 0
+      );
 
-    // console.log('Payable Invoices URL:', erpNextUrl);
+      // Fetch sales_team for each invoice (child table not returned by default)
+      if (invoices.length > 0) {
+        const invoicesWithSalesTeam = await Promise.all(
+          invoices.map(async (inv: any) => {
+            try {
+              const detailData = await client.get('Sales Invoice', inv.name);
+              if (detailData) {
+                return { ...inv, sales_team: detailData.sales_team || [] };
+              }
+            } catch (err) {
+              console.error(`Error fetching sales_team for ${inv.name}:`, err);
+            }
+            return { ...inv, sales_team: [] };
+          })
+        );
+        invoices = invoicesWithSalesTeam;
+      }
 
-    const response = await fetch(erpNextUrl, { method: 'GET', headers });
-    const data = await response.json();
+      // Apply frontend filters
+      invoices = applyFrontendFilters(invoices, { invoiceNo, customerName, salesPerson, dateFrom, dateTo });
 
-    if (!response.ok) {
+      // Use filtered invoices length as total (more accurate)
+      const total = invoices.length;
+
+      return NextResponse.json({ success: true, data: invoices, total });
+    } catch (error: any) {
       // If custom_commission_paid field doesn't exist, retry without it
-      if (data.message?.includes('custom_commission_paid') || data.exc_type === 'frappe.exceptions.FieldDoesNotExistError') {
-        // console.log('custom_commission_paid field not found, retrying without it...');
-        const fallbackFilters = [
+      if (error.message?.includes('custom_commission_paid') || error.message?.includes('FieldDoesNotExistError')) {
+        const fallbackFilters: any[][] = [
           ['docstatus', '=', '1'],
           ['company', '=', company],
           ['outstanding_amount', '=', '0'],
@@ -86,86 +106,51 @@ export async function GET(request: NextRequest) {
           'name', 'customer', 'customer_name', 'posting_date', 'grand_total',
           'base_grand_total', 'outstanding_amount', 'custom_total_komisi_sales', 'status', 'sales_team'
         ];
-        const fallbackUrl = `${ERPNEXT_API_URL}/api/resource/Sales Invoice?fields=${encodeURIComponent(JSON.stringify(fallbackFields))}&filters=${encodeURIComponent(JSON.stringify(fallbackFilters))}&order_by=posting_date desc&limit_start=${limitStart}&limit_page_length=${limitPageLength}`;
 
-        const fallbackResponse = await fetch(fallbackUrl, { method: 'GET', headers });
-        const fallbackData = await fallbackResponse.json();
+        let invoices = await client.getList('Sales Invoice', {
+          fields: fallbackFields,
+          filters: fallbackFilters,
+          order_by: 'posting_date desc',
+          limit_page_length: limitPageLength,
+          start: limitStart
+        });
 
-        if (fallbackResponse.ok) {
-          let invoices = (fallbackData.data || []).filter((inv: any) =>
-            (inv.custom_total_komisi_sales || 0) > 0
-          );
+        invoices = (invoices || []).filter((inv: any) =>
+          (inv.custom_total_komisi_sales || 0) > 0
+        );
 
-          // Fetch sales_team for each invoice (child table not returned by default)
-          if (invoices.length > 0) {
-            const invoicesWithSalesTeam = await Promise.all(
-              invoices.map(async (inv: any) => {
-                try {
-                  const detailUrl = `${ERPNEXT_API_URL}/api/resource/Sales Invoice/${encodeURIComponent(inv.name)}?fields=["sales_team"]`;
-                  const detailResponse = await fetch(detailUrl, { method: 'GET', headers });
-                  const detailData = await detailResponse.json();
-                  if (detailResponse.ok && detailData.data) {
-                    return { ...inv, sales_team: detailData.data.sales_team || [] };
-                  }
-                } catch (err) {
-                  console.error(`Error fetching sales_team for ${inv.name}:`, err);
+        // Fetch sales_team for each invoice (child table not returned by default)
+        if (invoices.length > 0) {
+          const invoicesWithSalesTeam = await Promise.all(
+            invoices.map(async (inv: any) => {
+              try {
+                const detailData = await client.get('Sales Invoice', inv.name);
+                if (detailData) {
+                  return { ...inv, sales_team: detailData.sales_team || [] };
                 }
-                return { ...inv, sales_team: [] };
-              })
-            );
-            invoices = invoicesWithSalesTeam;
-          }
-
-          // Apply frontend filters
-          invoices = applyFrontendFilters(invoices, { invoiceNo, customerName, salesPerson, dateFrom, dateTo });
-          const total = invoices.length;
-          const paginated = invoices.slice(0, limitPageLength);
-
-          return NextResponse.json({ success: true, data: paginated, total });
+              } catch (err) {
+                console.error(`Error fetching sales_team for ${inv.name}:`, err);
+              }
+              return { ...inv, sales_team: [] };
+            })
+          );
+          invoices = invoicesWithSalesTeam;
         }
+
+        // Apply frontend filters
+        invoices = applyFrontendFilters(invoices, { invoiceNo, customerName, salesPerson, dateFrom, dateTo });
+        const total = invoices.length;
+
+        return NextResponse.json({ success: true, data: invoices, total });
       }
-
-      return NextResponse.json(
-        { success: false, message: data.message || 'Failed to fetch payable invoices' },
-        { status: response.status }
-      );
+      
+      // Re-throw if it's a different error
+      throw error;
     }
-
-    // Filter results: only include invoices with commission > 0
-    let invoices = (data.data || []).filter((inv: any) =>
-      (inv.custom_total_komisi_sales || 0) > 0
-    );
-
-    // Fetch sales_team for each invoice (child table not returned by default)
-    if (invoices.length > 0) {
-      const invoicesWithSalesTeam = await Promise.all(
-        invoices.map(async (inv: any) => {
-          try {
-            const detailUrl = `${ERPNEXT_API_URL}/api/resource/Sales Invoice/${encodeURIComponent(inv.name)}?fields=["sales_team"]`;
-            const detailResponse = await fetch(detailUrl, { method: 'GET', headers });
-            const detailData = await detailResponse.json();
-            if (detailResponse.ok && detailData.data) {
-              return { ...inv, sales_team: detailData.data.sales_team || [] };
-            }
-          } catch (err) {
-            console.error(`Error fetching sales_team for ${inv.name}:`, err);
-          }
-          return { ...inv, sales_team: [] };
-        })
-      );
-      invoices = invoicesWithSalesTeam;
-    }
-
-    // Apply frontend filters
-    invoices = applyFrontendFilters(invoices, { invoiceNo, customerName, salesPerson, dateFrom, dateTo });
-
-    // Use filtered invoices length as total (more accurate)
-    const total = invoices.length;
-
-    return NextResponse.json({ success: true, data: invoices, total });
-  } catch (error) {
-    console.error('Payable Invoices API Error:', error);
-    return NextResponse.json({ success: false, message: 'Internal server error' }, { status: 500 });
+  } catch (error: unknown) {
+    logSiteError(error, 'GET /api/finance/commission/payable-invoices', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }
 

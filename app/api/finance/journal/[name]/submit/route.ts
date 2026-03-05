@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ name: string }> }
 ) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const { name } = await params;
 
@@ -16,61 +22,30 @@ export async function POST(
       );
     }
 
-    const sid = request.cookies.get('sid')?.value;
-    if (!sid) {
-      return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
+    // Get site-aware client (handles dual authentication: API Key → session cookie fallback)
+    const client = await getERPNextClientForRequest(request);
+
+    // Submit the journal entry by updating docstatus to 1
+    const data = await client.update('Journal Entry', name, {
+      docstatus: 1, // 1 = Submitted
+    });
+
+    return NextResponse.json({
+      success: true,
+      data,
+      message: `Journal Entry ${name} berhasil disubmit`,
+    });
+  } catch (error: unknown) {
+    logSiteError(error, 'POST /api/finance/journal/[name]/submit', siteId);
+    
+    // Try to extract ERPNext error message
+    let errorMsg = 'Gagal submit journal entry';
+    if (error instanceof Error) {
+      errorMsg = error.message;
     }
-
-    const _ak = process.env.ERP_API_KEY;
-    const _as = process.env.ERP_API_SECRET;
-    const _h: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (_ak && _as) { 
-      _h['Authorization'] = `token ${_ak}:${_as}`; 
-    } else { 
-      _h['Cookie'] = `sid=${sid}`; 
-    }
-
-    // Submit the journal entry by calling ERPNext's submit endpoint
-    const response = await fetch(
-      `${ERPNEXT_API_URL}/api/resource/Journal Entry/${encodeURIComponent(name)}`,
-      {
-        method: 'PUT',
-        headers: _h,
-        body: JSON.stringify({
-          docstatus: 1, // 1 = Submitted
-        }),
-      }
-    );
-
-    const data = await response.json();
-
-    if (response.ok) {
-      return NextResponse.json({
-        success: true,
-        data: data.data,
-        message: `Journal Entry ${name} berhasil disubmit`,
-      });
-    } else {
-      const errorMsg = data._server_messages
-        ? (() => { 
-            try { 
-              const msgs = JSON.parse(data._server_messages); 
-              return typeof msgs[0] === 'string' ? JSON.parse(msgs[0]).message : msgs[0].message; 
-            } catch { 
-              return data.message || 'Gagal submit journal entry'; 
-            } 
-          })()
-        : data.message || 'Gagal submit journal entry';
-      
-      return NextResponse.json(
-        { success: false, message: errorMsg },
-        { status: response.status }
-      );
-    }
-  } catch (error) {
-    console.error('Journal Entry submit API error:', error);
+    
     return NextResponse.json(
-      { success: false, message: 'Internal server error' },
+      { success: false, message: errorMsg },
       { status: 500 }
     );
   }

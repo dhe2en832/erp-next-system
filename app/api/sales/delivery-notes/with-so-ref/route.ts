@@ -1,68 +1,55 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+import {
+  getERPNextClientForRequest,
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError
+} from '@/lib/api-helpers';
 
 export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const { searchParams } = new URL(request.url);
     const company = searchParams.get('company') || 'Entitas 1 (Demo)';
 
-    const authString = Buffer.from(`${process.env.ERP_API_KEY}:${process.env.ERP_API_SECRET}`).toString('base64');
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
     
-    const dnResponse = await fetch(`${ERPNEXT_API_URL}/api/resource/Delivery Note?fields=["name","customer","status","grand_total"]&filters=${encodeURIComponent(JSON.stringify([["company", "=", company]]))}&limit_page_length=20`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Basic ${authString}`
-      },
+    const filters: any[][] = [["company", "=", company]];
+    
+    const deliveryNotes = await client.getList('Delivery Note', {
+      fields: ['name', 'customer', 'status', 'grand_total'],
+      filters,
+      limit_page_length: 20
     });
-
-    if (!dnResponse.ok) {
-      return NextResponse.json({
-        success: false,
-        message: 'Failed to get DN list',
-        status: dnResponse.status
-      });
-    }
-
-    const dnData = await dnResponse.json();
     
     const soReferences = new Set();
     const dnWithSORef = [];
     
-    for (const dn of dnData.data || []) {
+    for (const dn of deliveryNotes) {
       try {
-        const dnDetailResponse = await fetch(`${ERPNEXT_API_URL}/api/resource/Delivery Note/${dn.name}`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Basic ${authString}`
-          },
-        });
+        const dnDetail = await client.get('Delivery Note', dn.name);
+        const dnSORefs = new Set();
         
-        if (dnDetailResponse.ok) {
-          const dnDetail = await dnDetailResponse.json();
-          const dnSORefs = new Set();
-          
-          if (dnDetail.data?.items && Array.isArray(dnDetail.data.items)) {
-            dnDetail.data.items.forEach((item: any) => {
-              if (item.against_sales_order) {
-                dnSORefs.add(item.against_sales_order);
-                soReferences.add(item.against_sales_order);
-              }
-            });
-          }
-          
-          if (dnSORefs.size > 0) {
-            dnWithSORef.push({
-              dn_name: dn.name,
-              customer: dn.customer,
-              status: dn.status,
-              grand_total: dn.grand_total,
-              so_references: Array.from(dnSORefs),
-              item_count: dnDetail.data?.items?.length || 0
-            });
-          }
+        if (dnDetail.items && Array.isArray(dnDetail.items)) {
+          dnDetail.items.forEach((item: any) => {
+            if (item.against_sales_order) {
+              dnSORefs.add(item.against_sales_order);
+              soReferences.add(item.against_sales_order);
+            }
+          });
+        }
+        
+        if (dnSORefs.size > 0) {
+          dnWithSORef.push({
+            dn_name: dn.name,
+            customer: dn.customer,
+            status: dn.status,
+            grand_total: dn.grand_total,
+            so_references: Array.from(dnSORefs),
+            item_count: dnDetail.items?.length || 0
+          });
         }
       } catch (error) {
         console.log(`Error getting DN detail for ${dn.name}:`, error);
@@ -73,7 +60,7 @@ export async function GET(request: NextRequest) {
       success: true,
       company: company,
       summary: {
-        total_dn_checked: dnData.data?.length || 0,
+        total_dn_checked: deliveryNotes.length,
         dn_with_so_ref: dnWithSORef.length,
         so_references_found: Array.from(soReferences)
       },
@@ -86,11 +73,9 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error: unknown) {
-    console.error('Get DN with SO references error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return NextResponse.json(
-      { success: false, message: errorMessage },
-      { status: 500 }
-    );
+    logSiteError(error, 'GET /api/sales/delivery-notes/with-so-ref', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    const statusCode = errorResponse.errorType === 'authentication' ? 401 : 500;
+    return NextResponse.json(errorResponse, { status: statusCode });
   }
 }

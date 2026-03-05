@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { erpnextClient } from '@/lib/erpnext';
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 
 export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
+    const client = await getERPNextClientForRequest(request);
     const { searchParams } = new URL(request.url);
     
     const period_name = searchParams.get('period_name');
@@ -25,7 +33,7 @@ export async function GET(request: NextRequest) {
       filters.push(['action_by', '=', action_by]);
     }
 
-    const logs = await erpnextClient.getList('Period Closing Log', {
+    const logs = await client.getList('Period Closing Log', {
       filters: filters.length > 0 ? filters : undefined,
       fields: [
         'name',
@@ -46,11 +54,9 @@ export async function GET(request: NextRequest) {
       success: true,
       data: logs,
     });
-  } catch (error: any) {
-    console.error('Error fetching audit log:', error);
-    return NextResponse.json(
-      { success: false, error: 'FETCH_ERROR', message: error.message || 'Failed to fetch audit log' },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    logSiteError(error, 'GET /api/accounting-period/audit-log', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

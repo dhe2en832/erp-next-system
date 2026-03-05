@@ -1,50 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
-
-// Fetch valid data from ERPNext
-async function fetchValidData(docType: string, fields: string[] = ["name"], filters?: any) {
-  const apiKey = process.env.ERP_API_KEY;
-  const apiSecret = process.env.ERP_API_SECRET;
-  
-  if (!apiKey || !apiSecret) {
-    throw new Error('API credentials not configured');
-  }
-
-  let url = `${ERPNEXT_API_URL}/api/resource/${docType}?fields=${JSON.stringify(fields)}`;
-  
-  if (filters) {
-    url += `&filters=${JSON.stringify(filters)}`;
-  }
-
-  // console.log(`Fetching ${docType}:`, url);
-
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: {
-      'Authorization': `token ${apiKey}:${apiSecret}`,
-      'Content-Type': 'application/json',
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch ${docType}: ${response.status}`);
-  }
-
-  const data = await response.json();
-  return data.data || [];
-}
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 
 export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
-    // console.log('=== FETCH VALID ERPNEXT DATA ===');
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
 
     const results: any = {};
 
     // Fetch Price Lists
     try {
-      results.priceLists = await fetchValidData('Price List');
-      // console.log('Price Lists:', results.priceLists);
+      results.priceLists = await client.getList('Price List', { fields: ['name'] });
     } catch (error) {
       console.error('Error fetching Price Lists:', error);
       results.priceLists = [];
@@ -52,8 +25,7 @@ export async function GET(request: NextRequest) {
 
     // Fetch Tax Categories
     try {
-      results.taxCategories = await fetchValidData('Tax Category');
-      // console.log('Tax Categories:', results.taxCategories);
+      results.taxCategories = await client.getList('Tax Category', { fields: ['name'] });
     } catch (error) {
       console.error('Error fetching Tax Categories:', error);
       results.taxCategories = [];
@@ -61,8 +33,7 @@ export async function GET(request: NextRequest) {
 
     // Fetch Territories
     try {
-      results.territories = await fetchValidData('Territory');
-      // console.log('Territories:', results.territories);
+      results.territories = await client.getList('Territory', { fields: ['name'] });
     } catch (error) {
       console.error('Error fetching Territories:', error);
       results.territories = [];
@@ -70,8 +41,10 @@ export async function GET(request: NextRequest) {
 
     // Fetch Income Accounts (filter by Income type)
     try {
-      results.incomeAccounts = await fetchValidData('Account', ['name'], [['Account', 'root_type', '=', 'Income']]);
-      // console.log('Income Accounts:', results.incomeAccounts);
+      results.incomeAccounts = await client.getList('Account', { 
+        fields: ['name'], 
+        filters: [['root_type', '=', 'Income']]
+      });
     } catch (error) {
       console.error('Error fetching Income Accounts:', error);
       results.incomeAccounts = [];
@@ -79,8 +52,7 @@ export async function GET(request: NextRequest) {
 
     // Fetch Warehouses
     try {
-      results.warehouses = await fetchValidData('Warehouse');
-      // console.log('Warehouses:', results.warehouses);
+      results.warehouses = await client.getList('Warehouse', { fields: ['name'] });
     } catch (error) {
       console.error('Error fetching Warehouses:', error);
       results.warehouses = [];
@@ -88,8 +60,7 @@ export async function GET(request: NextRequest) {
 
     // Fetch Cost Centers
     try {
-      results.costCenters = await fetchValidData('Cost Center');
-      // console.log('Cost Centers:', results.costCenters);
+      results.costCenters = await client.getList('Cost Center', { fields: ['name'] });
     } catch (error) {
       console.error('Error fetching Cost Centers:', error);
       results.costCenters = [];
@@ -101,12 +72,9 @@ export async function GET(request: NextRequest) {
       data: results
     });
 
-  } catch (error: any) {
-    console.error('Fetch Valid Data Error:', error);
-    return NextResponse.json({
-      success: false,
-      message: 'Failed to fetch valid ERPNext data',
-      error: error.toString()
-    }, { status: 500 });
+  } catch (error: unknown) {
+    logSiteError(error, 'GET /api/utils/erpnext/erpnext-valid-data', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

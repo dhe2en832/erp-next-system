@@ -52,12 +52,13 @@ export class SiteHealthMonitor {
 
   /**
    * Performs a health check on a single site
+   * Uses /api/method/ping endpoint (no authentication required)
    */
   async checkSite(siteConfig: SiteConfig): Promise<HealthCheckResult> {
     const startTime = Date.now();
     
     try {
-      // Use ERPNext ping endpoint for lightweight check
+      // Use ERPNext ping endpoint for lightweight check (no auth needed)
       const url = `${siteConfig.apiUrl}/api/method/ping`;
       
       // Create abort controller for timeout
@@ -66,10 +67,6 @@ export class SiteHealthMonitor {
       
       const response = await fetch(url, {
         method: 'GET',
-        headers: {
-          'Authorization': `token ${siteConfig.apiKey}:${siteConfig.apiSecret}`,
-          'Content-Type': 'application/json',
-        },
         signal: controller.signal,
       });
       
@@ -107,9 +104,49 @@ export class SiteHealthMonitor {
   }
 
   /**
-   * Performs health checks on all configured sites
+   * Performs health checks on all configured sites via backend API (no CORS)
    */
   async checkAllSites(): Promise<HealthCheckResult[]> {
+    // If running in browser, use backend API to avoid CORS
+    if (typeof window !== 'undefined') {
+      try {
+        const response = await fetch('/api/sites/health', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            sites: this.sites.map(site => ({
+              id: site.id,
+              apiUrl: site.apiUrl,
+            })),
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const results = data.results.map((r: any) => ({
+            ...r,
+            timestamp: new Date(r.timestamp),
+          }));
+
+          // Update internal status map
+          results.forEach((result: HealthCheckResult) => this.updateStatus(result));
+
+          // Persist to storage
+          this.saveToStorage();
+
+          // Notify subscribers
+          this.notifySubscribers(results);
+
+          return results;
+        }
+      } catch (error) {
+        console.error('[Health Monitor] Failed to check sites via API:', error);
+      }
+    }
+
+    // Fallback: direct check (for server-side or if API fails)
     const results = await Promise.all(
       this.sites.map(site => this.checkSite(site))
     );

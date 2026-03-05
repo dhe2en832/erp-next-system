@@ -1,9 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { erpnextClient } from '@/lib/erpnext';
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 
 // GET /api/setup/fiscal-years
 export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
+    const client = await getERPNextClientForRequest(request);
     const { searchParams } = new URL(request.url);
     const company = searchParams.get('company');
 
@@ -13,7 +21,7 @@ export async function GET(request: NextRequest) {
       filters.push(['company', '=', company]);
     }
 
-    const fiscalYears = await erpnextClient.getList('Fiscal Year', {
+    const fiscalYears = await client.getList('Fiscal Year', {
       filters: filters.length > 0 ? filters : undefined,
       fields: ['name', 'year', 'year_start_date', 'year_end_date', 'disabled'],
       order_by: 'year_start_date desc',
@@ -26,16 +34,9 @@ export async function GET(request: NextRequest) {
       success: true,
       data: activeFiscalYears,
     });
-  } catch (error: any) {
-    console.error('Error fetching fiscal years:', error);
-    
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'FETCH_ERROR',
-        message: error.message || 'Failed to fetch fiscal years',
-      },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    logSiteError(error, 'GET /api/setup/fiscal-years', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

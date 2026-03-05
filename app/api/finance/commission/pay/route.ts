@@ -1,25 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
-
-function getAuthHeaders(request: NextRequest): Record<string, string> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  const sid = request.cookies.get('sid')?.value;
-  const apiKey = process.env.ERP_API_KEY;
-  const apiSecret = process.env.ERP_API_SECRET;
-
-  if (apiKey && apiSecret) {
-    headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-  } else if (sid) {
-    headers['Cookie'] = `sid=${sid}`;
-  }
-  return headers;
-}
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 
 export async function POST(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
-    const headers = getAuthHeaders(request);
-    if (!headers['Authorization'] && !headers['Cookie']) {
+    const sid = request.cookies.get('sid')?.value;
+    if (!sid) {
       return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
     }
 
@@ -54,7 +46,8 @@ export async function POST(request: NextRequest) {
     const liabilityAccount = commission_expense_account || `2150.0001 - Hutang Komisi Sales - ${companyAbbr}`;
     const cashAccount = paid_from_account;
 
-    // console.log('[DEBUG] Using accounts:', { liabilityAccount, cashAccount, company });
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
 
     // Step 1: Create Journal Entry for commission payment
     // Debit: Hutang Komisi Sales (liability) with Party Type Employee if employee_id provided
@@ -86,44 +79,14 @@ export async function POST(request: NextRequest) {
       accounts: [debitEntry, creditEntry],
     };
 
-    const jeResponse = await fetch(`${ERPNEXT_API_URL}/api/resource/Journal Entry`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ data: journalEntry }),
-    });
-
-    const jeData = await jeResponse.json();
-
-    if (!jeResponse.ok) {
-      console.error('Failed to create Journal Entry:', jeData);
-      return NextResponse.json(
-        { success: false, message: jeData.message || 'Failed to create journal entry for commission payment' },
-        { status: jeResponse.status }
-      );
-    }
-
-    const journalEntryName = jeData.data?.name;
-    // console.log('Journal Entry created:', journalEntryName);
+    // Use client method to create Journal Entry
+    const jeData = await client.insert('Journal Entry', journalEntry);
+    const journalEntryName = jeData?.name;
 
     // Step 1b: Submit the Journal Entry (docstatus = 1)
     if (journalEntryName) {
       try {
-        const submitResponse = await fetch(
-          `${ERPNEXT_API_URL}/api/resource/Journal Entry/${encodeURIComponent(journalEntryName)}`,
-          {
-            method: 'PUT',
-            headers,
-            body: JSON.stringify({
-              data: { docstatus: 1 }
-            }),
-          }
-        );
-        const submitData = await submitResponse.json();
-        if (submitResponse.ok) {
-          // console.log('Journal Entry submitted:', journalEntryName);
-        } else {
-          console.error('Failed to submit Journal Entry:', submitData);
-        }
+        await client.update('Journal Entry', journalEntryName, { docstatus: 1 });
       } catch (err) {
         console.error('Error submitting Journal Entry:', err);
       }
@@ -133,21 +96,11 @@ export async function POST(request: NextRequest) {
     const markResults = [];
     for (const inv of invoices) {
       try {
-        const markResponse = await fetch(
-          `${ERPNEXT_API_URL}/api/resource/Sales Invoice/${encodeURIComponent(inv.invoice_name)}`,
-          {
-            method: 'PUT',
-            headers,
-            body: JSON.stringify({
-              data: { custom_commission_paid: 1 }
-            }),
-          }
-        );
-        const markData = await markResponse.json();
+        await client.update('Sales Invoice', inv.invoice_name, { custom_commission_paid: 1 });
         markResults.push({
           invoice: inv.invoice_name,
-          success: markResponse.ok,
-          message: markResponse.ok ? 'Marked as paid' : (markData.message || 'Failed to mark'),
+          success: true,
+          message: 'Marked as paid',
         });
       } catch (err) {
         markResults.push({
@@ -167,8 +120,9 @@ export async function POST(request: NextRequest) {
       },
       message: `Pembayaran komisi berhasil. Jurnal: ${journalEntryName}`,
     });
-  } catch (error) {
-    console.error('Commission Pay API Error:', error);
-    return NextResponse.json({ success: false, message: 'Internal server error' }, { status: 500 });
+  } catch (error: unknown) {
+    logSiteError(error, 'POST /api/finance/commission/pay', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

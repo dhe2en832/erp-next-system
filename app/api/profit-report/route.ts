@@ -1,9 +1,17 @@
-import { NextResponse } from 'next/server';
-import { fetchProfitReport } from '@/lib/erpnext';
+import { NextRequest, NextResponse } from 'next/server';
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 import { normalizeProfitReport } from '@/lib/normalizers';
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
+    const client = await getERPNextClientForRequest(request);
     const body = await request.json();
     const { from_date, to_date, company, mode, include_hpp } = body || {};
     const effectiveCompany = company || process.env.ERP_DEFAULT_COMPANY || process.env.ERP_COMPANY;
@@ -12,19 +20,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: 'from_date dan to_date wajib diisi' }, { status: 400 });
     }
 
-    const data = await fetchProfitReport({
+    const data = await client.call('get_profit_commission_report_dual', {
       from_date,
       to_date,
       company: effectiveCompany,
       mode: mode || 'valuation',
       include_hpp,
     });
-    // console.log('Profit report raw', { from_date, to_date, company: effectiveCompany, mode, include_hpp }, data);
+    
     const normalized = normalizeProfitReport(data);
 
     return NextResponse.json({ success: true, data: normalized });
-  } catch (error: any) {
-    console.error('Profit report error:', error);
-    return NextResponse.json({ success: false, message: error?.message || 'Gagal memuat laporan' }, { status: 500 });
+  } catch (error: unknown) {
+    logSiteError(error, 'POST /api/profit-report', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

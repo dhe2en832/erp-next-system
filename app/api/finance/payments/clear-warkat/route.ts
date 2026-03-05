@@ -1,20 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
-
-function getAuthHeaders(request: NextRequest): Record<string, string> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  const sid = request.cookies.get('sid')?.value;
-  const apiKey = process.env.ERP_API_KEY;
-  const apiSecret = process.env.ERP_API_SECRET;
-
-  if (apiKey && apiSecret) {
-    headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-  } else if (sid) {
-    headers['Cookie'] = `sid=${sid}`;
-  }
-  return headers;
-}
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 
 /**
  * POST /api/finance/payments/clear-warkat
@@ -25,9 +15,11 @@ function getAuthHeaders(request: NextRequest): Record<string, string> {
  * RECEIVE: Journal Entry: Dr Bank → Cr Warkat Masuk
  */
 export async function POST(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
-    const headers = getAuthHeaders(request);
-    if (!headers['Authorization'] && !headers['Cookie']) {
+    const sid = request.cookies.get('sid')?.value;
+    if (!sid) {
       return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
     }
 
@@ -41,34 +33,27 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // console.log('=== CLEAR WARKAT PAYMENT ===');
-    // console.log('Payload:', { company, payment_entry, bank_account, payment_type, clearance_date });
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
 
-    const erpUrl = `${ERPNEXT_API_URL}/api/method/clear_warkat_payment`;
-
-    const response = await fetch(erpUrl, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ company, payment_entry, bank_account, payment_type, clearance_date }),
+    // Use client call method for custom ERPNext method
+    const data = await client.call('clear_warkat_payment', {
+      company,
+      payment_entry,
+      bank_account,
+      payment_type,
+      clearance_date
     });
 
-    const data = await response.json();
-    // console.log('Clear Warkat Response:', response.status, data);
-
-    if (response.ok && data.message) {
-      return NextResponse.json({
-        success: true,
-        journal_entry: data.message.journal_entry || data.message,
-        status: 'Cleared',
-        message: `Warkat ${payment_entry} berhasil dicairkan`,
-      });
-    } else {
-      const errorMsg = data.message || data.exc || 'Gagal mencairkan warkat';
-      return NextResponse.json({ success: false, message: errorMsg }, { status: response.status || 500 });
-    }
-  } catch (error) {
-    console.error('Clear Warkat Error:', error);
-    const msg = error instanceof Error ? error.message : 'Internal server error';
-    return NextResponse.json({ success: false, message: msg }, { status: 500 });
+    return NextResponse.json({
+      success: true,
+      journal_entry: data.journal_entry || data,
+      status: 'Cleared',
+      message: `Warkat ${payment_entry} berhasil dicairkan`,
+    });
+  } catch (error: unknown) {
+    logSiteError(error, 'POST /api/finance/payments/clear-warkat', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

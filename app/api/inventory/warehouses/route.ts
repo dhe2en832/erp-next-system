@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 
 export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const { searchParams } = new URL(request.url);
     const company = searchParams.get('company');
@@ -24,55 +30,43 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
+
     // Build filters
-    let filters = `[["company","=","${company}"]]`;
+    const filters: any[] = [["company", "=", company]];
     
     // Add search filter if provided
     const search = searchParams.get('search');
     if (search) {
-      filters = `[["company","=","${company}"],["warehouse_name","like","%${search}%"]]`;
+      filters.push(["warehouse_name", "like", `%${search}%`]);
     }
 
-    // Build ERPNext URL
-    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Warehouse?fields=["name","warehouse_name","company","is_group","parent_warehouse"]&filters=${encodeURIComponent(filters)}&order_by=warehouse_name&limit_page_length=500`;
+    // console.log('Warehouses filters:', filters);
 
-    // console.log('Warehouses ERPNext URL:', erpNextUrl);
+    const warehouses = await client.getList('Warehouse', {
+      fields: ['name', 'warehouse_name', 'company', 'is_group', 'parent_warehouse'],
+      filters,
+      order_by: 'warehouse_name',
+      limit_page_length: 500
+    });
 
-    const response = await fetch(
-      erpNextUrl,
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Cookie': `sid=${sid}`,
-        },
-      }
-    );
+    // console.log('Warehouses response:', warehouses);
 
-    const data = await response.json();
-    // console.log('Warehouses response:', data);
-
-    if (response.ok) {
-      return NextResponse.json({
-        success: true,
-        data: data.data || [],
-      });
-    } else {
-      return NextResponse.json(
-        { success: false, message: data.exc || data.message || 'Failed to fetch warehouses' },
-        { status: response.status }
-      );
-    }
-  } catch (error) {
-    console.error('Warehouses API error:', error);
-    return NextResponse.json(
-      { success: false, message: 'Internal server error' },
-      { status: 500 }
-    );
+    return NextResponse.json({
+      success: true,
+      data: warehouses || [],
+    });
+  } catch (error: unknown) {
+    logSiteError(error, 'GET /api/inventory/warehouses', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const body = await request.json();
     const { warehouse_name, is_group, parent_warehouse, company } = body;
@@ -84,80 +78,57 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Try API Key authentication for POST (CSRF not required)
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-
-    // Try API Key first for POST requests
-    const apiKey = process.env.ERP_API_KEY;
-    const apiSecret = process.env.ERP_API_SECRET;
+    const cookies = request.cookies;
+    const sid = cookies.get('sid')?.value;
     
-    if (apiKey && apiSecret) {
-      headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-      // console.log('Using API Key authentication for warehouse POST');
-    } else {
-      // Fallback to session
-      const cookies = request.cookies;
-      const sid = cookies.get('sid')?.value;
-      
-      if (!sid) {
-        return NextResponse.json(
-          { success: false, message: 'Unauthorized' },
-          { status: 401 }
-        );
-      }
-      
-      headers['Cookie'] = `sid=${sid}`;
-      // console.log('Using session authentication for warehouse POST');
+    if (!sid) {
+      return NextResponse.json(
+        { success: false, message: 'Unauthorized' },
+        { status: 401 }
+      );
     }
 
-    const warehouseData = {
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
+
+    const warehouseData: any = {
       doctype: 'Warehouse',
       warehouse_name,
-      company,
-      ...(is_group && { is_group: 1 }),
-      ...(parent_warehouse && { parent_warehouse })
+      company
     };
+    
+    if (is_group) {
+      warehouseData.is_group = 1;
+    }
+    
+    if (parent_warehouse) {
+      warehouseData.parent_warehouse = parent_warehouse;
+    }
 
     // console.log('Creating warehouse:', warehouseData);
 
-    const response = await fetch(`${ERPNEXT_API_URL}/api/resource/Warehouse`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(warehouseData),
-    });
-
-    const data = await response.json();
+    const result = await client.insert('Warehouse', warehouseData);
     
     // console.log('Create Warehouse Response:', {
-    //   status: response.status,
     //   warehouseData,
-    //   erpNextResponse: data
+    //   erpNextResponse: result
     // });
 
-    if (response.ok) {
-      return NextResponse.json({
-        success: true,
-        data: data.data,
-        message: 'Warehouse created successfully'
-      });
-    } else {
-      return NextResponse.json(
-        { success: false, message: data.exc || data.message || 'Failed to create warehouse' },
-        { status: response.status }
-      );
-    }
-  } catch (error) {
-    console.error('Warehouse creation error:', error);
-    return NextResponse.json(
-      { success: false, message: 'Internal server error' },
-      { status: 500 }
-    );
+    return NextResponse.json({
+      success: true,
+      data: result,
+      message: 'Warehouse created successfully'
+    });
+  } catch (error: unknown) {
+    logSiteError(error, 'POST /api/inventory/warehouses', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }
 
 export async function PUT(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const body = await request.json();
     const { name, warehouse_name, is_group, parent_warehouse, company } = body;
@@ -169,75 +140,50 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Try API Key authentication for PUT (CSRF not required)
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-
-    // Try API Key first for PUT requests
-    const apiKey = process.env.ERP_API_KEY;
-    const apiSecret = process.env.ERP_API_SECRET;
+    const cookies = request.cookies;
+    const sid = cookies.get('sid')?.value;
     
-    if (apiKey && apiSecret) {
-      headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-      // console.log('Using API Key authentication for warehouse PUT');
-    } else {
-      // Fallback to session
-      const cookies = request.cookies;
-      const sid = cookies.get('sid')?.value;
-      
-      if (!sid) {
-        return NextResponse.json(
-          { success: false, message: 'Unauthorized' },
-          { status: 401 }
-        );
-      }
-      
-      headers['Cookie'] = `sid=${sid}`;
-      // console.log('Using session authentication for warehouse PUT');
+    if (!sid) {
+      return NextResponse.json(
+        { success: false, message: 'Unauthorized' },
+        { status: 401 }
+      );
     }
 
-    const warehouseData = {
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
+
+    const warehouseData: any = {
       warehouse_name,
-      company,
-      ...(is_group && { is_group: 1 }),
-      ...(parent_warehouse && { parent_warehouse })
+      company
     };
+    
+    if (is_group) {
+      warehouseData.is_group = 1;
+    }
+    
+    if (parent_warehouse) {
+      warehouseData.parent_warehouse = parent_warehouse;
+    }
 
     // console.log('Updating warehouse:', { name, warehouseData });
 
-    const response = await fetch(`${ERPNEXT_API_URL}/api/resource/Warehouse/${encodeURIComponent(name)}`, {
-      method: 'PUT',
-      headers,
-      body: JSON.stringify(warehouseData),
-    });
-
-    const data = await response.json();
+    const result = await client.update('Warehouse', name, warehouseData);
     
     // console.log('Update Warehouse Response:', {
-    //   status: response.status,
     //   name,
     //   warehouseData,
-    //   erpNextResponse: data
+    //   erpNextResponse: result
     // });
 
-    if (response.ok) {
-      return NextResponse.json({
-        success: true,
-        data: data.data,
-        message: 'Warehouse updated successfully'
-      });
-    } else {
-      return NextResponse.json(
-        { success: false, message: data.exc || data.message || 'Failed to update warehouse' },
-        { status: response.status }
-      );
-    }
-  } catch (error) {
-    console.error('Warehouse update error:', error);
-    return NextResponse.json(
-      { success: false, message: 'Internal server error' },
-      { status: 500 }
-    );
+    return NextResponse.json({
+      success: true,
+      data: result,
+      message: 'Warehouse updated successfully'
+    });
+  } catch (error: unknown) {
+    logSiteError(error, 'PUT /api/inventory/warehouses', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

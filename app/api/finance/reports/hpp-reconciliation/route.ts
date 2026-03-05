@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateDateRange } from '@/utils/report-validation';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+import {
+  getERPNextClientForRequest,
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError
+} from '@/lib/api-helpers';
 
 export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+
   try {
     const { searchParams } = new URL(request.url);
     const company = searchParams.get('company');
@@ -28,35 +34,37 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const _h: Record<string, string> = { 'Content-Type': 'application/json' };
-    const _ak = process.env.ERP_API_KEY;
-    const _as = process.env.ERP_API_SECRET;
-    if (_ak && _as) { _h['Authorization'] = `token ${_ak}:${_as}`; } else { _h['Cookie'] = `sid=${sid}`; }
+    const client = await getERPNextClientForRequest(request);
 
     // Get all HPP GL Entries
-    const hppFilters = [['company', '=', company], ['account', 'like', '%HPP%']];
+    const hppFilters: any[][] = [['company', '=', company], ['account', 'like', '%HPP%']];
     if (from_date) hppFilters.push(['posting_date', '>=', from_date]);
     if (to_date) hppFilters.push(['posting_date', '<=', to_date]);
 
-    const hppUrl = `${ERPNEXT_API_URL}/api/resource/GL Entry?fields=["name","posting_date","account","debit","credit","voucher_type","voucher_no"]&filters=${encodeURIComponent(JSON.stringify(hppFilters))}&order_by=posting_date desc&limit_page_length=500`;
-    const hppResp = await fetch(hppUrl, { headers: _h });
-    const hppData = await hppResp.json();
+    const hppData = await client.getList('GL Entry', {
+      fields: ['name', 'posting_date', 'account', 'debit', 'credit', 'voucher_type', 'voucher_no'],
+      filters: hppFilters,
+      order_by: 'posting_date desc',
+      limit_page_length: 500
+    });
 
     // Get Sales Invoice total for comparison
-    const siFilters = [['company', '=', company], ['docstatus', '=', 1]];
+    const siFilters: any[][] = [['company', '=', company], ['docstatus', '=', 1]];
     if (from_date) siFilters.push(['posting_date', '>=', from_date]);
     if (to_date) siFilters.push(['posting_date', '<=', to_date]);
 
-    const siUrl = `${ERPNEXT_API_URL}/api/resource/Sales Invoice?fields=["grand_total"]&filters=${encodeURIComponent(JSON.stringify(siFilters))}&limit_page_length=999`;
-    const siResp = await fetch(siUrl, { headers: _h });
-    const siData = await siResp.json();
+    const siData = await client.getList('Sales Invoice', {
+      fields: ['grand_total'],
+      filters: siFilters,
+      limit_page_length: 999
+    });
 
-    const totalHPP = (hppData.data || []).reduce((sum: number, e: any) => sum + (e.debit || 0) - (e.credit || 0), 0);
-    const totalSales = (siData.data || []).reduce((sum: number, si: any) => sum + (si.grand_total || 0), 0);
+    const totalHPP = (hppData || []).reduce((sum: number, e: any) => sum + (e.debit || 0) - (e.credit || 0), 0);
+    const totalSales = (siData || []).reduce((sum: number, si: any) => sum + (si.grand_total || 0), 0);
     const hppPercentage = totalSales > 0 ? (totalHPP / totalSales) * 100 : 0;
 
     const results = {
-      entries: hppData.data || [],
+      entries: hppData || [],
       summary: {
         total_hpp: totalHPP,
         total_sales: totalSales,
@@ -66,8 +74,9 @@ export async function GET(request: NextRequest) {
     };
 
     return NextResponse.json({ success: true, data: results });
-  } catch (error: any) {
-    console.error('HPP Reconciliation API error:', error);
-    return NextResponse.json({ success: false, message: error.message || 'Internal server error' }, { status: 500 });
+  } catch (error: unknown) {
+    logSiteError(error, 'GET /api/finance/reports/hpp-reconciliation', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

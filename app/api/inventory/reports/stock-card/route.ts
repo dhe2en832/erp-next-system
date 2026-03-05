@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getErpAuthHeaders } from '@/utils/erpnext-auth';
 import { StockLedgerEntry } from '@/types/stock-card';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 
 /**
  * Validate date format (YYYY-MM-DD)
@@ -41,7 +45,7 @@ function isValidDateRange(from_date: string | null, to_date: string | null): boo
  */
 async function fetchItemNames(
   itemCodes: string[],
-  headers: Record<string, string>
+  client: any
 ): Promise<Map<string, string>> {
   if (itemCodes.length === 0) return new Map();
   
@@ -52,20 +56,14 @@ async function fetchItemNames(
     const filters = [['item_code', 'in', uniqueItemCodes]];
     const fields = ['item_code', 'item_name'];
     
-    const url = `${ERPNEXT_API_URL}/api/resource/Item?` +
-      `fields=${encodeURIComponent(JSON.stringify(fields))}` +
-      `&filters=${encodeURIComponent(JSON.stringify(filters))}` +
-      `&limit_page_length=0`;
+    const items = await client.getList('Item', {
+      fields,
+      filters,
+      limit_page_length: 0
+    });
     
-    const response = await fetch(url, { method: 'GET', headers });
-    
-    if (response.ok) {
-      const data = await response.json();
-      const items = data.data || [];
-      
-      for (const item of items) {
-        itemNameMap.set(item.item_code, item.item_name || item.item_code);
-      }
+    for (const item of (items || [])) {
+      itemNameMap.set(item.item_code, item.item_name || item.item_code);
     }
   } catch (error) {
     console.error('Error fetching item names:', error);
@@ -80,7 +78,7 @@ async function fetchItemNames(
  */
 async function fetchCustomerNames(
   customerIds: string[],
-  headers: Record<string, string>
+  client: any
 ): Promise<Map<string, string>> {
   if (customerIds.length === 0) return new Map();
   
@@ -91,20 +89,14 @@ async function fetchCustomerNames(
     const filters = [['name', 'in', uniqueCustomerIds]];
     const fields = ['name', 'customer_name'];
     
-    const url = `${ERPNEXT_API_URL}/api/resource/Customer?` +
-      `fields=${encodeURIComponent(JSON.stringify(fields))}` +
-      `&filters=${encodeURIComponent(JSON.stringify(filters))}` +
-      `&limit_page_length=0`;
+    const customers = await client.getList('Customer', {
+      fields,
+      filters,
+      limit_page_length: 0
+    });
     
-    const response = await fetch(url, { method: 'GET', headers });
-    
-    if (response.ok) {
-      const data = await response.json();
-      const customers = data.data || [];
-      
-      for (const customer of customers) {
-        customerNameMap.set(customer.name, customer.customer_name || customer.name);
-      }
+    for (const customer of (customers || [])) {
+      customerNameMap.set(customer.name, customer.customer_name || customer.name);
     }
   } catch (error) {
     console.error('Error fetching customer names:', error);
@@ -119,7 +111,7 @@ async function fetchCustomerNames(
  */
 async function fetchSupplierNames(
   supplierIds: string[],
-  headers: Record<string, string>
+  client: any
 ): Promise<Map<string, string>> {
   if (supplierIds.length === 0) return new Map();
   
@@ -130,20 +122,14 @@ async function fetchSupplierNames(
     const filters = [['name', 'in', uniqueSupplierIds]];
     const fields = ['name', 'supplier_name'];
     
-    const url = `${ERPNEXT_API_URL}/api/resource/Supplier?` +
-      `fields=${encodeURIComponent(JSON.stringify(fields))}` +
-      `&filters=${encodeURIComponent(JSON.stringify(filters))}` +
-      `&limit_page_length=0`;
+    const suppliers = await client.getList('Supplier', {
+      fields,
+      filters,
+      limit_page_length: 0
+    });
     
-    const response = await fetch(url, { method: 'GET', headers });
-    
-    if (response.ok) {
-      const data = await response.json();
-      const suppliers = data.data || [];
-      
-      for (const supplier of suppliers) {
-        supplierNameMap.set(supplier.name, supplier.supplier_name || supplier.name);
-      }
+    for (const supplier of (suppliers || [])) {
+      supplierNameMap.set(supplier.name, supplier.supplier_name || supplier.name);
     }
   } catch (error) {
     console.error('Error fetching supplier names:', error);
@@ -158,7 +144,7 @@ async function fetchSupplierNames(
  */
 async function fetchPartyInfo(
   vouchers: Array<{ voucher_type: string; voucher_no: string }>,
-  headers: Record<string, string>
+  client: any
 ): Promise<Map<string, { party_type: 'Customer' | 'Supplier'; party_name: string }>> {
   const partyInfoMap = new Map<string, { party_type: 'Customer' | 'Supplier'; party_name: string }>();
   
@@ -173,23 +159,17 @@ async function fetchPartyInfo(
       const filters = [['name', 'in', [...new Set(salesInvoices)]]];
       const fields = ['name', 'customer', 'customer_name'];
       
-      const url = `${ERPNEXT_API_URL}/api/resource/Sales Invoice?` +
-        `fields=${encodeURIComponent(JSON.stringify(fields))}` +
-        `&filters=${encodeURIComponent(JSON.stringify(filters))}` +
-        `&limit_page_length=0`;
+      const invoices = await client.getList('Sales Invoice', {
+        fields,
+        filters,
+        limit_page_length: 0
+      });
       
-      const response = await fetch(url, { method: 'GET', headers });
-      
-      if (response.ok) {
-        const data = await response.json();
-        const invoices = data.data || [];
-        
-        for (const invoice of invoices) {
-          partyInfoMap.set(invoice.name, {
-            party_type: 'Customer',
-            party_name: invoice.customer_name || invoice.customer
-          });
-        }
+      for (const invoice of (invoices || [])) {
+        partyInfoMap.set(invoice.name, {
+          party_type: 'Customer',
+          party_name: invoice.customer_name || invoice.customer
+        });
       }
     }
     
@@ -198,23 +178,17 @@ async function fetchPartyInfo(
       const filters = [['name', 'in', [...new Set(deliveryNotes)]]];
       const fields = ['name', 'customer', 'customer_name'];
       
-      const url = `${ERPNEXT_API_URL}/api/resource/Delivery Note?` +
-        `fields=${encodeURIComponent(JSON.stringify(fields))}` +
-        `&filters=${encodeURIComponent(JSON.stringify(filters))}` +
-        `&limit_page_length=0`;
+      const notes = await client.getList('Delivery Note', {
+        fields,
+        filters,
+        limit_page_length: 0
+      });
       
-      const response = await fetch(url, { method: 'GET', headers });
-      
-      if (response.ok) {
-        const data = await response.json();
-        const notes = data.data || [];
-        
-        for (const note of notes) {
-          partyInfoMap.set(note.name, {
-            party_type: 'Customer',
-            party_name: note.customer_name || note.customer
-          });
-        }
+      for (const note of (notes || [])) {
+        partyInfoMap.set(note.name, {
+          party_type: 'Customer',
+          party_name: note.customer_name || note.customer
+        });
       }
     }
     
@@ -223,23 +197,17 @@ async function fetchPartyInfo(
       const filters = [['name', 'in', [...new Set(purchaseReceipts)]]];
       const fields = ['name', 'supplier', 'supplier_name'];
       
-      const url = `${ERPNEXT_API_URL}/api/resource/Purchase Receipt?` +
-        `fields=${encodeURIComponent(JSON.stringify(fields))}` +
-        `&filters=${encodeURIComponent(JSON.stringify(filters))}` +
-        `&limit_page_length=0`;
+      const receipts = await client.getList('Purchase Receipt', {
+        fields,
+        filters,
+        limit_page_length: 0
+      });
       
-      const response = await fetch(url, { method: 'GET', headers });
-      
-      if (response.ok) {
-        const data = await response.json();
-        const receipts = data.data || [];
-        
-        for (const receipt of receipts) {
-          partyInfoMap.set(receipt.name, {
-            party_type: 'Supplier',
-            party_name: receipt.supplier_name || receipt.supplier
-          });
-        }
+      for (const receipt of (receipts || [])) {
+        partyInfoMap.set(receipt.name, {
+          party_type: 'Supplier',
+          party_name: receipt.supplier_name || receipt.supplier
+        });
       }
     }
   } catch (error) {
@@ -255,7 +223,7 @@ async function fetchPartyInfo(
  */
 async function fetchStockEntryWarehouses(
   stockEntryVouchers: string[],
-  headers: Record<string, string>
+  client: any
 ): Promise<Map<string, { source_warehouse?: string; target_warehouse?: string }>> {
   if (stockEntryVouchers.length === 0) return new Map();
   
@@ -265,23 +233,17 @@ async function fetchStockEntryWarehouses(
     const filters = [['name', 'in', [...new Set(stockEntryVouchers)]]];
     const fields = ['name', 'from_warehouse', 'to_warehouse'];
     
-    const url = `${ERPNEXT_API_URL}/api/resource/Stock Entry?` +
-      `fields=${encodeURIComponent(JSON.stringify(fields))}` +
-      `&filters=${encodeURIComponent(JSON.stringify(filters))}` +
-      `&limit_page_length=0`;
+    const entries = await client.getList('Stock Entry', {
+      fields,
+      filters,
+      limit_page_length: 0
+    });
     
-    const response = await fetch(url, { method: 'GET', headers });
-    
-    if (response.ok) {
-      const data = await response.json();
-      const entries = data.data || [];
-      
-      for (const entry of entries) {
-        warehouseMap.set(entry.name, {
-          source_warehouse: entry.from_warehouse || undefined,
-          target_warehouse: entry.to_warehouse || undefined
-        });
-      }
+    for (const entry of (entries || [])) {
+      warehouseMap.set(entry.name, {
+        source_warehouse: entry.from_warehouse || undefined,
+        target_warehouse: entry.to_warehouse || undefined
+      });
     }
   } catch (error) {
     console.error('Error fetching stock entry warehouses:', error);
@@ -296,7 +258,7 @@ async function fetchStockEntryWarehouses(
  */
 async function enrichStockLedgerEntries(
   entries: any[],
-  headers: Record<string, string>
+  client: any
 ): Promise<StockLedgerEntry[]> {
   if (entries.length === 0) return [];
   
@@ -315,9 +277,9 @@ async function enrichStockLedgerEntries(
   
   // Batch fetch all related data
   const [itemNameMap, partyInfoMap, warehouseMap] = await Promise.all([
-    fetchItemNames(itemCodes, headers),
-    fetchPartyInfo(vouchersNeedingPartyInfo, headers),
-    fetchStockEntryWarehouses(stockEntryVouchers, headers)
+    fetchItemNames(itemCodes, client),
+    fetchPartyInfo(vouchersNeedingPartyInfo, client),
+    fetchStockEntryWarehouses(stockEntryVouchers, client)
   ]);
   
   // Enrich entries with fetched data
@@ -357,7 +319,7 @@ async function enrichStockLedgerEntries(
  * @param company - Company name
  * @param item_code - Item code
  * @param from_date - Start date for the report (optional)
- * @param headers - Authentication headers
+ * @param client - ERPNext client
  * @returns Summary data including opening balance, closing balance, totals
  */
 async function calculateSummary(
@@ -365,7 +327,7 @@ async function calculateSummary(
   company: string,
   item_code: string | null,
   from_date: string | null,
-  headers: Record<string, string>
+  client: any
 ): Promise<{
   opening_balance: number;
   closing_balance: number;
@@ -383,16 +345,9 @@ async function calculateSummary(
   // Only fetch item details if specific item is selected
   if (item_code) {
     try {
-      const itemUrl = `${ERPNEXT_API_URL}/api/resource/Item/${encodeURIComponent(item_code)}?` +
-        `fields=${encodeURIComponent(JSON.stringify(['item_name', 'stock_uom']))}`;
-      
-      const itemResponse = await fetch(itemUrl, { method: 'GET', headers });
-      
-      if (itemResponse.ok) {
-        const itemData = await itemResponse.json();
-        item_name = itemData.data.item_name || item_code;
-        uom = itemData.data.stock_uom || '';
-      }
+      const itemData = await client.get('Item', item_code);
+      item_name = itemData.item_name || item_code;
+      uom = itemData.stock_uom || '';
     } catch (error) {
       console.error('Error fetching item details:', error);
     }
@@ -411,19 +366,15 @@ async function calculateSummary(
         ['posting_date', '<', from_date]
       ];
       
-      const openingUrl = `${ERPNEXT_API_URL}/api/resource/Stock Ledger Entry?` +
-        `fields=${encodeURIComponent(JSON.stringify(['qty_after_transaction']))}` +
-        `&filters=${encodeURIComponent(JSON.stringify(openingFilters))}` +
-        `&order_by=posting_date desc,posting_time desc` +
-        `&limit_page_length=1`;
+      const openingEntries = await client.getList('Stock Ledger Entry', {
+        fields: ['qty_after_transaction'],
+        filters: openingFilters,
+        order_by: 'posting_date desc,posting_time desc',
+        limit_page_length: 1
+      });
       
-      const openingResponse = await fetch(openingUrl, { method: 'GET', headers });
-      
-      if (openingResponse.ok) {
-        const openingData = await openingResponse.json();
-        if (openingData.data && openingData.data.length > 0) {
-          opening_balance = openingData.data[0].qty_after_transaction || 0;
-        }
+      if (openingEntries && openingEntries.length > 0) {
+        opening_balance = openingEntries[0].qty_after_transaction || 0;
       }
     } catch (error) {
       console.error('Error fetching opening balance:', error);
@@ -486,6 +437,8 @@ async function calculateSummary(
  * Requirements: 8.1, 8.2, 8.5
  */
 export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const { searchParams } = new URL(request.url);
     
@@ -584,6 +537,9 @@ export async function GET(request: NextRequest) {
       );
     }
     
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
+    
     // Build ERPNext API filters (Requirement 8.2)
     const filters: any[] = [
       ['company', '=', company]
@@ -631,74 +587,26 @@ export async function GET(request: NextRequest) {
       'company'
     ];
     
-    // Build ERPNext API URL
-    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Stock Ledger Entry?` +
-      `fields=${encodeURIComponent(JSON.stringify(fields))}` +
-      `&filters=${encodeURIComponent(JSON.stringify(filters))}` +
-      `&order_by=posting_date asc,posting_time asc` +
-      `&limit_page_length=0`; // Fetch all records, we'll paginate in memory
-    
     // Fetch Stock Ledger Entries from ERPNext (Requirement 8.1)
-    const response = await fetch(erpNextUrl, { 
-      method: 'GET', 
-      headers 
+    let stockLedgerEntries = await client.getList('Stock Ledger Entry', {
+      fields,
+      filters,
+      order_by: 'posting_date asc,posting_time asc',
+      limit_page_length: 0 // Fetch all records, we'll paginate in memory
     });
     
-    // Handle ERPNext API errors (Requirement 8.3, 12.3)
-    if (!response.ok) {
-      console.error('Stock Card API: ERPNext API error', { 
-        status: response.status, 
-        statusText: response.statusText,
-        url: erpNextUrl 
-      });
-      
-      let errorMessage = 'Gagal mengambil data dari ERPNext';
-      
-      try {
-        const errorData = await response.json();
-        console.error('Stock Card API: ERPNext error details', errorData);
-        
-        // Translate common ERPNext errors to Indonesian
-        if (errorData.message) {
-          errorMessage = errorData.message;
-        }
-        
-        // Handle specific error cases
-        if (response.status === 404) {
-          errorMessage = 'Data tidak ditemukan untuk item yang dipilih';
-        } else if (response.status === 403) {
-          errorMessage = 'Anda tidak memiliki akses untuk melihat data ini';
-        } else if (response.status === 401) {
-          errorMessage = 'Sesi Anda telah berakhir. Silakan login kembali.';
-        } else if (response.status >= 500) {
-          errorMessage = 'Terjadi kesalahan pada server ERPNext. Silakan coba lagi nanti.';
-        }
-      } catch (parseError) {
-        console.error('Stock Card API: Failed to parse error response', parseError);
-      }
-      
-      return NextResponse.json(
-        { 
-          success: false, 
-          message: errorMessage 
-        },
-        { status: response.status }
-      );
-    }
-    
-    const data = await response.json();
-    let stockLedgerEntries = data.data || [];
-    
     // console.log('Stock Card API: Fetched entries', { 
-    //   count: stockLedgerEntries.length,
+    //   count: stockLedgerEntries?.length,
     //   company,
     //   item_code,
     //   filters: { warehouse, from_date, to_date, customer, supplier, transaction_type }
     // });
     
+    stockLedgerEntries = stockLedgerEntries || [];
+    
     // Enrich entries with item names, party info, and warehouse info (Requirement 9.1-9.6)
     try {
-      stockLedgerEntries = await enrichStockLedgerEntries(stockLedgerEntries, headers);
+      stockLedgerEntries = await enrichStockLedgerEntries(stockLedgerEntries, client);
     } catch (enrichError) {
       // Log enrichment error but continue with basic data (graceful degradation)
       console.error('Stock Card API: Error enriching entries', enrichError);
@@ -726,7 +634,7 @@ export async function GET(request: NextRequest) {
         company,
         item_code,
         from_date,
-        headers
+        client
       );
     } catch (summaryError) {
       // Log summary calculation error but continue with default values (graceful degradation)
@@ -788,18 +696,12 @@ export async function GET(request: NextRequest) {
         : `Menampilkan ${paginatedEntries.length} dari ${total_records} transaksi`
     });
     
-  } catch (error) {
+  } catch (error: unknown) {
     // Log detailed error for debugging (Requirement 12.3)
-    console.error('Stock Card Report API Error:', error);
-    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    logSiteError(error, 'GET /api/inventory/reports/stock-card', siteId);
     
     // Return user-friendly error message in Indonesian (Requirement 12.3)
-    return NextResponse.json(
-      { 
-        success: false, 
-        message: 'Terjadi kesalahan internal server. Silakan coba lagi atau hubungi administrator.' 
-      },
-      { status: 500 }
-    );
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

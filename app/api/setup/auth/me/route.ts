@@ -1,66 +1,48 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+import {
+  getERPNextClientForRequest,
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError
+} from '@/lib/api-helpers';
 
 export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
-    const sid = request.cookies.get('sid')?.value;
-    const apiKey = process.env.ERP_API_KEY;
-    const apiSecret = process.env.ERP_API_SECRET;
+    // Get site-aware client (uses API Key authentication)
+    const client = await getERPNextClientForRequest(request);
 
-    if (!sid) {
+    // Get current logged user id
+    const whoamiData = await client.call('frappe.auth.get_logged_user', {});
+    const userId = whoamiData.message || whoamiData;
+
+    // If no user logged in, return 401
+    if (!userId || userId === 'Guest') {
       return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
     }
 
-    // Always use sid to identify who is actually logged in (NOT api key — that would return Administrator)
-    const sessionHeaders: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'Cookie': `sid=${sid}`,
-    };
-
-    // Get current logged user id using their session
-    const whoamiRes = await fetch(`${ERPNEXT_API_URL}/api/method/frappe.auth.get_logged_user`, {
-      method: 'GET',
-      headers: sessionHeaders,
-    });
-    if (!whoamiRes.ok) {
-      return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
-    }
-    const whoamiData = await whoamiRes.json();
-    const userId = whoamiData.message;
-
-    // Fetch user detail + roles — use API key if available (has read access to all users)
-    const detailHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (apiKey && apiSecret) {
-      detailHeaders['Authorization'] = `token ${apiKey}:${apiSecret}`;
-    } else {
-      detailHeaders['Cookie'] = `sid=${sid}`;
-    }
-
-    const userRes = await fetch(
-      `${ERPNEXT_API_URL}/api/resource/User/${encodeURIComponent(userId)}?fields=${encodeURIComponent(JSON.stringify(['name','full_name','email','username','enabled','user_type','roles']))}`,
-      { method: 'GET', headers: detailHeaders }
-    );
-    if (!userRes.ok) {
-      return NextResponse.json({ success: false, message: 'Gagal mengambil data pengguna' }, { status: userRes.status });
-    }
-    const userData = await userRes.json();
-    const roles = (userData.data?.roles || []).map((r: any) => r.role);
+    // Fetch user detail + roles
+    const userData = await client.get('User', userId);
+    const roles = (userData.roles || []).map((r: any) => r.role);
 
     return NextResponse.json({
       success: true,
       data: {
-        name: userData.data?.name,
-        full_name: userData.data?.full_name,
-        email: userData.data?.email,
-        username: userData.data?.username,
+        name: userData.name,
+        full_name: userData.full_name,
+        email: userData.email,
+        username: userData.username,
         roles,
-        enabled: userData.data?.enabled,
-        user_type: userData.data?.user_type,
+        enabled: userData.enabled,
+        user_type: userData.user_type,
       },
     });
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : 'Unknown error';
-    return NextResponse.json({ success: false, message: msg }, { status: 500 });
+
+  } catch (error: unknown) {
+    logSiteError(error, 'GET /api/setup/auth/me', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    const statusCode = errorResponse.errorType === 'authentication' ? 401 : 500;
+    return NextResponse.json(errorResponse, { status: statusCode });
   }
 }

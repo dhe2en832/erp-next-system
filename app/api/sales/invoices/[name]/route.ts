@@ -1,65 +1,49 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ name: string }> }
 ) {
+  const siteId = await getSiteIdFromRequest(request);
+
   try {
     const { name: invoiceName } = await params;
-    
+
     const cookies = request.cookies;
     const sid = cookies.get('sid')?.value;
 
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-
     const apiKey = process.env.ERP_API_KEY;
     const apiSecret = process.env.ERP_API_SECRET;
-    
-    if (apiKey && apiSecret) {
-      headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-    } else if (sid) {
-      headers['Cookie'] = `sid=${sid}`;
-    } else {
+
+    if (!apiKey && !apiSecret && !sid) {
       return NextResponse.json(
         { success: false, message: 'Unauthorized - No session or API key found' },
         { status: 401 }
       );
     }
 
-    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Sales Invoice/${invoiceName}?fields=["name","customer","customer_name","posting_date","due_date","grand_total","outstanding_amount","status","paid_amount","items","custom_total_komisi_sales","custom_notes_si","docstatus","currency","price_list_currency","plc_conversion_rate","selling_price_list","territory","tax_id","customer_address","shipping_address","contact_person","tax_category","taxes_and_charges","base_total","base_net_total","base_grand_total","total","net_total","grand_total","outstanding_amount"]`;
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
 
-    const response = await fetch(erpNextUrl, {
-      method: 'GET',
-      headers: headers,
+    // Fetch invoice with all fields
+    const invoice = await client.get('Sales Invoice', invoiceName);
+
+    return NextResponse.json({
+      success: true,
+      data: invoice,
+      message: `Found invoice details for ${invoiceName}`
     });
 
-    const data = await response.json();
-
-    if (response.ok) {
-      return NextResponse.json({
-        success: true,
-        data: data.data,
-        message: `Found invoice details for ${invoiceName}`
-      });
-    } else {
-      return NextResponse.json({
-        success: false,
-        message: data.exc_type || data.message || 'Failed to fetch invoice details',
-        error: data
-      }, { status: 400 });
-    }
-
   } catch (error: unknown) {
-    console.error('Invoice Details Error:', error);
-    return NextResponse.json({
-      success: false,
-      message: error instanceof Error ? error.message : 'Internal server error',
-      error: error
-    }, { status: 500 });
+    logSiteError(error, 'GET /api/sales/invoices/[name]', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }
 
@@ -67,17 +51,15 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ name: string }> }
 ) {
+  const siteId = await getSiteIdFromRequest(request);
+
   try {
-    // console.log('=== UPDATE SALES INVOICE - ERPNEXT REST API ===');
-    
     const { name: invoiceName } = await params;
     const invoiceData = await request.json();
-    // console.log('Invoice Data:', JSON.stringify(invoiceData, null, 2));
 
     // Get API credentials from environment variables
     const apiKey = process.env.ERP_API_KEY;
     const apiSecret = process.env.ERP_API_SECRET;
-    const baseUrl = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
 
     if (!apiKey || !apiSecret) {
       console.error('Missing API credentials');
@@ -87,10 +69,8 @@ export async function PUT(
       }, { status: 500 });
     }
 
-    // Update Sales Invoice using ERPNext REST API
-    const erpNextUrl = `${baseUrl}/api/resource/Sales Invoice/${invoiceName}`;
-    
-    // console.log('ERPNext REST API URL:', erpNextUrl);
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
 
     // Prepare payload with proper ERPNext structure
     const payload: any = {
@@ -124,57 +104,19 @@ export async function PUT(
       payload.outstanding_amount = invoiceData.outstanding_amount || invoiceData.grand_total;
     }
 
-    // console.log('Final Payload:', JSON.stringify(payload, null, 2));
-
-    const response = await fetch(erpNextUrl, {
-      method: 'PUT',
-      headers: {
-        'Authorization': `token ${apiKey}:${apiSecret}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload)
-    });
-
-    // console.log('ERPNext Response Status:', response.status);
-
-    const responseText = await response.text();
-    // console.log('ERPNext Response Text:', responseText);
-
-    if (!response.ok) {
-      console.error('ERPNext API Error:', responseText);
-      return NextResponse.json({
-        success: false,
-        message: 'Failed to update invoice in ERPNext',
-        error: responseText,
-        status: response.status
-      }, { status: 500 });
-    }
-
-    let data;
-    try {
-      data = JSON.parse(responseText);
-      // console.log('ERPNext Success Response:', data);
-    } catch (parseError) {
-      console.error('Error parsing JSON response:', parseError);
-      return NextResponse.json({
-        success: false,
-        message: 'Invalid JSON response from ERPNext',
-        error: responseText
-      }, { status: 500 });
-    }
+    // Update invoice using client method
+    const result = await client.update('Sales Invoice', invoiceName, payload);
 
     return NextResponse.json({
       success: true,
       message: 'Invoice updated successfully in ERPNext',
-      data: data
+      data: result
     });
 
   } catch (error: any) {
+    logSiteError(error, 'PUT /api/sales/invoices/[name]', siteId);
     console.error('Update Invoice Error:', error);
-    return NextResponse.json({
-      success: false,
-      message: 'Failed to update invoice',
-      error: error.toString()
-    }, { status: 500 });
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

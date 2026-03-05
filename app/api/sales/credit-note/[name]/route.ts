@@ -6,10 +6,12 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
-const ERP_API_KEY = process.env.ERP_API_KEY || '';
-const ERP_API_SECRET = process.env.ERP_API_SECRET || '';
+import {
+  getERPNextClientForRequest,
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError
+} from '@/lib/api-helpers';
 
 /**
  * GET /api/sales/credit-note/[name]
@@ -20,6 +22,8 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ name: string }> }
 ) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const { name } = await params;
 
@@ -30,56 +34,25 @@ export async function GET(
       );
     }
 
-    // console.log('=== Credit Note Detail API Called ===');
-    // console.log('Credit Note Name:', name);
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
 
     // Use frappe.desk.form.load.getdoc for complete document with child tables
-    const erpnextUrl = `${ERPNEXT_API_URL}/api/method/frappe.desk.form.load.getdoc`;
-    
-    // console.log('ERPNext URL:', erpnextUrl);
-    // console.log('Request body:', JSON.stringify({ doctype: 'Sales Invoice', name: name }));
-
-    const response = await fetch(erpnextUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `token ${ERP_API_KEY}:${ERP_API_SECRET}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        doctype: 'Sales Invoice',
-        name: name,
-      }),
+    const data = await client.call('frappe.desk.form.load.getdoc', {
+      doctype: 'Sales Invoice',
+      name: name,
     });
 
-    // console.log('ERPNext Response Status:', response.status);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('ERPNext API error:', errorText);
-      return NextResponse.json(
-        { success: false, message: 'Gagal mengambil detail Credit Note' },
-        { status: response.status }
-      );
-    }
-
-    const data = await response.json();
-    // console.log('ERPNext Response:', JSON.stringify(data).substring(0, 200));
-
-    if (data.message && data.message.docs && data.message.docs.length > 0) {
-      const creditNote = data.message.docs[0];
+    if (data.docs && data.docs.length > 0) {
+      const creditNote = data.docs[0];
       
       // Verify this is actually a Credit Note (is_return=1)
       if (creditNote.is_return !== 1) {
-        // console.log('Document is not a Credit Note (is_return !== 1)');
         return NextResponse.json(
           { success: false, message: 'Dokumen bukan Credit Note' },
           { status: 400 }
         );
       }
-      
-      // console.log('Credit Note Found:', creditNote.name);
-      // console.log('Credit Note Items count:', creditNote.items?.length || 0);
-      // console.log('Return Against:', creditNote.return_against);
 
       // Transform field names for frontend compatibility
       const transformedCreditNote = {
@@ -93,57 +66,35 @@ export async function GET(
         data: transformedCreditNote,
       });
     } else {
-      // Fallback: Try using resource API
-      // console.log('Trying fallback: resource API');
-      const resourceUrl = `${ERPNEXT_API_URL}/api/resource/Sales Invoice/${name}?fields=["*"]`;
+      // Fallback: Try using getDoc method
+      const creditNote = await client.getDoc('Sales Invoice', name);
       
-      const resourceResponse = await fetch(resourceUrl, {
-        method: 'GET',
-        headers: {
-          'Authorization': `token ${ERP_API_KEY}:${ERP_API_SECRET}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (resourceResponse.ok) {
-        const resourceData = await resourceResponse.json();
-        
-        // Verify this is a Credit Note
-        if (resourceData.data?.is_return !== 1) {
-          // console.log('Document is not a Credit Note (is_return !== 1)');
-          return NextResponse.json(
-            { success: false, message: 'Dokumen bukan Credit Note' },
-            { status: 400 }
-          );
-        }
-        
-        // console.log('Resource API success, items count:', resourceData.data?.items?.length || 0);
-        
-        // Transform field names
-        const transformedCreditNote = {
-          ...resourceData.data,
-          sales_invoice: resourceData.data.return_against,
-        };
-        
-        return NextResponse.json({
-          success: true,
-          data: transformedCreditNote,
-        });
+      // Verify this is a Credit Note
+      if (creditNote.is_return !== 1) {
+        return NextResponse.json(
+          { success: false, message: 'Dokumen bukan Credit Note' },
+          { status: 400 }
+        );
       }
-
-      // console.log('Credit Note not found in both APIs');
-      return NextResponse.json(
-        { success: false, message: 'Credit Note tidak ditemukan' },
-        { status: 404 }
-      );
+      
+      // Transform field names
+      const transformedCreditNote = {
+        ...creditNote,
+        sales_invoice: creditNote.return_against,
+      };
+      
+      return NextResponse.json({
+        success: true,
+        data: transformedCreditNote,
+      });
     }
 
   } catch (error) {
-    console.error('Error fetching Credit Note detail:', error);
-    return NextResponse.json(
-      { success: false, message: 'Terjadi kesalahan saat mengambil detail Credit Note' },
-      { status: 500 }
-    );
+    logSiteError(error, 'GET /api/sales/credit-note/[name]', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    const statusCode = errorResponse.errorType === 'authentication' ? 401 : 
+                       (error as any)?.message?.includes('not found') ? 404 : 500;
+    return NextResponse.json(errorResponse, { status: statusCode });
   }
 }
 

@@ -1,25 +1,34 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const itemCode = searchParams.get('item_code');
-  const selling = searchParams.get('selling'); // 0 untuk harga beli, 1 untuk harga jual
-  const company = searchParams.get('company');
-
-  if (!itemCode) {
-    return NextResponse.json({ error: "item_code is required" }, { status: 400 });
-  }
-
-  // Tentukan price list berdasarkan parameter selling
-  const priceList = selling === '0' ? 'Standar Pembelian' : 'Standard Jual';
-
-  // console.log('Item price request:', { itemCode, selling, priceList, company });
-  // console.log('ERP_URL:', process.env.ERPNEXT_API_URL);
-  // console.log('API Key exists:', !!process.env.ERP_API_KEY);
-
+export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
+    const { searchParams } = new URL(request.url);
+    const itemCode = searchParams.get('item_code');
+    const selling = searchParams.get('selling'); // 0 untuk harga beli, 1 untuk harga jual
+    const company = searchParams.get('company');
+
+    if (!itemCode) {
+      return NextResponse.json({ error: "item_code is required" }, { status: 400 });
+    }
+
+    // Tentukan price list berdasarkan parameter selling
+    const priceList = selling === '0' ? 'Standar Pembelian' : 'Standard Jual';
+
+    // console.log('Item price request:', { itemCode, selling, priceList, company });
+
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
+
     // Query ke ERPNext Item Price dengan filter company jika ada custom_company field
-    const filters = [
+    const filters: any[] = [
       ["item_code", "=", itemCode],
       ["price_list", "=", priceList]
     ];
@@ -29,32 +38,18 @@ export async function GET(request: Request) {
       filters.push(["custom_company", "=", company]);
     }
     
-    const erpUrl = `${process.env.ERPNEXT_API_URL}/api/resource/Item Price?fields=["price_list_rate","item_code","price_list","custom_company"]&filters=${JSON.stringify(filters)}`;
-    // console.log('ERPNext URL:', erpUrl);
     // console.log('Filters:', JSON.stringify(filters));
     
-    const response = await fetch(erpUrl, {
-      method: 'GET',
-      headers: {
-        'Authorization': `token ${process.env.ERP_API_KEY}:${process.env.ERP_API_SECRET}`,
-        'Content-Type': 'application/json',
-      },
+    const result = await client.getList('Item Price', {
+      fields: ['price_list_rate', 'item_code', 'price_list', 'custom_company'],
+      filters
     });
 
-    // console.log('ERPNext response status:', response.status);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      // console.log('ERPNext error response:', errorText);
-      return NextResponse.json({ error: `ERPNext API Error: ${response.status} - ${errorText}` }, { status: response.status });
-    }
-
-    const result = await response.json();
     // console.log('ERPNext data result:', result);
     // console.log('Filters used:', JSON.stringify(filters));
     // console.log('Company parameter:', company);
 
-    if (!result.data || result.data.length === 0) {
+    if (!result || result.length === 0) {
       // console.log('No price data found for:', { itemCode, priceList, company });
       return NextResponse.json({ 
         success: false, 
@@ -63,7 +58,7 @@ export async function GET(request: Request) {
     }
 
     // Return the first matching price
-    const itemPrice = result.data[0];
+    const itemPrice = result[0];
     const responseData = {
       item_code: itemPrice.item_code,
       price_list_rate: itemPrice.price_list_rate,
@@ -78,10 +73,9 @@ export async function GET(request: Request) {
       data: responseData
     });
 
-  } catch (error) {
-    console.error('Item price fetch error:', error);
-    return NextResponse.json({ 
-      error: `Internal server error: ${error instanceof Error ? error.message : 'Unknown error'}` 
-    }, { status: 500 });
+  } catch (error: unknown) {
+    logSiteError(error, 'GET /api/inventory/items/price', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

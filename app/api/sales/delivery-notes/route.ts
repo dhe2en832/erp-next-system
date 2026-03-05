@@ -1,16 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
-const ERP_API_KEY = process.env.ERP_API_KEY || '';
-const ERP_API_SECRET = process.env.ERP_API_SECRET || '';
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 
 export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const { searchParams } = new URL(request.url);
     
     // Get query parameters
-    const limit = searchParams.get('limit') || '20';
-    const start = searchParams.get('start') || '0';
+    const limit = parseInt(searchParams.get('limit') || '20');
+    const start = parseInt(searchParams.get('start') || '0');
     const filtersParam = searchParams.get('filters');
     const documentNumber = searchParams.get('documentNumber');
     const fromDate = searchParams.get('from_date');
@@ -39,9 +43,12 @@ export async function GET(request: NextRequest) {
       filters.push(['posting_date', '<=', toDate]);
     }
 
-    // Build ERPNext API URL
-    const params = new URLSearchParams({
-      fields: JSON.stringify([
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
+    
+    // Fetch delivery notes using client method
+    const deliveryNotes = await client.getList('Delivery Note', {
+      fields: [
         'name',
         'customer',
         'customer_name',
@@ -50,93 +57,50 @@ export async function GET(request: NextRequest) {
         'status',
         'grand_total',
         'company'
-      ]),
-      filters: JSON.stringify(filters),
+      ],
+      filters,
       limit_page_length: limit,
-      limit_start: start,
+      start,
       order_by: 'posting_date desc',
     });
 
-    const erpnextUrl = `${ERPNEXT_API_URL}/api/resource/Delivery Note?${params}`;
-
-    // Make request to ERPNext
-    const response = await fetch(erpnextUrl, {
-      method: 'GET',
-      headers: {
-        'Authorization': `token ${ERP_API_KEY}:${ERP_API_SECRET}`,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('ERPNext API error:', errorText);
-      return NextResponse.json(
-        { success: false, message: 'Gagal mengambil data surat jalan' },
-        { status: response.status }
-      );
-    }
-
-    const data = await response.json();
-
     return NextResponse.json({
       success: true,
-      data: data.data || [],
-      total_records: data.data?.length || 0,
+      data: deliveryNotes,
+      total_records: deliveryNotes.length,
     });
 
   } catch (error) {
-    console.error('Error fetching delivery notes:', error);
-    return NextResponse.json(
-      { success: false, message: 'Terjadi kesalahan saat mengambil data' },
-      { status: 500 }
-    );
+    logSiteError(error, 'GET /api/sales/delivery-notes', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }
 
 
 export async function POST(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const body = await request.json();
+
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
     
-    // console.log('=== Create Delivery Note API Called ===');
-    // console.log('Request body:', JSON.stringify(body).substring(0, 200));
-
-    // Build ERPNext API URL for creating delivery note
-    const erpnextUrl = `${ERPNEXT_API_URL}/api/resource/Delivery Note`;
-
-    // Make request to ERPNext
-    const response = await fetch(erpnextUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `token ${ERP_API_KEY}:${ERP_API_SECRET}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('ERPNext API error:', errorText);
-      return NextResponse.json(
-        { success: false, message: 'Gagal membuat surat jalan' },
-        { status: response.status }
-      );
-    }
-
-    const data = await response.json();
+    // Create delivery note using client method
+    const result = await client.insert('Delivery Note', body);
+    
+    const deliveryNote = result.data || result;
 
     return NextResponse.json({
       success: true,
-      data: data.data || data,
+      data: deliveryNote,
       message: 'Surat jalan berhasil dibuat',
     });
 
   } catch (error) {
-    console.error('Error creating delivery note:', error);
-    return NextResponse.json(
-      { success: false, message: 'Terjadi kesalahan saat membuat surat jalan' },
-      { status: 500 }
-    );
+    logSiteError(error, 'POST /api/sales/delivery-notes', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

@@ -1,20 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
-
-function getAuthHeaders(request: NextRequest): Record<string, string> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  const sid = request.cookies.get('sid')?.value;
-  const apiKey = process.env.ERP_API_KEY;
-  const apiSecret = process.env.ERP_API_SECRET;
-
-  if (apiKey && apiSecret) {
-    headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-  } else if (sid) {
-    headers['Cookie'] = `sid=${sid}`;
-  }
-  return headers;
-}
+import {
+  getERPNextClientForRequest,
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError
+} from '@/lib/api-helpers';
 
 /**
  * GET /api/setup/employees
@@ -22,9 +12,15 @@ function getAuthHeaders(request: NextRequest): Record<string, string> {
  * Query params: ?sales_person=X or ?search=X
  */
 export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+
   try {
-    const headers = getAuthHeaders(request);
-    if (!headers['Authorization'] && !headers['Cookie']) {
+    // Check authentication
+    const sid = request.cookies.get('sid')?.value;
+    const apiKey = process.env.ERP_API_KEY;
+    const apiSecret = process.env.ERP_API_SECRET;
+
+    if (!apiKey && !apiSecret && !sid) {
       return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
     }
 
@@ -33,7 +29,7 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search');
 
     const fields = ['name', 'employee_name', 'designation', 'department', 'status'];
-    const filters: string[][] = [['status', '=', 'Active']];
+    const filters: any[][] = [['status', '=', 'Active']];
 
     if (salesPerson) {
       // Try to find employee by matching employee_name with sales_person name
@@ -43,21 +39,21 @@ export async function GET(request: NextRequest) {
       filters.push(['employee_name', 'like', `%${search}%`]);
     }
 
-    const erpUrl = `${ERPNEXT_API_URL}/api/resource/Employee?fields=${encodeURIComponent(JSON.stringify(fields))}&filters=${encodeURIComponent(JSON.stringify(filters))}&limit_page_length=50&order_by=employee_name`;
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
 
-    const response = await fetch(erpUrl, { method: 'GET', headers });
-    const data = await response.json();
+    // Fetch employees using client method
+    const employees = await client.getList('Employee', {
+      fields,
+      filters,
+      limit_page_length: 50,
+      order_by: 'employee_name'
+    });
 
-    if (response.ok) {
-      return NextResponse.json({ success: true, data: data.data || [] });
-    } else {
-      return NextResponse.json(
-        { success: false, message: data.message || 'Failed to fetch employees' },
-        { status: response.status }
-      );
-    }
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : 'Unknown error';
-    return NextResponse.json({ success: false, message: msg }, { status: 500 });
+    return NextResponse.json({ success: true, data: employees });
+  } catch (error: unknown) {
+    logSiteError(error, 'GET /api/setup/employees', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-// ERPNext Configuration - Use existing environment variables
-const ERPNEXT_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
-const API_KEY = process.env.ERP_API_KEY || '';
-const API_SECRET = process.env.ERP_API_SECRET || '';
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 
 // Type definitions
 interface Warehouse {
@@ -13,12 +14,9 @@ interface Warehouse {
   parent_warehouse: string | null;
 }
 
-interface ERPNextResponse {
-  data: Warehouse[];
-  message?: string;
-}
-
 export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const { searchParams } = new URL(request.url);
     const company = searchParams.get('company');
@@ -30,50 +28,33 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Build ERPNext API URL
-    const fields = JSON.stringify(["name", "warehouse_name", "company", "parent_warehouse"]);
-    const filters = JSON.stringify([["company", "=", company]]);
-    const erpNextUrl = `${ERPNEXT_URL}/api/resource/Warehouse?fields=${fields}&filters=${filters}`;
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
 
-    // console.log('Fetching warehouses from ERPNext:', erpNextUrl);
-
-    // Make request to ERPNext
-    const response = await fetch(erpNextUrl, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(API_KEY && API_SECRET && {
-          'Authorization': `token ${API_KEY}:${API_SECRET}`
-        })
-      }
+    // Fetch warehouses using client method with company filter
+    const warehouses = await client.getList<Warehouse>('Warehouse', {
+      fields: ['name', 'warehouse_name', 'company', 'parent_warehouse'],
+      filters: [['company', '=', company]]
     });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('ERPNext API error:', response.status, errorText);
-      throw new Error(`ERPNext API error: ${response.status} - ${errorText}`);
-    }
-
-    const data: ERPNextResponse = await response.json();
-    // console.log('ERPNext response:', data);
 
     // Filter out group warehouses (parent_warehouse is null for root groups)
     // Only show actual warehouses, not group warehouses
-    const actualWarehouses = data.data?.filter((warehouse: Warehouse) => 
+    const actualWarehouses = warehouses.filter((warehouse: Warehouse) => 
       warehouse.parent_warehouse !== null && 
       warehouse.name !== warehouse.parent_warehouse
-    ) || [];
+    );
 
     return NextResponse.json({
       data: actualWarehouses,
       message: 'Warehouses fetched successfully from ERPNext'
     });
 
-  } catch (error) {
-    console.error('Error fetching warehouses from ERPNext:', error);
+  } catch (error: unknown) {
+    logSiteError(error, 'GET /api/utils/erpnext/erpnext/warehouse', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
     return NextResponse.json(
       { 
-        error: 'Failed to fetch warehouses from ERPNext',
+        error: errorResponse.message,
         details: error instanceof Error ? error.message : 'Unknown error'
       },
       { status: 500 }

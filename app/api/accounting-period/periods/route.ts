@@ -1,11 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { erpnextClient } from '@/lib/erpnext';
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 import { getPeriodsRequestSchema, createPeriodRequestSchema } from '@/lib/accounting-period-schemas';
 import type { AccountingPeriod, GetPeriodsResponse, CreatePeriodResponse } from '@/types/accounting-period';
 
 // GET /api/accounting-period/periods
 export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
+    const client = await getERPNextClientForRequest(request);
     const { searchParams } = new URL(request.url);
     
     // Parse query parameters
@@ -36,7 +44,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch periods from ERPNext
-    const periods = await erpnextClient.getList<AccountingPeriod>('Accounting Period', {
+    const periods = await client.getList<AccountingPeriod>('Accounting Period', {
       filters: filters.length > 0 ? filters : undefined,
       fields: [
         'name',
@@ -64,7 +72,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Get total count (without pagination)
-    const allPeriods = await erpnextClient.getList<AccountingPeriod>('Accounting Period', {
+    const allPeriods = await client.getList<AccountingPeriod>('Accounting Period', {
       filters: filters.length > 0 ? filters : undefined,
       fields: ['name'],
     });
@@ -76,23 +84,19 @@ export async function GET(request: NextRequest) {
     };
 
     return NextResponse.json(response);
-  } catch (error: any) {
-    console.error('Error fetching accounting periods:', error);
-    
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'FETCH_ERROR',
-        message: error.message || 'Failed to fetch accounting periods',
-      },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    logSiteError(error, 'GET /api/accounting-period/periods', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }
 
 // POST /api/accounting-period/periods
 export async function POST(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
+    const client = await getERPNextClientForRequest(request);
     const body = await request.json();
     
     // Validate request body
@@ -105,7 +109,7 @@ export async function POST(request: NextRequest) {
       ['end_date', '>=', validatedData.start_date],
     ];
 
-    const overlappingPeriods = await erpnextClient.getList<AccountingPeriod>('Accounting Period', {
+    const overlappingPeriods = await client.getList<AccountingPeriod>('Accounting Period', {
       filters: overlappingFilters,
       fields: ['name', 'period_name', 'start_date', 'end_date'],
       limit: 1,
@@ -126,7 +130,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create period in ERPNext
-    const newPeriod = await erpnextClient.insert<AccountingPeriod>('Accounting Period', {
+    const newPeriod = await client.insert<AccountingPeriod>('Accounting Period', {
       period_name: validatedData.period_name,
       company: validatedData.company,
       start_date: validatedData.start_date,
@@ -141,7 +145,7 @@ export async function POST(request: NextRequest) {
     const now = new Date();
     const erpnextDatetime = now.toISOString().slice(0, 19).replace('T', ' '); // Format: YYYY-MM-DD HH:MM:SS
     
-    await erpnextClient.insert('Period Closing Log', {
+    await client.insert('Period Closing Log', {
       accounting_period: newPeriod.name,
       action_type: 'Created',
       action_by: 'Administrator', // TODO: Get from session
@@ -156,29 +160,24 @@ export async function POST(request: NextRequest) {
     };
 
     return NextResponse.json(response, { status: 201 });
-  } catch (error: any) {
-    console.error('Error creating accounting period:', error);
+  } catch (error: unknown) {
+    logSiteError(error, 'POST /api/accounting-period/periods', siteId);
     
     // Handle validation errors
-    if (error.name === 'ZodError') {
+    const errorObj = error as any;
+    if (errorObj.name === 'ZodError') {
       return NextResponse.json(
         {
           success: false,
           error: 'VALIDATION_ERROR',
           message: 'Invalid request data',
-          details: error.errors,
+          details: errorObj.errors,
         },
         { status: 400 }
       );
     }
 
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'CREATE_ERROR',
-        message: error.message || 'Failed to create accounting period',
-      },
-      { status: 500 }
-    );
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

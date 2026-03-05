@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 
 export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search');
@@ -13,8 +19,6 @@ export async function GET(request: NextRequest) {
 
     const cookies = request.cookies;
     const sid = cookies.get('sid')?.value;
-
-    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Employee?fields=["name","employee_name","first_name","company","department","designation","gender","status","cell_number","personal_email","date_of_birth","date_of_joining"]&limit_page_length=${limitPageLength}&limit_start=${limitStart}`;
     
     // Build filters array
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -31,72 +35,55 @@ export async function GET(request: NextRequest) {
       const searchTrim = search.trim();
       filters.push(["employee_name", "like", `%${searchTrim}%`]);
     }
+
+    const fields = [
+      "name", "employee_name", "first_name", "company", "department", 
+      "designation", "gender", "status", "cell_number", "personal_email", 
+      "date_of_birth", "date_of_joining"
+    ];
+
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
     
-    if (filters.length > 0) {
-      erpNextUrl += `&filters=${encodeURIComponent(JSON.stringify(filters))}`;
-    }
-
-    // console.log('Employees ERPNext URL:', erpNextUrl);
-
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-
-    // Try session-based authentication first
-    const apiKey = process.env.ERP_API_KEY;
-    const apiSecret = process.env.ERP_API_SECRET;
-    if (apiKey && apiSecret) {
-      headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-    } else if (sid) {
-      headers['Cookie'] = `sid=${sid}`;
-    }
-
-    const response = await fetch(erpNextUrl, {
-      method: 'GET',
-      headers,
+    // Use client method instead of direct fetch
+    const data = await client.getList('Employee', {
+      fields: fields,
+      filters: filters,
+      limit_page_length: parseInt(limitPageLength),
+      start: parseInt(limitStart)
     });
 
-    const data = await response.json();
-    // console.log('Employees API Response:', { status: response.status, dataLength: data.data?.length });
+    // Transform employee data
+    const employeesList = (data || []).map((emp: any) => ({
+      name: emp.name,
+      employee_name: emp.employee_name || emp.name,
+      first_name: emp.first_name || emp.employee_name || emp.name,
+      company: emp.company || '',
+      department: emp.department || '',
+      designation: emp.designation || '',
+      gender: emp.gender || '',
+      status: emp.status || 'Active',
+      cell_number: emp.cell_number || '',
+      personal_email: emp.personal_email || '',
+      date_of_birth: emp.date_of_birth || '',
+      date_of_joining: emp.date_of_joining || '',
+    }));
 
-    if (response.ok) {
-      // Transform employee data
-      const employeesList = (data.data || []).map((emp: any) => ({
-        name: emp.name,
-        employee_name: emp.employee_name || emp.name,
-        first_name: emp.first_name || emp.employee_name || emp.name,
-        company: emp.company || '',
-        department: emp.department || '',
-        designation: emp.designation || '',
-        gender: emp.gender || '',
-        status: emp.status || 'Active',
-        cell_number: emp.cell_number || '',
-        personal_email: emp.personal_email || '',
-        date_of_birth: emp.date_of_birth || '',
-        date_of_joining: emp.date_of_joining || '',
-      }));
-
-      return NextResponse.json({
-        success: true,
-        data: employeesList,
-        total: employeesList.length,
-      });
-    } else {
-      return NextResponse.json(
-        { success: false, message: data.message || 'Failed to fetch employees' },
-        { status: response.status }
-      );
-    }
+    return NextResponse.json({
+      success: true,
+      data: employeesList,
+      total: employeesList.length,
+    });
   } catch (error) {
-    console.error('Employees API Error:', error);
-    return NextResponse.json(
-      { success: false, message: 'Internal server error' },
-      { status: 500 }
-    );
+    logSiteError(error, 'GET /api/hr/employees', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }
 
 export async function PUT(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const body = await request.json();
     const { name, ...updateData } = body;
@@ -106,59 +93,53 @@ export async function PUT(request: NextRequest) {
     }
 
     const sid = request.cookies.get('sid')?.value;
-    const apiKey = process.env.ERP_API_KEY;
-    const apiSecret = process.env.ERP_API_SECRET;
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (apiKey && apiSecret) {
-      headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-    } else if (sid) {
-      headers['Cookie'] = `sid=${sid}`;
-    } else {
+    if (!sid) {
       return NextResponse.json({ success: false, message: 'No authentication available' }, { status: 401 });
     }
 
-    const response = await fetch(`${ERPNEXT_API_URL}/api/resource/Employee/${encodeURIComponent(name)}`, {
-      method: 'PUT',
-      headers,
-      body: JSON.stringify(updateData),
-    });
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
+    
+    // Use client method instead of direct fetch
+    const updatedEmployee = await client.update('Employee', name, updateData);
 
-    const data = await response.json();
-
-    if (response.ok) {
-      return NextResponse.json({ success: true, data: data.data });
-    } else {
-      const errMsg = data._server_messages
-        ? (() => { try { return JSON.parse(JSON.parse(data._server_messages)[0]).message; } catch { return null; } })()
-        : null;
-      return NextResponse.json(
-        { success: false, message: errMsg || data.message || data.exc || 'Failed to update employee' },
-        { status: response.status }
-      );
+    return NextResponse.json({ success: true, data: updatedEmployee });
+  } catch (error: unknown) {
+    logSiteError(error, 'PUT /api/hr/employees', siteId);
+    
+    // Extract detailed error message
+    let errorMessage = 'Failed to update employee';
+    if (error && typeof error === 'object') {
+      const errorObj = error as any;
+      if (errorObj._server_messages) {
+        try {
+          const parsed = JSON.parse(JSON.parse(errorObj._server_messages)[0]);
+          errorMessage = parsed.message || errorMessage;
+        } catch {
+          // Ignore parse errors
+        }
+      } else if (errorObj.message) {
+        errorMessage = errorObj.message;
+      } else if (errorObj.exc) {
+        errorMessage = errorObj.exc;
+      }
     }
-  } catch (error) {
-    console.error('Employee PUT API Error:', error);
-    return NextResponse.json({ success: false, message: 'Internal server error' }, { status: 500 });
+    
+    return NextResponse.json(
+      { success: false, message: errorMessage },
+      { status: 500 }
+    );
   }
 }
 
 export async function POST(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const cookies = request.cookies;
     const sid = cookies.get('sid')?.value;
 
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-
-    const apiKey = process.env.ERP_API_KEY;
-    const apiSecret = process.env.ERP_API_SECRET;
-
-    if (apiKey && apiSecret) {
-      headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-    } else if (sid) {
-      headers['Cookie'] = `sid=${sid}`;
-    } else {
+    if (!sid) {
       return NextResponse.json(
         { success: false, message: 'No authentication available' },
         { status: 401 }
@@ -166,28 +147,30 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Employee`;
 
-    const response = await fetch(erpNextUrl, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ data: body }),
-    });
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
+    
+    // Use client method instead of direct fetch
+    const newEmployee = await client.insert('Employee', body);
 
-    const data = await response.json();
-
-    if (response.ok) {
-      return NextResponse.json({ success: true, data: data.data });
-    } else {
-      return NextResponse.json(
-        { success: false, message: data.message || data.exc || 'Failed to create employee' },
-        { status: response.status }
-      );
-    }
+    return NextResponse.json({ success: true, data: newEmployee });
   } catch (error) {
-    console.error('Employee POST API Error:', error);
+    logSiteError(error, 'POST /api/hr/employees', siteId);
+    
+    // Extract detailed error message
+    let errorMessage = 'Failed to create employee';
+    if (error && typeof error === 'object') {
+      const errorObj = error as any;
+      if (errorObj.message) {
+        errorMessage = errorObj.message;
+      } else if (errorObj.exc) {
+        errorMessage = errorObj.exc;
+      }
+    }
+    
     return NextResponse.json(
-      { success: false, message: 'Internal server error' },
+      { success: false, message: errorMessage },
       { status: 500 }
     );
   }

@@ -1,10 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { erpnextClient } from '@/lib/erpnext';
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 
 // GET /api/setup/companies
 export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
-    const companies = await erpnextClient.getList('Company', {
+    const client = await getERPNextClientForRequest(request);
+    
+    const companies = await client.getList('Company', {
       fields: ['name', 'company_name', 'abbr', 'country', 'default_currency'],
       order_by: 'company_name asc',
     });
@@ -13,16 +22,9 @@ export async function GET(request: NextRequest) {
       success: true,
       data: companies,
     });
-  } catch (error: any) {
-    console.error('Error fetching companies:', error);
-    
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'FETCH_ERROR',
-        message: error.message || 'Failed to fetch companies',
-      },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    logSiteError(error, 'GET /api/setup/companies', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

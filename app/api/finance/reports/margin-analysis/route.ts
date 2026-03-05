@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateDateRange } from '@/utils/report-validation';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+import {
+  getERPNextClientForRequest,
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError
+} from '@/lib/api-helpers';
 
 export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+
   try {
     const { searchParams } = new URL(request.url);
     const company = searchParams.get('company');
@@ -28,39 +34,38 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const _h: Record<string, string> = { 'Content-Type': 'application/json' };
-    const _ak = process.env.ERP_API_KEY;
-    const _as = process.env.ERP_API_SECRET;
-    if (_ak && _as) { _h['Authorization'] = `token ${_ak}:${_as}`; } else { _h['Cookie'] = `sid=${sid}`; }
+    const client = await getERPNextClientForRequest(request);
 
     // Fetch purchase invoice items for avg buy price
-    const piFilters = [['company', '=', company], ['docstatus', '=', 1]];
+    const piFilters: any[][] = [['company', '=', company], ['docstatus', '=', 1]];
     if (from_date) piFilters.push(['posting_date', '>=', from_date]);
     if (to_date) piFilters.push(['posting_date', '<=', to_date]);
 
-    const piUrl = `${ERPNEXT_API_URL}/api/resource/Purchase Invoice?fields=["name","posting_date"]&filters=${encodeURIComponent(JSON.stringify(piFilters))}&limit_page_length=500`;
-    const piResp = await fetch(piUrl, { headers: _h });
-    const piData = await piResp.json();
+    const piData = await client.getList('Purchase Invoice', {
+      fields: ['name', 'posting_date'],
+      filters: piFilters,
+      limit_page_length: 500
+    });
 
     // Fetch sales invoice items for avg sell price
-    const siFilters = [['company', '=', company], ['docstatus', '=', 1]];
+    const siFilters: any[][] = [['company', '=', company], ['docstatus', '=', 1]];
     if (from_date) siFilters.push(['posting_date', '>=', from_date]);
     if (to_date) siFilters.push(['posting_date', '<=', to_date]);
 
-    const siUrl = `${ERPNEXT_API_URL}/api/resource/Sales Invoice?fields=["name","posting_date"]&filters=${encodeURIComponent(JSON.stringify(siFilters))}&limit_page_length=500`;
-    const siResp = await fetch(siUrl, { headers: _h });
-    const siData = await siResp.json();
+    const siData = await client.getList('Sales Invoice', {
+      fields: ['name', 'posting_date'],
+      filters: siFilters,
+      limit_page_length: 500
+    });
 
     // Aggregate by item
     const itemMap = new Map<string, { item_code: string; item_name: string; buy_total: number; buy_qty: number; sell_total: number; sell_qty: number }>();
 
     // Process purchase items
-    for (const pi of (piData.data || [])) {
-      const itemsUrl = `${ERPNEXT_API_URL}/api/resource/Purchase Invoice/${pi.name}?fields=["items"]`;
-      const itemsResp = await fetch(itemsUrl, { headers: _h });
-      const itemsData = await itemsResp.json();
+    for (const pi of (piData || [])) {
+      const itemsData = await client.get('Purchase Invoice', pi.name);
       
-      for (const item of (itemsData.data?.items || [])) {
+      for (const item of (itemsData.items || [])) {
         if (!itemMap.has(item.item_code)) {
           itemMap.set(item.item_code, { item_code: item.item_code, item_name: item.item_name || item.item_code, buy_total: 0, buy_qty: 0, sell_total: 0, sell_qty: 0 });
         }
@@ -71,12 +76,10 @@ export async function GET(request: NextRequest) {
     }
 
     // Process sales items
-    for (const si of (siData.data || [])) {
-      const itemsUrl = `${ERPNEXT_API_URL}/api/resource/Sales Invoice/${si.name}?fields=["items"]`;
-      const itemsResp = await fetch(itemsUrl, { headers: _h });
-      const itemsData = await itemsResp.json();
+    for (const si of (siData || [])) {
+      const itemsData = await client.get('Sales Invoice', si.name);
       
-      for (const item of (itemsData.data?.items || [])) {
+      for (const item of (itemsData.items || [])) {
         if (!itemMap.has(item.item_code)) {
           itemMap.set(item.item_code, { item_code: item.item_code, item_name: item.item_name || item.item_code, buy_total: 0, buy_qty: 0, sell_total: 0, sell_qty: 0 });
         }
@@ -106,8 +109,9 @@ export async function GET(request: NextRequest) {
     }).sort((a, b) => a.margin_pct - b.margin_pct);
 
     return NextResponse.json({ success: true, data: results });
-  } catch (error: any) {
-    console.error('Margin Analysis API error:', error);
-    return NextResponse.json({ success: false, message: error.message || 'Internal server error' }, { status: 500 });
+  } catch (error: unknown) {
+    logSiteError(error, 'GET /api/finance/reports/margin-analysis', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

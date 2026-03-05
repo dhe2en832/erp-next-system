@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 
 export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const cookies = request.cookies;
     const sid = cookies.get('sid')?.value;
@@ -24,6 +30,9 @@ export async function GET(request: NextRequest) {
     // console.log('Testing Items with pagination...');
     // console.log('Parameters:', { limit, start, company, searchTerm });
 
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
+
     // Get total count using pagination loop
     let totalCount = 0;
     try {
@@ -31,27 +40,23 @@ export async function GET(request: NextRequest) {
       let pageStart = 0;
       const pageSize = 100;
       
+      const searchFilters = searchTerm ? [["item_name", "like", `%${searchTerm}%`]] : [];
+      
       while (true) {
-        let pageUrl = `${ERPNEXT_API_URL}/api/resource/Item?fields=["name"]&limit_page_length=${pageSize}&limit_start=${pageStart}`;
-        if (searchTerm) {
-          pageUrl += `&filters=[["item_name","like","%${searchTerm}%"]]`;
-        }        
-        const pageResponse = await fetch(pageUrl, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Cookie': `sid=${sid}`,
-          },
+        const pageData = await client.getList('Item', {
+          fields: ['name'],
+          filters: searchFilters,
+          limit_page_length: pageSize,
+          start: pageStart
         });
-        const pageData = await pageResponse.json();
         
-        if (!pageResponse.ok || !pageData.data || pageData.data.length === 0) {
+        if (!pageData || pageData.length === 0) {
           break;
         }
         
-        totalCount += pageData.data.length;
+        totalCount += pageData.length;
         
-        if (pageData.data.length < pageSize) {
+        if (pageData.length < pageSize) {
           break;
         }
         
@@ -62,62 +67,44 @@ export async function GET(request: NextRequest) {
       console.log('Error getting total count:', error);
     }
 
-    // Build ERPNext URL with dynamic pagination
-    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Item?fields=["item_code","item_name","item_group","stock_uom","opening_stock","last_purchase_rate"]&limit_page_length=${limit}&limit_start=${start}`;
+    // Build filters
+    const filters = searchTerm ? [["item_name", "like", `%${searchTerm}%`]] : [];
     
-    // console.log('ERPNext URL:', erpNextUrl);
-    
-    // Add search filter if provided (remove company filter)
-    if (searchTerm) {
-      erpNextUrl += `&filters=[["item_name","like","%${searchTerm}%"]]`;
-      // console.log('Search filter applied for:', searchTerm);
-    }
+    // console.log('Search filter applied for:', searchTerm);
 
-    const response = await fetch(erpNextUrl, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Cookie': `sid=${sid}`,
-      },
+    const items = await client.getList('Item', {
+      fields: ['item_code', 'item_name', 'item_group', 'stock_uom', 'opening_stock', 'last_purchase_rate'],
+      filters,
+      limit_page_length: parseInt(limit),
+      start: parseInt(start)
     });
 
-    const data = await response.json();
-    // console.log('Items API - Status:', response.status);
-    // console.log('Items API - Full response structure:', JSON.stringify(data, null, 2));
+    // console.log('Items API - Full response structure:', JSON.stringify(items, null, 2));
     
     // Log structure details
-    // if (data.data && data.data.length > 0) {
-    //   console.log('First item structure:', JSON.stringify(data.data[0], null, 2));
-    //   console.log('Available fields:', Object.keys(data.data[0]));
+    // if (items && items.length > 0) {
+    //   console.log('First item structure:', JSON.stringify(items[0], null, 2));
+    //   console.log('Available fields:', Object.keys(items[0]));
     //   console.log('Price fields check:', {
-    //     last_purchase_rate: data.data[0].last_purchase_rate,
-    //     valuation_rate: data.data[0].valuation_rate
+    //     last_purchase_rate: items[0].last_purchase_rate,
+    //     valuation_rate: items[0].valuation_rate
     //   });
     // }
 
-    if (response.ok) {
-      const totalRecords = totalCount || data.data?.length || 0;
-      // console.log('API Response - Total records:', totalRecords);
-      // console.log('API Response - Data length:', data.data?.length || 0);
-      
-      return NextResponse.json({
-        success: true,
-        data: data.data || [],
-        total_records: totalRecords,
-        message: 'Items fetched successfully'
-      });
-    } else {
-      return NextResponse.json(
-        { success: false, message: data.exc || data.message || 'Failed to fetch Items' },
-        { status: response.status }
-      );
-    }
+    const totalRecords = totalCount || items?.length || 0;
+    // console.log('API Response - Total records:', totalRecords);
+    // console.log('API Response - Data length:', items?.length || 0);
+    
+    return NextResponse.json({
+      success: true,
+      data: items || [],
+      total_records: totalRecords,
+      message: 'Items fetched successfully'
+    });
 
-  } catch (error: any) {
-    console.error('Items simple test error:', error);
-    return NextResponse.json(
-      { success: false, message: 'Internal server error', error: error.toString() },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    logSiteError(error, 'GET /api/inventory/items/simple', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

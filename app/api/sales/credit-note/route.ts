@@ -6,10 +6,12 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getErpAuthHeaders } from '@/utils/erpnext-auth';
-import { handleERPNextAPIError } from '@/utils/erpnext-api-helper';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 
 /**
  * GET /api/sales/credit-note
@@ -28,9 +30,9 @@ const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
  * Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.10
  */
 export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
-    // console.log('=== Credit Note API Called ===');
-    
     const { searchParams } = new URL(request.url);
     const filters = searchParams.get('filters');
     const limit = searchParams.get('limit_page_length') || searchParams.get('limit') || '20';
@@ -42,8 +44,8 @@ export async function GET(request: NextRequest) {
     const fromDate = searchParams.get('from_date');
     const toDate = searchParams.get('to_date');
 
-    // Get authentication headers (API key priority, session fallback)
-    const headers = getErpAuthHeaders(request);
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
 
     // Build filters array
     let filtersArray: any[] = [];
@@ -110,56 +112,17 @@ export async function GET(request: NextRequest) {
       filtersArray.push(["posting_date", "<=", toDate]);
     }
 
-    // Build ERPNext URL
-    // Fields: name, customer, customer_name, posting_date, return_against, docstatus, grand_total, custom_total_komisi_sales, creation
-    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Sales Invoice?fields=["name","customer","customer_name","posting_date","return_against","docstatus","grand_total","custom_total_komisi_sales","creation","modified"]&limit_page_length=${limit}&limit_start=${start}`;
-    
-    if (filtersArray.length > 0) {
-      erpNextUrl += `&filters=${encodeURIComponent(JSON.stringify(filtersArray))}`;
-    }
-    
-    if (orderBy) {
-      erpNextUrl += `&order_by=${encodeURIComponent(orderBy)}`;
-    } else {
-      erpNextUrl += '&order_by=posting_date%20desc';
-    }
-
-    // console.log('Credit Note ERPNext URL:', erpNextUrl);
-
-    const response = await fetch(erpNextUrl, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        ...headers,
-      },
+    // Use client.getList instead of fetch
+    const creditNotes = await client.getList('Sales Invoice', {
+      fields: ['name', 'customer', 'customer_name', 'posting_date', 'return_against', 'docstatus', 'grand_total', 'custom_total_komisi_sales', 'creation', 'modified'],
+      filters: filtersArray,
+      limit_page_length: parseInt(limit),
+      start: parseInt(start),
+      order_by: orderBy || 'posting_date desc'
     });
 
-    const responseText = await response.text();
-    // console.log('Credit Note ERPNext Response Status:', response.status);
-    // console.log('Credit Note ERPNext Response Text (first 500 chars):', responseText.substring(0, 500));
-    
-    let data;
-    try {
-      data = JSON.parse(responseText);
-    } catch (parseError) {
-      console.error('Failed to parse response as JSON:', parseError);
-      console.error('Response text:', responseText);
-      
-      return NextResponse.json(
-        { 
-          success: false, 
-          message: 'Invalid response from ERPNext server',
-          details: responseText.substring(0, 200)
-        },
-        { status: response.status || 500 }
-      );
-    }
-
-    // console.log('Credit Note API Response:', { status: response.status, dataCount: data.data?.length });
-
-    if (response.ok) {
-      // Transform data: docstatus → status, return_against → sales_invoice
-      const transformedData = (data.data || []).map((creditNote: any) => {
+    // Transform data: docstatus → status, return_against → sales_invoice
+    const transformedData = (creditNotes || []).map((creditNote: any) => {
         // Map docstatus to status label
         let statusLabel: string;
         switch (creditNote.docstatus) {
@@ -186,17 +149,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         success: true,
         data: transformedData,
-        total_records: data.total_records || transformedData.length,
+        total_records: transformedData.length,
       });
-    } else {
-      return handleERPNextAPIError(response, data, 'Failed to fetch credit notes');
-    }
-  } catch (error) {
-    console.error('Credit Note API Error:', error);
-    return NextResponse.json(
-      { success: false, message: 'Internal server error' },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    logSiteError(error, 'GET /api/sales/credit-note', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }
 
@@ -215,58 +173,13 @@ export async function GET(request: NextRequest) {
  * Requirements: 1.10, 1.11, 1.12, 1.13, 1.14, 1.15, 11.6, 11.7, 11.8
  */
 export async function POST(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const creditNoteData = await request.json();
-    // console.log('=== CREATE CREDIT NOTE ===');
-    // console.log('Credit Note POST Payload:', JSON.stringify(creditNoteData, null, 2));
 
-    const cookies = request.cookies;
-    const sid = cookies.get('sid')?.value;
-    // console.log('Session ID (sid):', sid ? 'Present' : 'Missing');
-
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      'X-Requested-With': 'XMLHttpRequest',
-    };
-
-    // Prioritize API Key authentication
-    const apiKey = process.env.ERP_API_KEY;
-    const apiSecret = process.env.ERP_API_SECRET;
-    
-    if (apiKey && apiSecret) {
-      headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-      // console.log('Using API key authentication (priority)');
-    } else if (sid) {
-      headers['Cookie'] = `sid=${sid}`;
-      // console.log('Using session-based authentication');
-      
-      // Get CSRF token for ERPNext
-      try {
-        const csrfResponse = await fetch(`${ERPNEXT_API_URL}/api/method/frappe.core.csrf.get_token`, {
-          method: 'GET',
-          headers: {
-            'Cookie': `sid=${sid}`,
-          },
-        });
-        
-        if (csrfResponse.ok) {
-          const csrfData = await csrfResponse.json();
-          if (csrfData.message && csrfData.message.csrf_token) {
-            headers['X-Frappe-CSRF-Token'] = csrfData.message.csrf_token;
-            // console.log('CSRF token added to headers');
-          }
-        }
-      } catch (csrfError) {
-        console.log('Failed to get CSRF token, continuing without it:', csrfError);
-      }
-    } else {
-      console.error('No authentication available');
-      return NextResponse.json(
-        { success: false, message: 'No authentication available. Please login or configure API keys.' },
-        { status: 401 }
-      );
-    }
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
 
     // Validate request body structure (Requirement 11.6)
     if (!creditNoteData.customer || !creditNoteData.posting_date || !creditNoteData.return_against) {
@@ -326,23 +239,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate Sales Invoice existence and status (Requirement 11.7)
-    // console.log('Validating Sales Invoice existence and status:', creditNoteData.return_against);
     try {
-      const invoiceUrl = `${ERPNEXT_API_URL}/api/resource/Sales Invoice/${encodeURIComponent(creditNoteData.return_against)}?fields=["name","status","docstatus","customer"]`;
-      const invoiceResponse = await fetch(invoiceUrl, { headers });
-      
-      if (!invoiceResponse.ok) {
-        return NextResponse.json(
-          { 
-            success: false, 
-            message: `Sales Invoice ${creditNoteData.return_against} tidak ditemukan` 
-          },
-          { status: 400 }
-        );
-      }
-      
-      const invoiceData = await invoiceResponse.json();
-      const invoice = invoiceData.data;
+      const invoice = await client.get('Sales Invoice', creditNoteData.return_against);
       
       if (invoice.status !== 'Paid') {
         return NextResponse.json(
@@ -363,96 +261,48 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
-      
-      // console.log('Sales Invoice validation passed:', invoice.name);
     } catch (invoiceError) {
-      console.error('Failed to validate Sales Invoice:', invoiceError);
       return NextResponse.json(
         { 
           success: false, 
-          message: 'Gagal memvalidasi Sales Invoice. Silakan coba lagi.' 
+          message: `Sales Invoice ${creditNoteData.return_against} tidak ditemukan` 
         },
-        { status: 500 }
+        { status: 400 }
       );
     }
 
     // Validate Accounting Period for posting_date (Requirement 1.15, 11.8)
-    // console.log('Validating Accounting Period for posting_date:', creditNoteData.posting_date);
     try {
-      const periodCheckUrl = `${ERPNEXT_API_URL}/api/resource/Accounting Period?` + new URLSearchParams({
-        fields: JSON.stringify(['name', 'period_name', 'status', 'start_date', 'end_date']),
-        filters: JSON.stringify([
+      const periods = await client.getList('Accounting Period', {
+        fields: ['name', 'period_name', 'status', 'start_date', 'end_date'],
+        filters: [
           ['company', '=', creditNoteData.company],
           ['start_date', '<=', creditNoteData.posting_date],
           ['end_date', '>=', creditNoteData.posting_date],
-        ]),
-        limit_page_length: '1'
+        ],
+        limit_page_length: 1
       });
-
-      const periodResponse = await fetch(periodCheckUrl, { headers });
       
-      if (periodResponse.ok) {
-        const periodData = await periodResponse.json();
-        if (periodData.data && periodData.data.length > 0) {
-          const period = periodData.data[0];
-          if (period.status === 'Closed' || period.status === 'Permanently Closed') {
-            return NextResponse.json(
-              { 
-                success: false, 
-                message: `Tidak dapat membuat Credit Note: Periode akuntansi ${period.period_name} sudah ditutup. Silakan pilih tanggal pada periode yang masih terbuka.` 
-              },
-              { status: 400 }
-            );
-          }
-          // console.log('Accounting Period validation passed:', period.period_name);
-        } else {
-          console.log('No accounting period found for date, proceeding...');
+      if (periods && periods.length > 0) {
+        const period = periods[0];
+        if (period.status === 'Closed' || period.status === 'Permanently Closed') {
+          return NextResponse.json(
+            { 
+              success: false, 
+              message: `Tidak dapat membuat Credit Note: Periode akuntansi ${period.period_name} sudah ditutup. Silakan pilih tanggal pada periode yang masih terbuka.` 
+            },
+            { status: 400 }
+          );
         }
       }
     } catch (periodError) {
-      console.warn('Failed to validate accounting period, continuing:', periodError);
       // Continue without blocking if period check fails
     }
 
     // Use ERPNext's make_sales_return method to generate Credit Note template (Requirement 1.10)
-    const makeReturnUrl = `${ERPNEXT_API_URL}/api/method/erpnext.accounts.doctype.sales_invoice.sales_invoice.make_sales_return`;
-    
-    // console.log('Using make_sales_return method for proper return handling');
-    // console.log('Return against Sales Invoice:', creditNoteData.return_against);
-
-    const response = await fetch(makeReturnUrl, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        source_name: creditNoteData.return_against,
-      }),
+    const returnTemplate = await client.call('erpnext.accounts.doctype.sales_invoice.sales_invoice.make_sales_return', {
+      source_name: creditNoteData.return_against,
     });
-
-    const responseText = await response.text();
-    // console.log('Make Return Response Status:', response.status);
-    
-    let returnTemplate;
-    try {
-      const data = JSON.parse(responseText);
-      returnTemplate = data.message;
-    } catch (parseError) {
-      console.error('Failed to parse make_return response:', parseError);
-      console.error('Response text:', responseText);
-      
-      return NextResponse.json(
-        { success: false, message: 'Failed to generate return template' },
-        { status: response.status }
-      );
-    }
-
-    if (!response.ok || !returnTemplate) {
-      return NextResponse.json(
-        { success: false, message: 'Failed to generate return template from original Sales Invoice' },
-        { status: response.status }
-      );
-    }
-
-    // console.log('Return template generated, customizing with user data...');
 
     // Customize template with user data (Requirement 1.11)
     returnTemplate.posting_date = creditNoteData.posting_date;
@@ -509,91 +359,39 @@ export async function POST(request: NextRequest) {
       sample_item_commission: returnTemplate.items[0]?.custom_komisi_sales
     });
 
-    // Log important fields for debugging
-    // console.log('Return template fields check:', {
-    //   company: returnTemplate.company,
-    //   customer: returnTemplate.customer,
-    //   is_return: returnTemplate.is_return,
-    //   return_against: returnTemplate.return_against,
-    //   items_count: returnTemplate.items?.length,
-    //   custom_total_komisi_sales: returnTemplate.custom_total_komisi_sales,
-    // });
-    
-    // console.log('Customized return template (first 500 chars):', JSON.stringify(returnTemplate).substring(0, 500));
-
     // Save Credit Note to ERPNext (Requirement 1.14)
-    const saveResponse = await fetch(`${ERPNEXT_API_URL}/api/resource/Sales Invoice`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(returnTemplate),
-    });
+    const savedDoc = await client.insert('Sales Invoice', returnTemplate);
 
-    const saveResponseText = await saveResponse.text();
-    // console.log('Save Credit Note Response Status:', saveResponse.status);
-    
-    let saveData;
-    try {
-      saveData = JSON.parse(saveResponseText);
-    } catch (parseError) {
-      console.error('Failed to parse save response:', parseError);
-      console.error('Response text:', saveResponseText);
-      
-      return NextResponse.json(
-        { success: false, message: 'Invalid response from ERPNext server' },
-        { status: saveResponse.status }
-      );
-    }
-
-    // console.log('Credit Note Save Response Data:', saveData);
-
-    if (saveResponse.ok) {
-      const savedDocName = saveData.data?.name;
-      
-      // Refresh document using frappe.desk.form.load.getdoc to get all calculated fields
-      if (savedDocName) {
-        // console.log('Refreshing document with getdoc to get all fields...');
-        try {
-          const refreshResponse = await fetch(
-            `${ERPNEXT_API_URL}/api/method/frappe.desk.form.load.getdoc?` + new URLSearchParams({
-              doctype: 'Sales Invoice',
-              name: savedDocName
-            }),
-            { headers }
-          );
-          
-          if (refreshResponse.ok) {
-            const refreshData = await refreshResponse.json();
-            // console.log('Document refreshed with getdoc successfully');
-            
-            // getdoc returns data in message.docs[0]
-            const refreshedDoc = refreshData.message?.docs?.[0];
-            if (refreshedDoc) {
-              return NextResponse.json({
-                success: true,
-                data: refreshedDoc,
-                message: 'Credit Note berhasil disimpan',
-              });
-            }
-          }
-        } catch (refreshError) {
-          console.warn('Failed to refresh document with getdoc, returning saved data:', refreshError);
+    // Refresh document using frappe.desk.form.load.getdoc to get all calculated fields
+    if (savedDoc.name) {
+      try {
+        const refreshedDoc = await client.call('frappe.desk.form.load.getdoc', {
+          doctype: 'Sales Invoice',
+          name: savedDoc.name
+        });
+        
+        // getdoc returns data in docs[0]
+        if (refreshedDoc?.docs?.[0]) {
+          return NextResponse.json({
+            success: true,
+            data: refreshedDoc.docs[0],
+            message: 'Credit Note berhasil disimpan',
+          });
         }
+      } catch (refreshError) {
+        // Fallback to saved data if refresh fails
       }
-      
-      // Fallback: return saved data
-      return NextResponse.json({
-        success: true,
-        data: saveData.data,
-        message: 'Credit Note berhasil disimpan',
-      });
-    } else {
-      return handleERPNextAPIError(saveResponse, saveData, 'Failed to create credit note', returnTemplate);
     }
-  } catch (error) {
-    console.error('Credit Note POST Error:', error);
-    return NextResponse.json(
-      { success: false, message: 'Internal server error' },
-      { status: 500 }
-    );
+    
+    // Fallback: return saved data
+    return NextResponse.json({
+      success: true,
+      data: savedDoc,
+      message: 'Credit Note berhasil disimpan',
+    });
+  } catch (error: unknown) {
+    logSiteError(error, 'POST /api/sales/credit-note', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

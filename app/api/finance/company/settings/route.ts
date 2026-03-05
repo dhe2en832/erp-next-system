@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 
 export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const { searchParams } = new URL(request.url);
     const company = searchParams.get('company');
@@ -24,36 +30,28 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const client = await getERPNextClientForRequest(request);
+
     // Fetch company details
-    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Company/${encodeURIComponent(company)}?fields=["name","default_warehouse"]`;
+    const data = await client.get('Company', company);
 
-    const response = await fetch(erpNextUrl, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Cookie': `sid=${sid}`,
-      },
-    });
-
-    if (response.ok) {
-      const data = await response.json();
+    if (data) {
       return NextResponse.json({
         success: true,
         data: {
-          default_warehouse: data.data?.default_warehouse || null,
+          default_warehouse: data.default_warehouse || null,
         },
       });
     } else {
       return NextResponse.json(
         { success: false, message: 'Failed to fetch company settings' },
-        { status: response.status }
+        { status: 404 }
       );
     }
-  } catch (error) {
-    console.error('Company settings API error:', error);
-    return NextResponse.json(
-      { success: false, message: 'Internal server error' },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    logSiteError(error, 'GET /api/finance/company/settings', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    const statusCode = errorResponse.errorType === 'authentication' ? 401 : 500;
+    return NextResponse.json(errorResponse, { status: statusCode });
   }
 }

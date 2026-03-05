@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
-
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     // For demo purposes, return mock data if ERPNext is not accessible
     const mockCompanies = [
@@ -22,38 +28,30 @@ export async function GET() {
 
     // Try to fetch from ERPNext first
     try {
-      const response = await fetch(
-        `${ERPNEXT_API_URL}/api/resource/Company?fields=["name","company_name","country","abbr"]&limit_page_length=100`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        }
-      );
+      const client = await getERPNextClientForRequest(request);
+      
+      const data = await client.getList('Company', {
+        fields: ['name', 'company_name', 'country', 'abbr'],
+        limit_page_length: 100
+      });
 
-      if (response.ok) {
-        const data = await response.json();
-        return NextResponse.json({
-          success: true,
-          data: data.data || mockCompanies,
-        });
-      }
+      return NextResponse.json({
+        success: true,
+        data: data || mockCompanies,
+      });
     } catch (erpError) {
       console.log('ERPNext not available, using mock data');
+      
+      // Fallback to mock data
+      return NextResponse.json({
+        success: true,
+        data: mockCompanies,
+      });
     }
 
-    // Fallback to mock data
-    return NextResponse.json({
-      success: true,
-      data: mockCompanies,
-    });
-
-  } catch (error) {
-    console.error('Companies API error:', error);
-    return NextResponse.json(
-      { success: false, message: 'Internal server error' },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    logSiteError(error, 'GET /api/finance/company', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

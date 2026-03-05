@@ -1,29 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
-
-function getAuthHeaders(request: NextRequest): Record<string, string> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  const sid = request.cookies.get('sid')?.value;
-  const apiKey = process.env.ERP_API_KEY;
-  const apiSecret = process.env.ERP_API_SECRET;
-
-  if (apiKey && apiSecret) {
-    headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-  } else if (sid) {
-    headers['Cookie'] = `sid=${sid}`;
-  }
-  return headers;
-}
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 
 /**
  * GET /api/finance/accounts/expense?company=CompanyName&type=expense|income
  * Returns expense or income accounts for kategori dropdown in Kas Keluar/Masuk.
  */
 export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
-    const headers = getAuthHeaders(request);
-    if (!headers['Authorization'] && !headers['Cookie']) {
+    // Authentication check
+    const sid = request.cookies.get('sid')?.value;
+    const apiKey = process.env.ERP_API_KEY;
+    const apiSecret = process.env.ERP_API_SECRET;
+    
+    if (!apiKey && !apiSecret && !sid) {
       return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
     }
 
@@ -31,8 +27,10 @@ export async function GET(request: NextRequest) {
     const company = searchParams.get('company') || '';
     const type = searchParams.get('type') || 'expense';
 
+    // Preserve account type filtering (Expense/Income)
     const rootType = type === 'income' ? 'Income' : 'Expense';
 
+    // Build filters - preserve account hierarchy logic
     const filters: any[] = [
       ['root_type', '=', rootType],
       ['is_group', '=', 0],
@@ -41,22 +39,21 @@ export async function GET(request: NextRequest) {
       filters.push(['company', '=', company]);
     }
 
-    const fields = ['name', 'account_name', 'root_type', 'parent_account', 'company'];
-    const erpUrl = `${ERPNEXT_API_URL}/api/resource/Account?fields=${encodeURIComponent(JSON.stringify(fields))}&filters=${encodeURIComponent(JSON.stringify(filters))}&limit_page_length=200&order_by=account_name`;
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
 
-    const response = await fetch(erpUrl, { method: 'GET', headers });
-    const data = await response.json();
+    // Use client method instead of fetch
+    const data = await client.getList('Account', {
+      fields: ['name', 'account_name', 'root_type', 'parent_account', 'company'],
+      filters,
+      limit_page_length: 200,
+      order_by: 'account_name'
+    });
 
-    if (response.ok) {
-      return NextResponse.json({ success: true, data: data.data || [] });
-    } else {
-      return NextResponse.json(
-        { success: false, message: data.message || 'Failed to fetch accounts' },
-        { status: response.status }
-      );
-    }
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : 'Unknown error';
-    return NextResponse.json({ success: false, message: msg }, { status: 500 });
+    return NextResponse.json({ success: true, data: data || [] });
+  } catch (error: unknown) {
+    logSiteError(error, 'GET /api/finance/accounts/expense', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

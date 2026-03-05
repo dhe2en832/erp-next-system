@@ -1,23 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { erpnextClient } from '@/lib/erpnext';
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 import type { AccountingPeriod, PeriodClosingConfig, AccountBalance, ClosingJournalAccount } from '@/types/accounting-period';
 
 export async function GET(
   request: NextRequest,
   context: { params: Promise<{ name: string }> }
 ) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
+    const client = await getERPNextClientForRequest(request);
     const { name } = await context.params;
     const periodName = decodeURIComponent(name);
 
     // Get period details
-    const period = await erpnextClient.get<AccountingPeriod>('Accounting Period', periodName);
+    const period = await client.get<AccountingPeriod>('Accounting Period', periodName);
 
     // Get configuration
-    const config = await erpnextClient.get<PeriodClosingConfig>('Period Closing Config', 'Period Closing Config');
+    const config = await client.get<PeriodClosingConfig>('Period Closing Config', 'Period Closing Config');
 
     // Get nominal account balances
-    const nominalAccounts = await getNominalAccountBalances(period);
+    const nominalAccounts = await getNominalAccountBalances(client, period);
 
     // Calculate net income/loss
     let totalIncome = 0;
@@ -94,19 +102,17 @@ export async function GET(
         retained_earnings_account: config.retained_earnings_account,
       },
     });
-  } catch (error: any) {
-    console.error('Error generating closing preview:', error);
-    return NextResponse.json(
-      { success: false, error: 'PREVIEW_ERROR', message: error.message || 'Failed to generate closing preview' },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    logSiteError(error, 'GET /api/accounting-period/preview-closing/[name]', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }
 
 /**
  * Get nominal account balances for the period
  */
-async function getNominalAccountBalances(period: AccountingPeriod): Promise<AccountBalance[]> {
+async function getNominalAccountBalances(client: any, period: AccountingPeriod): Promise<AccountBalance[]> {
   // Get all GL entries for the period
   const filters = [
     ['company', '=', period.company],
@@ -115,7 +121,7 @@ async function getNominalAccountBalances(period: AccountingPeriod): Promise<Acco
     ['is_cancelled', '=', 0],
   ];
 
-  const glEntries = await erpnextClient.getList('GL Entry', {
+  const glEntries = await client.getList('GL Entry', {
     filters,
     fields: ['account', 'debit', 'credit'],
     limit_page_length: 999999,
@@ -133,7 +139,7 @@ async function getNominalAccountBalances(period: AccountingPeriod): Promise<Acco
   }
 
   // Get account details for nominal accounts only
-  const accounts = await erpnextClient.getList('Account', {
+  const accounts = await client.getList('Account', {
     filters: [
       ['name', 'in', Array.from(accountMap.keys())],
       ['root_type', 'in', ['Income', 'Expense']],

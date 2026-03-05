@@ -1,22 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ name: string }> }
 ) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const { name } = await params;
     
-    // Debug log
-    // console.log('API Route - Name parameter:', name);
-    // console.log('API Route - Name type:', typeof name);
-    // console.log('API Route - Name length:', name?.length);
-    
     // Validate name parameter - be more specific
     if (!name || name.trim() === '') {
-      // console.log('API Route - Name is empty or null');
       return NextResponse.json(
         { success: false, message: 'Order name is required' },
         { status: 400 }
@@ -24,7 +24,6 @@ export async function GET(
     }
     
     if (name === 'undefined' || name === 'null' || name === 'undefined/') {
-      // console.log('API Route - Invalid name value:', name);
       return NextResponse.json(
         { success: false, message: 'Invalid order name provided' },
         { status: 400 }
@@ -34,64 +33,38 @@ export async function GET(
     const cookies = request.cookies;
     const sid = cookies.get('sid')?.value;
 
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-
     // Prioritize API Key authentication to avoid CSRF issues
     const apiKey = process.env.ERP_API_KEY;
     const apiSecret = process.env.ERP_API_SECRET;
     
-    if (apiKey && apiSecret) {
-      headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-    } else if (sid) {
-      headers['Cookie'] = `sid=${sid}`;
-    } else {
+    if (!apiKey && !apiSecret && !sid) {
       return NextResponse.json(
         { success: false, message: 'No authentication available' },
         { status: 401 }
       );
     }
 
-    // console.log('API Route - Fetching order:', name);
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
     
-    // Use ERPNext's form.load.getdoc method instead of resource endpoint
-    const response = await fetch(`${ERPNEXT_API_URL}/api/method/frappe.desk.form.load.getdoc?doctype=Sales%20Order&name=${encodeURIComponent(name.trim())}`, {
-      method: 'GET',
-      headers,
+    // Use ERPNext's form.load.getdoc method to get full document with child tables
+    const orderData = await client.call('frappe.desk.form.load.getdoc', {
+      doctype: 'Sales Order',
+      name: name.trim()
     });
 
-    // console.log('API Route - ERPNext Response status:', response.status);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      // console.log('API Route - ERPNext Error:', errorText);
-      return NextResponse.json(
-        { success: false, message: 'Failed to fetch order details' },
-        { status: response.status }
-      );
-    }
-
-    const data = await response.json();
-    // console.log('API Route - Success, data keys:', Object.keys(data));
-    // console.log('API Route - Response structure:', data);
-
     // form.load.getdoc returns data in different structure
-    // The actual document data is in data.docs or data.doc
-    const orderData = data.docs?.[0] || data.doc || data;
-    
-    // console.log('API Route - Order data keys:', Object.keys(orderData || {}));
+    // The actual document data is in docs or doc
+    const order = orderData.docs?.[0] || orderData.doc || orderData;
 
     return NextResponse.json({
       success: true,
-      data: orderData,
+      data: order,
     });
 
   } catch (error) {
-    console.error('Error fetching order details:', error);
-    return NextResponse.json(
-      { success: false, message: 'Internal server error' },
-      { status: 500 }
-    );
+    logSiteError(error, 'GET /api/sales/orders/[name]', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

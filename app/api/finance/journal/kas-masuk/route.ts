@@ -1,20 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
-
-function getAuthHeaders(request: NextRequest): Record<string, string> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  const sid = request.cookies.get('sid')?.value;
-  const apiKey = process.env.ERP_API_KEY;
-  const apiSecret = process.env.ERP_API_SECRET;
-
-  if (apiKey && apiSecret) {
-    headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-  } else if (sid) {
-    headers['Cookie'] = `sid=${sid}`;
-  }
-  return headers;
-}
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 
 /**
  * POST /api/finance/journal/kas-masuk
@@ -36,9 +26,11 @@ function getAuthHeaders(request: NextRequest): Record<string, string> {
  * - Each item category account = CREDIT (income/source)
  */
 export async function POST(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
-    const headers = getAuthHeaders(request);
-    if (!headers['Authorization'] && !headers['Cookie']) {
+    const sid = request.cookies.get('sid')?.value;
+    if (!sid) {
       return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
     }
 
@@ -102,35 +94,27 @@ export async function POST(request: NextRequest) {
       total_credit: totalNominal,
     };
 
-    // console.log('Kas Masuk Payload:', JSON.stringify(journalPayload, null, 2));
-    // console.log('Total accounts:', accounts.length);
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
 
-    const response = await fetch(`${ERPNEXT_API_URL}/api/resource/Journal Entry`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(journalPayload),
+    const result = await client.insert('Journal Entry', journalPayload);
+
+    return NextResponse.json({
+      success: true,
+      data: result,
+      message: `Jurnal Kas Masuk ${result?.name || ''} berhasil dibuat`,
     });
-
-    const data = await response.json();
-    // console.log('ERPNext Response:', JSON.stringify(data, null, 2));
-
-    if (response.ok) {
-      return NextResponse.json({
-        success: true,
-        data: data.data,
-        message: `Jurnal Kas Masuk ${data.data?.name || ''} berhasil dibuat`,
-      });
-    } else {
-      const errorMsg = data._server_messages
-        ? (() => { try { const msgs = JSON.parse(data._server_messages); return typeof msgs[0] === 'string' ? JSON.parse(msgs[0]).message : msgs[0].message; } catch { return data.message || 'Gagal membuat jurnal'; } })()
-        : data.message || 'Gagal membuat jurnal kas masuk';
-      return NextResponse.json(
-        { success: false, message: errorMsg },
-        { status: response.status }
-      );
+  } catch (error: unknown) {
+    logSiteError(error, 'POST /api/finance/journal/kas-masuk', siteId);
+    
+    let errorMsg = 'Gagal membuat jurnal kas masuk';
+    if (error instanceof Error) {
+      errorMsg = error.message;
     }
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : 'Unknown error';
-    return NextResponse.json({ success: false, message: msg }, { status: 500 });
+    
+    return NextResponse.json(
+      { success: false, message: errorMsg },
+      { status: 500 }
+    );
   }
 }

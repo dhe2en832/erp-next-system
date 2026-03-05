@@ -1,18 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ name: string }> }
 ) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const { name } = await params;
     const { searchParams } = new URL(request.url);
     const company = searchParams.get('company');
 
-    // console.log('Purchase Receipt Name:', name);
-    // console.log('Company:', company);
+    // Validate name parameter
+    if (!name || name.trim() === '') {
+      return NextResponse.json(
+        { success: false, message: 'Purchase receipt name is required' },
+        { status: 400 }
+      );
+    }
+    
+    if (name === 'undefined' || name === 'null' || name === 'undefined/') {
+      return NextResponse.json(
+        { success: false, message: 'Invalid purchase receipt name provided' },
+        { status: 400 }
+      );
+    }
 
     if (!company) {
       return NextResponse.json(
@@ -21,53 +39,27 @@ export async function GET(
       );
     }
 
-    // Get session cookie for authentication
-    const cookies = request.cookies;
-    const sid = cookies.get('sid')?.value;
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
+    
+    // Use ERPNext's form.load.getdoc method to get full document with child tables
+    const receiptData = await client.call('frappe.desk.form.load.getdoc', {
+      doctype: 'Purchase Receipt',
+      name: name.trim()
+    });
 
-    if (!sid) {
-      return NextResponse.json(
-        { success: false, message: 'Unauthorized - Please login first' },
-        { status: 401 }
-      );
-    }
+    // form.load.getdoc returns data in different structure
+    const receipt = receiptData.docs?.[0] || receiptData.doc || receiptData;
 
-    // Fetch full document without fields param - ERPNext returns complete doc with child tables
-    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Purchase Receipt/${encodeURIComponent(name)}`;
+    return NextResponse.json({
+      success: true,
+      data: receipt,
+    });
 
-    // console.log('Fetch Purchase Receipt URL:', erpNextUrl);
-
-    const response = await fetch(
-      erpNextUrl,
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Cookie': `sid=${sid}`,
-        },
-        credentials: 'include',
-      }
-    );
-
-    const data = await response.json();
-
-    if (response.ok) {
-      return NextResponse.json({
-        success: true,
-        data: data.data,
-      });
-    } else {
-      return NextResponse.json(
-        { success: false, message: data.exc || data.message || 'Failed to fetch purchase receipt' },
-        { status: response.status }
-      );
-    }
   } catch (error) {
-    console.error('Purchase Receipt fetch error:', error);
-    return NextResponse.json(
-      { success: false, message: 'Internal server error' },
-      { status: 500 }
-    );
+    logSiteError(error, 'GET /api/purchase/receipts/[name]', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }
 
@@ -75,53 +67,37 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ name: string }> }
 ) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const { name } = await params;
+    
+    // Validate name parameter
+    if (!name || name.trim() === '') {
+      return NextResponse.json(
+        { success: false, message: 'Purchase receipt name is required' },
+        { status: 400 }
+      );
+    }
+    
     const purchaseReceiptData = await request.json();
 
-    // console.log('Updating Purchase Receipt:', name);
-    // console.log('Purchase Receipt Data:', purchaseReceiptData);
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
+    
+    // Use client.update method
+    const updatedReceipt = await client.update('Purchase Receipt', name.trim(), purchaseReceiptData);
 
-    // Use API key authentication
-    const apiKey = process.env.ERP_API_KEY;
-    const apiSecret = process.env.ERP_API_SECRET;
-
-    if (!apiKey || !apiSecret) {
-      return NextResponse.json(
-        { success: false, message: 'ERPNext API credentials not configured' },
-        { status: 500 }
-      );
-    }
-
-    const response = await fetch(`${ERPNEXT_API_URL}/api/resource/Purchase Receipt/${name}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `token ${apiKey}:${apiSecret}`,
-      },
-      body: JSON.stringify(purchaseReceiptData),
+    return NextResponse.json({
+      success: true,
+      data: updatedReceipt,
+      message: 'Purchase Receipt berhasil diupdate'
     });
 
-    const data = await response.json();
-
-    if (response.ok) {
-      return NextResponse.json({
-        success: true,
-        data: data.data,
-        message: 'Purchase Receipt berhasil diupdate'
-      });
-    } else {
-      return NextResponse.json(
-        { success: false, message: data.exc || data.message || 'Failed to update purchase receipt' },
-        { status: response.status }
-      );
-    }
   } catch (error) {
-    console.error('Purchase Receipt update error:', error);
-    return NextResponse.json(
-      { success: false, message: 'Internal server error' },
-      { status: 500 }
-    );
+    logSiteError(error, 'PUT /api/purchase/receipts/[name]', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }
 
@@ -129,48 +105,33 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ name: string }> }
 ) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const { name } = await params;
-
-    // console.log('Deleting Purchase Receipt:', name);
-
-    // Use API key authentication
-    const apiKey = process.env.ERP_API_KEY;
-    const apiSecret = process.env.ERP_API_SECRET;
-
-    if (!apiKey || !apiSecret) {
+    
+    // Validate name parameter
+    if (!name || name.trim() === '') {
       return NextResponse.json(
-        { success: false, message: 'ERPNext API credentials not configured' },
-        { status: 500 }
+        { success: false, message: 'Purchase receipt name is required' },
+        { status: 400 }
       );
     }
 
-    const response = await fetch(`${ERPNEXT_API_URL}/api/resource/Purchase Receipt/${name}`, {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `token ${apiKey}:${apiSecret}`,
-      },
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
+    
+    // Use client.delete method
+    await client.delete('Purchase Receipt', name.trim());
+
+    return NextResponse.json({
+      success: true,
+      message: 'Purchase Receipt berhasil dihapus'
     });
 
-    const data = await response.json();
-
-    if (response.ok) {
-      return NextResponse.json({
-        success: true,
-        message: 'Purchase Receipt berhasil dihapus'
-      });
-    } else {
-      return NextResponse.json(
-        { success: false, message: data.exc || data.message || 'Failed to delete purchase receipt' },
-        { status: response.status }
-      );
-    }
   } catch (error) {
-    console.error('Purchase Receipt delete error:', error);
-    return NextResponse.json(
-      { success: false, message: 'Internal server error' },
-      { status: 500 }
-    );
+    logSiteError(error, 'DELETE /api/purchase/receipts/[name]', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

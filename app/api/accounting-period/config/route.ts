@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getERPNextClient } from '@/lib/erpnext';
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 import { requirePermission, canModifyConfig } from '@/lib/accounting-period-permissions';
 import type { GetConfigResponse, UpdateConfigRequest, UpdateConfigResponse, PeriodClosingConfig } from '@/types/accounting-period';
 
 export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
-    const client = await getERPNextClient();
+    const client = await getERPNextClientForRequest(request);
 
     // Get the singleton Period Closing Config document
     const config = await client.getDoc('Period Closing Config', 'Period Closing Config');
@@ -17,11 +24,12 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(response);
 
-  } catch (error: any) {
-    console.error('Error fetching config:', error);
+  } catch (error: unknown) {
+    logSiteError(error, 'GET /api/accounting-period/config', siteId);
     
     // If config doesn't exist, return default values
-    if (error.message?.includes('does not exist')) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (errorMessage?.includes('does not exist')) {
       const defaultConfig: PeriodClosingConfig = {
         name: 'Period Closing Config',
         retained_earnings_account: '',
@@ -45,24 +53,20 @@ export async function GET(request: NextRequest) {
       });
     }
     
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'INTERNAL_ERROR',
-        message: error.message || 'Failed to fetch configuration'
-      },
-      { status: 500 }
-    );
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }
 
 export async function PUT(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     // Check user permissions for modifying configuration
     const user = await requirePermission(request, canModifyConfig);
 
     const body: UpdateConfigRequest = await request.json();
-    const client = await getERPNextClient();
+    const client = await getERPNextClientForRequest(request);
 
     // Validate retained_earnings_account if provided
     if (body.retained_earnings_account) {
@@ -130,7 +134,8 @@ export async function PUT(request: NextRequest) {
     try {
       config = await client.getDoc('Period Closing Config', 'Period Closing Config');
     } catch (error: any) {
-      if (error.message?.includes('does not exist')) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage?.includes('does not exist')) {
         // Create new config
         config = await client.insert('Period Closing Config', {
           doctype: 'Period Closing Config',
@@ -169,37 +174,33 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json(response);
 
-  } catch (error: any) {
-    console.error('Error updating config:', error);
+  } catch (error: unknown) {
+    logSiteError(error, 'PUT /api/accounting-period/config', siteId);
     
     // Handle permission errors
-    if (error.statusCode === 403) {
+    const errorObj = error as any;
+    if (errorObj.statusCode === 403) {
       return NextResponse.json(
         { 
           success: false, 
           error: 'AUTHORIZATION_ERROR',
-          message: error.message,
-          details: error.details
+          message: errorObj.message,
+          details: errorObj.details
         },
         { status: 403 }
       );
     }
 
     // Handle authentication errors
-    if (error.message === 'Authentication required') {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (errorMessage === 'Authentication required') {
       return NextResponse.json(
         { success: false, error: 'Authentication required' },
         { status: 401 }
       );
     }
     
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'INTERNAL_ERROR',
-        message: error.message || 'Failed to update configuration'
-      },
-      { status: 500 }
-    );
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { erpnextClient } from '@/lib/erpnext';
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 import type { AccountingPeriod, PeriodClosingConfig, AccountBalance } from '@/types/accounting-period';
 
 export async function POST(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const body = await request.json();
     const { period_name, company, force = false } = body;
@@ -14,8 +21,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
+
     // Get period details
-    const period = await erpnextClient.get<AccountingPeriod>('Accounting Period', period_name);
+    const period = await client.get<AccountingPeriod>('Accounting Period', period_name);
 
     if (period.status !== 'Open') {
       return NextResponse.json(
@@ -52,7 +62,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get configuration
-    const config = await erpnextClient.get<PeriodClosingConfig>('Period Closing Config', 'Period Closing Config');
+    const config = await client.get<PeriodClosingConfig>('Period Closing Config', 'Period Closing Config');
 
     // Validate retained earnings account
     if (!config.retained_earnings_account) {
@@ -67,7 +77,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify retained earnings account is not a stock account
-    const retainedEarningsAcc = await erpnextClient.get('Account', config.retained_earnings_account);
+    const retainedEarningsAcc = await client.get('Account', config.retained_earnings_account);
     if (retainedEarningsAcc.account_type === 'Stock') {
       return NextResponse.json(
         { 
@@ -91,10 +101,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Create closing journal entry
-    const closingJournal = await createClosingJournalEntry(period, config);
+    const closingJournal = await createClosingJournalEntry(period, config, client);
 
     // Calculate and save account balances snapshot
-    const accountBalances = await calculateAllAccountBalances(period);
+    const accountBalances = await calculateAllAccountBalances(period, client);
 
     // Update period status to Closed
     const now = new Date();
@@ -120,10 +130,10 @@ export async function POST(request: NextRequest) {
       }));
     }
     
-    const updatedPeriod = await erpnextClient.update('Accounting Period', period_name, updateData);
+    const updatedPeriod = await client.update('Accounting Period', period_name, updateData);
 
     // Create audit log
-    await erpnextClient.insert('Period Closing Log', {
+    await client.insert('Period Closing Log', {
       accounting_period: period_name,
       action_type: 'Closed',
       action_by: 'Administrator',
@@ -147,11 +157,9 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error: any) {
-    console.error('Error closing period:', error);
-    return NextResponse.json(
-      { success: false, error: 'CLOSE_ERROR', message: error.message || 'Failed to close period' },
-      { status: 500 }
-    );
+    logSiteError(error, 'POST /api/accounting-period/close', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }
 
@@ -166,10 +174,11 @@ export async function POST(request: NextRequest) {
  */
 async function createClosingJournalEntry(
   period: AccountingPeriod,
-  config: PeriodClosingConfig
+  config: PeriodClosingConfig,
+  client: any
 ): Promise<any> {
   // Get all nominal accounts (Income and Expense) with non-zero balances
-  const nominalAccounts = await getNominalAccountBalances(period);
+  const nominalAccounts = await getNominalAccountBalances(period, client);
 
   // Calculate net income/loss
   let totalIncome = 0;
@@ -265,7 +274,7 @@ async function createClosingJournalEntry(
   }
 
   // Create journal entry
-  const journalEntry = await erpnextClient.insert('Journal Entry', {
+  const journalEntry = await client.insert('Journal Entry', {
     voucher_type: 'Journal Entry',
     posting_date: period.end_date,
     company: period.company,
@@ -275,11 +284,11 @@ async function createClosingJournalEntry(
   });
 
   // Submit the journal entry
-  await erpnextClient.submit('Journal Entry', journalEntry.name);
+  await client.submit('Journal Entry', journalEntry.name);
 
   // If cascading is enabled, create additional journal entries
   if (config.enable_cascading_profit_accounts && netIncome !== 0) {
-    await createCascadingJournalEntries(period, config, netIncome, journalEntry.name);
+    await createCascadingJournalEntries(period, config, netIncome, journalEntry.name, client);
   }
 
   return journalEntry;
@@ -290,7 +299,7 @@ async function createClosingJournalEntry(
  * Requirements: 3.1
  * Note: Uses cumulative balance (from beginning to period end) for closing entries
  */
-async function getNominalAccountBalances(period: AccountingPeriod): Promise<AccountBalance[]> {
+async function getNominalAccountBalances(period: AccountingPeriod, client: any): Promise<AccountBalance[]> {
   // Get all GL entries UP TO period end (cumulative, not just period range)
   const filters = [
     ['company', '=', period.company],
@@ -298,7 +307,7 @@ async function getNominalAccountBalances(period: AccountingPeriod): Promise<Acco
     ['is_cancelled', '=', 0],
   ];
 
-  const glEntries = await erpnextClient.getList('GL Entry', {
+  const glEntries = await client.getList('GL Entry', {
     filters,
     fields: ['account', 'debit', 'credit'],
     limit_page_length: 999999,
@@ -317,7 +326,7 @@ async function getNominalAccountBalances(period: AccountingPeriod): Promise<Acco
 
   // Get account details for nominal accounts only
   // CRITICAL: Exclude stock accounts by checking both account_type and is_stock_account fields
-  const accounts = await erpnextClient.getList('Account', {
+  const accounts = await client.getList('Account', {
     filters: [
       ['name', 'in', Array.from(accountMap.keys())],
       ['root_type', 'in', ['Income', 'Expense']],
@@ -383,7 +392,8 @@ async function createCascadingJournalEntries(
   period: AccountingPeriod,
   config: PeriodClosingConfig,
   netIncome: number,
-  mainJournalName: string
+  mainJournalName: string,
+  client: any
 ): Promise<void> {
   // console.log('=== Creating Cascading Journal Entries ===');
   // console.log('Net Income:', netIncome);
@@ -425,7 +435,7 @@ async function createCascadingJournalEntries(
       });
     }
 
-    const step2Journal = await erpnextClient.insert('Journal Entry', {
+    const step2Journal = await client.insert('Journal Entry', {
       voucher_type: 'Journal Entry',
       posting_date: period.end_date,
       company: period.company,
@@ -434,7 +444,7 @@ async function createCascadingJournalEntries(
       accounting_period: period.name,
     });
 
-    await erpnextClient.submit('Journal Entry', step2Journal.name);
+    await client.submit('Journal Entry', step2Journal.name);
     // console.log('Step 2 Journal created:', step2Journal.name);
   }
 
@@ -446,7 +456,8 @@ async function createCascadingJournalEntries(
     const yearProfitBalance = await getCurrentAccountBalance(
       config.current_year_profit_account,
       period.company,
-      period.end_date
+      period.end_date,
+      client
     );
 
     if (yearProfitBalance !== 0) {
@@ -484,7 +495,7 @@ async function createCascadingJournalEntries(
         });
       }
 
-      const step3Journal = await erpnextClient.insert('Journal Entry', {
+      const step3Journal = await client.insert('Journal Entry', {
         voucher_type: 'Journal Entry',
         posting_date: period.end_date,
         company: period.company,
@@ -493,7 +504,7 @@ async function createCascadingJournalEntries(
         accounting_period: period.name,
       });
 
-      await erpnextClient.submit('Journal Entry', step3Journal.name);
+      await client.submit('Journal Entry', step3Journal.name);
       // console.log('Step 3 Journal created (Year-end):', step3Journal.name);
     }
   }
@@ -531,7 +542,8 @@ function isLastPeriodOfYear(period: AccountingPeriod): boolean {
 async function getCurrentAccountBalance(
   account: string,
   company: string,
-  asOfDate: string
+  asOfDate: string,
+  client: any
 ): Promise<number> {
   const filters = [
     ['company', '=', company],
@@ -540,7 +552,7 @@ async function getCurrentAccountBalance(
     ['account', '=', account],
   ];
 
-  const glEntries = await erpnextClient.getList('GL Entry', {
+  const glEntries = await client.getList('GL Entry', {
     filters,
     fields: ['debit', 'credit'],
     limit_page_length: 999999,
@@ -562,14 +574,14 @@ async function getCurrentAccountBalance(
  * Calculate all account balances as of period end date
  * Requirements: 4.3
  */
-async function calculateAllAccountBalances(period: AccountingPeriod): Promise<AccountBalance[]> {
+async function calculateAllAccountBalances(period: AccountingPeriod, client: any): Promise<AccountBalance[]> {
   const filters = [
     ['company', '=', period.company],
     ['posting_date', '<=', period.end_date],
     ['is_cancelled', '=', 0],
   ];
 
-  const glEntries = await erpnextClient.getList('GL Entry', {
+  const glEntries = await client.getList('GL Entry', {
     filters,
     fields: ['account', 'debit', 'credit'],
     limit_page_length: 999999,
@@ -587,7 +599,7 @@ async function calculateAllAccountBalances(period: AccountingPeriod): Promise<Ac
   }
 
   // Get account details
-  const accounts = await erpnextClient.getList('Account', {
+  const accounts = await client.getList('Account', {
     filters: [
       ['name', 'in', Array.from(accountMap.keys())],
       ['company', '=', period.company],

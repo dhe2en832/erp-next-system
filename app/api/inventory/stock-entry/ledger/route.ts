@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 
 export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const { searchParams } = new URL(request.url);
     const company = searchParams.get('company');
@@ -29,66 +35,52 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Build filters
-    let filters = `[["company","=","${company}"]`;
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
+
+    // Build filters array
+    const filters: any[][] = [['company', '=', company]];
     
     if (search) {
-      filters += `,["item_code","like","%${search}%"]`;
+      filters.push(['item_code', 'like', `%${search}%`]);
     }
     
     if (warehouse) {
-      filters += `,["warehouse","=","${warehouse}"]`;
+      filters.push(['warehouse', '=', warehouse]);
     }
     
     if (voucherType) {
-      filters += `,["voucher_type","=","${voucherType}"]`;
+      filters.push(['voucher_type', '=', voucherType]);
     }
     
     if (fromDate) {
-      filters += `,["posting_date",">=","${fromDate}"]`;
+      filters.push(['posting_date', '>=', fromDate]);
     }
     
     if (toDate) {
-      filters += `,["posting_date","<=","${toDate}"]`;
+      filters.push(['posting_date', '<=', toDate]);
     }
-    
-    filters += ']';
 
-    // Build ERPNext URL
-    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Stock Ledger Entry?fields=["name","item_code","warehouse","posting_date","posting_time","voucher_type","voucher_no","actual_qty","qty_after_transaction","valuation_rate","stock_value","company"]&filters=${encodeURIComponent(filters)}&order_by=posting_date desc, posting_time desc&limit_page_length=100`;
+    // console.log('Stock Ledger filters:', filters);
 
-    // console.log('Stock Ledger ERPNext URL:', erpNextUrl);
+    // Use client method instead of fetch
+    const data = await client.getList('Stock Ledger Entry', {
+      fields: ['name', 'item_code', 'warehouse', 'posting_date', 'posting_time', 'voucher_type', 'voucher_no', 'actual_qty', 'qty_after_transaction', 'valuation_rate', 'stock_value', 'company'],
+      filters,
+      order_by: 'posting_date desc, posting_time desc',
+      limit_page_length: 100
+    });
 
-    const response = await fetch(
-      erpNextUrl,
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Cookie': `sid=${sid}`,
-        },
-      }
-    );
-
-    const data = await response.json();
     // console.log('Stock Ledger response:', data);
 
-    if (response.ok) {
-      return NextResponse.json({
-        success: true,
-        data: data.data || [],
-      });
-    } else {
-      return NextResponse.json(
-        { success: false, message: data.exc || data.message || 'Failed to fetch stock ledger' },
-        { status: response.status }
-      );
-    }
-  } catch (error) {
-    console.error('Stock Ledger API error:', error);
-    return NextResponse.json(
-      { success: false, message: 'Internal server error' },
-      { status: 500 }
-    );
+    return NextResponse.json({
+      success: true,
+      data: data || [],
+    });
+  } catch (error: unknown) {
+    logSiteError(error, 'GET /api/inventory/stock-entry/ledger', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    const statusCode = errorResponse.errorType === 'authentication' ? 401 : 500;
+    return NextResponse.json(errorResponse, { status: statusCode });
   }
 }

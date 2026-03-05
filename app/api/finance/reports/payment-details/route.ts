@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthHeaders } from '@/lib/report-auth-helper';
 import { PaymentWithReferences, PaymentDetailsResponse } from '@/types/payment-details';
 import { validateDateRange } from '@/utils/report-validation';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+import {
+  getERPNextClientForRequest,
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError
+} from '@/lib/api-helpers';
 
 export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+
   try {
     const searchParams = request.nextUrl.searchParams;
     const company = searchParams.get('company');
@@ -29,10 +34,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const headers = getAuthHeaders(request);
+    const sid = request.cookies.get('sid')?.value;
+    if (!sid) {
+      return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
+    }
+
+    const client = await getERPNextClientForRequest(request);
 
     // Build filters for ERPNext API
-    const filters: any[] = [
+    const filters: any[][] = [
       ['docstatus', '=', '1'],
       ['company', '=', company]
     ];
@@ -46,68 +56,30 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch list of payment entries
-    const listUrl = new URL(`${ERPNEXT_API_URL}/api/resource/Payment Entry`);
-    listUrl.searchParams.set('fields', JSON.stringify([
-      'name',
-      'posting_date',
-      'payment_type',
-      'party_type',
-      'party',
-      'party_name',
-      'mode_of_payment',
-      'paid_amount',
-      'received_amount',
-      'status',
-      'docstatus'
-    ]));
-    listUrl.searchParams.set('filters', JSON.stringify(filters));
-    listUrl.searchParams.set('limit_page_length', '500');
-
-    const listResponse = await fetch(listUrl.toString(), {
-      method: 'GET',
-      headers,
-      signal: AbortSignal.timeout(30000)
+    const listData = await client.getList('Payment Entry', {
+      fields: [
+        'name',
+        'posting_date',
+        'payment_type',
+        'party_type',
+        'party',
+        'party_name',
+        'mode_of_payment',
+        'paid_amount',
+        'received_amount',
+        'status',
+        'docstatus'
+      ],
+      filters,
+      limit_page_length: 500
     });
 
-    if (!listResponse.ok) {
-      if (listResponse.status === 401) {
-        return NextResponse.json(
-          { success: false, message: 'Unauthorized. Please check your credentials.' },
-          { status: 401 }
-        );
-      }
-      const errorData = await listResponse.json();
-      return NextResponse.json(
-        { 
-          success: false, 
-          message: errorData.message || 'Failed to fetch payment entries from ERPNext' 
-        },
-        { status: listResponse.status }
-      );
-    }
-
-    const listData = await listResponse.json();
-    const payments = listData.data || [];
+    const payments = listData || [];
 
     // Fetch details for each payment in parallel
     const detailPromises = payments.map(async (payment: any) => {
       try {
-        const detailUrl = `${ERPNEXT_API_URL}/api/resource/Payment Entry/${payment.name}`;
-        const detailResponse = await fetch(detailUrl, {
-          method: 'GET',
-          headers,
-          signal: AbortSignal.timeout(30000)
-        });
-
-        if (!detailResponse.ok) {
-          console.error(`Failed to fetch details for ${payment.name}`);
-          return {
-            ...payment,
-            references: []
-          };
-        }
-
-        const detailData = await detailResponse.json();
+        const detailData = await client.get('Payment Entry', payment.name);
         
         // Get sales person from first referenced Sales Invoice
         let salesPerson = '';
@@ -116,14 +88,9 @@ export async function GET(request: NextRequest) {
         for (const ref of references) {
           if (ref.reference_doctype === 'Sales Invoice' && ref.reference_name) {
             try {
-              const invoiceUrl = `${ERPNEXT_API_URL}/api/resource/Sales Invoice/${ref.reference_name}?fields=["sales_team"]`;
-              const invoiceResponse = await fetch(invoiceUrl, { method: 'GET', headers, signal: AbortSignal.timeout(10000) });
-              
-              if (invoiceResponse.ok) {
-                const invoiceData = await invoiceResponse.json();
-                salesPerson = invoiceData.data?.sales_team?.[0]?.sales_person || '';
-                if (salesPerson) break; // Stop after finding first sales person
-              }
+              const invoiceData = await client.get('Sales Invoice', ref.reference_name);
+              salesPerson = invoiceData.data?.sales_team?.[0]?.sales_person || '';
+              if (salesPerson) break; // Stop after finding first sales person
             } catch (error) {
               console.error(`Error fetching sales person from ${ref.reference_name}:`, error);
             }
@@ -170,19 +137,10 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(response);
 
-  } catch (error: any) {
-    console.error('Payment Details API Error:', error);
-    
-    if (error.name === 'TimeoutError') {
-      return NextResponse.json(
-        { success: false, message: 'Request timeout. Please try again.' },
-        { status: 504 }
-      );
-    }
-    
-    return NextResponse.json(
-      { success: false, message: 'Network error. Please check your connection.' },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    logSiteError(error, 'GET /api/finance/reports/payment-details', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    const statusCode = errorResponse.errorType === 'authentication' ? 401 : 500;
+    return NextResponse.json(errorResponse, { status: statusCode });
   }
 }

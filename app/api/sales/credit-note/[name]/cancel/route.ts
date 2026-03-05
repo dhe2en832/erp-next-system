@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { handleERPNextAPIError } from '@/utils/erpnext-api-helper';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+import {
+  getERPNextClientForRequest,
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError
+} from '@/lib/api-helpers';
 
 /**
  * POST /api/sales/credit-note/[name]/cancel
@@ -19,76 +22,25 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ name: string }> }
 ) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const { name } = await params;
-    // console.log('=== CANCEL CREDIT NOTE ===');
-    // console.log('Credit Note Name:', name);
 
-    const cookies = request.cookies;
-    const sid = cookies.get('sid')?.value;
-
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      'X-Requested-With': 'XMLHttpRequest',
-    };
-
-    const apiKey = process.env.ERP_API_KEY;
-    const apiSecret = process.env.ERP_API_SECRET;
-    
-    if (apiKey && apiSecret) {
-      headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-      // console.log('Using API key authentication');
-    } else if (sid) {
-      headers['Cookie'] = `sid=${sid}`;
-      // console.log('Using session-based authentication');
-      
-      try {
-        const csrfResponse = await fetch(`${ERPNEXT_API_URL}/api/method/frappe.core.csrf.get_token`, {
-          method: 'GET',
-          headers: { 'Cookie': `sid=${sid}` },
-        });
-        
-        if (csrfResponse.ok) {
-          const csrfData = await csrfResponse.json();
-          if (csrfData.message?.csrf_token) {
-            headers['X-Frappe-CSRF-Token'] = csrfData.message.csrf_token;
-            // console.log('CSRF token added');
-          }
-        }
-      } catch (csrfError) {
-        console.log('Failed to get CSRF token:', csrfError);
-      }
-    } else {
-      return NextResponse.json(
-        { success: false, message: 'No authentication available' },
-        { status: 401 }
-      );
-    }
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
 
     // First, verify document exists and is in Submitted status
-    const getResponse = await fetch(
-      `${ERPNEXT_API_URL}/api/resource/Sales Invoice/${encodeURIComponent(name)}`,
-      { method: 'GET', headers }
-    );
-
-    if (!getResponse.ok) {
-      return NextResponse.json(
-        { success: false, message: 'Gagal mengambil data dokumen' },
-        { status: getResponse.status }
-      );
-    }
-
-    const currentDoc = await getResponse.json();
+    const currentDoc = await client.get('Sales Invoice', name);
     
-    if (!currentDoc.data.is_return) {
+    if (!currentDoc.is_return) {
       return NextResponse.json(
         { success: false, message: 'Dokumen ini bukan credit note (return document)' },
         { status: 400 }
       );
     }
     
-    if (currentDoc.data.docstatus !== 1) {
+    if (currentDoc.docstatus !== 1) {
       return NextResponse.json(
         { success: false, message: 'Hanya credit note dengan status Submitted yang dapat dibatalkan' },
         { status: 400 }
@@ -96,36 +48,27 @@ export async function POST(
     }
 
     // Validate Accounting Period for posting_date (Requirement 3.7, 9.8)
-    // console.log('Validating Accounting Period for posting_date:', currentDoc.data.posting_date);
     try {
-      const periodCheckUrl = `${ERPNEXT_API_URL}/api/resource/Accounting Period?` + new URLSearchParams({
-        fields: JSON.stringify(['name', 'period_name', 'status', 'start_date', 'end_date']),
-        filters: JSON.stringify([
-          ['company', '=', currentDoc.data.company],
-          ['start_date', '<=', currentDoc.data.posting_date],
-          ['end_date', '>=', currentDoc.data.posting_date],
-        ]),
-        limit_page_length: '1'
+      const periods = await client.getList('Accounting Period', {
+        fields: ['name', 'period_name', 'status', 'start_date', 'end_date'],
+        filters: [
+          ['company', '=', currentDoc.company],
+          ['start_date', '<=', currentDoc.posting_date],
+          ['end_date', '>=', currentDoc.posting_date],
+        ],
+        limit_page_length: 1
       });
 
-      const periodResponse = await fetch(periodCheckUrl, { headers });
-      
-      if (periodResponse.ok) {
-        const periodData = await periodResponse.json();
-        if (periodData.data && periodData.data.length > 0) {
-          const period = periodData.data[0];
-          if (period.status === 'Closed' || period.status === 'Permanently Closed') {
-            return NextResponse.json(
-              { 
-                success: false, 
-                message: `Tidak dapat membatalkan Credit Note: Periode akuntansi ${period.period_name} sudah ditutup. Silakan pilih tanggal pada periode yang masih terbuka.` 
-              },
-              { status: 400 }
-            );
-          }
-          // console.log('Accounting Period validation passed:', period.period_name);
-        } else {
-          console.log('No accounting period found for date, proceeding...');
+      if (periods && periods.length > 0) {
+        const period = periods[0];
+        if (period.status === 'Closed' || period.status === 'Permanently Closed') {
+          return NextResponse.json(
+            { 
+              success: false, 
+              message: `Tidak dapat membatalkan Credit Note: Periode akuntansi ${period.period_name} sudah ditutup. Silakan pilih tanggal pada periode yang masih terbuka.` 
+            },
+            { status: 400 }
+          );
         }
       }
     } catch (periodError) {
@@ -134,61 +77,24 @@ export async function POST(
     }
 
     // Cancel the document using ERPNext's cancel method
-    const cancelUrl = `${ERPNEXT_API_URL}/api/method/frappe.client.cancel`;
+    const cancelledDoc = await client.cancel('Sales Invoice', name);
     
-    const cancelPayload = {
-      doctype: 'Sales Invoice',
-      name: name,
-    };
-
-    // console.log('Cancelling credit note:', cancelUrl);
-
-    const response = await fetch(cancelUrl, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(cancelPayload),
+    // Transform response to match frontend expectations
+    return NextResponse.json({
+      success: true,
+      data: {
+        ...cancelledDoc,
+        status: 'Cancelled',
+        sales_invoice: cancelledDoc.return_against,
+        custom_notes: cancelledDoc.return_notes,
+      },
+      message: 'Credit Note cancelled successfully. All adjustments have been reversed.',
     });
 
-    const responseText = await response.text();
-    // console.log('Cancel Response Status:', response.status);
-    
-    let data;
-    try {
-      data = JSON.parse(responseText);
-    } catch (parseError) {
-      console.error('Failed to parse response:', parseError);
-      console.error('Response text:', responseText);
-      
-      return NextResponse.json(
-        { success: false, message: 'Invalid response from ERPNext server' },
-        { status: response.status }
-      );
-    }
-
-    // console.log('Cancel Response Data:', data);
-
-    if (response.ok) {
-      // Transform response to match frontend expectations
-      const cancelledDoc = data.message || data.docs?.[0];
-      
-      return NextResponse.json({
-        success: true,
-        data: {
-          ...cancelledDoc,
-          status: 'Cancelled',
-          sales_invoice: cancelledDoc.return_against,
-          custom_notes: cancelledDoc.return_notes,
-        },
-        message: 'Credit Note cancelled successfully. All adjustments have been reversed.',
-      });
-    } else {
-      return handleERPNextAPIError(response, data, 'Failed to cancel credit note');
-    }
   } catch (error) {
-    console.error('Credit Note Cancel Error:', error);
-    return NextResponse.json(
-      { success: false, message: 'Internal server error' },
-      { status: 500 }
-    );
+    logSiteError(error, 'POST /api/sales/credit-note/[name]/cancel', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    const statusCode = errorResponse.errorType === 'authentication' ? 401 : 500;
+    return NextResponse.json(errorResponse, { status: statusCode });
   }
 }

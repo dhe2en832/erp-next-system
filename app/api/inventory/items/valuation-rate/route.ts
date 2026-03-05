@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 
 export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     // console.log('Testing Stock Ledger for valuation rates...');
     
@@ -28,6 +34,9 @@ export async function GET(request: NextRequest) {
       }, { status: 401 });
     }
 
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
+
     // Parse item codes
     const itemCodeArray = itemCodes.split(',').map(code => code.trim());
     const valuationRates: { [key: string]: number } = {};
@@ -36,31 +45,25 @@ export async function GET(request: NextRequest) {
     for (const itemCode of itemCodeArray) {
       try {
         // Get stock ledger entries for this item, ordered by posting_date desc
-        const ledgerUrl = `${ERPNEXT_API_URL}/api/resource/Stock Ledger Entry?fields=["item_code","valuation_rate","posting_date"]&filters=[["item_code","=","${itemCode}"],["valuation_rate",">",0]]&order_by=posting_date desc&limit_page_length=1`;
-        
-        // console.log(`Fetching stock ledger for ${itemCode}:`, ledgerUrl);
-        
-        const ledgerResponse = await fetch(ledgerUrl, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Cookie': `sid=${sid}`,
-          },
+        const ledgerEntries = await client.getList('Stock Ledger Entry', {
+          fields: ['item_code', 'valuation_rate', 'posting_date'],
+          filters: [
+            ["item_code", "=", itemCode],
+            ["valuation_rate", ">", 0]
+          ],
+          order_by: 'posting_date desc',
+          limit_page_length: 1
         });
-
-        if (ledgerResponse.ok) {
-          const ledgerData = await ledgerResponse.json();
-          if (ledgerData.data && ledgerData.data.length > 0) {
-            const latestEntry = ledgerData.data[0];
-            valuationRates[itemCode] = latestEntry.valuation_rate || 0;
-            // console.log(`Valuation rate for ${itemCode}:`, latestEntry.valuation_rate);
-          } else {
-            valuationRates[itemCode] = 0;
-            // console.log(`No valuation rate found for ${itemCode}`);
-          }
+        
+        // console.log(`Fetching stock ledger for ${itemCode}`);
+        
+        if (ledgerEntries && ledgerEntries.length > 0) {
+          const latestEntry = ledgerEntries[0];
+          valuationRates[itemCode] = latestEntry.valuation_rate || 0;
+          // console.log(`Valuation rate for ${itemCode}:`, latestEntry.valuation_rate);
         } else {
           valuationRates[itemCode] = 0;
-          // console.log(`Failed to fetch ledger for ${itemCode}`);
+          // console.log(`No valuation rate found for ${itemCode}`);
         }
       } catch (error) {
         valuationRates[itemCode] = 0;
@@ -74,12 +77,9 @@ export async function GET(request: NextRequest) {
       message: 'Valuation rates fetched from stock ledger'
     });
 
-  } catch (error) {
-    console.error('Error in stock ledger API:', error);
-    return NextResponse.json({
-      success: false,
-      message: 'Failed to fetch valuation rates from stock ledger',
-      error: error instanceof Error ? error.message : 'Unknown error'
-    }, { status: 500 });
+  } catch (error: unknown) {
+    logSiteError(error, 'GET /api/inventory/items/valuation-rate', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

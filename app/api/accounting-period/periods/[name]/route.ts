@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { erpnextClient } from '@/lib/erpnext';
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 import type { AccountingPeriod } from '@/types/accounting-period';
 
 // GET /api/accounting-period/periods/[name]
@@ -7,7 +12,10 @@ export async function GET(
   request: NextRequest,
   context: { params: Promise<{ name: string }> }
 ) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
+    const client = await getERPNextClientForRequest(request);
     const params = await context.params;
     
     // Decode the period name (handle double encoding)
@@ -18,29 +26,17 @@ export async function GET(
       periodName = decodeURIComponent(periodName);
     }
 
-    // console.log('Fetching period:', periodName);
-
     // Fetch period details from ERPNext
-    const period = await erpnextClient.get<AccountingPeriod>('Accounting Period', periodName);
+    const period = await client.get<AccountingPeriod>('Accounting Period', periodName);
 
     return NextResponse.json({
       success: true,
       data: period,
     });
-  } catch (error: any) {
-    console.error('Error fetching accounting period:', error);
-    
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'FETCH_ERROR',
-        message: error.message || 'Failed to fetch accounting period',
-        debug: {
-          errorDetails: error.toString()
-        }
-      },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    logSiteError(error, 'GET /api/accounting-period/periods/[name]', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }
 
@@ -49,7 +45,10 @@ export async function PUT(
   request: NextRequest,
   context: { params: Promise<{ name: string }> }
 ) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
+    const client = await getERPNextClientForRequest(request);
     const params = await context.params;
     let periodName = params.name;
     
@@ -71,7 +70,7 @@ export async function PUT(
     }
 
     // Check if period is permanently closed
-    const period = await erpnextClient.get<AccountingPeriod>('Accounting Period', periodName);
+    const period = await client.get<AccountingPeriod>('Accounting Period', periodName);
     
     if (period.status === 'Permanently Closed') {
       return NextResponse.json(
@@ -85,7 +84,7 @@ export async function PUT(
     }
 
     // Update period in ERPNext
-    const updatedPeriod = await erpnextClient.update<AccountingPeriod>(
+    const updatedPeriod = await client.update<AccountingPeriod>(
       'Accounting Period',
       periodName,
       updateData
@@ -96,17 +95,10 @@ export async function PUT(
       data: updatedPeriod,
       message: 'Period updated successfully',
     });
-  } catch (error: any) {
-    console.error('Error updating accounting period:', error);
-    
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'UPDATE_ERROR',
-        message: error.message || 'Failed to update accounting period',
-      },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    logSiteError(error, 'PUT /api/accounting-period/periods/[name]', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }
 
@@ -115,7 +107,10 @@ export async function DELETE(
   request: NextRequest,
   context: { params: Promise<{ name: string }> }
 ) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
+    const client = await getERPNextClientForRequest(request);
     const params = await context.params;
     let periodName = params.name;
     
@@ -125,7 +120,7 @@ export async function DELETE(
     }
 
     // Check if period is closed
-    const period = await erpnextClient.get<AccountingPeriod>('Accounting Period', periodName);
+    const period = await client.get<AccountingPeriod>('Accounting Period', periodName);
     
     if (period.status === 'Closed' || period.status === 'Permanently Closed') {
       return NextResponse.json(
@@ -139,22 +134,15 @@ export async function DELETE(
     }
 
     // Delete period from ERPNext
-    await erpnextClient.delete('Accounting Period', periodName);
+    await client.delete('Accounting Period', periodName);
 
     return NextResponse.json({
       success: true,
       message: 'Period deleted successfully',
     });
-  } catch (error: any) {
-    console.error('Error deleting accounting period:', error);
-    
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'DELETE_ERROR',
-        message: error.message || 'Failed to delete accounting period',
-      },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    logSiteError(error, 'DELETE /api/accounting-period/periods/[name]', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

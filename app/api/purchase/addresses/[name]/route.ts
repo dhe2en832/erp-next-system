@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 
 type ParamsInput = { params: { name: string } | Promise<{ name: string }> };
 
@@ -13,54 +17,53 @@ async function resolveName(params: ParamsInput['params']): Promise<string> {
 }
 
 export async function GET(request: NextRequest, { params }: ParamsInput) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const name = await resolveName(params);
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-
-    const apiKey = process.env.ERP_API_KEY;
-    const apiSecret = process.env.ERP_API_SECRET;
     const sid = request.cookies.get('sid')?.value;
-
-    if (apiKey && apiSecret) {
-      headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-    } else if (sid) {
-      headers['Cookie'] = `sid=${sid}`;
-    } else {
-      return NextResponse.json({ success: false, message: 'No authentication available' }, { status: 401 });
+    
+    if (!sid) {
+      return NextResponse.json(
+        { success: false, message: 'No authentication available' }, 
+        { status: 401 }
+      );
     }
 
-    const url = `${ERPNEXT_API_URL}/api/resource/Address/${name}`;
-    let resp = await fetch(url, { method: 'GET', headers });
-    let data = await resp.json();
+    const client = await getERPNextClientForRequest(request);
 
-    if (resp.ok && data.data) {
-      return NextResponse.json({ success: true, data: data.data });
-    }
-
-    // fallback: search by address_title
+    // Try direct fetch by name
     try {
-      const searchUrl = `${ERPNEXT_API_URL}/api/resource/Address?fields=["name","address_title","address_line1","city"]&filters=${encodeURIComponent(JSON.stringify([["address_title","=",name]]))}&limit_page_length=1`;
-      const searchResp = await fetch(searchUrl, { method: 'GET', headers });
-      const searchData = await searchResp.json();
-      if (searchResp.ok && Array.isArray(searchData.data) && searchData.data.length > 0) {
-        const actualName = searchData.data[0].name;
-        const detailUrl = `${ERPNEXT_API_URL}/api/resource/Address/${actualName}`;
-        resp = await fetch(detailUrl, { method: 'GET', headers });
-        data = await resp.json();
-        if (resp.ok && data.data) {
-          return NextResponse.json({ success: true, data: data.data });
-        }
+      const data = await client.get('Address', name);
+      return NextResponse.json({ success: true, data });
+    } catch (err) {
+      console.error('Address GET direct error:', err);
+    }
+
+    // Fallback: search by address_title
+    try {
+      const searchResults = await client.getList('Address', {
+        fields: ['name', 'address_title', 'address_line1', 'city'],
+        filters: [["address_title", "=", name]],
+        limit_page_length: 1
+      });
+      
+      if (Array.isArray(searchResults) && searchResults.length > 0) {
+        const actualName = searchResults[0].name;
+        const data = await client.get('Address', actualName);
+        return NextResponse.json({ success: true, data });
       }
     } catch (err) {
       console.error('Address detail fallback error:', err);
     }
 
     return NextResponse.json(
-      { success: false, message: data.message || data.exc || 'Failed to fetch address detail' },
-      { status: resp.status }
+      { success: false, message: 'Failed to fetch address detail' },
+      { status: 404 }
     );
-  } catch (error) {
-    console.error('Address detail GET error:', error);
-    return NextResponse.json({ success: false, message: 'Internal server error' }, { status: 500 });
+  } catch (error: unknown) {
+    logSiteError(error, 'GET /api/purchase/addresses/[name]', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

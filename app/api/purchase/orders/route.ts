@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 
 export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
-    // console.log('=== Purchase Orders API Called ===');
-    
     const { searchParams } = new URL(request.url);
     const company = searchParams.get('company');
     const limitPageLength = searchParams.get('limit_page_length');
@@ -17,33 +21,15 @@ export async function GET(request: NextRequest) {
     const toDate = searchParams.get('to_date');
     const orderBy = searchParams.get('order_by');
 
-    // console.log('Request params:', { company, search, documentNumber, status, fromDate, toDate, orderBy });
-
     if (!company) {
-      // console.log('ERROR: Company is required');
       return NextResponse.json(
         { success: false, message: 'Company is required' },
         { status: 400 }
       );
     }
 
-    // Use API key authentication instead of session
-    const apiKey = process.env.ERP_API_KEY;
-    const apiSecret = process.env.ERP_API_SECRET;
-
-    // console.log('API Key exists:', !!apiKey);
-    // console.log('API Secret exists:', !!apiSecret);
-
-    // if (!apiKey || !apiSecret) {
-    //   console.log('ERROR: ERPNext API credentials not configured');
-    //   return NextResponse.json(
-    //     { success: false, message: 'ERPNext API credentials not configured' },
-    //     { status: 500 }
-    //   );
-    // }
-
-    // Build ERPNext API URL
-    let filters = [
+    // Build filters array
+    let filters: any[][] = [
       ["company", "=", company]
     ];
 
@@ -71,7 +57,6 @@ export async function GET(request: NextRequest) {
     // Add additional filters if provided
     if (search) {
       // Search by supplier name or PO number
-      // console.log('Adding search filter for:', search);
       filters.push(["supplier_name", "like", `%${search}%`]);
     }
 
@@ -92,40 +77,20 @@ export async function GET(request: NextRequest) {
       "status", "grand_total", "currency", "docstatus", "per_received"
     ];
 
-    const params = new URLSearchParams({
-      fields: JSON.stringify(fields),
-      filters: JSON.stringify(filters),
-      limit_page_length: limitPageLength || '20',
-      ...(limitStart && { limit_start: limitStart }),
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
+    
+    // Use client method instead of direct fetch
+    const data = await client.getList('Purchase Order', {
+      fields: fields,
+      filters: filters,
+      limit_page_length: parseInt(limitPageLength || '20'),
+      ...(limitStart && { start: parseInt(limitStart) }),
       ...(orderBy && { order_by: orderBy })
     });
 
-    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Purchase Order?${params}`;
-
-    // console.log('ERPNext PO URL:', erpNextUrl);
-
-    const response = await fetch(erpNextUrl, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `token ${apiKey}:${apiSecret}`,
-      },
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('ERPNext API error:', response.status, errorText);
-      return NextResponse.json(
-        { success: false, message: 'Failed to fetch from ERPNext' },
-        { status: 500 }
-      );
-    }
-
-    const data = await response.json();
-    // console.log('ERPNext response data count:', data.data?.length || 0);
-
     // Transform data to match frontend interface
-    const transformedData = (data.data || []).map((po: any) => ({
+    const transformedData = (data || []).map((po: any) => ({
       name: po.name,
       supplier: po.supplier,
       supplier_name: po.supplier_name,
@@ -141,56 +106,81 @@ export async function GET(request: NextRequest) {
       message: 'Purchase Orders fetched successfully'
     });
   } catch (error) {
-    console.error('Purchase Orders API Error:', error);
-    return NextResponse.json(
-      { success: false, message: 'Internal server error', error: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500 }
-    );
+    logSiteError(error, 'GET /api/purchase/orders', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }
 
+
 export async function POST(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const purchaseOrderData = await request.json();
 
-    // Use API key authentication instead of session
-    const apiKey = process.env.ERP_API_KEY;
-    const apiSecret = process.env.ERP_API_SECRET;
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
+    
+    // Use client method instead of direct fetch
+    const newOrder = await client.insert('Purchase Order', purchaseOrderData);
 
-    if (!apiKey || !apiSecret) {
-      return NextResponse.json(
-        { success: false, message: 'ERPNext API credentials not configured' },
-        { status: 500 }
-      );
-    }
-
-    const response = await fetch(`${ERPNEXT_API_URL}/api/resource/Purchase Order`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `token ${apiKey}:${apiSecret}`,
-      },
-      body: JSON.stringify(purchaseOrderData),
+    return NextResponse.json({
+      success: true,
+      data: newOrder,
     });
-
-    const data = await response.json();
-
-    if (response.ok) {
-      return NextResponse.json({
-        success: true,
-        data: data.data,
-      });
-    } else {
-      return NextResponse.json(
-        { success: false, message: data.exc || data.message || 'Failed to create purchase order' },
-        { status: response.status }
-      );
+  } catch (error: unknown) {
+    logSiteError(error, 'POST /api/purchase/orders', siteId);
+    
+    // Extract detailed error message from ERPNext
+    let errorMessage = 'Failed to create purchase order';
+    
+    if (error && typeof error === 'object' && 'message' in error) {
+      const errorObj = error as any;
+      
+      if (errorObj.exc) {
+        // Parse ERPNext exception
+        try {
+          const excData = JSON.parse(errorObj.exc);
+          
+          if (excData.exc_type === 'MandatoryError') {
+            errorMessage = `Missing required field: ${excData.message}`;
+          } else if (excData.exc_type === 'ValidationError') {
+            errorMessage = `Validation error: ${excData.message}`;
+          } else if (excData.exc_type === 'LinkValidationError') {
+            errorMessage = `Invalid reference: ${excData.message}`;
+          } else if (excData.exc_type === 'PermissionError') {
+            errorMessage = `Permission denied: ${excData.message}`;
+          } else {
+            errorMessage = `${excData.exc_type}: ${excData.message}`;
+          }
+        } catch (_e) {
+          errorMessage = errorObj.message || errorObj.exc || 'Failed to create purchase order';
+        }
+      } else if (errorObj.message) {
+        errorMessage = errorObj.message;
+      } else if (errorObj._server_messages) {
+        try {
+          const serverMessages = JSON.parse(errorObj._server_messages);
+          errorMessage = serverMessages[0]?.message || serverMessages[0] || errorMessage;
+        } catch (_e) {
+          errorMessage = errorObj._server_messages;
+        }
+      } else if (errorObj.exc_type && errorObj.exc_message) {
+        errorMessage = `${errorObj.exc_type}: ${errorObj.exc_message}`;
+      }
+    } else if (error instanceof Error) {
+      errorMessage = error.message;
     }
-  } catch (error) {
-    console.error('Purchase Order creation error:', error);
+    
+    console.error('Purchase Order POST Error Details:', {
+      errorMessage: errorMessage
+    });
+    
     return NextResponse.json(
-      { success: false, message: 'Internal server error' },
+      { success: false, message: errorMessage },
       { status: 500 }
     );
   }
 }
+

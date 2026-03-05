@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthHeaders } from '@/lib/report-auth-helper';
 import { PurchaseInvoiceWithItems, PurchaseInvoiceDetailsResponse } from '@/types/purchase-invoice-details';
 import { validateDateRange } from '@/utils/report-validation';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+import {
+  getERPNextClientForRequest,
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError
+} from '@/lib/api-helpers';
 
 export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+
   try {
     const searchParams = request.nextUrl.searchParams;
     const company = searchParams.get('company');
@@ -29,10 +34,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const headers = getAuthHeaders(request);
+    const sid = request.cookies.get('sid')?.value;
+    if (!sid) {
+      return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
+    }
+
+    const client = await getERPNextClientForRequest(request);
 
     // Build filters for ERPNext API
-    const filters: any[] = [
+    const filters: any[][] = [
       ['docstatus', '=', '1'],
       ['company', '=', company]
     ];
@@ -46,65 +56,28 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch list of purchase invoices
-    const listUrl = new URL(`${ERPNEXT_API_URL}/api/resource/Purchase Invoice`);
-    listUrl.searchParams.set('fields', JSON.stringify([
-      'name',
-      'supplier',
-      'supplier_name',
-      'posting_date',
-      'status',
-      'docstatus',
-      'grand_total',
-      'outstanding_amount'
-    ]));
-    listUrl.searchParams.set('filters', JSON.stringify(filters));
-    listUrl.searchParams.set('limit_page_length', '500');
-
-    const listResponse = await fetch(listUrl.toString(), {
-      method: 'GET',
-      headers,
-      signal: AbortSignal.timeout(30000)
+    const listData = await client.getList('Purchase Invoice', {
+      fields: [
+        'name',
+        'supplier',
+        'supplier_name',
+        'posting_date',
+        'status',
+        'docstatus',
+        'grand_total',
+        'outstanding_amount'
+      ],
+      filters,
+      limit_page_length: 500
     });
 
-    if (!listResponse.ok) {
-      if (listResponse.status === 401) {
-        return NextResponse.json(
-          { success: false, message: 'Unauthorized. Please check your credentials.' },
-          { status: 401 }
-        );
-      }
-      const errorData = await listResponse.json();
-      return NextResponse.json(
-        { 
-          success: false, 
-          message: errorData.message || 'Failed to fetch purchase invoices from ERPNext' 
-        },
-        { status: listResponse.status }
-      );
-    }
-
-    const listData = await listResponse.json();
-    const invoices = listData.data || [];
+    const invoices = listData || [];
 
     // Fetch details for each invoice in parallel
     const detailPromises = invoices.map(async (invoice: any) => {
       try {
-        const detailUrl = `${ERPNEXT_API_URL}/api/resource/Purchase Invoice/${invoice.name}`;
-        const detailResponse = await fetch(detailUrl, {
-          method: 'GET',
-          headers,
-          signal: AbortSignal.timeout(30000)
-        });
+        const detailData = await client.get('Purchase Invoice', invoice.name);
 
-        if (!detailResponse.ok) {
-          console.error(`Failed to fetch details for ${invoice.name}`);
-          return {
-            ...invoice,
-            items: []
-          };
-        }
-
-        const detailData = await detailResponse.json();
         return {
           name: detailData.data.name,
           supplier: detailData.data.supplier,
@@ -147,19 +120,10 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(response);
 
-  } catch (error: any) {
-    console.error('Purchase Invoice Details API Error:', error);
-    
-    if (error.name === 'TimeoutError') {
-      return NextResponse.json(
-        { success: false, message: 'Request timeout. Please try again.' },
-        { status: 504 }
-      );
-    }
-    
-    return NextResponse.json(
-      { success: false, message: 'Network error. Please check your connection.' },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    logSiteError(error, 'GET /api/finance/reports/purchase-invoice-details', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    const statusCode = errorResponse.errorType === 'authentication' ? 401 : 500;
+    return NextResponse.json(errorResponse, { status: statusCode });
   }
 }

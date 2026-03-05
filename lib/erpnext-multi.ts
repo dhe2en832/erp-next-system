@@ -8,16 +8,12 @@
  * - Site-specific API URL routing
  * - Site-specific authentication headers
  * - Backward compatible with single-site usage
- * - React hook for component usage
+ * - Server-side and client-side support
  */
 
-'use client';
-
-import { useMemo } from 'react';
 import { ERPNextClient } from './erpnext';
 import { SiteConfig } from './site-config';
 import { makeErpHeaders } from '@/utils/erpnext-auth-multi';
-import { useSite } from './site-context';
 
 /**
  * ERPNextMultiClient
@@ -93,48 +89,4 @@ export function getERPNextClientForSite(siteConfig: SiteConfig): ERPNextMultiCli
   }
 
   return new ERPNextMultiClient(siteConfig);
-}
-
-/**
- * React hook to get an ERPNext client for the currently active site
- * 
- * This hook uses the site context to automatically create a client
- * configured for the active site. It will throw an error if no site
- * is currently selected.
- * 
- * @returns ERPNextMultiClient configured for the active site
- * @throws Error if no site is currently active
- * 
- * @example
- * ```tsx
- * function MyComponent() {
- *   const client = useERPNextClient();
- *   
- *   useEffect(() => {
- *     async function fetchData() {
- *       const items = await client.getList('Item');
- *       setItems(items);
- *     }
- *     fetchData();
- *   }, [client]);
- *   
- *   return <div>...</div>;
- * }
- * ```
- */
-export function useERPNextClient(): ERPNextMultiClient {
-  const { activeSite } = useSite();
-
-  // Create client instance, memoized by site to avoid recreating on every render
-  const client = useMemo(() => {
-    if (!activeSite) {
-      throw new Error(
-        'No active site selected. Please select a site before making API requests.'
-      );
-    }
-
-    return new ERPNextMultiClient(activeSite);
-  }, [activeSite]); // Recreate when site changes
-
-  return client;
 }

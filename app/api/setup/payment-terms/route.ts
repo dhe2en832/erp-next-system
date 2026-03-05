@@ -1,75 +1,67 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
-
-function getAuthHeaders(request: NextRequest): Record<string, string> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  const sid = request.cookies.get('sid')?.value;
-  const apiKey = process.env.ERP_API_KEY;
-  const apiSecret = process.env.ERP_API_SECRET;
-
-  if (apiKey && apiSecret) {
-    headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-  } else if (sid) {
-    headers['Cookie'] = `sid=${sid}`;
-  }
-  return headers;
-}
+import {
+  getERPNextClientForRequest,
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError
+} from '@/lib/api-helpers';
 
 export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+
   try {
-    const headers = getAuthHeaders(request);
-    if (!headers['Authorization'] && !headers['Cookie']) {
+    // Check authentication
+    const sid = request.cookies.get('sid')?.value;
+    const apiKey = process.env.ERP_API_KEY;
+    const apiSecret = process.env.ERP_API_SECRET;
+
+    if (!apiKey && !apiSecret && !sid) {
       return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
     }
 
-    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Payment Terms Template?fields=["name"]&limit_page_length=100&order_by=name`;
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
 
-    const response = await fetch(erpNextUrl, { method: 'GET', headers });
-    const data = await response.json();
+    // Fetch payment terms using client method
+    const paymentTerms = await client.getList('Payment Terms Template', {
+      fields: ['name'],
+      limit_page_length: 100,
+      order_by: 'name'
+    });
 
-    if (response.ok) {
-      return NextResponse.json({ success: true, data: data.data || [] });
-    } else {
-      return NextResponse.json(
-        { success: false, message: data.message || 'Failed to fetch payment terms' },
-        { status: response.status }
-      );
-    }
-  } catch (error) {
-    console.error('Payment Terms API Error:', error);
-    return NextResponse.json({ success: false, message: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ success: true, data: paymentTerms });
+  } catch (error: unknown) {
+    logSiteError(error, 'GET /api/setup/payment-terms', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+
   try {
-    const headers = getAuthHeaders(request);
-    if (!headers['Authorization'] && !headers['Cookie']) {
+    // Check authentication
+    const sid = request.cookies.get('sid')?.value;
+    const apiKey = process.env.ERP_API_KEY;
+    const apiSecret = process.env.ERP_API_SECRET;
+
+    if (!apiKey && !apiSecret && !sid) {
       return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
     }
 
     const body = await request.json();
-    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Payment Terms Template`;
 
-    const response = await fetch(erpNextUrl, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ data: body }),
-    });
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
 
-    const data = await response.json();
+    // Create payment terms template using client method
+    const result = await client.insert('Payment Terms Template', body);
 
-    if (response.ok) {
-      return NextResponse.json({ success: true, data: data.data });
-    } else {
-      return NextResponse.json(
-        { success: false, message: data.message || data.exc || 'Failed to create payment terms template' },
-        { status: response.status }
-      );
-    }
-  } catch (error) {
-    console.error('Payment Terms POST API Error:', error);
-    return NextResponse.json({ success: false, message: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ success: true, data: result });
+  } catch (error: unknown) {
+    logSiteError(error, 'POST /api/setup/payment-terms', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

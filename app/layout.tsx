@@ -4,6 +4,7 @@ import "./globals.css";
 import Navbar from "./components/Navbar";
 import { ToastProvider } from "../lib/toast-context";
 import { SiteProvider } from "../lib/site-context";
+import { SiteGuard } from "../components/SiteGuard";
 import ToastContainer from "../components/ToastContainer";
 import { EnvironmentBadge } from "../components/EnvironmentBadge";
 import { getAppEnvironment } from '@/lib/env-validation';
@@ -36,12 +37,14 @@ export default function RootLayout({
       <body className={inter.className}>
         <SiteProvider>
           <ToastProvider>
-            <Navbar />
-            <main className="min-h-screen bg-gray-50">
-              {children}
-            </main>
-            <ToastContainer />
-            <EnvironmentBadge />
+            <SiteGuard>
+              <Navbar />
+              <main className="min-h-screen bg-gray-50">
+                {children}
+              </main>
+              <ToastContainer />
+              <EnvironmentBadge />
+            </SiteGuard>
           </ToastProvider>
         </SiteProvider>
       </body>

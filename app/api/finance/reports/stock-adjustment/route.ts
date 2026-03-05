@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateDateRange } from '@/utils/report-validation';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+import {
+  getERPNextClientForRequest,
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError
+} from '@/lib/api-helpers';
 
 export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+
   try {
     const { searchParams } = new URL(request.url);
     const company = searchParams.get('company');
@@ -28,13 +34,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const _h: Record<string, string> = { 'Content-Type': 'application/json' };
-    const _ak = process.env.ERP_API_KEY;
-    const _as = process.env.ERP_API_SECRET;
-    if (_ak && _as) { _h['Authorization'] = `token ${_ak}:${_as}`; } else { _h['Cookie'] = `sid=${sid}`; }
+    const client = await getERPNextClientForRequest(request);
 
     // Get Stock Entries with purpose = "Material Issue/Receipt/Reconciliation"
-    const filters = [
+    const filters: any[][] = [
       ['company', '=', company],
       ['docstatus', '=', 1],
       ['purpose', 'in', ['Material Receipt', 'Material Issue', 'Repack', 'Stock Reconciliation']]
@@ -42,32 +45,33 @@ export async function GET(request: NextRequest) {
     if (from_date) filters.push(['posting_date', '>=', from_date]);
     if (to_date) filters.push(['posting_date', '<=', to_date]);
 
-    const url = `${ERPNEXT_API_URL}/api/resource/Stock Entry?fields=["name","posting_date","purpose","total_amount","remarks"]&filters=${encodeURIComponent(JSON.stringify(filters))}&order_by=posting_date desc&limit_page_length=200`;
+    const data = await client.getList('Stock Entry', {
+      fields: ['name', 'posting_date', 'purpose', 'total_amount', 'remarks'],
+      filters,
+      order_by: 'posting_date desc',
+      limit_page_length: 200
+    });
 
-    const response = await fetch(url, { method: 'GET', headers: _h });
-    const data = await response.json();
+    // Get GL Entry for each Stock Entry to see journal impact
+    const entries = [];
+    for (const se of (data || [])) {
+      const glFilters: any[][] = [['voucher_type', '=', 'Stock Entry'], ['voucher_no', '=', se.name]];
+      const glData = await client.getList('GL Entry', {
+        fields: ['account', 'debit', 'credit'],
+        filters: glFilters,
+        limit_page_length: 50
+      });
 
-    if (response.ok) {
-      // Get GL Entry for each Stock Entry to see journal impact
-      const entries = [];
-      for (const se of (data.data || [])) {
-        const glFilters = [['voucher_type', '=', 'Stock Entry'], ['voucher_no', '=', se.name]];
-        const glUrl = `${ERPNEXT_API_URL}/api/resource/GL Entry?fields=["account","debit","credit"]&filters=${encodeURIComponent(JSON.stringify(glFilters))}&limit_page_length=50`;
-        const glResp = await fetch(glUrl, { headers: _h });
-        const glData = await glResp.json();
-
-        entries.push({
-          ...se,
-          gl_entries: glData.data || []
-        });
-      }
-
-      return NextResponse.json({ success: true, data: entries });
+      entries.push({
+        ...se,
+        gl_entries: glData || []
+      });
     }
 
-    return NextResponse.json({ success: false, message: 'Failed to fetch stock adjustments' }, { status: response.status });
-  } catch (error: any) {
-    console.error('Stock Adjustment API error:', error);
-    return NextResponse.json({ success: false, message: error.message || 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ success: true, data: entries });
+  } catch (error: unknown) {
+    logSiteError(error, 'GET /api/finance/reports/stock-adjustment', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

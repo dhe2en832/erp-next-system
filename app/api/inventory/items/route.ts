@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 
 export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const { searchParams } = new URL(request.url);
     
@@ -25,115 +31,65 @@ export async function GET(request: NextRequest) {
     ];
     const fields = fieldsParam ? fieldsParam.split(',') : defaultFields;
     
-    // ✅ Minimal headers to avoid 417 Expectation Failed
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-    };
-
-    // Authentication
-    const apiKey = process.env.ERP_API_KEY;
-    const apiSecret = process.env.ERP_API_SECRET;
-    
-    if (apiKey && apiSecret) {
-      headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-    } else if (sid) {
-      headers['Cookie'] = `sid=${sid}`;
-    }
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
 
     // ✅ STEP 1: Get total count using frappe.client.get_count
     let totalCount = 0;
     try {
-      const countUrl = `${ERPNEXT_API_URL}/api/method/frappe.client.get_count`;
-      const countBody = {
-        doctype: 'Item',
-        filters: filters ? JSON.parse(filters) : []
-      };
+      const countFilters = filters ? JSON.parse(filters) : [];
       
-      // console.log('🔢 Fetching total count with filters:', JSON.stringify(countBody.filters));
+      // console.log('🔢 Fetching total count with filters:', JSON.stringify(countFilters));
       
-      const countResponse = await fetch(countUrl, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(countBody),
+      totalCount = await client.getCount('Item', {
+        filters: countFilters
       });
       
-      if (countResponse.ok) {
-        const countData = await countResponse.json();
-        totalCount = countData.message || 0;
-        // console.log('📊 Total count from ERPNext:', totalCount);
-      } else {
-        console.log('⚠️ Count request failed:', countResponse.status);
-      }
+      // console.log('📊 Total count from ERPNext:', totalCount);
     } catch (error) {
       console.log('⚠️ Failed to get total count:', error);
     }
 
     // ✅ STEP 2: Get actual data with fields
-    const queryParams = new URLSearchParams();
-    queryParams.append('fields', JSON.stringify(fields));
-    queryParams.append('limit_page_length', limit);
-    queryParams.append('limit_start', start); // ERPNext uses limit_start for pagination offset
-    queryParams.append('order_by', orderBy);
+    const queryFilters = filters ? JSON.parse(filters) : [];
     
-    if (filters) {
-      queryParams.append('filters', filters);
-    }
-
-    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Item?${queryParams.toString()}`;
-    // console.log('🔍 Items ERPNext URL:', erpNextUrl);
-
-    // ✅ GET request without body
-    const response = await fetch(erpNextUrl, {
-      method: 'GET',
-      headers,
+    const items = await client.getList('Item', {
+      fields,
+      filters: queryFilters,
+      limit_page_length: parseInt(limit),
+      start: parseInt(start),
+      order_by: orderBy
     });
-
-    const data = await response.json();
     
     // Log raw ERPNext response (for debugging if needed)
     // console.log('📦 Raw ERPNext Response:', JSON.stringify({
     //   status: response.status,
-    //   data_length: data.data?.length,
-    //   total_count: data.total_count,
-    //   has_total_count: 'total_count' in data,
-    //   response_keys: Object.keys(data),
-    //   first_item: data.data?.[0]?.item_code,
-    //   last_item: data.data?.[data.data?.length - 1]?.item_code,
+    //   data_length: items?.length,
+    //   total_count: totalCount,
+    //   first_item: items?.[0]?.item_code,
+    //   last_item: items?.[items?.length - 1]?.item_code,
     //   start_param: start,
     // }, null, 2));
     
     // console.log('✅ Items API Response:', { 
-    //   status: response.status, 
-    //   count: data.data?.length,
-    //   total_count: data.total_count,
-    //   message: data.message
+    //   count: items?.length,
+    //   total_count: totalCount
     // });
 
-    if (response.ok) {
-      // Use total_count from first request, or from data response, or fallback to data length
-      const finalTotalCount = totalCount || data.total_count || data.data?.length || 0;
-      
-      // console.log('✅ Final total count:', finalTotalCount);
-      
-      return NextResponse.json({
-        success: true,
-        data: data.data || [],
-        total_records: finalTotalCount,
-      });
-    } else {
-      console.error('❌ ERPNext Error:', data);
-      return NextResponse.json(
-        { success: false, message: data.message || 'Failed to fetch items' },
-        { status: response.status }
-      );
-    }
-  } catch (error: any) {
-    console.error('❌ Items API Error:', error);
-    return NextResponse.json(
-      { success: false, message: error.message || 'Internal server error' },
-      { status: 500 }
-    );
+    // Use total_count from first request, or fallback to data length
+    const finalTotalCount = totalCount || items?.length || 0;
+    
+    // console.log('✅ Final total count:', finalTotalCount);
+    
+    return NextResponse.json({
+      success: true,
+      data: items || [],
+      total_records: finalTotalCount,
+    });
+  } catch (error: unknown) {
+    logSiteError(error, 'GET /api/inventory/items', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }
 
@@ -141,6 +97,8 @@ export async function GET(request: NextRequest) {
 // ... (paste kode POST/PUT Anda di sini)
 
 export async function POST(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const itemData = await request.json();
 
@@ -202,114 +160,76 @@ export async function POST(request: NextRequest) {
     //   company
     // });
 
-    // Try API Key authentication for POST (CSRF not required)
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
 
-    // Try API Key first for POST requests
-    const apiKey = process.env.ERP_API_KEY;
-    const apiSecret = process.env.ERP_API_SECRET;
-    
-    if (apiKey && apiSecret) {
-      headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-      // console.log('Using API Key authentication for POST');
-    } else {
-      // Fallback to session
-      headers['Cookie'] = `sid=${sid}`;
-      // console.log('Using session authentication for POST');
-    }
-
-    const response = await fetch(`${ERPNEXT_API_URL}/api/resource/Item`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(validCreateData),
-    });
-
-    const data = await response.json();
+    const result = await client.insert('Item', validCreateData);
     
     // console.log('Create Item Response:', {
-    //   status: response.status,
     //   createData: validCreateData,
-    //   erpNextResponse: data
+    //   erpNextResponse: result
     // });
 
-    if (response.ok) {
-      // Update Item Price records if price fields provided
-      const newItemCode = data.data?.item_code || data.data?.name;
+    // Update Item Price records if price fields provided
+    const newItemCode = result?.item_code || result?.name;
+    
+    if (newItemCode) {
+      const priceUpdates = [];
       
-      if (newItemCode) {
-        const priceUpdates = [];
-        
-        if (createData.last_purchase_rate !== undefined) {
-          priceUpdates.push({
-            price_list: 'Standar Pembelian',
-            price_list_rate: createData.last_purchase_rate
-          });
-        }
-        
-        if (createData.standard_rate !== undefined) {
-          priceUpdates.push({
-            price_list: 'Standard Jual', 
-            price_list_rate: createData.standard_rate
-          });
-        }
-
-        // Update Item Price records for new item
-        for (const priceUpdate of priceUpdates) {
-          try {
-            // console.log('Creating Item Price for new item:', priceUpdate);
-            
-            const pricePayload: any = {
-              item_code: newItemCode,
-              price_list: priceUpdate.price_list,
-              price_list_rate: priceUpdate.price_list_rate
-            };
-            
-            // Add custom_company if company is available
-            if (company) {
-              pricePayload.custom_company = company;
-            }
-            
-            const createPriceResponse = await fetch(`${ERPNEXT_API_URL}/api/resource/Item Price`, {
-              method: 'POST',
-              headers,
-              body: JSON.stringify(pricePayload),
-            });
-            
-            if (createPriceResponse.ok) {
-              // console.log(`Created ${priceUpdate.price_list} price at ${priceUpdate.price_list_rate} for company ${company || 'default'}`);
-            } else {
-              const errorData = await createPriceResponse.json();
-              // console.log(`Failed to create ${priceUpdate.price_list} price:`, errorData);
-            }
-          } catch (error) {
-            // console.log(`Error creating ${priceUpdate.price_list} price:`, error);
-          }
-        }
+      if (createData.last_purchase_rate !== undefined) {
+        priceUpdates.push({
+          price_list: 'Standar Pembelian',
+          price_list_rate: createData.last_purchase_rate
+        });
+      }
+      
+      if (createData.standard_rate !== undefined) {
+        priceUpdates.push({
+          price_list: 'Standard Jual', 
+          price_list_rate: createData.standard_rate
+        });
       }
 
-      return NextResponse.json({
-        success: true,
-        data: data.data,
-        message: 'Item created successfully'
-      });
-    } else {
-      return NextResponse.json(
-        { success: false, message: data.message || 'Failed to create item' },
-        { status: response.status }
-      );
+      // Update Item Price records for new item
+      for (const priceUpdate of priceUpdates) {
+        try {
+          // console.log('Creating Item Price for new item:', priceUpdate);
+          
+          const pricePayload: any = {
+            item_code: newItemCode,
+            price_list: priceUpdate.price_list,
+            price_list_rate: priceUpdate.price_list_rate
+          };
+          
+          // Add custom_company if company is available
+          if (company) {
+            pricePayload.custom_company = company;
+          }
+          
+          await client.insert('Item Price', pricePayload);
+          
+          // console.log(`Created ${priceUpdate.price_list} price at ${priceUpdate.price_list_rate} for company ${company || 'default'}`);
+        } catch (error) {
+          // console.log(`Error creating ${priceUpdate.price_list} price:`, error);
+        }
+      }
     }
-  } catch (error) {
-    console.error('Create Item Error:', error);
-    return NextResponse.json(
-      { success: false, message: 'Internal server error' },
-      { status: 500 }
-    );
+
+    return NextResponse.json({
+      success: true,
+      data: result,
+      message: 'Item created successfully'
+    });
+  } catch (error: unknown) {
+    logSiteError(error, 'POST /api/inventory/items', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }
 
 export async function PUT(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const itemData = await request.json();
     const { item_code, ...updateData } = itemData;
@@ -361,75 +281,17 @@ export async function PUT(request: NextRequest) {
     //   company
     // });
 
-    // Try API Key authentication for PUT (CSRF not required)
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-
-    // Try API Key first for PUT requests
-    const apiKey = process.env.ERP_API_KEY;
-    const apiSecret = process.env.ERP_API_SECRET;
-    
-    if (apiKey && apiSecret) {
-      headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-      // console.log('Using API Key authentication for PUT');
-    } else if (sid) {
-      // Fallback to session with CSRF token
-      // console.log('Getting CSRF token...');
-      const csrfResponse = await fetch(`${ERPNEXT_API_URL}/api/method/frappe.auth.get_csrf_token`, {
-        method: 'GET',
-        headers: {
-          'Cookie': `sid=${sid}`,
-        },
-      });
-
-      // console.log('CSRF Response status:', csrfResponse.status);
-      
-      let csrfToken = '';
-      if (csrfResponse.ok) {
-        const csrfData = await csrfResponse.json();
-        csrfToken = csrfData.csrf_token || '';
-        // console.log('CSRF Token obtained:', csrfToken);
-      } else {
-        // console.log('CSRF Token failed:', csrfResponse.status);
-        const csrfError = await csrfResponse.text();
-        // console.log('CSRF Error body:', csrfError);
-      }
-
-      headers['Cookie'] = `sid=${sid}`;
-      
-      if (csrfToken) {
-        headers['X-Frappe-CSRF-Token'] = csrfToken;
-      }
-    } else {
-      return NextResponse.json(
-        { success: false, message: 'No authentication available' },
-        { status: 401 }
-      );
-    }
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
 
     // Update master item
-    const response = await fetch(`${ERPNEXT_API_URL}/api/resource/Item/${encodeURIComponent(item_code)}`, {
-      method: 'PUT',
-      headers,
-      body: JSON.stringify(validUpdateData),
-    });
-
-    const data = await response.json();
+    const result = await client.update('Item', item_code, validUpdateData);
     
     // console.log('Update Item Response:', {
-    //   status: response.status,
     //   item_code,
     //   updateData: validUpdateData,
-    //   erpNextResponse: data
+    //   erpNextResponse: result
     // });
-
-    if (!response.ok) {
-      return NextResponse.json(
-        { success: false, message: data.message || 'Failed to update item' },
-        { status: response.status }
-      );
-    }
 
     // Update Item Price records if price fields changed
     const priceUpdates = [];
@@ -465,64 +327,42 @@ export async function PUT(request: NextRequest) {
         }
         
         // Check if Item Price exists
-        const checkResponse = await fetch(`${ERPNEXT_API_URL}/api/resource/Item Price?filters=${JSON.stringify(filters)}`, {
-          method: 'GET',
-          headers,
+        const existingPrices = await client.getList('Item Price', {
+          filters,
+          fields: ['name']
         });
 
-        if (checkResponse.ok) {
-          const checkData = await checkResponse.json();
+        if (existingPrices && existingPrices.length > 0) {
+          // Update existing Item Price
+          const existingPrice = existingPrices[0];
+          const updatePricePayload: any = {
+            price_list_rate: priceUpdate.price_list_rate
+          };
           
-          if (checkData.data && checkData.data.length > 0) {
-            // Update existing Item Price
-            const existingPrice = checkData.data[0];
-            const updatePricePayload: any = {
-              price_list_rate: priceUpdate.price_list_rate
-            };
-            
-            // Update custom_company if provided
-            if (company) {
-              updatePricePayload.custom_company = company;
-            }
-            
-            const updatePriceResponse = await fetch(`${ERPNEXT_API_URL}/api/resource/Item Price/${existingPrice.name}`, {
-              method: 'PUT',
-              headers,
-              body: JSON.stringify(updatePricePayload),
-            });
-            
-            if (updatePriceResponse.ok) {
-              // console.log(`Updated ${priceUpdate.price_list} price to ${priceUpdate.price_list_rate} for company ${company || 'default'}`);
-            } else {
-              const errorData = await updatePriceResponse.json();
-              // console.log(`Failed to update ${priceUpdate.price_list} price:`, errorData);
-            }
-          } else {
-            // Create new Item Price
-            const createPricePayload: any = {
-              item_code: item_code,
-              price_list: priceUpdate.price_list,
-              price_list_rate: priceUpdate.price_list_rate
-            };
-            
-            // Add custom_company if available
-            if (company) {
-              createPricePayload.custom_company = company;
-            }
-            
-            const createPriceResponse = await fetch(`${ERPNEXT_API_URL}/api/resource/Item Price`, {
-              method: 'POST',
-              headers,
-              body: JSON.stringify(createPricePayload),
-            });
-            
-            if (createPriceResponse.ok) {
-              // console.log(`Created ${priceUpdate.price_list} price at ${priceUpdate.price_list_rate} for company ${company || 'default'}`);
-            } else {
-              const errorData = await createPriceResponse.json();
-              // console.log(`Failed to create ${priceUpdate.price_list} price:`, errorData);
-            }
+          // Update custom_company if provided
+          if (company) {
+            updatePricePayload.custom_company = company;
           }
+          
+          await client.update('Item Price', existingPrice.name, updatePricePayload);
+          
+          // console.log(`Updated ${priceUpdate.price_list} price to ${priceUpdate.price_list_rate} for company ${company || 'default'}`);
+        } else {
+          // Create new Item Price
+          const createPricePayload: any = {
+            item_code: item_code,
+            price_list: priceUpdate.price_list,
+            price_list_rate: priceUpdate.price_list_rate
+          };
+          
+          // Add custom_company if available
+          if (company) {
+            createPricePayload.custom_company = company;
+          }
+          
+          await client.insert('Item Price', createPricePayload);
+          
+          // console.log(`Created ${priceUpdate.price_list} price at ${priceUpdate.price_list_rate} for company ${company || 'default'}`);
         }
       } catch (error) {
         // console.log(`Error updating ${priceUpdate.price_list} price:`, error);
@@ -531,15 +371,13 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: data.data,
+      data: result,
       message: 'Item updated successfully'
     });
 
-  } catch (error) {
-    console.error('Update Item Error:', error);
-    return NextResponse.json(
-      { success: false, message: 'Internal server error' },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    logSiteError(error, 'PUT /api/inventory/items', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

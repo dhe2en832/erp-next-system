@@ -1,25 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 
 export async function POST(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-
-    const apiKey = process.env.ERP_API_KEY;
-    const apiSecret = process.env.ERP_API_SECRET;
     const sid = request.cookies.get('sid')?.value;
-
-    if (apiKey && apiSecret) {
-      headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-    } else if (sid) {
-      headers['Cookie'] = `sid=${sid}`;
-    } else {
-      return NextResponse.json({ success: false, message: 'No authentication available' }, { status: 401 });
+    if (!sid) {
+      return NextResponse.json(
+        { success: false, message: 'No authentication available' }, 
+        { status: 401 }
+      );
     }
 
+    const client = await getERPNextClientForRequest(request);
     const body = await request.json();
     const { supplier_name, customer_name, address, country, city } = body;
 
@@ -27,10 +26,12 @@ export async function POST(request: NextRequest) {
     const linkDoctype = supplier_name ? 'Supplier' : 'Customer';
 
     if (!baseName || !address || !city) {
-      return NextResponse.json({ success: false, message: 'supplier_name atau customer_name, address, dan city wajib diisi' }, { status: 400 });
+      return NextResponse.json(
+        { success: false, message: 'supplier_name atau customer_name, address, dan city wajib diisi' }, 
+        { status: 400 }
+      );
     }
 
-    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Address`;
     const payload = {
       address_title: baseName,
       address_type: 'Office',
@@ -46,24 +47,11 @@ export async function POST(request: NextRequest) {
       ],
     };
 
-    const response = await fetch(erpNextUrl, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ data: payload }),
-    });
-
-    const data = await response.json();
-
-    if (response.ok && data.data) {
-      return NextResponse.json({ success: true, data: data.data });
-    }
-
-    return NextResponse.json(
-      { success: false, message: data.message || data.exc || 'Failed to create address' },
-      { status: response.status }
-    );
-  } catch (error) {
-    console.error('Address POST API Error:', error);
-    return NextResponse.json({ success: false, message: 'Internal server error' }, { status: 500 });
+    const data = await client.insert('Address', payload);
+    return NextResponse.json({ success: true, data });
+  } catch (error: unknown) {
+    logSiteError(error, 'POST /api/purchase/addresses', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

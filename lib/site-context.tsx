@@ -126,16 +126,22 @@ export function SiteProvider({ children }: SiteProviderProps): React.ReactElemen
    */
   const refreshSites = useCallback((): void => {
     try {
-      const loadedSites = getAllSites();
-      setSites(loadedSites);
-      
-      // If active site no longer exists, clear it
-      if (activeSite && !loadedSites.find(s => s.id === activeSite.id)) {
-        setActiveSiteState(null);
-        persistActiveSite(null);
-      }
+      console.log('[SiteContext] Refreshing sites from storage...');
+      // Import reloadSites to force reload from localStorage
+      import('./site-config').then(({ reloadSites }) => {
+        const loadedSites = reloadSites(); // Force reload, bypass cache
+        console.log('[SiteContext] Reloaded sites:', loadedSites.length);
+        setSites(loadedSites);
+        
+        // If active site no longer exists, clear it
+        if (activeSite && !loadedSites.find(s => s.id === activeSite.id)) {
+          console.log('[SiteContext] Active site no longer exists, clearing');
+          setActiveSiteState(null);
+          persistActiveSite(null);
+        }
+      });
     } catch (error) {
-      console.error('Failed to refresh sites:', error);
+      console.error('[SiteContext] Failed to refresh sites:', error);
       setError('Failed to load site configurations');
     }
   }, [activeSite, persistActiveSite]);
@@ -145,12 +151,16 @@ export function SiteProvider({ children }: SiteProviderProps): React.ReactElemen
    */
   const setActiveSite = useCallback((siteId: string): void => {
     try {
+      console.log('[SiteContext] setActiveSite called with:', siteId);
       const site = getSite(siteId);
       
       if (!site) {
+        console.error('[SiteContext] Site not found:', siteId);
         setError(`Site with ID "${siteId}" not found`);
         return;
       }
+      
+      console.log('[SiteContext] Setting active site to:', site.displayName, '(', site.id, ')');
       
       // Clear cache when switching sites
       clearCache();
@@ -158,9 +168,17 @@ export function SiteProvider({ children }: SiteProviderProps): React.ReactElemen
       // Update state and persist
       setActiveSiteState(site);
       persistActiveSite(siteId);
+      
+      // Set active_site cookie for API routes
+      if (typeof document !== 'undefined') {
+        document.cookie = `active_site=${siteId}; path=/; max-age=2592000`; // 30 days
+        console.log('[SiteContext] Cookie set for:', siteId);
+      }
+      
+      console.log('[SiteContext] Active site successfully set to:', site.displayName);
       setError(null);
     } catch (error) {
-      console.error('Failed to set active site:', error);
+      console.error('[SiteContext] Failed to set active site:', error);
       setError('Failed to switch site');
     }
   }, [clearCache, persistActiveSite]);
@@ -185,8 +203,10 @@ export function SiteProvider({ children }: SiteProviderProps): React.ReactElemen
           setError(`Migration failed: ${migrationResult.error}`);
         }
         
-        // Step 2: Get all configured sites
-        let loadedSites = getAllSites();
+        // Step 2: Get all configured sites (force reload from storage)
+        const { reloadSites } = await import('./site-config');
+        let loadedSites = reloadSites(); // Force reload, bypass cache
+        console.log('[SiteProvider] Sites reloaded from storage:', loadedSites.length);
         
         // Step 3: If no sites configured, load from environment variables
         if (loadedSites.length === 0) {
@@ -201,24 +221,56 @@ export function SiteProvider({ children }: SiteProviderProps): React.ReactElemen
           }
         }
         
-        // Step 3.5: Always add default demo site if not already present
-        const demoSiteId = 'demo-batasku';
+        // Step 3.5: Always ensure default demo site exists in storage
+        const demoSiteId = 'demo-batasku-cloud';
+        const oldDemoSiteId = 'demo-batasku'; // Old incorrect ID
+        
+        // Remove old demo site if exists
+        const hasOldDemoSite = loadedSites.some(s => s.id === oldDemoSiteId);
+        if (hasOldDemoSite) {
+          console.log('[SiteProvider] Removing old demo site with incorrect ID');
+          const { removeSite } = await import('./site-config');
+          try {
+            removeSite(oldDemoSiteId);
+            loadedSites = loadedSites.filter(s => s.id !== oldDemoSiteId);
+          } catch (error) {
+            console.warn('[SiteProvider] Could not remove old demo site:', error);
+          }
+        }
+        
         const hasDemoSite = loadedSites.some(s => s.id === demoSiteId);
         
         if (!hasDemoSite) {
-          console.log('[SiteProvider] Adding default demo site to list');
-          const demoSite = {
-            id: demoSiteId,
-            name: 'demo-batasku',
-            displayName: 'Demo Batasku (Default)',
-            apiUrl: 'https://demo.batasku.cloud',
-            apiKey: '4618e5708dd3d06',
-            apiSecret: '8984b4011e4a654',
-            isDefault: loadedSites.length === 0, // Only set as default if no other sites
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          };
-          loadedSites = [...loadedSites, demoSite];
+          console.log('[SiteProvider] Adding default demo site to storage');
+          const { addSite } = await import('./site-config');
+          
+          try {
+            const demoSite = addSite({
+              name: 'demo.batasku.cloud',
+              displayName: 'Demo Batasku (Default)',
+              apiUrl: 'https://demo.batasku.cloud',
+              apiKey: '4618e5708dd3d06',
+              apiSecret: '8984b4011e4a654',
+              isDefault: loadedSites.length === 0, // Only set as default if no other sites
+            });
+            
+            loadedSites = [...loadedSites, demoSite];
+          } catch (error) {
+            // If addSite fails (e.g., duplicate), just add to array
+            console.warn('[SiteProvider] Could not add demo site to storage:', error);
+            const demoSite = {
+              id: demoSiteId,
+              name: 'demo.batasku.cloud',
+              displayName: 'Demo Batasku (Default)',
+              apiUrl: 'https://demo.batasku.cloud',
+              apiKey: '4618e5708dd3d06',
+              apiSecret: '8984b4011e4a654',
+              isDefault: loadedSites.length === 0,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            };
+            loadedSites = [...loadedSites, demoSite];
+          }
         }
         
         setSites(loadedSites);
@@ -226,12 +278,15 @@ export function SiteProvider({ children }: SiteProviderProps): React.ReactElemen
         
         // Step 4: Try to restore last selected site
         const lastSiteId = loadLastSelectedSite();
+        console.log('[SiteProvider] Last selected site from localStorage:', lastSiteId);
         let siteToActivate: SiteConfig | null = null;
         
         if (lastSiteId) {
           siteToActivate = loadedSites.find(s => s.id === lastSiteId) || null;
           if (siteToActivate) {
-            console.log('[SiteProvider] Restored last selected site:', siteToActivate.id);
+            console.log('[SiteProvider] Restored last selected site:', siteToActivate.displayName, '(', siteToActivate.id, ')');
+          } else {
+            console.warn('[SiteProvider] Last selected site not found in loaded sites:', lastSiteId);
           }
         }
         
@@ -239,7 +294,7 @@ export function SiteProvider({ children }: SiteProviderProps): React.ReactElemen
         if (!siteToActivate) {
           siteToActivate = getDefaultSite(loadedSites);
           if (siteToActivate) {
-            console.log('[SiteProvider] Using default site:', siteToActivate.id);
+            console.log('[SiteProvider] Using default site:', siteToActivate.displayName, '(', siteToActivate.id, ')');
           }
         }
         
@@ -247,7 +302,7 @@ export function SiteProvider({ children }: SiteProviderProps): React.ReactElemen
         if (siteToActivate) {
           setActiveSiteState(siteToActivate);
           persistActiveSite(siteToActivate.id);
-          console.log('[SiteProvider] Active site set:', siteToActivate.id);
+          console.log('[SiteProvider] Active site set to:', siteToActivate.displayName, '(', siteToActivate.id, ')');
         } else {
           console.warn('[SiteProvider] No site could be activated');
         }

@@ -1,21 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { erpnextClient } from '@/lib/erpnext';
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 import type { AccountingPeriod, AccountBalance } from '@/types/accounting-period';
 
 export async function GET(
   request: NextRequest,
   context: { params: Promise<{ name: string }> }
 ) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
+    const client = await getERPNextClientForRequest(request);
     const { name } = await context.params;
     const periodName = decodeURIComponent(name);
 
     // Get period details
-    const period = await erpnextClient.get<AccountingPeriod>('Accounting Period', periodName);
+    const period = await client.get<AccountingPeriod>('Accounting Period', periodName);
 
     // Calculate balances for both cumulative and period-only
-    const cumulativeBalances = await calculateAllAccountBalances(period, false);
-    const periodOnlyBalances = await calculateAllAccountBalances(period, true);
+    const cumulativeBalances = await calculateAllAccountBalances(client, period, false);
+    const periodOnlyBalances = await calculateAllAccountBalances(client, period, true);
 
     return NextResponse.json({
       success: true,
@@ -24,29 +32,28 @@ export async function GET(
         period_only: periodOnlyBalances,
       },
     });
-  } catch (error: any) {
-    console.error('Error fetching account balances:', error);
-    return NextResponse.json(
-      { success: false, error: 'FETCH_ERROR', message: error.message || 'Failed to fetch account balances' },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    logSiteError(error, 'GET /api/accounting-period/balances/[name]', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }
 
 /**
  * Calculate all account balances as of period end date
+ * @param client - ERPNext client instance
  * @param period - Accounting period
  * @param periodOnly - If true, only include transactions within the period (start_date to end_date)
  *                     If false, include all transactions up to end_date (cumulative)
  */
-async function calculateAllAccountBalances(period: AccountingPeriod, periodOnly: boolean = false): Promise<AccountBalance[]> {
+async function calculateAllAccountBalances(client: any, period: AccountingPeriod, periodOnly: boolean = false): Promise<AccountBalance[]> {
   // console.log('=== Calculate Account Balances ===');
   // console.log('Period:', period.name, period.start_date, '-', period.end_date);
   // console.log('Company:', period.company);
   // console.log('Mode:', periodOnly ? 'Period Only' : 'Cumulative');
   
   // Step 1: Fetch ALL non-group accounts from Chart of Accounts first
-  const allAccounts = await erpnextClient.getList('Account', {
+  const allAccounts = await client.getList('Account', {
     filters: [
       ['company', '=', period.company],
       ['is_group', '=', 0],
@@ -79,7 +86,7 @@ async function calculateAllAccountBalances(period: AccountingPeriod, periodOnly:
   
   // console.log('GL Entry filters:', JSON.stringify(glFilters));
 
-  const glEntries = await erpnextClient.getList('GL Entry', {
+  const glEntries = await client.getList('GL Entry', {
     filters: glFilters,
     fields: ['account', 'debit', 'credit', 'posting_date', 'voucher_type', 'voucher_no'],
     limit_page_length: 999999,
@@ -93,8 +100,8 @@ async function calculateAllAccountBalances(period: AccountingPeriod, periodOnly:
   // }
   
   // Log sample GL entries for Income/Expense accounts
-  const incomeExpenseEntries = glEntries.filter(e => {
-    const account = allAccounts.find(a => a.name === e.account);
+  const incomeExpenseEntries = glEntries.filter((e: any) => {
+    const account = allAccounts.find((a: any) => a.name === e.account);
     return account && ['Income', 'Expense'].includes(account.root_type);
   });
   // console.log('GL entries for Income/Expense accounts:', incomeExpenseEntries.length);

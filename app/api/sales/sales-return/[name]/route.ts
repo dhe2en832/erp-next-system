@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getErpAuthHeaders } from '@/utils/erpnext-auth';
-import { handleERPNextAPIError } from '@/utils/erpnext-api-helper';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+import {
+  getERPNextClientForRequest,
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError
+} from '@/lib/api-helpers';
 
 /**
  * GET /api/sales/sales-return/[name]
@@ -17,82 +19,30 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ name: string }> }
 ) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const { name } = await params;
     
-    // Debug logging
-    // console.log('=== Sales Return Detail API Called ===');
-    // console.log('Sales Return name parameter:', name);
-    // console.log('Sales Return name type:', typeof name);
-    
     // Validate name parameter
-    if (!name || name.trim() === '') {
-      // console.log('Sales Return API - Name is empty or null');
-      return NextResponse.json(
-        { success: false, message: 'Sales Return name is required' },
-        { status: 400 }
-      );
-    }
-    
-    if (name === 'undefined' || name === 'null' || name === 'undefined/') {
-      // console.log('Sales Return API - Invalid name value:', name);
+    if (!name || name.trim() === '' || name === 'undefined' || name === 'null' || name === 'undefined/') {
       return NextResponse.json(
         { success: false, message: 'Invalid sales return name provided' },
         { status: 400 }
       );
     }
 
-    // Get authentication headers (API key priority, session fallback)
-    const headers = getErpAuthHeaders(request);
-    
-    // Check if authentication is available
-    if (!headers['Authorization'] && !headers['Cookie']) {
-      return NextResponse.json(
-        { success: false, message: 'No authentication available' },
-        { status: 401 }
-      );
-    }
-
-    // console.log('Sales Return API - Fetching sales return:', name);
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
     
     // Use ERPNext's form.load.getdoc method to get complete document data
-    // This method returns the document with all child tables populated
-    const response = await fetch(
-      `${ERPNEXT_API_URL}/api/method/frappe.desk.form.load.getdoc?doctype=Sales%20Return&name=${encodeURIComponent(name.trim())}`,
-      {
-        method: 'GET',
-        headers,
-      }
-    );
-
-    // console.log('Sales Return API - ERPNext Response status:', response.status);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      // console.log('Sales Return API - ERPNext Error:', errorText);
-      
-      let errorData;
-      try {
-        errorData = JSON.parse(errorText);
-      } catch (e) {
-        return NextResponse.json(
-          { success: false, message: 'Failed to fetch sales return details' },
-          { status: response.status }
-        );
-      }
-      
-      return handleERPNextAPIError(response, errorData, 'Failed to fetch sales return details');
-    }
-
-    const data = await response.json();
-    // console.log('Sales Return API - Success, data keys:', Object.keys(data));
+    const data = await client.call('frappe.desk.form.load.getdoc', {
+      doctype: 'Sales Return',
+      name: name.trim()
+    });
 
     // form.load.getdoc returns data in different structure
-    // The actual document data is in data.docs or data.doc
     const salesReturnData = data.docs?.[0] || data.doc || data;
-    
-    // console.log('Sales Return API - Sales Return data keys:', Object.keys(salesReturnData || {}));
-    // console.log('Sales Return API - Items count:', salesReturnData?.items?.length || 0);
 
     return NextResponse.json({
       success: true,
@@ -100,11 +50,11 @@ export async function GET(
     });
 
   } catch (error) {
-    console.error('Sales Return Detail API Error:', error);
-    return NextResponse.json(
-      { success: false, message: 'Internal server error' },
-      { status: 500 }
-    );
+    logSiteError(error, 'GET /api/sales/sales-return/[name]', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    const statusCode = errorResponse.errorType === 'authentication' ? 401 : 
+                       (error as any)?.message?.includes('not found') ? 404 : 500;
+    return NextResponse.json(errorResponse, { status: statusCode });
   }
 }
 
@@ -120,11 +70,10 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ name: string }> }
 ) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const { name } = await params;
-    
-    // console.log('=== Sales Return Update API Called ===');
-    // console.log('Sales Return name:', name);
     
     // Validate name parameter
     if (!name || name === 'undefined') {
@@ -135,21 +84,9 @@ export async function PUT(
     }
 
     const body = await request.json();
-    // console.log('Sales Return PUT Payload:', JSON.stringify(body, null, 2));
     
     // Remove name from body to avoid conflicts
     const { name: _n, ...updateData } = body;
-
-    // Get authentication headers
-    const headers = getErpAuthHeaders(request);
-    
-    // Check if authentication is available
-    if (!headers['Authorization'] && !headers['Cookie']) {
-      return NextResponse.json(
-        { success: false, message: 'No authentication available' },
-        { status: 401 }
-      );
-    }
 
     // Validate request body structure
     if (updateData.items && Array.isArray(updateData.items)) {
@@ -175,46 +112,21 @@ export async function PUT(
       }
     }
 
-    const response = await fetch(
-      `${ERPNEXT_API_URL}/api/resource/Sales Return/${encodeURIComponent(name)}`,
-      {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify(updateData),
-      }
-    );
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
 
-    const responseText = await response.text();
-    // console.log('Sales Return PUT Response Status:', response.status);
-    
-    let data;
-    try {
-      data = JSON.parse(responseText);
-    } catch (parseError) {
-      console.error('Failed to parse response as JSON:', parseError);
-      console.error('Response text:', responseText);
-      
-      return NextResponse.json(
-        { success: false, message: 'Invalid response from ERPNext server' },
-        { status: response.status }
-      );
-    }
+    // Update sales return using client
+    const result = await client.update('Sales Return', name, updateData);
 
-    // console.log('Sales Return PUT Response Data:', data);
+    return NextResponse.json({
+      success: true,
+      data: result,
+    });
 
-    if (response.ok) {
-      return NextResponse.json({
-        success: true,
-        data: data.data,
-      });
-    } else {
-      return handleERPNextAPIError(response, data, 'Failed to update sales return', updateData);
-    }
   } catch (error) {
-    console.error('Sales Return PUT Error:', error);
-    return NextResponse.json(
-      { success: false, message: 'Internal server error' },
-      { status: 500 }
-    );
+    logSiteError(error, 'PUT /api/sales/sales-return/[name]', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    const statusCode = errorResponse.errorType === 'authentication' ? 401 : 500;
+    return NextResponse.json(errorResponse, { status: statusCode });
   }
 }

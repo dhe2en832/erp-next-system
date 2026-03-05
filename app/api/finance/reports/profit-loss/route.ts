@@ -2,8 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { formatCurrency } from '@/utils/format';
 import { validateDateRange } from '@/utils/report-validation';
 import { isDiscountAccount } from '@/utils/account-helpers';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+import {
+  getERPNextClientForRequest,
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError
+} from '@/lib/api-helpers';
 
 interface GlEntry {
   account: string;
@@ -44,6 +48,8 @@ interface ProfitLossSummary {
 }
 
 export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const { searchParams } = new URL(request.url);
     const company = searchParams.get('company') || process.env.ERP_DEFAULT_COMPANY || process.env.ERP_COMPANY;
@@ -59,20 +65,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const sid = request.cookies.get('sid')?.value;
-    if (!sid) {
-      return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
-    }
-
-    const _ak = process.env.ERP_API_KEY;
-    const _as = process.env.ERP_API_SECRET;
-    const _h: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (_ak && _as) {
-      _h['Authorization'] = `token ${_ak}:${_as}`;
-    } else {
-      _h['Cookie'] = `sid=${sid}`;
-    }
-
     if (!company) {
       return NextResponse.json(
         { success: false, message: 'Company is required' },
@@ -80,21 +72,19 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Fetch Account master for this company
-    const accountsUrl = `${ERPNEXT_API_URL}/api/resource/Account?fields=["name","account_name","account_type","root_type","parent_account","is_group","account_number"]&filters=${encodeURIComponent(`[["company","=","${company}"],["is_group","=",0]]`)}&limit_page_length=2000`;
-    const accountsResp = await fetch(accountsUrl, { method: 'GET', headers: _h });
-    const accountsData = await accountsResp.json();
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
 
-    if (!accountsResp.ok) {
-      return NextResponse.json(
-        { success: false, message: accountsData.exc || accountsData.message || 'Failed to fetch accounts' },
-        { status: accountsResp.status }
-      );
-    }
+    // Fetch Account master for this company
+    const accountsData = await client.getList('Account', {
+      fields: ['name', 'account_name', 'account_type', 'root_type', 'parent_account', 'is_group', 'account_number'],
+      filters: [['company', '=', company], ['is_group', '=', 0]],
+      limit_page_length: 2000
+    });
 
     // Build lookup map: account name → master data
     const accountMasterMap = new Map<string, AccountMaster>();
-    (accountsData.data || []).forEach((acc: AccountMaster) => {
+    accountsData.forEach((acc: AccountMaster) => {
       accountMasterMap.set(acc.name, acc);
     });
 
@@ -107,21 +97,16 @@ export async function GET(request: NextRequest) {
       glFilters.push(['posting_date', '<=', toDate]);
     }
 
-    const glUrl = `${ERPNEXT_API_URL}/api/resource/GL Entry?fields=["account","debit","credit","posting_date"]&filters=${encodeURIComponent(JSON.stringify(glFilters))}&order_by=account&limit_page_length=5000`;
-
-    const glResp = await fetch(glUrl, { method: 'GET', headers: _h });
-    const glData = await glResp.json();
-
-    if (!glResp.ok) {
-      return NextResponse.json(
-        { success: false, message: glData.exc || glData.message || 'Failed to fetch GL entries' },
-        { status: glResp.status }
-      );
-    }
+    const glData = await client.getList('GL Entry', {
+      fields: ['account', 'debit', 'credit', 'posting_date'],
+      filters: glFilters,
+      order_by: 'account',
+      limit_page_length: 5000
+    });
 
     // Aggregate GL entries by account
     const accountMap = new Map<string, { account: string; debit: number; credit: number }>();
-    (glData.data || []).forEach((entry: GlEntry) => {
+    glData.forEach((entry: GlEntry) => {
       if (!accountMap.has(entry.account)) {
         accountMap.set(entry.account, { account: entry.account, debit: 0, credit: 0 });
       }
@@ -250,11 +235,9 @@ export async function GET(request: NextRequest) {
         },
       },
     });
-  } catch (error) {
-    console.error('Profit & Loss Report API error:', error);
-    return NextResponse.json(
-      { success: false, message: 'Internal server error' },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    logSiteError(error, 'GET /api/finance/reports/profit-loss', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

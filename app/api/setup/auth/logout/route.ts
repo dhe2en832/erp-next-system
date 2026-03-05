@@ -1,48 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+import {
+  getERPNextClientForRequest,
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError
+} from '@/lib/api-helpers';
 
 export async function POST(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
-    const cookies = request.cookies;
-    const sid = cookies.get('sid')?.value;
+    // Get site-aware client (handles dual authentication: API Key → session cookie fallback)
+    const client = await getERPNextClientForRequest(request);
 
-    if (!sid) {
-      return NextResponse.json(
-        { success: false, message: 'No session found' },
-        { status: 401 }
-      );
-    }
+    // Call logout on ERPNext backend (works for both API Key and session cookie auth)
+    await client.call('logout', {});
 
-    const response = await fetch(`${ERPNEXT_API_URL}/api/method/logout`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Cookie': `sid=${sid}`,
-      },
+    const responseNext = NextResponse.json({
+      success: true,
+      message: 'Logged out successfully',
     });
 
-    const data = await response.json();
-
-    if (response.ok) {
-      const responseNext = NextResponse.json({
-        success: true,
-        message: 'Logged out successfully',
-      });
-
+    // Delete session cookie if it exists (for session-based auth users)
+    const sid = request.cookies.get('sid')?.value;
+    if (sid) {
       responseNext.cookies.delete('sid');
-
-      return responseNext;
-    } else {
-      return NextResponse.json(
-        { success: false, message: data.message || 'Logout failed' },
-        { status: 400 }
-      );
     }
-  } catch (error) {
-    return NextResponse.json(
-      { success: false, message: 'Internal server error' },
-      { status: 500 }
-    );
+
+    return responseNext;
+
+  } catch (error: unknown) {
+    logSiteError(error, 'POST /api/setup/auth/logout', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    const statusCode = errorResponse.errorType === 'authentication' ? 401 : 500;
+    return NextResponse.json(errorResponse, { status: statusCode });
   }
 }

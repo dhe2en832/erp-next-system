@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 
 export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
   try {
-    // console.log('=== Purchase Receipts API Called ===');
-    
     const { searchParams } = new URL(request.url);
     const company = searchParams.get('company');
     const limitPageLength = searchParams.get('limit_page_length');
@@ -18,159 +21,126 @@ export async function GET(request: NextRequest) {
     const orderBy = searchParams.get('order_by');
     const supplier = searchParams.get('supplier');
 
-    // console.log('Request params:', { company, search, documentNumber, status, fromDate, toDate, orderBy, supplier });
-
     if (!company) {
-      // console.log('ERROR: Company is required');
       return NextResponse.json(
         { success: false, message: 'Company is required' },
         { status: 400 }
       );
     }
 
-    const _ak = process.env.ERP_API_KEY;
-    const _as = process.env.ERP_API_SECRET;
-    const sessionCookie = request.headers.get('cookie') || '';
-    let erpNextResponse: Response;
-    let headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (_ak && _as) {
-      headers['Authorization'] = `token ${_ak}:${_as}`;
-    } else if (sessionCookie) {
-      headers['Cookie'] = sessionCookie;
-    }
-
-    // Build filters
-    let filters = `[["company","=","${company}"]`;
+    // Build filters array
+    let filters: any[][] = [
+      ["company", "=", company]
+    ];
     
     if (search) {
       // Search by supplier name or PR number
-      // console.log('Adding search filter for:', search);
-      filters += `,["supplier_name","like","%${search}%"]`;
-      // console.log('Supplier search filter added:', filters);
+      filters.push(["supplier_name", "like", `%${search}%`]);
     }
     
     if (documentNumber) {
       // Search by PR number/document number
-      // console.log('Adding document number filter for:', documentNumber);
-      filters += `,["name","like","%${documentNumber}%"]`;
-      // console.log('Document number filter added:', filters);
+      filters.push(["name", "like", `%${documentNumber}%`]);
     }
     
     if (status) {
-      filters += `,["status","=","${status}"]`;
+      filters.push(["status", "=", status]);
     }
     
     if (supplier) {
-      filters += `,["supplier","=","${supplier}"]`;
+      filters.push(["supplier", "=", supplier]);
     }
     
     if (fromDate) {
-      filters += `,["posting_date",">=","${fromDate}"]`;
+      filters.push(["posting_date", ">=", fromDate]);
     }
     
     if (toDate) {
-      filters += `,["posting_date","<=","${toDate}"]`;
+      filters.push(["posting_date", "<=", toDate]);
     }
+
+    const fields = [
+      "name", "supplier", "supplier_name", "posting_date",
+      "status", "grand_total", "currency"
+    ];
+
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
     
-    filters += ']';
+    // Use client method instead of direct fetch
+    const data = await client.getList('Purchase Receipt', {
+      fields: fields,
+      filters: filters,
+      limit_page_length: parseInt(limitPageLength || '20'),
+      ...(start && { start: parseInt(start) }),
+      order_by: orderBy || 'creation desc'
+    });
 
-    // console.log('Built filters:', filters);
-
-    // Build ERPNext URL with dynamic pagination and sorting
-    const limit = searchParams.get('limit_page_length') || '20';
-    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Purchase Receipt?fields=["name","supplier","supplier_name","posting_date","status","grand_total","currency"]&filters=${encodeURIComponent(filters)}&limit_page_length=${limit}&limit_start=${start}`;
-    
-    if (orderBy) {
-      erpNextUrl += `&order_by=${orderBy}`;
-    } else {
-      erpNextUrl += '&order_by=creation desc';
-    }
-
-    // console.log('Purchase Receipts ERPNext URL:', erpNextUrl);
-
-    // console.log('Making fetch request to ERPNext...');
-    erpNextResponse = await fetch(
-      erpNextUrl,
-      {
-        method: 'GET',
-        headers,
-      }
-    );
-
-    // console.log('ERPNext Response status:', erpNextResponse.status);
-    // console.log('ERPNext Response ok:', erpNextResponse.ok);
-
-    const data = await erpNextResponse.json();
-    // console.log('Purchase Receipts response:', data);
-
-    if (erpNextResponse.ok) {
-      // console.log('Processing successful response...');
-      
-      return NextResponse.json({
-        success: true,
-        data: data.data || [],
-        total_records: data.total_records || (data.data || []).length,
-      });
-    } else {
-      console.error('ERPNext API Error:', data);
-      return NextResponse.json(
-        { success: false, message: data.exc || data.message || 'Failed to fetch purchase receipts' },
-        { status: erpNextResponse.status }
-      );
-    }
+    return NextResponse.json({
+      success: true,
+      data: data || [],
+      total_records: data?.length || 0,
+    });
   } catch (error) {
-    console.error('Purchase Receipts API Error:', error);
-    return NextResponse.json(
-      { success: false, message: 'Internal server error', error: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500 }
-    );
+    logSiteError(error, 'GET /api/purchase/receipts', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const purchaseReceiptData = await request.json();
 
-    // console.log('Creating Purchase Receipt:', purchaseReceiptData);
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
+    
+    // Use client method instead of direct fetch
+    const newReceipt = await client.insert('Purchase Receipt', purchaseReceiptData);
 
-    // Use API key authentication
-    const apiKey = process.env.ERP_API_KEY;
-    const apiSecret = process.env.ERP_API_SECRET;
-
-    if (!apiKey || !apiSecret) {
-      return NextResponse.json(
-        { success: false, message: 'ERPNext API credentials not configured' },
-        { status: 500 }
-      );
-    }
-
-    const response = await fetch(`${ERPNEXT_API_URL}/api/resource/Purchase Receipt`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `token ${apiKey}:${apiSecret}`,
-      },
-      body: JSON.stringify(purchaseReceiptData),
+    return NextResponse.json({
+      success: true,
+      data: newReceipt,
+      message: 'Purchase Receipt berhasil dibuat'
     });
-
-    const data = await response.json();
-
-    if (response.ok) {
-      return NextResponse.json({
-        success: true,
-        data: data.data,
-        message: 'Purchase Receipt berhasil dibuat'
-      });
-    } else {
-      return NextResponse.json(
-        { success: false, message: data.exc || data.message || 'Failed to create purchase receipt' },
-        { status: response.status }
-      );
+  } catch (error: unknown) {
+    logSiteError(error, 'POST /api/purchase/receipts', siteId);
+    
+    // Extract detailed error message from ERPNext
+    let errorMessage = 'Failed to create purchase receipt';
+    
+    if (error && typeof error === 'object' && 'message' in error) {
+      const errorObj = error as any;
+      
+      if (errorObj.exc) {
+        try {
+          const excData = JSON.parse(errorObj.exc);
+          
+          if (excData.exc_type === 'MandatoryError') {
+            errorMessage = `Missing required field: ${excData.message}`;
+          } else if (excData.exc_type === 'ValidationError') {
+            errorMessage = `Validation error: ${excData.message}`;
+          } else if (excData.exc_type === 'LinkValidationError') {
+            errorMessage = `Invalid reference: ${excData.message}`;
+          } else if (excData.exc_type === 'PermissionError') {
+            errorMessage = `Permission denied: ${excData.message}`;
+          } else {
+            errorMessage = `${excData.exc_type}: ${excData.message}`;
+          }
+        } catch (_e) {
+          errorMessage = errorObj.message || errorObj.exc || 'Failed to create purchase receipt';
+        }
+      } else if (errorObj.message) {
+        errorMessage = errorObj.message;
+      }
+    } else if (error instanceof Error) {
+      errorMessage = error.message;
     }
-  } catch (error) {
-    console.error('Purchase Receipt creation error:', error);
+    
     return NextResponse.json(
-      { success: false, message: 'Internal server error' },
+      { success: false, message: errorMessage },
       { status: 500 }
     );
   }

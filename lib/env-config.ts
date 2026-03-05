@@ -15,6 +15,7 @@ export interface SiteConfig {
   apiUrl: string;
   apiKey: string;
   apiSecret: string;
+  companyName?: string; // Company name fetched from ERPNext
   isDefault?: boolean;
   isActive?: boolean;
   createdAt?: string;
@@ -111,6 +112,9 @@ export function validateSiteConfig(config: Partial<SiteConfig>): ValidationResul
   if (!isValidUrl(config.apiUrl)) {
     return { valid: false, error: 'Invalid URL format. Must be http:// or https://' };
   }
+  
+  // Allow 'env' as placeholder for environment-based credentials
+  // These will be loaded from environment variables at runtime
   
   return { valid: true };
 }
@@ -265,8 +269,8 @@ export function getDefaultSite(
   if (sites.length === 0) {
     // Return demo.batasku.cloud as default if no sites configured
     return {
-      id: 'demo-batasku',
-      name: 'demo-batasku',
+      id: 'demo-batasku-cloud',
+      name: 'demo.batasku.cloud',
       displayName: 'Demo Batasku',
       apiUrl: 'https://demo.batasku.cloud',
       apiKey: '4618e5708dd3d06',

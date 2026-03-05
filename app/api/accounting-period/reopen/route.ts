@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { erpnextClient } from '@/lib/erpnext';
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 
 export async function POST(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
+    const client = await getERPNextClientForRequest(request);
     const body = await request.json();
     const { period_name, company, reason, force_permanent = false } = body;
 
@@ -14,7 +22,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get period details
-    const period = await erpnextClient.get('Accounting Period', period_name);
+    const period = await client.get('Accounting Period', period_name);
 
     // Validate period status
     if (period.status === 'Open') {
@@ -33,7 +41,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if next period is closed
-    const nextPeriods = await erpnextClient.getList('Accounting Period', {
+    const nextPeriods = await client.getList('Accounting Period', {
       filters: [
         ['company', '=', company],
         ['start_date', '>', period.end_date],
@@ -85,14 +93,14 @@ export async function POST(request: NextRequest) {
       }));
     }
 
-    await erpnextClient.update('Accounting Period', period_name, updateData);
+    await client.update('Accounting Period', period_name, updateData);
 
     // Create audit log with appropriate reason
     const auditReason = period.status === 'Permanently Closed' 
       ? `Reopened from permanent closure: ${reason}` 
       : reason;
 
-    await erpnextClient.insert('Period Closing Log', {
+    await client.insert('Period Closing Log', {
       accounting_period: period_name,
       action_type: 'Reopened',
       action_by: 'Administrator',
@@ -106,11 +114,9 @@ export async function POST(request: NextRequest) {
       success: true,
       message: 'Period reopened successfully',
     });
-  } catch (error: any) {
-    console.error('Error reopening period:', error);
-    return NextResponse.json(
-      { success: false, error: 'REOPEN_ERROR', message: error.message || 'Failed to reopen period' },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    logSiteError(error, 'POST /api/accounting-period/reopen', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

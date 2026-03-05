@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 
 export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
   try {
     const { searchParams } = new URL(request.url);
     const company = searchParams.get('company');
@@ -69,81 +74,38 @@ export async function GET(request: NextRequest) {
       ? JSON.parse(fieldsParam)
       : ["name","posting_date","account","debit","credit","voucher_type","voucher_no","cost_center","company","remarks","fiscal_year","is_opening","project"];
 
-    // Get GL entries from ERPNext
-    const url = `${ERPNEXT_API_URL}/api/resource/GL Entry?fields=${encodeURIComponent(JSON.stringify(fields))}&filters=${encodeURIComponent(JSON.stringify(filters))}&order_by=${encodeURIComponent(orderBy)}&limit_page_length=${limit_page_length}&limit_start=${limit_start}`;
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
+    
+    // Use client method instead of fetch
+    const entries = await client.getList('GL Entry', {
+      fields,
+      filters,
+      order_by: orderBy,
+      limit_page_length: parseInt(limit_page_length),
+      start: parseInt(limit_start)
+    });
+    
+    // Get total count
+    const totalRecords = await client.getCount('GL Entry', { filters });
 
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Basic ${Buffer.from(`${process.env.ERP_API_KEY}:${process.env.ERP_API_SECRET}`).toString('base64')}`
-      },
+    return NextResponse.json({
+      success: true,
+      data: entries,
+      total_records: totalRecords,
+      message: `Found ${entries.length} GL entries`
     });
 
-    if (response.ok) {
-      const data = await response.json();
-
-      if (data.data && Array.isArray(data.data)) {
-        // Get total count using ERPNext count API
-        const countUrl = `${ERPNEXT_API_URL}/api/resource/GL Entry?filters=${encodeURIComponent(JSON.stringify(filters))}&limit_page_length=0`;
-        
-        let totalRecords = data.data.length;
-        
-        try {
-          const countResponse = await fetch(countUrl, {
-            method: 'GET',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Basic ${Buffer.from(`${process.env.ERP_API_KEY}:${process.env.ERP_API_SECRET}`).toString('base64')}`
-            },
-          });
-
-          if (countResponse.ok) {
-            const countData = await countResponse.json();
-            // ERPNext returns total count in the response
-            if (countData.data && Array.isArray(countData.data)) {
-              totalRecords = countData.data.length;
-            }
-          }
-        } catch (countError) {
-          console.error('Failed to get count:', countError);
-          // Fallback to data length
-        }
-
-        return NextResponse.json({
-          success: true,
-          data: data.data,
-          total_records: totalRecords,
-          message: `Found ${data.data.length} GL entries`
-        });
-      } else {
-        return NextResponse.json({
-          success: true,
-          message: 'No GL entries found',
-          data: [],
-          total_records: 0
-        });
-      }
-    } else {
-      const errorText = await response.text();
-      console.error('ERPNext API error:', errorText);
-      return NextResponse.json({
-        success: false,
-        message: 'Failed to fetch GL entries from ERPNext',
-        error: errorText
-      }, { status: response.status });
-    }
-
-  } catch (error: any) {
-    console.error('GL Entry API error:', error);
-    return NextResponse.json(
-      { success: false, message: error.message || 'Internal server error' },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    logSiteError(error, 'GET /api/finance/gl-entry', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const body = await request.json();
 
@@ -184,44 +146,21 @@ export async function POST(request: NextRequest) {
       is_opening: 'No'
     };
 
-    const response = await fetch(`${ERPNEXT_API_URL}/api/resource/GL Entry`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Basic ${Buffer.from(`${process.env.ERP_API_KEY}:${process.env.ERP_API_SECRET}`).toString('base64')}`
-      },
-      body: JSON.stringify(glEntryData)
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
+    
+    // Use client method instead of fetch
+    const result = await client.insert('GL Entry', glEntryData);
+
+    return NextResponse.json({
+      success: true,
+      message: 'GL Entry created successfully',
+      data: result
     });
 
-    if (response.ok) {
-      const data = await response.json();
-      if (data.success) {
-        return NextResponse.json({
-          success: true,
-          message: 'GL Entry created successfully',
-          data: data.data
-        });
-      } else {
-        return NextResponse.json({
-          success: false,
-          message: data.message || 'Failed to create GL Entry',
-          error: data
-        });
-      }
-    } else {
-      const errorText = await response.text();
-      return NextResponse.json({
-        success: false,
-        message: 'Failed to create GL Entry in ERPNext',
-        error: errorText
-      });
-    }
-
-  } catch (error: any) {
-    console.error('GL Entry API create error:', error);
-    return NextResponse.json(
-      { success: false, message: error.message || 'Internal server error' },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    logSiteError(error, 'POST /api/finance/gl-entry', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

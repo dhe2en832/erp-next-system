@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+import {
+  getERPNextClientForRequest,
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError
+} from '@/lib/api-helpers';
 
 export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const { searchParams } = new URL(request.url);
     const company = searchParams.get('company');
@@ -15,11 +21,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // console.log('Projects API - Company:', company);
-    // console.log('Projects API - Search:', search);
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
 
     // Build filters array
-    const filters = [
+    const filters: any[][] = [
       ['company', '=', company],
       ['status', '=', 'Open'] // Only open projects
     ];
@@ -29,71 +35,35 @@ export async function GET(request: NextRequest) {
       filters.push(['project_name', 'like', `%${search}%`]);
     }
 
-    // console.log('Projects API - Final Filters:', filters);
-
     // Get projects from ERPNext
-    const url = `${ERPNEXT_API_URL}/api/resource/Project?fields=["name","project_name","company","status","expected_start_date","expected_end_date"]&filters=${encodeURIComponent(JSON.stringify(filters))}&order_by=project_name asc&limit_page_length=100`;
-
-    // console.log('Projects API - URL:', url);
-
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Basic ${Buffer.from(`${process.env.ERP_API_KEY}:${process.env.ERP_API_SECRET}`).toString('base64')}`
-      },
+    const projects = await client.getList('Project', {
+      fields: ['name', 'project_name', 'company', 'status', 'expected_start_date', 'expected_end_date'],
+      filters,
+      order_by: 'project_name asc',
+      limit_page_length: 100
     });
 
-    // console.log('Projects API - Response Status:', response.status);
+    // Format projects for dropdown
+    const formattedProjects = projects.map((project: any) => ({
+      name: project.name,
+      project_name: project.project_name,
+      company: project.company,
+      status: project.status,
+      expected_start_date: project.expected_start_date,
+      expected_end_date: project.expected_end_date,
+      display_name: `${project.name} - ${project.project_name}`
+    }));
 
-    if (response.ok) {
-      const data = await response.json();
-      // console.log('Projects API - Response Data:', data);
+    return NextResponse.json({
+      success: true,
+      data: formattedProjects,
+      message: `Found ${formattedProjects.length} projects`
+    });
 
-      if (data.success && data.data) {
-        // Format projects for dropdown
-        const formattedProjects = data.data.map((project: any) => ({
-          name: project.name,
-          project_name: project.project_name,
-          company: project.company,
-          status: project.status,
-          expected_start_date: project.expected_start_date,
-          expected_end_date: project.expected_end_date,
-          display_name: `${project.name} - ${project.project_name}`
-        }));
-
-        return NextResponse.json({
-          success: true,
-          data: formattedProjects,
-          message: `Found ${formattedProjects.length} projects`
-        });
-      } else {
-        return NextResponse.json({
-          success: false,
-          message: 'No projects found',
-          data: []
-        });
-      }
-    } else {
-      const errorText = await response.text();
-      // console.log('Projects API - Error:', errorText);
-      
-      return NextResponse.json({
-        success: false,
-        message: 'Failed to fetch projects from ERPNext',
-        error: errorText
-      });
-    }
-
-  } catch (error: any) {
-    console.error('Projects API error:', error);
-    return NextResponse.json(
-      { 
-        success: false, 
-        message: error.message || 'Internal server error',
-        stack: error.stack
-      },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    logSiteError(error, 'GET /api/setup/projects', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    const statusCode = errorResponse.errorType === 'authentication' ? 401 : 500;
+    return NextResponse.json(errorResponse, { status: statusCode });
   }
 }

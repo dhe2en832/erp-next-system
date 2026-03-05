@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 
 export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const { searchParams } = new URL(request.url);
     const company = searchParams.get('company');
@@ -14,65 +20,51 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const client = await getERPNextClientForRequest(request);
+
     const filters = [
       ['company', '=', company]
     ];
 
-    const url = `${ERPNEXT_API_URL}/api/resource/Fiscal Year?fields=["name","year_start_date","year_end_date","company"]&filters=${encodeURIComponent(JSON.stringify(filters))}&order_by=year_start_date desc&limit_page_length=10`;
-
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Basic ${Buffer.from(`${process.env.ERP_API_KEY}:${process.env.ERP_API_SECRET}`).toString('base64')}`
-      },
+    const data = await client.getList('Fiscal Year', {
+      fields: ['name', 'year_start_date', 'year_end_date', 'company'],
+      filters,
+      order_by: 'year_start_date desc',
+      limit_page_length: 10
     });
 
-    if (response.ok) {
-      const data = await response.json();
+    if (data) {
+      const formattedFiscalYears = data.map((fiscalYear: any) => {
+        const startDate = new Date(fiscalYear.year_start_date);
+        const endDate = new Date(fiscalYear.year_end_date);
+        const yearName = `${startDate.getFullYear()}-${endDate.getFullYear()}`;
+        
+        return {
+          name: fiscalYear.name,
+          year_start_date: fiscalYear.year_start_date,
+          year_end_date: fiscalYear.year_end_date,
+          company: fiscalYear.company,
+          display_name: yearName,
+          year: startDate.getFullYear()
+        };
+      });
 
-      if (data.success && data.data) {
-        const formattedFiscalYears = data.data.map((fiscalYear: any) => {
-          const startDate = new Date(fiscalYear.year_start_date);
-          const endDate = new Date(fiscalYear.year_end_date);
-          const yearName = `${startDate.getFullYear()}-${endDate.getFullYear()}`;
-          
-          return {
-            name: fiscalYear.name,
-            year_start_date: fiscalYear.year_start_date,
-            year_end_date: fiscalYear.year_end_date,
-            company: fiscalYear.company,
-            display_name: yearName,
-            year: startDate.getFullYear()
-          };
-        });
-
-        return NextResponse.json({
-          success: true,
-          data: formattedFiscalYears,
-          message: `Found ${formattedFiscalYears.length} fiscal years`
-        });
-      } else {
-        return NextResponse.json({
-          success: false,
-          message: 'No fiscal years found',
-          data: []
-        });
-      }
+      return NextResponse.json({
+        success: true,
+        data: formattedFiscalYears,
+        message: `Found ${formattedFiscalYears.length} fiscal years`
+      });
     } else {
-      const errorText = await response.text();
       return NextResponse.json({
         success: false,
-        message: 'Failed to fetch fiscal years from ERPNext',
-        error: errorText
+        message: 'No fiscal years found',
+        data: []
       });
     }
 
-  } catch (error: any) {
-    console.error('Fiscal Years API error:', error);
-    return NextResponse.json(
-      { success: false, message: error.message || 'Internal server error' },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    logSiteError(error, 'GET /api/finance/company/fiscal-years', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getErpAuthHeaders } from '@/utils/erpnext-auth';
-import { handleERPNextAPIError } from '@/utils/erpnext-api-helper';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+import {
+  getERPNextClientForRequest,
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError
+} from '@/lib/api-helpers';
 
 /**
  * POST /api/sales/sales-return/[name]/cancel
@@ -20,12 +22,10 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ name: string }> }
 ) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
-    // console.log('=== Sales Return Cancel API Called ===');
     const { name } = await params;
-    
-    // console.log('Sales Return Name:', name);
-    // console.log('Request Method:', request.method);
     
     // Validate name parameter
     if (!name || name.trim() === '') {
@@ -35,85 +35,22 @@ export async function POST(
       );
     }
 
-    // Get authentication headers (API key priority, session fallback)
-    const headers = getErpAuthHeaders(request);
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
+
+    // Cancel the sales return using client method
+    const cancelledDoc = await client.cancel('Sales Return', name);
     
-    // Check if authentication is available
-    if (!headers['Authorization'] && !headers['Cookie']) {
-      return NextResponse.json(
-        { success: false, message: 'No authentication available' },
-        { status: 401 }
-      );
-    }
-
-    // console.log('Cancelling sales return:', name);
-    // console.log('Available auth methods:', { 
-    //   hasApiKey: !!headers['Authorization'], 
-    //   hasSession: !!headers['Cookie']
-    // });
-
-    // Cancel the sales return by setting docstatus to 2
-    // This will trigger ERPNext's cancel workflow including inventory reversal
-    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Sales%20Return/${encodeURIComponent(name)}`;
-    const requestBody = JSON.stringify({
-      docstatus: 2
+    return NextResponse.json({
+      success: true,
+      data: cancelledDoc,
+      message: 'Sales Return cancelled successfully'
     });
-    
-    // console.log('Making ERPNext Request:');
-    // console.log('URL:', erpNextUrl);
-    // console.log('Method: PUT');
-    // console.log('Body:', requestBody);
-    
-    const response = await fetch(erpNextUrl, {
-      method: 'PUT',
-      headers: {
-        ...headers,
-        'Content-Type': 'application/json',
-      },
-      body: requestBody,
-    });
-
-    const responseText = await response.text();
-    // console.log('Cancel Response Status:', response.status);
-    
-    let data;
-    try {
-      data = JSON.parse(responseText);
-    } catch (parseError) {
-      console.error('Failed to parse response as JSON:', parseError);
-      console.error('Response text:', responseText);
-      
-      return NextResponse.json(
-        { success: false, message: 'Invalid response from ERPNext server' },
-        { status: response.status }
-      );
-    }
-
-    // console.log('Cancel Response Data:', data);
-    
-    if (response.ok) {
-      // Extract the document data from response
-      const salesReturnData = data.data || data.docs?.[0] || data.doc || data;
-      
-      return NextResponse.json({
-        success: true,
-        data: salesReturnData,
-        message: 'Sales Return cancelled successfully'
-      });
-    } else {
-      // Handle ERPNext errors with detailed messages
-      // This includes inventory reversal errors
-      return handleERPNextAPIError(response, data, 'Failed to cancel sales return');
-    }
     
   } catch (error) {
-    console.error('Sales Return Cancel Error:', error);
-    return NextResponse.json(
-      { 
-        success: false, 
-        message: error instanceof Error ? error.message : 'Internal server error' 
-      },
-      { status: 500 }
-    );
+    logSiteError(error, 'POST /api/sales/sales-return/[name]/cancel', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    const statusCode = errorResponse.errorType === 'authentication' ? 401 : 500;
+    return NextResponse.json(errorResponse, { status: statusCode });
   }
 }

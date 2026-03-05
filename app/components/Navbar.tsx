@@ -145,8 +145,12 @@ export default function Navbar() {
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
-      // Clear localStorage and redirect to login
-      localStorage.clear();
+      // Clear only login-related data, NOT site configurations
+      localStorage.removeItem('loginData');
+      localStorage.removeItem('selected_company');
+      // Note: We keep site configurations (erpnext-sites-config) and active site (erpnext-active-site)
+      // so users don't have to re-register sites after logout
+      
       router.push('/login');
     }
   };
@@ -417,7 +421,7 @@ export default function Navbar() {
 
             {/* Company and User Info */}
             <div className="flex items-center space-x-6">
-              {/* Site Selector and Current Site Indicator */}
+              {/* Site Indicator (Display Only - No Selector) */}
               <div className="flex items-center space-x-4">
                 {/* Current Site Display Indicator */}
                 {activeSite && (
@@ -434,8 +438,8 @@ export default function Navbar() {
                   </div>
                 )}
                 
-                {/* Site Selector Dropdown */}
-                <SiteSelector className="hidden sm:inline-block" showStatus={true} />
+                {/* Site Selector Dropdown - HIDDEN */}
+                {/* <SiteSelector className="hidden sm:inline-block" showStatus={true} /> */}
               </div>
 
               {/* Company Info */}
@@ -664,12 +668,12 @@ export default function Navbar() {
                 </button>
               </div>
               
-              {/* Site Selector in Mobile Menu */}
+              {/* Site Indicator in Mobile Menu (Display Only - No Selector) */}
               <div className="mb-6 pb-6 border-b border-gray-200">
                 <div className="mb-3">
                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Active Site</p>
                   {activeSite && (
-                    <div className="flex items-center space-x-2 px-3 py-2 bg-indigo-50 rounded-lg border border-indigo-200 mb-3">
+                    <div className="flex items-center space-x-2 px-3 py-2 bg-indigo-50 rounded-lg border border-indigo-200">
                       <svg className="w-4 h-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
                       </svg>
@@ -680,7 +684,8 @@ export default function Navbar() {
                     </div>
                   )}
                 </div>
-                <SiteSelector className="w-full" showStatus={true} />
+                {/* Site Selector - HIDDEN */}
+                {/* <SiteSelector className="w-full" showStatus={true} /> */}
               </div>
               
               {visibleCategories.map((category) => {

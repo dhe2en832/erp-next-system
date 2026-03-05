@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ name: string }> }
 ) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const { name } = await params;
 
@@ -16,47 +22,19 @@ export async function GET(
       );
     }
 
-    const sid = request.cookies.get('sid')?.value;
-    if (!sid) {
-      return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
-    }
-
-    const _ak = process.env.ERP_API_KEY;
-    const _as = process.env.ERP_API_SECRET;
-    const _h: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (_ak && _as) { 
-      _h['Authorization'] = `token ${_ak}:${_as}`; 
-    } else { 
-      _h['Cookie'] = `sid=${sid}`; 
-    }
+    // Get site-aware client (handles dual authentication: API Key → session cookie fallback)
+    const client = await getERPNextClientForRequest(request);
 
     // Fetch journal entry detail with accounts
-    const response = await fetch(
-      `${ERPNEXT_API_URL}/api/resource/Journal Entry/${encodeURIComponent(name)}`,
-      {
-        method: 'GET',
-        headers: _h,
-      }
-    );
+    const data = await client.get('Journal Entry', name);
 
-    const data = await response.json();
-
-    if (response.ok && data.data) {
-      return NextResponse.json({
-        success: true,
-        data: data.data,
-      });
-    } else {
-      return NextResponse.json(
-        { success: false, message: data.message || 'Failed to fetch journal entry' },
-        { status: response.status }
-      );
-    }
-  } catch (error) {
-    console.error('Journal Entry detail API error:', error);
-    return NextResponse.json(
-      { success: false, message: 'Internal server error' },
-      { status: 500 }
-    );
+    return NextResponse.json({
+      success: true,
+      data,
+    });
+  } catch (error: unknown) {
+    logSiteError(error, 'GET /api/finance/journal/[name]', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

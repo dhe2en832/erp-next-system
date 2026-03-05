@@ -1,92 +1,71 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
-
-function getHeaders(): Record<string, string> {
-  const apiKey = process.env.ERP_API_KEY;
-  const apiSecret = process.env.ERP_API_SECRET;
-  const h: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (apiKey && apiSecret) {
-    h['Authorization'] = `token ${apiKey}:${apiSecret}`;
-  }
-  return h;
-}
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 
 export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
-    const sid = request.cookies.get('sid')?.value;
-    if (!sid) {
-      return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
-    }
-
     const company = request.cookies.get('selected_company')?.value || '';
-    const headers = getHeaders();
+    
+    // Get site-aware client (handles dual authentication: API Key → session cookie fallback)
+    const client = await getERPNextClientForRequest(request);
 
-    const cf = company ? JSON.stringify([['company', '=', company]]) : '[]';
-    const cfAnd = (extra: [string, string, string][]) =>
-      company
-        ? JSON.stringify([['company', '=', company], ...extra])
-        : JSON.stringify(extra);
+    // Build company filters
+    const companyFilter = company ? [['company', '=', company]] : [];
+    const buildFilters = (extra: any[][]) => 
+      company ? [['company', '=', company], ...extra] : extra;
 
-    const safeJson = async (res: Response) => {
-      try { return await res.json(); } catch { return { data: [] }; }
-    };
-
-    const q = (path: string, filters: string, fields: string, limit = 500) =>
-      fetch(
-        `${ERPNEXT_API_URL}/api/resource/${path}?fields=${encodeURIComponent(fields)}&filters=${encodeURIComponent(filters)}&limit_page_length=${limit}`,
-        { headers }
-      );
-
-    // Run all queries in parallel
+    // Run all queries in parallel using client methods
     const [
-      itemsRes,
-      soAllRes,
-      soPendingRes,
-      siAllRes,
-      siOutstandingRes,
-      payRes,
-      poAllRes,
-      poPendingRes,
-      monthlySalesRes,
+      items,
+      soAll,
+      soPending,
+      siAll,
+      siOutstanding,
+      payments,
+      poAll,
+      poPending,
+      monthlySalesInvoices,
     ] = await Promise.all([
-      q('Item', '[]', '["name"]', 1000),
-      q('Sales Order', cf, '["name"]'),
-      q('Sales Order', cfAnd([['status', 'in', 'Draft,To Deliver and Bill,To Bill,To Deliver']]), '["name"]'),
-      q('Sales Invoice', cf, '["name"]'),
-      q('Sales Invoice', cfAnd([['outstanding_amount', '>', '0'], ['docstatus', '=', '1']]), '["name","outstanding_amount"]'),
-      q('Payment Entry', cfAnd([['docstatus', '=', '1']]), '["name"]'),
-      q('Purchase Order', cf, '["name"]'),
-      q('Purchase Order', cfAnd([['status', 'in', 'Draft,To Receive and Bill,To Bill,To Receive']]), '["name"]'),
-      // Monthly sales: last 6 months of submitted invoices
-      q('Sales Invoice', cfAnd([['docstatus', '=', '1']]), '["name","posting_date","grand_total"]', 2000),
-    ]);
-
-    const [
-      itemsData,
-      soAllData,
-      soPendingData,
-      siAllData,
-      siOutstandingData,
-      payData,
-      poAllData,
-      poPendingData,
-      monthlySalesData,
-    ] = await Promise.all([
-      safeJson(itemsRes),
-      safeJson(soAllRes),
-      safeJson(soPendingRes),
-      safeJson(siAllRes),
-      safeJson(siOutstandingRes),
-      safeJson(payRes),
-      safeJson(poAllRes),
-      safeJson(poPendingRes),
-      safeJson(monthlySalesRes),
+      client.getList('Item', { fields: ['name'], limit: 1000 }),
+      client.getList('Sales Order', { fields: ['name'], filters: companyFilter, limit: 500 }),
+      client.getList('Sales Order', { 
+        fields: ['name'], 
+        filters: buildFilters([['status', 'in', 'Draft,To Deliver and Bill,To Bill,To Deliver']]),
+        limit: 500 
+      }),
+      client.getList('Sales Invoice', { fields: ['name'], filters: companyFilter, limit: 500 }),
+      client.getList('Sales Invoice', { 
+        fields: ['name', 'outstanding_amount'], 
+        filters: buildFilters([['outstanding_amount', '>', '0'], ['docstatus', '=', '1']]),
+        limit: 500 
+      }),
+      client.getList('Payment Entry', { 
+        fields: ['name'], 
+        filters: buildFilters([['docstatus', '=', '1']]),
+        limit: 500 
+      }),
+      client.getList('Purchase Order', { fields: ['name'], filters: companyFilter, limit: 500 }),
+      client.getList('Purchase Order', { 
+        fields: ['name'], 
+        filters: buildFilters([['status', 'in', 'Draft,To Receive and Bill,To Bill,To Receive']]),
+        limit: 500 
+      }),
+      client.getList('Sales Invoice', { 
+        fields: ['name', 'posting_date', 'grand_total'], 
+        filters: buildFilters([['docstatus', '=', '1']]),
+        limit: 2000 
+      }),
     ]);
 
     // Calculate outstanding amount
-    const outstandingAmount = (siOutstandingData.data || []).reduce(
-      (sum: number, inv: { outstanding_amount?: number }) => sum + (inv.outstanding_amount || 0),
+    const outstandingAmount = (siOutstanding || []).reduce(
+      (sum: number, inv: any) => sum + (inv.outstanding_amount || 0),
       0
     );
 
@@ -99,7 +78,7 @@ export async function GET(request: NextRequest) {
       monthlyMap[key] = 0;
     }
 
-    (monthlySalesData.data || []).forEach((inv: { posting_date?: string; grand_total?: number }) => {
+    (monthlySalesInvoices || []).forEach((inv: any) => {
       if (!inv.posting_date) return;
       const key = inv.posting_date.substring(0, 7);
       if (key in monthlyMap) {
@@ -112,23 +91,21 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
-        total_items: itemsData.data?.length || 0,
-        total_sales_orders: soAllData.data?.length || 0,
-        pending_orders: soPendingData.data?.length || 0,
-        total_invoices: siAllData.data?.length || 0,
-        outstanding_invoices: siOutstandingData.data?.length || 0,
+        total_items: items?.length || 0,
+        total_sales_orders: soAll?.length || 0,
+        pending_orders: soPending?.length || 0,
+        total_invoices: siAll?.length || 0,
+        outstanding_invoices: siOutstanding?.length || 0,
         outstanding_amount: outstandingAmount,
-        total_payments: payData.data?.length || 0,
-        total_purchase_orders: poAllData.data?.length || 0,
-        pending_purchase_orders: poPendingData.data?.length || 0,
+        total_payments: payments?.length || 0,
+        total_purchase_orders: poAll?.length || 0,
+        pending_purchase_orders: poPending?.length || 0,
         monthly_sales,
       },
     });
   } catch (error: unknown) {
-    console.error('Dashboard error:', error);
-    return NextResponse.json(
-      { success: false, message: 'Internal server error' },
-      { status: 500 }
-    );
+    logSiteError(error, 'GET /api/setup/dashboard', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

@@ -1,10 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { erpnextClient } from '@/lib/erpnext';
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 import type { ValidationResult, PeriodClosingConfig, AccountingPeriod } from '@/types/accounting-period';
 
 export async function POST(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
+    const client = await getERPNextClientForRequest(request);
     const body = await request.json();
     const { period_name, company } = body;
 
@@ -16,7 +24,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get period
-    const period = await erpnextClient.get<AccountingPeriod>('Accounting Period', period_name);
+    const period = await client.get<AccountingPeriod>('Accounting Period', period_name);
     
     if (period.company !== company) {
       return NextResponse.json(
@@ -28,7 +36,7 @@ export async function POST(request: NextRequest) {
     // Get configuration - if not exists, use defaults
     let config: PeriodClosingConfig;
     try {
-      config = await erpnextClient.get<PeriodClosingConfig>('Period Closing Config', 'Period Closing Config');
+      config = await client.get<PeriodClosingConfig>('Period Closing Config', 'Period Closing Config');
     } catch (error) {
       // Use default config if not found
       config = {
@@ -48,31 +56,31 @@ export async function POST(request: NextRequest) {
     const validations: ValidationResult[] = [];
 
     if (config.enable_draft_transaction_check !== false) {
-      validations.push(await validateNoDraftTransactions(period));
+      validations.push(await validateNoDraftTransactions(client, period));
     }
 
     if (config.enable_unposted_transaction_check !== false) {
-      validations.push(await validateAllTransactionsPosted(period));
+      validations.push(await validateAllTransactionsPosted(client, period));
     }
 
     if (config.enable_bank_reconciliation_check !== false) {
-      validations.push(await validateBankReconciliation(period));
+      validations.push(await validateBankReconciliation(client, period));
     }
 
     if (config.enable_sales_invoice_check !== false) {
-      validations.push(await validateSalesInvoices(period));
+      validations.push(await validateSalesInvoices(client, period));
     }
 
     if (config.enable_purchase_invoice_check !== false) {
-      validations.push(await validatePurchaseInvoices(period));
+      validations.push(await validatePurchaseInvoices(client, period));
     }
 
     if (config.enable_inventory_check !== false) {
-      validations.push(await validateInventoryTransactions(period));
+      validations.push(await validateInventoryTransactions(client, period));
     }
 
     if (config.enable_payroll_check !== false) {
-      validations.push(await validatePayrollEntries(period));
+      validations.push(await validatePayrollEntries(client, period));
     }
 
     const allPassed = validations.every(v => v.passed);
@@ -82,8 +90,8 @@ export async function POST(request: NextRequest) {
       all_passed: allPassed,
       validations,
     });
-  } catch (error: any) {
-    console.error('Validation error:', error);
+  } catch (error: unknown) {
+    logSiteError(error, 'POST /api/accounting-period/validate', siteId);
     
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -92,15 +100,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json(
-      { success: false, error: error.message || 'Internal server error' },
-      { status: 500 }
-    );
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }
 
 // Validation functions
 async function validateNoDraftTransactions(
+  client: any,
   period: AccountingPeriod
 ): Promise<ValidationResult> {
   const doctypes = ['Journal Entry', 'Sales Invoice', 'Purchase Invoice', 'Payment Entry'];
@@ -115,7 +122,7 @@ async function validateNoDraftTransactions(
     ];
 
     try {
-      const docs = await erpnextClient.getList(doctype, {
+      const docs = await client.getList(doctype, {
         filters,
         fields: ['name', 'posting_date'],
         limit_page_length: 100,
@@ -140,6 +147,7 @@ async function validateNoDraftTransactions(
 }
 
 async function validateAllTransactionsPosted(
+  client: any,
   period: AccountingPeriod
 ): Promise<ValidationResult> {
   const voucherTypes = ['Journal Entry', 'Sales Invoice', 'Purchase Invoice', 'Payment Entry'];
@@ -154,7 +162,7 @@ async function validateAllTransactionsPosted(
     ];
 
     try {
-      const vouchers = await erpnextClient.getList(voucherType, {
+      const vouchers = await client.getList(voucherType, {
         filters: voucherFilters,
         fields: ['name'],
         limit_page_length: 1000,
@@ -166,7 +174,7 @@ async function validateAllTransactionsPosted(
           ['voucher_no', '=', voucher.name],
         ];
 
-        const glEntries = await erpnextClient.getList('GL Entry', {
+        const glEntries = await client.getList('GL Entry', {
           filters: glFilters,
           fields: ['name'],
           limit_page_length: 1,
@@ -194,12 +202,13 @@ async function validateAllTransactionsPosted(
 }
 
 async function validateBankReconciliation(
+  client: any,
   period: AccountingPeriod
 ): Promise<ValidationResult> {
   try {
     // In ERPNext v15, bank reconciliation uses Payment Entry, not GL Entry
     // Get all bank accounts first
-    const bankAccounts = await erpnextClient.getList('Account', {
+    const bankAccounts = await client.getList('Account', {
       filters: [
         ['company', '=', period.company],
         ['account_type', '=', 'Bank'],
@@ -221,7 +230,7 @@ async function validateBankReconciliation(
           ['docstatus', '=', 1], // Submitted only
         ];
 
-        const unreconciledPayments = await erpnextClient.getList('Payment Entry', {
+        const unreconciledPayments = await client.getList('Payment Entry', {
           filters,
           fields: ['name', 'paid_amount'],
           limit_page_length: 100,
@@ -235,7 +244,7 @@ async function validateBankReconciliation(
           ['docstatus', '=', 1], // Submitted only
         ];
 
-        const unreconciledReceipts = await erpnextClient.getList('Payment Entry', {
+        const unreconciledReceipts = await client.getList('Payment Entry', {
           filters: receivedFilters,
           fields: ['name', 'received_amount'],
           limit_page_length: 100,
@@ -346,6 +355,7 @@ async function validateBankReconciliation(
  * @returns ValidationResult with details of any unprocessed invoices
  */
 async function validateSalesInvoices(
+  client: any,
   period: AccountingPeriod
 ): Promise<ValidationResult> {
   try {
@@ -360,7 +370,7 @@ async function validateSalesInvoices(
       ['docstatus', '=', 0], // Draft only
     ];
 
-    const draftInvoices = await erpnextClient.getList('Sales Invoice', {
+    const draftInvoices = await client.getList('Sales Invoice', {
       filters,
       fields: ['name', 'customer', 'grand_total', 'posting_date'],
       limit_page_length: 100,
@@ -401,6 +411,7 @@ async function validateSalesInvoices(
  * @returns ValidationResult with details of any unprocessed invoices
  */
 async function validatePurchaseInvoices(
+  client: any,
   period: AccountingPeriod
 ): Promise<ValidationResult> {
   try {
@@ -415,7 +426,7 @@ async function validatePurchaseInvoices(
       ['docstatus', '=', 0], // Draft only
     ];
 
-    const draftInvoices = await erpnextClient.getList('Purchase Invoice', {
+    const draftInvoices = await client.getList('Purchase Invoice', {
       filters,
       fields: ['name', 'supplier', 'grand_total', 'posting_date'],
       limit_page_length: 100,
@@ -444,6 +455,7 @@ async function validatePurchaseInvoices(
 }
 
 async function validateInventoryTransactions(
+  client: any,
   period: AccountingPeriod
 ): Promise<ValidationResult> {
   try {
@@ -454,7 +466,7 @@ async function validateInventoryTransactions(
       ['docstatus', '=', 0], // Draft
     ];
 
-    const draftStockEntries = await erpnextClient.getList('Stock Entry', {
+    const draftStockEntries = await client.getList('Stock Entry', {
       filters,
       fields: ['name', 'stock_entry_type'],
       limit_page_length: 100,
@@ -483,6 +495,7 @@ async function validateInventoryTransactions(
 }
 
 async function validatePayrollEntries(
+  client: any,
   period: AccountingPeriod
 ): Promise<ValidationResult> {
   try {
@@ -493,7 +506,7 @@ async function validatePayrollEntries(
       ['docstatus', '=', 0], // Draft
     ];
 
-    const draftPayrollEntries = await erpnextClient.getList('Salary Slip', {
+    const draftPayrollEntries = await client.getList('Salary Slip', {
       filters,
       fields: ['name', 'employee', 'net_pay'],
       limit_page_length: 100,

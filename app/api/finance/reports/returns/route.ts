@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateDateRange } from '@/utils/report-validation';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+import {
+  getERPNextClientForRequest,
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError
+} from '@/lib/api-helpers';
 
 export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+
   try {
     const { searchParams } = new URL(request.url);
     const company = searchParams.get('company');
@@ -28,37 +34,41 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const _h: Record<string, string> = { 'Content-Type': 'application/json' };
-    const _ak = process.env.ERP_API_KEY;
-    const _as = process.env.ERP_API_SECRET;
-    if (_ak && _as) { _h['Authorization'] = `token ${_ak}:${_as}`; } else { _h['Cookie'] = `sid=${sid}`; }
+    const client = await getERPNextClientForRequest(request);
 
     // Sales Returns
-    const srFilters = [['company', '=', company], ['is_return', '=', 1], ['docstatus', '=', 1]];
+    const srFilters: any[][] = [['company', '=', company], ['is_return', '=', 1], ['docstatus', '=', 1]];
     if (from_date) srFilters.push(['posting_date', '>=', from_date]);
     if (to_date) srFilters.push(['posting_date', '<=', to_date]);
 
-    const srUrl = `${ERPNEXT_API_URL}/api/resource/Sales Invoice?fields=["name","posting_date","customer","customer_name","grand_total","return_against"]&filters=${encodeURIComponent(JSON.stringify(srFilters))}&order_by=posting_date desc&limit_page_length=100`;
-    const srResp = await fetch(srUrl, { headers: _h });
-    const srData = await srResp.json();
+    const srData = await client.getList('Sales Invoice', {
+      fields: ['name', 'posting_date', 'customer', 'customer_name', 'grand_total', 'return_against'],
+      filters: srFilters,
+      order_by: 'posting_date desc',
+      limit_page_length: 100
+    });
 
     // Purchase Returns
-    const prFilters = [['company', '=', company], ['is_return', '=', 1], ['docstatus', '=', 1]];
+    const prFilters: any[][] = [['company', '=', company], ['is_return', '=', 1], ['docstatus', '=', 1]];
     if (from_date) prFilters.push(['posting_date', '>=', from_date]);
     if (to_date) prFilters.push(['posting_date', '<=', to_date]);
 
-    const prUrl = `${ERPNEXT_API_URL}/api/resource/Purchase Invoice?fields=["name","posting_date","supplier","supplier_name","grand_total","return_against"]&filters=${encodeURIComponent(JSON.stringify(prFilters))}&order_by=posting_date desc&limit_page_length=100`;
-    const prResp = await fetch(prUrl, { headers: _h });
-    const prData = await prResp.json();
+    const prData = await client.getList('Purchase Invoice', {
+      fields: ['name', 'posting_date', 'supplier', 'supplier_name', 'grand_total', 'return_against'],
+      filters: prFilters,
+      order_by: 'posting_date desc',
+      limit_page_length: 100
+    });
 
     const results = {
-      sales_returns: (srData.data || []).map((r: any) => ({ ...r, type: 'Retur Penjualan' })),
-      purchase_returns: (prData.data || []).map((r: any) => ({ ...r, type: 'Retur Pembelian' }))
+      sales_returns: (srData || []).map((r: any) => ({ ...r, type: 'Retur Penjualan' })),
+      purchase_returns: (prData || []).map((r: any) => ({ ...r, type: 'Retur Pembelian' }))
     };
 
     return NextResponse.json({ success: true, data: results });
-  } catch (error: any) {
-    console.error('Returns API error:', error);
-    return NextResponse.json({ success: false, message: error.message || 'Internal server error' }, { status: 500 });
+  } catch (error: unknown) {
+    logSiteError(error, 'GET /api/finance/reports/returns', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

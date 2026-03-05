@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
+import {
+  getERPNextClientForRequest,
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError
+} from '@/lib/api-helpers';
 
 export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const { searchParams } = new URL(request.url);
     const name = searchParams.get('name');
@@ -12,37 +20,14 @@ export async function GET(request: NextRequest) {
       }, { status: 400 });
     }
 
-    const apiKey = process.env.ERP_API_KEY;
-    const apiSecret = process.env.ERP_API_SECRET;
-    const baseUrl = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
 
-    if (!apiKey || !apiSecret) {
-      return NextResponse.json({
-        success: false,
-        message: 'API credentials not configured'
-      }, { status: 500 });
-    }
-
-    const erpNextUrl = `${baseUrl}/api/method/frappe.desk.form.load.getdoc?doctype=Delivery%20Note&name=${encodeURIComponent(name)}`;
-
-    const response = await fetch(erpNextUrl, {
-      method: 'GET',
-      headers: {
-        'Authorization': `token ${apiKey}:${apiSecret}`,
-        'Content-Type': 'application/json',
-      },
+    // Use frappe.desk.form.load.getdoc method for full document details
+    const data = await client.call('frappe.desk.form.load.getdoc', {
+      doctype: 'Delivery Note',
+      name: name
     });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      return NextResponse.json({
-        success: false,
-        message: 'Failed to fetch delivery note detail',
-        error: errorText
-      }, { status: 500 });
-    }
-
-    const data = await response.json();
 
     // form.load.getdoc returns data in different structure
     const dnData = data.docs?.[0] || data.doc || data.data || data;
@@ -53,12 +38,10 @@ export async function GET(request: NextRequest) {
       data: dnData
     });
 
-  } catch (error: any) {
-    console.error('Get Delivery Note Detail Error:', error);
-    return NextResponse.json({
-      success: false,
-      message: 'Failed to fetch delivery note detail',
-      error: error.toString()
-    }, { status: 500 });
+  } catch (error: unknown) {
+    logSiteError(error, 'GET /api/sales/delivery-notes/detail', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    const statusCode = errorResponse.errorType === 'authentication' ? 401 : 500;
+    return NextResponse.json(errorResponse, { status: statusCode });
   }
 }

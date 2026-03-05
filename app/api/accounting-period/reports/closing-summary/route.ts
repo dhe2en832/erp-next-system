@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { erpnextClient } from '@/lib/erpnext';
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 
 export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
+    const client = await getERPNextClientForRequest(request);
     const { searchParams } = new URL(request.url);
     
     const period_name = searchParams.get('period_name');
@@ -17,10 +25,10 @@ export async function GET(request: NextRequest) {
     }
 
     // Get period details
-    const period = await erpnextClient.get('Accounting Period', period_name);
+    const period = await client.get('Accounting Period', period_name);
 
     // Get GL entries for the period
-    const glEntries = await erpnextClient.getList('GL Entry', {
+    const glEntries = await client.getList('GL Entry', {
       filters: [
         ['company', '=', company],
         ['posting_date', '>=', period.start_date],
@@ -31,7 +39,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Get account details to determine root_type
-    const accounts = await erpnextClient.getList('Account', {
+    const accounts = await client.getList('Account', {
       filters: [['company', '=', company]],
       fields: ['name', 'account_name', 'root_type', 'account_type'],
       limit: 10000,
@@ -110,11 +118,9 @@ export async function GET(request: NextRequest) {
       data: summary,
       format,
     });
-  } catch (error: any) {
-    console.error('Error generating closing summary:', error);
-    return NextResponse.json(
-      { success: false, error: 'REPORT_ERROR', message: error.message || 'Failed to generate report' },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    logSiteError(error, 'GET /api/accounting-period/reports/closing-summary', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

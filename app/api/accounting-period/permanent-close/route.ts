@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { erpnextClient } from '@/lib/erpnext';
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 
 export async function POST(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
+    const client = await getERPNextClientForRequest(request);
     const body = await request.json();
     const { period_name, company, confirmation } = body;
 
@@ -21,7 +29,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get period details
-    const period = await erpnextClient.get('Accounting Period', period_name);
+    const period = await client.get('Accounting Period', period_name);
 
     // Validate period status
     if (period.status !== 'Closed') {
@@ -35,14 +43,14 @@ export async function POST(request: NextRequest) {
     const now = new Date();
     const erpnextDatetime = now.toISOString().slice(0, 19).replace('T', ' ');
     
-    await erpnextClient.update('Accounting Period', period_name, {
+    await client.update('Accounting Period', period_name, {
       status: 'Permanently Closed',
       permanently_closed_by: 'Administrator',
       permanently_closed_on: erpnextDatetime,
     });
 
     // Create audit log
-    await erpnextClient.insert('Period Closing Log', {
+    await client.insert('Period Closing Log', {
       accounting_period: period_name,
       action_type: 'Permanently Closed',
       action_by: 'Administrator',
@@ -55,11 +63,9 @@ export async function POST(request: NextRequest) {
       success: true,
       message: 'Period permanently closed successfully',
     });
-  } catch (error: any) {
-    console.error('Error permanently closing period:', error);
-    return NextResponse.json(
-      { success: false, error: 'PERMANENT_CLOSE_ERROR', message: error.message || 'Failed to permanently close period' },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    logSiteError(error, 'POST /api/accounting-period/permanent-close', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

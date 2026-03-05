@@ -1,41 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
-
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     console.log('=== DIAGNOSE ERPNEXT SETUP ===');
     
-    const authString = Buffer.from(`${process.env.ERP_API_KEY}:${process.env.ERP_API_SECRET}`).toString('base64');
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
     
     const diagnostics: Record<string, any> = {};
     
     // 1. Check Delivery Note doctype
     // console.log('1. Checking Delivery Note doctype...');
     try {
-      const dnDoctypeResponse = await fetch(`${ERPNEXT_API_URL}/api/resource/DocType/Delivery%20Note`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Basic ${authString}`
-        },
-      });
-      
-      if (dnDoctypeResponse.ok) {
-        const dnDoctype = await dnDoctypeResponse.json();
-        diagnostics.delivery_note_doctype = {
-          status: 'found',
-          name: dnDoctype.data?.name,
-          module: dnDoctype.data?.module,
-          custom: dnDoctype.data?.custom,
-          engine: dnDoctype.data?.engine
-        };
-      } else {
-        diagnostics.delivery_note_doctype = {
-          status: 'not_found',
-          error: dnDoctypeResponse.status
-        };
-      }
+      const dnDoctype = await client.get('DocType', 'Delivery Note');
+      diagnostics.delivery_note_doctype = {
+        status: 'found',
+        name: dnDoctype.name,
+        module: dnDoctype.module,
+        custom: dnDoctype.custom,
+        engine: dnDoctype.engine
+      };
     } catch (error) {
       diagnostics.delivery_note_doctype = {
         status: 'error',
@@ -46,29 +38,14 @@ export async function GET() {
     // 2. Check Delivery Note Item doctype
     // console.log('2. Checking Delivery Note Item doctype...');
     try {
-      const dnItemDoctypeResponse = await fetch(`${ERPNEXT_API_URL}/api/resource/DocType/Delivery%20Note%20Item`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Basic ${authString}`
-        },
-      });
-      
-      if (dnItemDoctypeResponse.ok) {
-        const dnItemDoctype = await dnItemDoctypeResponse.json();
-        diagnostics.delivery_note_item_doctype = {
-          status: 'found',
-          name: dnItemDoctype.data?.name,
-          module: dnItemDoctype.data?.module,
-          custom: dnItemDoctype.data?.custom,
-          engine: dnItemDoctype.data?.engine
-        };
-      } else {
-        diagnostics.delivery_note_item_doctype = {
-          status: 'not_found',
-          error: dnItemDoctypeResponse.status
-        };
-      }
+      const dnItemDoctype = await client.get('DocType', 'Delivery Note Item');
+      diagnostics.delivery_note_item_doctype = {
+        status: 'found',
+        name: dnItemDoctype.name,
+        module: dnItemDoctype.module,
+        custom: dnItemDoctype.custom,
+        engine: dnItemDoctype.engine
+      };
     } catch (error) {
       diagnostics.delivery_note_item_doctype = {
         status: 'error',
@@ -79,28 +56,17 @@ export async function GET() {
     // 3. Check user permissions
     // console.log('3. Checking user permissions...');
     try {
-      const userResponse = await fetch(`${ERPNEXT_API_URL}/api/resource/User/${process.env.ERP_API_KEY}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Basic ${authString}`
-        },
-      });
+      // Get site config to access API key for user lookup
+      const siteConfig = (client as any).getSiteConfig?.() || { apiKey: process.env.ERP_API_KEY };
+      const userEmail = siteConfig.apiKey || process.env.ERP_API_KEY;
       
-      if (userResponse.ok) {
-        const userData = await userResponse.json();
-        diagnostics.user_permissions = {
-          status: 'found',
-          email: userData.data?.email,
-          enabled: userData.data?.enabled,
-          roles: userData.data?.roles || []
-        };
-      } else {
-        diagnostics.user_permissions = {
-          status: 'not_found',
-          error: userResponse.status
-        };
-      }
+      const userData = await client.get('User', userEmail);
+      diagnostics.user_permissions = {
+        status: 'found',
+        email: userData.email,
+        enabled: userData.enabled,
+        roles: userData.roles || []
+      };
     } catch (error) {
       diagnostics.user_permissions = {
         status: 'error',
@@ -111,31 +77,19 @@ export async function GET() {
     // 4. Check available items
     // console.log('4. Checking available items...');
     try {
-      const itemsResponse = await fetch(`${ERPNEXT_API_URL}/api/resource/Item?fields=["name","item_name","item_group"]&limit_page_length=5`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Basic ${authString}`
-        },
+      const itemsData = await client.getList('Item', {
+        fields: ['name', 'item_name', 'item_group'],
+        limit_page_length: 5
       });
-      
-      if (itemsResponse.ok) {
-        const itemsData = await itemsResponse.json();
-        diagnostics.available_items = {
-          status: 'found',
-          count: itemsData.data?.length || 0,
-          sample_items: itemsData.data?.slice(0, 3).map((item: any) => ({
-            name: item.name,
-            item_name: item.item_name,
-            item_group: item.item_group
-          }))
-        };
-      } else {
-        diagnostics.available_items = {
-          status: 'not_found',
-          error: itemsResponse.status
-        };
-      }
+      diagnostics.available_items = {
+        status: 'found',
+        count: itemsData.length || 0,
+        sample_items: itemsData.slice(0, 3).map((item: any) => ({
+          name: item.name,
+          item_name: item.item_name,
+          item_group: item.item_group
+        }))
+      };
     } catch (error) {
       diagnostics.available_items = {
         status: 'error',
@@ -146,30 +100,18 @@ export async function GET() {
     // 5. Check warehouses
     // console.log('5. Checking warehouses...');
     try {
-      const warehouseResponse = await fetch(`${ERPNEXT_API_URL}/api/resource/Warehouse?fields=["name","warehouse_name"]&limit_page_length=5`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Basic ${authString}`
-        },
+      const warehouseData = await client.getList('Warehouse', {
+        fields: ['name', 'warehouse_name'],
+        limit_page_length: 5
       });
-      
-      if (warehouseResponse.ok) {
-        const warehouseData = await warehouseResponse.json();
-        diagnostics.warehouses = {
-          status: 'found',
-          count: warehouseData.data?.length || 0,
-          sample_warehouses: warehouseData.data?.slice(0, 3).map((wh: any) => ({
-            name: wh.name,
-            warehouse_name: wh.warehouse_name
-          }))
-        };
-      } else {
-        diagnostics.warehouses = {
-          status: 'not_found',
-          error: warehouseResponse.status
-        };
-      }
+      diagnostics.warehouses = {
+        status: 'found',
+        count: warehouseData.length || 0,
+        sample_warehouses: warehouseData.slice(0, 3).map((wh: any) => ({
+          name: wh.name,
+          warehouse_name: wh.warehouse_name
+        }))
+      };
     } catch (error) {
       diagnostics.warehouses = {
         status: 'error',
@@ -192,20 +134,11 @@ export async function GET() {
         warehouse: "Stores - E1D"
       };
       
-      const testItemResponse = await fetch(`${ERPNEXT_API_URL}/api/resource/Delivery Note Item`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Basic ${authString}`
-        },
-        body: JSON.stringify(testItemPayload)
-      });
-      
-      const testItemData = testItemResponse.ok ? await testItemResponse.json() : { error: testItemResponse.status };
+      const testItemData = await client.insert('Delivery Note Item', testItemPayload);
       
       diagnostics.direct_item_creation_test = {
-        status: testItemResponse.ok ? 'success' : 'failed',
-        response_status: testItemResponse.status,
+        status: 'success',
+        response_status: 200,
         response_data: testItemData
       };
       
@@ -236,14 +169,8 @@ export async function GET() {
     });
 
   } catch (error: unknown) {
-    console.error('Diagnose ERPNext setup error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return NextResponse.json(
-      { 
-        success: false, 
-        message: errorMessage
-      },
-      { status: 500 }
-    );
+    logSiteError(error, 'GET /api/utils/diagnose', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

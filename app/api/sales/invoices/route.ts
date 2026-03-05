@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { CreateSalesInvoiceRequest } from '@/types/sales-invoice';
 import { handleERPNextAPIError } from '@/utils/erpnext-api-helper';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 
 export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+
   try {
-    // console.log('=== GET SALES INVOICES - SIMPLE COOKIE AUTH ===');
-    
     const { searchParams } = new URL(request.url);
     const company = searchParams.get('company');
     const order_by = searchParams.get('order_by') || 'creation desc';
@@ -16,9 +20,9 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status');
     const fromDate = searchParams.get('from_date');
     const toDate = searchParams.get('to_date');
-    const limit = searchParams.get('limit') || '100';
-    const start = searchParams.get('start') || '0';
-    
+    const limit = parseInt(searchParams.get('limit') || '100');
+    const start = parseInt(searchParams.get('start') || '0');
+
     const cookies = request.cookies;
     const sid = cookies.get('sid')?.value;
 
@@ -30,132 +34,95 @@ export async function GET(request: NextRequest) {
     }
 
     // Build filters
-    let filtersArray = [];
-    
+    let filtersArray: any[][] = [];
+
     // Always add company filter if provided
     if (company) {
-      filtersArray.push(["company", "=", company]);
+      filtersArray.push(['company', '=', company]);
     }
-    
+
     // Add search filter
     if (search) {
-      filtersArray.push(["customer_name", "like", `%${search}%`]);
+      filtersArray.push(['customer_name', 'like', `%${search}%`]);
     }
-    
+
     // Add document number filter
     if (documentNumber) {
-      filtersArray.push(["name", "like", `%${documentNumber}%`]);
+      filtersArray.push(['name', 'like', `%${documentNumber}%`]);
     }
-    
+
     // Add status filter
     if (status) {
-      filtersArray.push(["status", "=", status]);
+      filtersArray.push(['status', '=', status]);
     }
-    
+
     // Add date filters
     if (fromDate) {
-      filtersArray.push(["posting_date", ">=", fromDate]);
+      filtersArray.push(['posting_date', '>=', fromDate]);
     }
-    
+
     if (toDate) {
-      filtersArray.push(["posting_date", "<=", toDate]);
+      filtersArray.push(['posting_date', '<=', toDate]);
     }
 
-    // Build URL with filters
-    // Note: discount_amount and discount_percentage removed from fields to avoid ERPNext permission errors
-    // These fields are added with default values (0) in the response transformation layer below
-    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Sales Invoice?fields=["name","customer","customer_name","posting_date","grand_total","status","docstatus","custom_total_komisi_sales","creation","total","net_total","taxes_and_charges","total_taxes_and_charges","outstanding_amount"]&limit_page_length=${limit}&limit_start=${start}&order_by=${order_by}`;
-    
-    if (filtersArray.length > 0) {
-      erpNextUrl += `&filters=${encodeURIComponent(JSON.stringify(filtersArray))}`;
-    }
-    
-    console.log('Invoice ERPNext URL:', erpNextUrl);
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
 
-    const response = await fetch(erpNextUrl, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Cookie': `sid=${sid}`,
-      },
+    // Fetch invoices using client method
+    const invoices = await client.getList('Sales Invoice', {
+      fields: [
+        'name',
+        'customer',
+        'customer_name',
+        'posting_date',
+        'grand_total',
+        'status',
+        'docstatus',
+        'custom_total_komisi_sales',
+        'creation',
+        'total',
+        'net_total',
+        'taxes_and_charges',
+        'total_taxes_and_charges',
+        'outstanding_amount'
+      ],
+      filters: filtersArray,
+      limit_page_length: limit,
+      start,
+      order_by
     });
 
-    const data = await response.json();
-    // console.log('🔍 Invoice Response Status:', response.status);
-    // console.log('📋 Complete Invoice Response Data:', JSON.stringify(data, null, 2));
-    
-    // Log each invoice detail
-    if (data.data && Array.isArray(data.data)) {
-      // console.log('📊 Invoice Count:', data.data.length);
-      data.data.forEach((invoice: any, index: number) => {
-        // console.log(`📄 Invoice ${index + 1}:`, {
-        //   name: invoice.name,
-        //   customer: invoice.customer,
-        //   delivery_note: invoice.delivery_note,
-        //   items_count: invoice.items ? invoice.items.length : 0,
-        //   items_with_dn: invoice.items ? invoice.items.filter((item: any) => item.delivery_note).length : 0
-        // });
-        
-        // Log items if exist
-        // if (invoice.items && invoice.items.length > 0) {
-        //   invoice.items.forEach((item: any, itemIndex: number) => {
-        //     if (item.delivery_note) {
-        //       console.log(`  📦 Item ${itemIndex + 1} DN:`, item.delivery_note);
-        //     }
-        //   });
-        // }
+    // Add backward compatibility - Requirements 2.8, 14.1, 14.5
+    // For old invoices without discount/tax, ensure default values
+    const invoicesWithDefaults = invoices.map((invoice: any) => ({
+      ...invoice,
+      discount_amount: invoice.discount_amount || 0,
+      discount_percentage: invoice.discount_percentage || 0,
+      total_taxes_and_charges: invoice.total_taxes_and_charges || 0,
+      taxes: invoice.taxes || []
+    }));
 
-      });
-    }
-
-    if (response.ok) {
-      // Add backward compatibility - Requirements 2.8, 14.1, 14.5
-      // For old invoices without discount/tax, ensure default values
-      const invoices = data.data?.map((invoice: any) => ({
-        ...invoice,
-        discount_amount: invoice.discount_amount || 0,
-        discount_percentage: invoice.discount_percentage || 0,
-        total_taxes_and_charges: invoice.total_taxes_and_charges || 0,
-        taxes: invoice.taxes || []
-      })) || [];
-
-      return NextResponse.json({
-        success: true,
-        data: invoices,
-      });
-    } else {
-      return NextResponse.json(
-        { success: false, message: data.exc || data.message || 'Failed to fetch invoices' },
-        { status: response.status }
-      );
-    }
+    return NextResponse.json({
+      success: true,
+      data: invoicesWithDefaults,
+    });
 
   } catch (error: any) {
-    console.error('Invoice API error:', error);
-    return NextResponse.json(
-      { success: false, message: 'Internal server error', error: error.toString() },
-      { status: 500 }
-    );
+    logSiteError(error, 'GET /api/sales/invoices', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+
   try {
-    // console.log('=== CREATE SALES INVOICE - ERPNEXT REST API ===');
-    
     const invoiceData: CreateSalesInvoiceRequest = await request.json();
-    // console.log('Invoice Data:', JSON.stringify(invoiceData, null, 2));
 
     // Get API credentials from environment variables
     const apiKey = process.env.ERP_API_KEY;
     const apiSecret = process.env.ERP_API_SECRET;
-    const baseUrl = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
-
-    // console.log('API Config:', {
-    //   apiKey: apiKey ? 'SET' : 'NOT SET',
-    //   apiSecret: apiSecret ? 'SET' : 'NOT SET',
-    //   baseUrl
-    // });
 
     if (!apiKey || !apiSecret) {
       console.error('Missing API credentials');
@@ -195,38 +162,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Priority rule: discount_amount > discount_percentage - Requirement 5.4
-    // If both are provided, ERPNext will use discount_amount as primary
-    // console.log('Discount validation passed:', {
-    //   discount_percentage: invoiceData.discount_percentage,
-    //   discount_amount: invoiceData.discount_amount,
-    //   subtotal
-    // });
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
 
     // Validate tax template if provided - Requirements 5.3, 5.7
     if (invoiceData.taxes_and_charges) {
       try {
         // Fetch tax template to validate it exists and is active
-        const taxTemplateUrl = `${baseUrl}/api/resource/Sales Taxes and Charges Template/${encodeURIComponent(invoiceData.taxes_and_charges)}`;
-        const taxTemplateResponse = await fetch(taxTemplateUrl, {
-          method: 'GET',
-          headers: {
-            'Authorization': `token ${apiKey}:${apiSecret}`,
-            'Content-Type': 'application/json',
-          },
-        });
+        const taxTemplateData = await client.get('Sales Taxes and Charges Template', invoiceData.taxes_and_charges);
 
-        if (!taxTemplateResponse.ok) {
-          return NextResponse.json({
-            success: false,
-            message: `Tax template '${invoiceData.taxes_and_charges}' not found`
-          }, { status: 400 });
-        }
-
-        const taxTemplateData = await taxTemplateResponse.json();
-        
         // Check if template is disabled
-        if (taxTemplateData.data?.disabled === 1) {
+        if (taxTemplateData.disabled === 1) {
           return NextResponse.json({
             success: false,
             message: `Tax template '${invoiceData.taxes_and_charges}' is disabled`
@@ -234,19 +180,12 @@ export async function POST(request: NextRequest) {
         }
 
         // Validate account_head in tax template exists in COA
-        if (taxTemplateData.data?.taxes && Array.isArray(taxTemplateData.data.taxes)) {
-          for (const taxRow of taxTemplateData.data.taxes) {
+        if (taxTemplateData.taxes && Array.isArray(taxTemplateData.taxes)) {
+          for (const taxRow of taxTemplateData.taxes) {
             if (taxRow.account_head) {
-              const accountUrl = `${baseUrl}/api/resource/Account/${encodeURIComponent(taxRow.account_head)}`;
-              const accountResponse = await fetch(accountUrl, {
-                method: 'GET',
-                headers: {
-                  'Authorization': `token ${apiKey}:${apiSecret}`,
-                  'Content-Type': 'application/json',
-                },
-              });
-
-              if (!accountResponse.ok) {
+              try {
+                await client.get('Account', taxRow.account_head);
+              } catch (accountError) {
                 return NextResponse.json({
                   success: false,
                   message: `Account '${taxRow.account_head}' not found in Chart of Accounts`
@@ -255,22 +194,15 @@ export async function POST(request: NextRequest) {
             }
           }
         }
-
-        // console.log('Tax template validation passed:', invoiceData.taxes_and_charges);
       } catch (error: any) {
         console.error('Tax template validation error:', error);
         return NextResponse.json({
           success: false,
-          message: 'Failed to validate tax template',
+          message: `Tax template '${invoiceData.taxes_and_charges}' not found`,
           error: error.toString()
         }, { status: 400 });
       }
     }
-
-    // Create Sales Invoice using frappe.client.insert
-    const erpNextUrl = `${baseUrl}/api/method/frappe.client.insert`;
-    
-    // console.log('Using frappe.client.insert to create Sales Invoice');
 
     // Prepare payload with proper ERPNext structure
     const payload: any = {
@@ -292,55 +224,31 @@ export async function POST(request: NextRequest) {
       additional_discount_percentage: invoiceData.additional_discount_percentage || 0,
       apply_discount_on: invoiceData.apply_discount_on || 'Net Total',
       // Items - CRITICAL: Pre-populate custom_hpp_snapshot and custom_financial_cost_percent
-      items: await Promise.all((invoiceData.items || []).map(async (item: any, index: number) => {
+      items: await Promise.all((invoiceData.items || []).map(async (item: any) => {
         let hppSnapshot = 0;
         let financialCostPercent = 0;
-        
+
         // Get HPP from Delivery Note Item if available
         if (item.dn_detail) {
           try {
-            const dnItemUrl = `${baseUrl}/api/resource/Delivery Note Item/${encodeURIComponent(item.dn_detail)}`;
-            const dnItemResponse = await fetch(dnItemUrl, {
-              method: 'GET',
-              headers: {
-                'Authorization': `token ${apiKey}:${apiSecret}`,
-                'Content-Type': 'application/json',
-              },
-            });
-            
-            if (dnItemResponse.ok) {
-              const dnItemData = await dnItemResponse.json();
-              hppSnapshot = dnItemData.data?.custom_hpp_snapshot || dnItemData.data?.incoming_rate || 0;
-              financialCostPercent = dnItemData.data?.custom_financial_cost_percent || 0;
-              // console.log(`Item ${item.item_code}: HPP=${hppSnapshot}, FinCost=${financialCostPercent} from DN Item`);
-            }
+            const dnItemData = await client.get('Delivery Note Item', item.dn_detail);
+            hppSnapshot = dnItemData.custom_hpp_snapshot || dnItemData.incoming_rate || 0;
+            financialCostPercent = dnItemData.custom_financial_cost_percent || 0;
           } catch (error) {
             console.error(`Error fetching DN item ${item.dn_detail}:`, error);
           }
         }
-        
+
         // Fallback: Get Financial Cost from Item master if not from DN
         if (financialCostPercent === 0) {
           try {
-            const itemUrl = `${baseUrl}/api/resource/Item/${encodeURIComponent(item.item_code)}`;
-            const itemResponse = await fetch(itemUrl, {
-              method: 'GET',
-              headers: {
-                'Authorization': `token ${apiKey}:${apiSecret}`,
-                'Content-Type': 'application/json',
-              },
-            });
-            
-            if (itemResponse.ok) {
-              const itemData = await itemResponse.json();
-              financialCostPercent = itemData.data?.custom_financial_cost_percent || 0;
-              // console.log(`Item ${item.item_code}: FinCost=${financialCostPercent} from Item master`);
-            }
+            const itemData = await client.get('Item', item.item_code);
+            financialCostPercent = itemData.custom_financial_cost_percent || 0;
           } catch (error) {
             console.error(`Error fetching Item ${item.item_code}:`, error);
           }
         }
-        
+
         return {
           item_code: item.item_code,
           qty: item.qty,
@@ -368,96 +276,26 @@ export async function POST(request: NextRequest) {
     }
 
     // Tax handling: OPTIONAL - only if user selects tax template
-    // If user selects tax template, send both template name AND calculated tax rows
     if (invoiceData.taxes_and_charges) {
       payload.taxes_and_charges = invoiceData.taxes_and_charges;
-      // console.log('Tax template selected by user:', invoiceData.taxes_and_charges);
-      
+
       // Send pre-calculated tax rows from frontend
       if (invoiceData.taxes && invoiceData.taxes.length > 0) {
         payload.taxes = invoiceData.taxes;
-        // console.log('Tax rows provided:', invoiceData.taxes.length, 'rows');
       }
-    } else {
-      console.log('No tax template selected - invoice without tax');
     }
 
-    // console.log('Payload for frappe.client.insert:', JSON.stringify(payload, null, 2));
-
-    const response = await fetch(erpNextUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `token ${apiKey}:${apiSecret}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        doc: payload
-      })
-    });
-
-    // console.log('ERPNext Response Status:', response.status);
-
-    const responseText = await response.text();
-    // console.log('ERPNext Response Text:', responseText);
-
-    if (!response.ok) {
-      console.error('ERPNext API Error:', responseText);
-      
-      // Use the error handler utility to extract proper error message
-      let data;
-      try {
-        data = JSON.parse(responseText);
-      } catch {
-        data = { message: responseText };
-      }
-      
-      const errorResult = handleERPNextAPIError(response, data, JSON.stringify(payload));
-      
-      return errorResult;
-    }
-
-    let data;
-    try {
-      data = JSON.parse(responseText);
-      // console.log('ERPNext Success Response:', data);
-    } catch (parseError) {
-      console.error('Error parsing JSON response:', parseError);
-      return NextResponse.json({
-        success: false,
-        message: 'Invalid JSON response from ERPNext',
-        error: responseText
-      }, { status: 500 });
-    }
+    // Create Sales Invoice using frappe.client.insert
+    const result = await client.call('frappe.client.insert', { doc: payload });
 
     // CRITICAL FIX: Force ERPNext to recognize document as "saved"
-    // After creating via API, ERPNext's form cache is not updated
-    // This causes "Not Saved" status which blocks Credit Note creation
-    // Solution: Fetch the latest document, clean __unsaved flags, and save to update cache
-    const invoiceName = data.message?.name || data.data?.name;
+    const invoiceName = result.message?.name || result.data?.name || result.name;
     if (invoiceName) {
       try {
-        // console.log('Forcing document save to update ERPNext cache for:', invoiceName);
-        
-        // Step 1: Fetch the latest version of the document
-        const getUrl = `${baseUrl}/api/resource/Sales Invoice/${encodeURIComponent(invoiceName)}`;
-        const getResponse = await fetch(getUrl, {
-          method: 'GET',
-          headers: {
-            'Authorization': `token ${apiKey}:${apiSecret}`,
-            'Content-Type': 'application/json',
-          },
-        });
+        // Fetch the latest version of the document
+        const latestDoc = await client.get('Sales Invoice', invoiceName);
 
-        if (!getResponse.ok) {
-          console.warn('⚠️ Failed to fetch document for cache update');
-          throw new Error('Failed to fetch document');
-        }
-
-        const docData = await getResponse.json();
-        const latestDoc = docData.data;
-
-        // Step 2: Clean __unsaved flags from child tables
-        // This is critical - frappe.client.insert marks child tables as __unsaved
+        // Clean __unsaved flags from child tables
         if (latestDoc.items && Array.isArray(latestDoc.items)) {
           latestDoc.items = latestDoc.items.map((item: any) => {
             const { __unsaved, ...cleanItem } = item;
@@ -483,45 +321,31 @@ export async function POST(request: NextRequest) {
           });
         }
 
-        // Step 3: Save the cleaned document to update cache
-        const saveUrl = `${baseUrl}/api/method/frappe.client.save`;
-        const saveResponse = await fetch(saveUrl, {
-          method: 'POST',
-          headers: {
-            'Authorization': `token ${apiKey}:${apiSecret}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            doc: latestDoc
-          })
-        });
-
-        if (saveResponse.ok) {
-          console.log('✅ Document cache updated successfully for:', invoiceName);
-        } else {
-          const errorText = await saveResponse.text();
-          console.warn('⚠️ Failed to update cache, but document is saved in database:', errorText);
-        }
+        // Save the cleaned document to update cache
+        await client.call('frappe.client.save', { doc: latestDoc });
+        console.log('✅ Document cache updated successfully for:', invoiceName);
       } catch (cacheError) {
         console.warn('⚠️ Cache update failed, but document is saved:', cacheError);
-        // Don't fail the request - document is already saved
       }
-    } else {
-      console.warn('⚠️ No invoice name found in response, skipping cache update');
     }
 
     return NextResponse.json({
       success: true,
       message: 'Invoice created successfully in ERPNext',
-      data: data
+      data: result
     });
 
   } catch (error: any) {
+    logSiteError(error, 'POST /api/sales/invoices', siteId);
     console.error('Create Invoice Error:', error);
-    return NextResponse.json({
-      success: false,
-      message: 'Failed to create invoice',
-      error: error.toString()
-    }, { status: 500 });
+
+    // Try to use the error handler utility
+    const errorResult = handleERPNextAPIError(
+      { ok: false, status: 500 } as Response,
+      { message: error.message || error.toString() },
+      ''
+    );
+
+    return errorResult;
   }
 }

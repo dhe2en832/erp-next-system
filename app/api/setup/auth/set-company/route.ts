@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+import {
+  getERPNextClientForRequest,
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError
+} from '@/lib/api-helpers';
 
 export async function POST(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const { company } = await request.json();
 
-    const cookies = request.cookies;
-    const sid = cookies.get('sid')?.value;
+    const sid = request.cookies.get('sid')?.value;
 
     if (!sid) {
       return NextResponse.json(
@@ -16,17 +21,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
+
     // Set company as session default in ERPNext (optional but recommended)
     try {
-      await fetch(`${ERPNEXT_API_URL}/api/method/frappe.utils.setup_docs.set_session_default`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Cookie': `sid=${sid}`,
-        },
-        body: JSON.stringify({
-          default_company: company,
-        }),
+      await client.call('frappe.utils.setup_docs.set_session_default', {
+        default_company: company
       });
     } catch (error) {
       console.log('Failed to set session default in ERPNext, but continuing...');
@@ -48,11 +49,10 @@ export async function POST(request: NextRequest) {
 
     return responseNext;
 
-  } catch (error) {
-    console.error('Set company error:', error);
-    return NextResponse.json(
-      { success: false, message: 'Internal server error' },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    logSiteError(error, 'POST /api/setup/auth/set-company', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    const statusCode = errorResponse.errorType === 'authentication' ? 401 : 500;
+    return NextResponse.json(errorResponse, { status: statusCode });
   }
 }

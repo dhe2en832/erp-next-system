@@ -1,69 +1,58 @@
 import { NextRequest, NextResponse } from 'next/server';
+import {
+  getERPNextClientForRequest,
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError
+} from '@/lib/api-helpers';
 
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const company = searchParams.get('company');
+  const siteId = await getSiteIdFromRequest(request);
   
-  const AUTH = `token ${process.env.ERP_API_KEY}:${process.env.ERP_API_SECRET}`;
-  const ERP_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
-
   try {
-    // Get all submitted DN (exclude returns)
-    const allDNRes = await fetch(`${ERP_URL}/api/resource/Delivery Note?` + new URLSearchParams({
-        fields: '["name","customer","customer_name","grand_total","status"]',
-        filters: JSON.stringify([
-            ["docstatus", "=", 1],
-            ["company", "=", company || ""],
-            ["status", "!=", "Closed"],
-            ["is_return", "=", 0]
-        ]),
-        limit_page_length: 'None'
-    }), { headers: { 'Authorization': AUTH } });
+    const { searchParams } = new URL(request.url);
+    const company = searchParams.get('company');
 
-    if (!allDNRes.ok) {
-      const errorText = await allDNRes.text();
-      throw new Error(`Failed to fetch delivery notes: ${errorText}`);
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
+
+    // Get all submitted DN (exclude returns)
+    const filters: any[][] = [
+      ["docstatus", "=", 1],
+      ["status", "!=", "Closed"],
+      ["is_return", "=", 0]
+    ];
+    
+    if (company) {
+      filters.push(["company", "=", company]);
     }
 
-    const allData = await allDNRes.json();
-    const allDNs = allData.data || [];
+    const allDNs = await client.getList('Delivery Note', {
+      fields: ['name', 'customer', 'customer_name', 'grand_total', 'status'],
+      filters,
+      limit_page_length: 0 // Get all
+    });
 
     // Get all Sales Invoice
-    const invoiceRes = await fetch(`${ERP_URL}/api/resource/Sales Invoice?` + new URLSearchParams({
-        fields: '["name","docstatus"]',
-        filters: JSON.stringify([
-            ["docstatus", "!=", 2]
-        ]),
-        limit_page_length: 'None'
-    }), { headers: { 'Authorization': AUTH } });
-
-    if (!invoiceRes.ok) {
-      const errorText = await invoiceRes.text();
-      throw new Error(`Failed to fetch sales invoices: ${errorText}`);
-    }
-
-    const invoiceData = await invoiceRes.json();
-    const invoices = invoiceData.data || [];
+    const invoices = await client.getList('Sales Invoice', {
+      fields: ['name', 'docstatus'],
+      filters: [["docstatus", "!=", 2]],
+      limit_page_length: 0 // Get all
+    });
 
     // Extract DN numbers from each invoice items
     const usedDNs: string[] = [];
     
     for (const invoice of invoices) {
       try {
-        const invoiceItemsRes = await fetch(`${ERP_URL}/api/resource/Sales Invoice/${invoice.name}?fields=["items"]`, {
-          headers: { 'Authorization': AUTH }
-        });
-
-        if (invoiceItemsRes.ok) {
-          const invoiceItemsData = await invoiceItemsRes.json();
-          const items = invoiceItemsData.data?.items || [];
-          
-          const dnInItems = items
-            .map((item: any) => item.delivery_note)
-            .filter(Boolean);
-          
-          usedDNs.push(...dnInItems);
-        }
+        const invoiceData = await client.get('Sales Invoice', invoice.name);
+        const items = invoiceData.items || [];
+        
+        const dnInItems = items
+          .map((item: any) => item.delivery_note)
+          .filter(Boolean);
+        
+        usedDNs.push(...dnInItems);
       } catch (itemError) {
         // Continue with other invoices
       }
@@ -83,12 +72,10 @@ export async function GET(request: NextRequest) {
       }
     });
 
-  } catch (error: any) {
-    console.error("DN Fetch Error:", error.message);
-    return NextResponse.json({ 
-      success: false, 
-      error: error.message,
-      hint: "Failed to fetch delivery notes" 
-    }, { status: 500 });
+  } catch (error: unknown) {
+    logSiteError(error, 'GET /api/sales/invoices/items', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    const statusCode = errorResponse.errorType === 'authentication' ? 401 : 500;
+    return NextResponse.json(errorResponse, { status: statusCode });
   }
 }

@@ -1,73 +1,57 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ name: string }> }
 ) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const { name } = await params;
-    const { searchParams } = new URL(request.url);
-    const company = searchParams.get('company');
-
-    // console.log('PO Name:', name);
-    // console.log('Company:', company);
-
-    if (!company) {
+    
+    // Validate name parameter - be more specific
+    if (!name || name.trim() === '') {
       return NextResponse.json(
-        { success: false, message: 'Company is required' },
+        { success: false, message: 'Purchase order name is required' },
         { status: 400 }
       );
     }
-
-    // Use API key authentication
-    const apiKey = process.env.ERP_API_KEY;
-    const apiSecret = process.env.ERP_API_SECRET;
-
-    if (!apiKey || !apiSecret) {
+    
+    if (name === 'undefined' || name === 'null' || name === 'undefined/') {
       return NextResponse.json(
-        { success: false, message: 'ERPNext API credentials not configured' },
-        { status: 500 }
+        { success: false, message: 'Invalid purchase order name provided' },
+        { status: 400 }
       );
     }
+    
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
+    
+    // Use ERPNext's form.load.getdoc method to get full document with child tables
+    const orderData = await client.call('frappe.desk.form.load.getdoc', {
+      doctype: 'Purchase Order',
+      name: name.trim()
+    });
 
-    // Build ERPNext URL to get specific PO
-    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Purchase Order/${name}?fields=["*"]`;
+    // form.load.getdoc returns data in different structure
+    // The actual document data is in docs or doc
+    const order = orderData.docs?.[0] || orderData.doc || orderData;
 
-    // console.log('Fetch PO ERPNext URL:', erpNextUrl);
+    return NextResponse.json({
+      success: true,
+      data: order,
+    });
 
-    const response = await fetch(
-      erpNextUrl,
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `token ${apiKey}:${apiSecret}`,
-        },
-      }
-    );
-
-    const data = await response.json();
-    // console.log('Fetch PO response:', data);
-
-    if (response.ok) {
-      return NextResponse.json({
-        success: true,
-        data: data.data,
-      });
-    } else {
-      return NextResponse.json(
-        { success: false, message: data.exc || data.message || 'Failed to fetch purchase order' },
-        { status: response.status }
-      );
-    }
   } catch (error) {
-    console.error('Purchase Order fetch error:', error);
-    return NextResponse.json(
-      { success: false, message: 'Internal server error' },
-      { status: 500 }
-    );
+    logSiteError(error, 'GET /api/purchase/orders/[name]', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }
 
@@ -75,51 +59,70 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ name: string }> }
 ) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const { name } = await params;
+    
+    // Validate name parameter
+    if (!name || name.trim() === '') {
+      return NextResponse.json(
+        { success: false, message: 'Purchase order name is required' },
+        { status: 400 }
+      );
+    }
+    
     const purchaseOrderData = await request.json();
 
-    // console.log('Updating PO:', name);
-    // console.log('PO Data:', purchaseOrderData);
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
+    
+    // Use client.update method
+    const updatedOrder = await client.update('Purchase Order', name.trim(), purchaseOrderData);
 
-    // Use API key authentication
-    const apiKey = process.env.ERP_API_KEY;
-    const apiSecret = process.env.ERP_API_SECRET;
-
-    if (!apiKey || !apiSecret) {
-      return NextResponse.json(
-        { success: false, message: 'ERPNext API credentials not configured' },
-        { status: 500 }
-      );
-    }
-
-    const response = await fetch(`${ERPNEXT_API_URL}/api/resource/Purchase Order/${name}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `token ${apiKey}:${apiSecret}`,
-      },
-      body: JSON.stringify(purchaseOrderData),
+    return NextResponse.json({
+      success: true,
+      data: updatedOrder,
     });
 
-    const data = await response.json();
+  } catch (error) {
+    logSiteError(error, 'PUT /api/purchase/orders/[name]', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
+  }
+}
 
-    if (response.ok) {
-      return NextResponse.json({
-        success: true,
-        data: data.data,
-      });
-    } else {
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ name: string }> }
+) {
+  const siteId = await getSiteIdFromRequest(request);
+  
+  try {
+    const { name } = await params;
+    
+    // Validate name parameter
+    if (!name || name.trim() === '') {
       return NextResponse.json(
-        { success: false, message: data.exc || data.message || 'Failed to update purchase order' },
-        { status: response.status }
+        { success: false, message: 'Purchase order name is required' },
+        { status: 400 }
       );
     }
+
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
+    
+    // Use client.delete method
+    await client.delete('Purchase Order', name.trim());
+
+    return NextResponse.json({
+      success: true,
+      message: 'Purchase order deleted successfully',
+    });
+
   } catch (error) {
-    console.error('Purchase Order update error:', error);
-    return NextResponse.json(
-      { success: false, message: 'Internal server error' },
-      { status: 500 }
-    );
+    logSiteError(error, 'DELETE /api/purchase/orders/[name]', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

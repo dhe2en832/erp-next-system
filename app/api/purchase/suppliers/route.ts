@@ -1,47 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 
 export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
-    // console.log('Suppliers API - ERPNext URL:', ERPNEXT_API_URL);
-    
     const { searchParams } = new URL(request.url);
     const company = searchParams.get('company');
     const search = searchParams.get('search');
     const limitPageLength = searchParams.get('limit_page_length') || '20';
     const limitStart = searchParams.get('limit_start') || '0';
 
-    const cookies = request.cookies;
-    const sid = cookies.get('sid')?.value;
+    const client = await getERPNextClientForRequest(request);
 
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-
-    // Prioritize API Key authentication (like payment API)
-    const apiKey = process.env.ERP_API_KEY;
-    const apiSecret = process.env.ERP_API_SECRET;
-    
-    // console.log('Suppliers API - API Key Available:', !!apiKey);
-    // console.log('Suppliers API - API Secret Available:', !!apiSecret);
-    // console.log('Suppliers API - Session ID Available:', !!sid);
-    
-    if (apiKey && apiSecret) {
-      headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-      // console.log('Using API key authentication for suppliers');
-    } else if (sid) {
-      headers['Cookie'] = `sid=${sid}`;
-      // console.log('Using session-based authentication for suppliers');
-    } else {
-      // console.log('No authentication found - returning 401');
-      return NextResponse.json(
-        { success: false, message: 'Unauthorized - No session or API key found' },
-        { status: 401 }
-      );
-    }
-
-    // Build filters with simple structure (like customers API)
+    // Build filters with simple structure
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const filters: any[] = [];
     
@@ -51,9 +28,6 @@ export async function GET(request: NextRequest) {
     // Note: In ERPNext, suppliers don't have a direct company field
     // They are typically shared across companies
     // Company parameter is accepted but not used for filtering
-    // if (company) {
-    //   console.log('Suppliers API - Company parameter provided but not applied:', company);
-    // }
     
     if (search && search.trim()) {
       // Add search condition - search by name first (simple approach)
@@ -61,155 +35,80 @@ export async function GET(request: NextRequest) {
       filters.push(["name", "like", `%${searchTrim}%`]);
     }
 
-    // console.log('Suppliers API - Search term:', search);
-    // console.log('Suppliers API - Company filter:', company);
-    // console.log('Suppliers API - Final filters:', filters);
-
-    const filtersString = JSON.stringify(filters);
-
-    // Build ERPNext URL sederhana - hanya ambil name dan supplier_name
-    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Supplier?fields=["name","supplier_name"]&filters=${encodeURIComponent(filtersString)}&order_by=supplier_name&limit_page_length=${limitPageLength}&limit_start=${limitStart}`;
-
-    // console.log('Suppliers ERPNext URL:', erpNextUrl);
-
-    const response = await fetch(
-      erpNextUrl,
-      {
-        method: 'GET',
-        headers,
-      }
-    );
-
-    // console.log('Response status:', response.status);
-    // console.log('Response headers:', Object.fromEntries(response.headers.entries()));
-
-    const data = await response.json();
-    // console.log('Suppliers response:', data);
-    // console.log('First supplier data sample:', data.data && data.data.length > 0 ? data.data[0] : 'No data');
-    
-    // Log all available fields untuk debugging
-    // if (data.data && data.data.length > 0) {
-    //   console.log('Available fields in supplier:', Object.keys(data.data[0]));
-    // }
+    const data = await client.getList('Supplier', {
+      fields: ['name', 'supplier_name'],
+      filters,
+      order_by: 'supplier_name',
+      limit_page_length: parseInt(limitPageLength),
+      start: parseInt(limitStart)
+    });
 
     // If search is provided, also search by supplier_name and combine results
-    let finalData = data.data || [];
+    let finalData = data || [];
     
-    if (search && search.trim() && response.ok) {
+    if (search && search.trim()) {
       try {
-        // console.log('Performing hybrid search - also searching by supplier_name');
-        
         // Second API call to search by supplier_name
         const supplierNameFilters = [
           ["supplier_type", "=", "Company"],
           ["supplier_name", "like", `%${search.trim()}%`]
         ];
         
-        const supplierNameFiltersString = JSON.stringify(supplierNameFilters);
-        const supplierNameUrl = `${ERPNEXT_API_URL}/api/resource/Supplier?fields=["name","supplier_name"]&filters=${encodeURIComponent(supplierNameFiltersString)}&order_by=supplier_name&limit_page_length=${limitPageLength}&limit_start=${limitStart}`;
-        
-        // console.log('Supplier name search URL:', supplierNameUrl);
-        
-        const supplierNameResponse = await fetch(supplierNameUrl, {
-          method: 'GET',
-          headers,
+        const supplierNameResults = await client.getList('Supplier', {
+          fields: ['name', 'supplier_name'],
+          filters: supplierNameFilters,
+          order_by: 'supplier_name',
+          limit_page_length: parseInt(limitPageLength),
+          start: parseInt(limitStart)
         });
         
-        if (supplierNameResponse.ok) {
-          const supplierNameData = await supplierNameResponse.json();
-          // console.log('Supplier name search response:', supplierNameData);
-          
-          // Combine and deduplicate results
-          const supplierNameResults = supplierNameData.data || [];
-          const combinedResults = [...finalData, ...supplierNameResults];
-          
-          // Remove duplicates based on name field
-          const uniqueResults = combinedResults.filter((item, index, self) =>
-            index === self.findIndex((t) => t.name === item.name)
-          );
-          
-          finalData = uniqueResults;
-          // console.log('Combined unique results:', finalData.length);
-        }
+        // Combine and deduplicate results
+        const combinedResults = [...finalData, ...supplierNameResults];
+        
+        // Remove duplicates based on name field
+        const uniqueResults = combinedResults.filter((item, index, self) =>
+          index === self.findIndex((t) => t.name === item.name)
+        );
+        
+        finalData = uniqueResults;
       } catch (error) {
         console.error('Error in hybrid search:', error);
         // Continue with original results if hybrid search fails
       }
     }
 
-    if (response.ok) {
-      return NextResponse.json({
-        success: true,
-        data: finalData,
-        total: finalData.length,
-        message: `Suppliers fetched successfully${search ? ' (hybrid search)' : ''}`
-      });
-    } else {
-      return NextResponse.json(
-        { success: false, message: data.message || 'Failed to fetch suppliers' },
-        { status: response.status }
-      );
-    }
-  } catch (error) {
-    console.error('Suppliers API Error:', error);
-    return NextResponse.json(
-      { success: false, message: 'Internal server error' },
-      { status: 500 }
-    );
+    return NextResponse.json({
+      success: true,
+      data: finalData,
+      total: finalData.length,
+      message: `Suppliers fetched successfully${search ? ' (hybrid search)' : ''}`
+    });
+  } catch (error: unknown) {
+    logSiteError(error, 'GET /api/purchase/suppliers', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-
-    const apiKey = process.env.ERP_API_KEY;
-    const apiSecret = process.env.ERP_API_SECRET;
-    const sid = request.cookies.get('sid')?.value;
-
-    if (apiKey && apiSecret) {
-      headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-    } else if (sid) {
-      headers['Cookie'] = `sid=${sid}`;
-    } else {
-      return NextResponse.json(
-        { success: false, message: 'No authentication available' },
-        { status: 401 }
-      );
-    }
-
+    const client = await getERPNextClientForRequest(request);
     const body = await request.json();
+    
     // Let ERPNext generate name via naming series
     delete body.name;
     if (!body.naming_series) {
       body.naming_series = 'SUP-.#####';
     }
 
-    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Supplier`;
+    const data = await client.insert('Supplier', body);
 
-    const response = await fetch(erpNextUrl, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ data: body }),
-    });
-
-    const data = await response.json();
-
-    if (response.ok) {
-      return NextResponse.json({ success: true, data: data.data });
-    } else {
-      return NextResponse.json(
-        { success: false, message: data.message || data.exc || 'Failed to create supplier' },
-        { status: response.status }
-      );
-    }
-  } catch (error) {
-    console.error('Supplier POST API Error:', error);
-    return NextResponse.json(
-      { success: false, message: 'Internal server error' },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: true, data });
+  } catch (error: unknown) {
+    logSiteError(error, 'POST /api/purchase/suppliers', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

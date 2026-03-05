@@ -1,177 +1,66 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 
 export async function GET(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search');
     const limitPageLength = searchParams.get('limit_page_length') || '20';
     const limitStart = searchParams.get('limit_start') || '0';
-    const company = searchParams.get('company');
 
-    const cookies = request.cookies;
-    const sid = cookies.get('sid')?.value;
-
-    let erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Customer?fields=["name","customer_name"]&limit_page_length=${limitPageLength}&limit_start=${limitStart}`;
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
     
-    // Build filters array - Use simple approach that works
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const filters: any[] = [];
-    
-    // console.log('DEBUG - search param:', search);
-    // console.log('DEBUG - search.trim():', search?.trim());
-    // console.log('DEBUG - search condition:', search && search.trim());
+    // Build filters array
+    const filters: any[][] = [];
     
     if (search && search.trim()) {
       const searchTrim = search.trim();
-      // console.log('DEBUG - Building search filter for:', searchTrim);
-      
-      // Simple search by customer_name first
       filters.push(["customer_name", "like", `%${searchTrim}%`]);
-      
-      // console.log('DEBUG - Filters after search:', filters);
     }
     
-    // Add company filter if provided (for multi-entity support)
-    // if (company) {
-    //   // In ERPNext, customers don't have a direct company field
-    //   // They are linked via customer_group or territory
-    //   // For now, we'll skip company filtering for customers
-    //   // as they are typically shared across companies
-    //   console.log('DEBUG - Company filter provided but not applied for customers:', company);
-    // }
-    
-    if (filters.length > 0) {
-      erpNextUrl += `&filters=${encodeURIComponent(JSON.stringify(filters))}`;
-    }
-
-    // console.log('Customers ERPNext URL:', erpNextUrl);
-    // console.log('Request params:', { search, limitPageLength, limitStart, company });
-    // console.log('Search term value:', search);
-    // console.log('Search term trimmed:', search?.trim());
-    // console.log('Filters being applied:', filters);
-    // console.log('Final URL:', erpNextUrl);
-
-    const _ak = process.env.ERP_API_KEY;
-    const _as = process.env.ERP_API_SECRET;
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (_ak && _as) {
-      headers['Authorization'] = `token ${_ak}:${_as}`;
-    } else if (sid) {
-      headers['Cookie'] = `sid=${sid}`;
-    }
-
-    const response = await fetch(erpNextUrl, {
-      method: 'GET',
-      headers,
+    // Use client method instead of fetch
+    const data = await client.getList('Customer', {
+      fields: ['name', 'customer_name'],
+      filters,
+      limit_page_length: parseInt(limitPageLength),
+      start: parseInt(limitStart)
     });
 
-    // console.log('Customers API Raw Response Status:', response.status);
-    // console.log('Customers API Raw Response Headers:', Object.fromEntries(response.headers.entries()));
-
-    let data;
-    try {
-      const responseText = await response.text();
-      // console.log('Customers API Raw Response Text:', responseText);
-      data = JSON.parse(responseText);
-    } catch (parseError) {
-      console.error('❌ Failed to parse API response:', parseError);
-      return NextResponse.json(
-        { success: false, message: 'Invalid API response format' },
-        { status: 500 }
-      );
-    }
-
-    // If search filter causes error, try without filter
-    if (!response.ok && search && search.trim()) {
-      // console.log('🔄 Search filter failed, trying without filter...');
-      const fallbackUrl = `${ERPNEXT_API_URL}/api/resource/Customer?fields=["name","customer_name"]&limit_page_length=${limitPageLength}&limit_start=${limitStart}`;
-      
-      const fallbackResponse = await fetch(fallbackUrl, {
-        method: 'GET',
-        headers,
-      });
-      
-      if (fallbackResponse.ok) {
-        const fallbackData = await fallbackResponse.json();
-        // console.log('✅ Fallback successful, got customers:', fallbackData.data?.length || 0);
-        return NextResponse.json({
-          success: true,
-          data: fallbackData.data || [],
-          total: fallbackData.data?.length || 0,
-        });
-      }
-    }
-
-    // console.log('Customers API Parsed Response:', { 
-    //   status: response.status, 
-    //   success: response.ok,
-    //   dataLength: data.data?.length || 0,
-    //   hasData: !!data.data,
-    //   message: data.message,
-    //   excType: data.exc_type,
-    //   data: data 
-    // });
-
-    if (response.ok) {
-      return NextResponse.json({
-        success: true,
-        data: data.data || [],
-        total: data.data?.length || 0,
-      });
-    } else {
-      const errorMessage = data.message || data.exc_type || 'Failed to fetch customers';
-      console.error('❌ Customers API Error Details:', {
-        status: response.status,
-        message: errorMessage,
-        excType: data.exc_type,
-        data: data
-      });
-      
-      return NextResponse.json(
-        { success: false, message: errorMessage },
-        { status: response.status }
-      );
-    }
-  } catch (error) {
-    console.error('Customers API Error:', error);
-    return NextResponse.json(
-      { success: false, message: 'Internal server error' },
-      { status: 500 }
-    );
+    return NextResponse.json({
+      success: true,
+      data: data || [],
+      total: data?.length || 0,
+    });
+  } catch (error: unknown) {
+    logSiteError(error, 'GET /api/sales/customers', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
-    const cookies = request.cookies;
-    const sid = cookies.get('sid')?.value;
-
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-
-    const apiKey = process.env.ERP_API_KEY;
-    const apiSecret = process.env.ERP_API_SECRET;
-
-    if (apiKey && apiSecret) {
-      headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-    } else if (sid) {
-      headers['Cookie'] = `sid=${sid}`;
-    } else {
-      return NextResponse.json(
-        { success: false, message: 'No authentication available' },
-        { status: 401 }
-      );
-    }
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
 
     const body = await request.json();
+    
     // Let ERPNext generate code
     delete body.name;
     if (!body.naming_series) {
       body.naming_series = 'CUST-.#####';
     }
+    
     // Map sales_person to sales_team if provided
     if (body.sales_person) {
       body.sales_team = [
@@ -183,29 +72,12 @@ export async function POST(request: NextRequest) {
       delete body.sales_person;
     }
 
-    const erpNextUrl = `${ERPNEXT_API_URL}/api/resource/Customer`;
+    const data = await client.insert('Customer', body);
 
-    const response = await fetch(erpNextUrl, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ data: body }),
-    });
-
-    const data = await response.json();
-
-    if (response.ok) {
-      return NextResponse.json({ success: true, data: data.data });
-    } else {
-      return NextResponse.json(
-        { success: false, message: data.message || data.exc || 'Failed to create customer' },
-        { status: response.status }
-      );
-    }
-  } catch (error) {
-    console.error('Customer POST API Error:', error);
-    return NextResponse.json(
-      { success: false, message: 'Internal server error' },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: true, data });
+  } catch (error: unknown) {
+    logSiteError(error, 'POST /api/sales/customers', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

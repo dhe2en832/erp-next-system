@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getErpAuthHeaders } from '@/utils/erpnext-auth';
-import { handleERPNextAPIError } from '@/utils/erpnext-api-helper';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
+import { 
+  getERPNextClientForRequest, 
+  getSiteIdFromRequest,
+  buildSiteAwareErrorResponse,
+  logSiteError 
+} from '@/lib/api-helpers';
 
 /**
  * GET /api/sales/delivery-note-return/[name]
@@ -14,73 +16,41 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ name: string }> }
 ) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const { name } = await params;
-    // console.log('=== GET DELIVERY NOTE RETURN DETAIL ===');
-    // console.log('Return Name:', name);
-
-    const headers = getErpAuthHeaders(request);
-
-    // Use form.load.getdoc method for complete data with child tables
-    const erpNextUrl = `${ERPNEXT_API_URL}/api/method/frappe.desk.form.load.getdoc?doctype=Delivery Note&name=${encodeURIComponent(name)}`;
     
-    // console.log('Delivery Note Return Detail URL:', erpNextUrl);
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
 
-    const response = await fetch(erpNextUrl, {
-      method: 'GET',
-      headers,
-    });
-
-    const responseText = await response.text();
-    // console.log('Delivery Note Return Detail Response Status:', response.status);
+    // Use getDoc method for complete data with child tables
+    const doc = await client.getDoc('Delivery Note', name);
     
-    let data;
-    try {
-      data = JSON.parse(responseText);
-    } catch (parseError) {
-      console.error('Failed to parse response as JSON:', parseError);
-      console.error('Response text:', responseText);
-      
+    // Verify this is a return document
+    if (!doc.is_return) {
       return NextResponse.json(
-        { success: false, message: 'Invalid response from ERPNext server' },
-        { status: response.status }
+        { success: false, message: 'This is not a return document' },
+        { status: 400 }
       );
     }
-
-    // console.log('Delivery Note Return Detail Response:', data);
-
-    if (response.ok) {
-      const doc = data.docs?.[0] || data.message;
-      
-      // Verify this is a return document
-      if (!doc.is_return) {
-        return NextResponse.json(
-          { success: false, message: 'This is not a return document' },
-          { status: 400 }
-        );
-      }
-      
-      // Transform to match frontend expectations
-      const transformedDoc = {
-        ...doc,
-        delivery_note: doc.return_against,
-        status: doc.docstatus === 0 ? 'Draft' : doc.docstatus === 1 ? 'Submitted' : 'Cancelled',
-        custom_notes: doc.return_notes,
-      };
-      
-      return NextResponse.json({
-        success: true,
-        data: transformedDoc,
-      });
-    } else {
-      return handleERPNextAPIError(response, data, 'Failed to fetch delivery note return details');
-    }
-  } catch (error) {
-    console.error('Delivery Note Return Detail Error:', error);
-    return NextResponse.json(
-      { success: false, message: 'Internal server error' },
-      { status: 500 }
-    );
+    
+    // Transform to match frontend expectations
+    const transformedDoc = {
+      ...doc,
+      delivery_note: doc.return_against,
+      status: doc.docstatus === 0 ? 'Draft' : doc.docstatus === 1 ? 'Submitted' : 'Cancelled',
+      custom_notes: doc.return_notes,
+    };
+    
+    return NextResponse.json({
+      success: true,
+      data: transformedDoc,
+    });
+  } catch (error: unknown) {
+    logSiteError(error, 'GET /api/sales/delivery-note-return/[name]', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }
 
@@ -94,69 +64,19 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ name: string }> }
 ) {
+  const siteId = await getSiteIdFromRequest(request);
+  
   try {
     const { name } = await params;
     const updateData = await request.json();
     
-    // console.log('=== UPDATE DELIVERY NOTE RETURN ===');
-    // console.log('Return Name:', name);
-    // console.log('Update Data:', JSON.stringify(updateData, null, 2));
-
-    const cookies = request.cookies;
-    const sid = cookies.get('sid')?.value;
-
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      'X-Requested-With': 'XMLHttpRequest',
-    };
-
-    const apiKey = process.env.ERP_API_KEY;
-    const apiSecret = process.env.ERP_API_SECRET;
-    
-    if (apiKey && apiSecret) {
-      headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
-    } else if (sid) {
-      headers['Cookie'] = `sid=${sid}`;
-      
-      try {
-        const csrfResponse = await fetch(`${ERPNEXT_API_URL}/api/method/frappe.core.csrf.get_token`, {
-          method: 'GET',
-          headers: { 'Cookie': `sid=${sid}` },
-        });
-        
-        if (csrfResponse.ok) {
-          const csrfData = await csrfResponse.json();
-          if (csrfData.message?.csrf_token) {
-            headers['X-Frappe-CSRF-Token'] = csrfData.message.csrf_token;
-          }
-        }
-      } catch (csrfError) {
-        console.log('Failed to get CSRF token:', csrfError);
-      }
-    } else {
-      return NextResponse.json(
-        { success: false, message: 'No authentication available' },
-        { status: 401 }
-      );
-    }
+    // Get site-aware client
+    const client = await getERPNextClientForRequest(request);
 
     // First, get current document to check status
-    const getResponse = await fetch(
-      `${ERPNEXT_API_URL}/api/resource/Delivery Note/${encodeURIComponent(name)}`,
-      { method: 'GET', headers }
-    );
-
-    if (!getResponse.ok) {
-      return NextResponse.json(
-        { success: false, message: 'Failed to fetch current document' },
-        { status: getResponse.status }
-      );
-    }
-
-    const currentDoc = await getResponse.json();
+    const currentDoc = await client.get('Delivery Note', name);
     
-    if (currentDoc.data.docstatus !== 0) {
+    if (currentDoc.docstatus !== 0) {
       return NextResponse.json(
         { success: false, message: 'Only Draft documents can be updated' },
         { status: 400 }
@@ -177,41 +97,15 @@ export async function PUT(
       }));
     }
 
-    const response = await fetch(
-      `${ERPNEXT_API_URL}/api/resource/Delivery Note/${encodeURIComponent(name)}`,
-      {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify(deliveryNoteUpdate),
-      }
-    );
+    const data = await client.update('Delivery Note', name, deliveryNoteUpdate);
 
-    const responseText = await response.text();
-    let data;
-    
-    try {
-      data = JSON.parse(responseText);
-    } catch (parseError) {
-      console.error('Failed to parse response:', parseError);
-      return NextResponse.json(
-        { success: false, message: 'Invalid response from ERPNext server' },
-        { status: response.status }
-      );
-    }
-
-    if (response.ok) {
-      return NextResponse.json({
-        success: true,
-        data: data.data,
-      });
-    } else {
-      return handleERPNextAPIError(response, data, 'Failed to update delivery note return');
-    }
-  } catch (error) {
-    console.error('Delivery Note Return Update Error:', error);
-    return NextResponse.json(
-      { success: false, message: 'Internal server error' },
-      { status: 500 }
-    );
+    return NextResponse.json({
+      success: true,
+      data,
+    });
+  } catch (error: unknown) {
+    logSiteError(error, 'PUT /api/sales/delivery-note-return/[name]', siteId);
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }
