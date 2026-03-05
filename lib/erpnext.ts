@@ -23,7 +23,7 @@ export class ERPNextClient {
     this.baseUrl = baseUrl || ERPNEXT_API_URL;
   }
 
-  private getHeaders(): Record<string, string> {
+  protected getHeaders(): Record<string, string> {
     return buildAuthHeaders();
   }
 

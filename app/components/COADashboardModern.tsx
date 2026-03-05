@@ -245,13 +245,26 @@ export default function COADashboardModern() {
 
   const fetchCOA = useCallback(async () => {
     try {
-      const res = await fetch('/api/finance/accounts');
+      // Get selected company from localStorage
+      const selectedCompany = localStorage.getItem('selected_company');
+      
+      // Build URL with company parameter if available
+      const url = selectedCompany 
+        ? `/api/finance/accounts?company=${encodeURIComponent(selectedCompany)}`
+        : '/api/finance/accounts';
+      
+      console.log('[COA] Fetching accounts for company:', selectedCompany || 'all');
+      
+      const res = await fetch(url);
       const data = await res.json();
+      
+      console.log('[COA] API response:', data);
+      
       if (data.success) {
         setAccounts(buildTree(data.accounts));
       }
     } catch (err) {
-      console.error(err);
+      console.error('[COA] Error fetching accounts:', err);
     } finally {
       setLoading(false);
     }

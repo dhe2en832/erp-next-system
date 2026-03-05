@@ -58,6 +58,8 @@
     "test:accounting-period-audit-log": "ts-node --project tsconfig.scripts.json tests/accounting-period-audit-log-unit.test.ts",
     "test:accounting-period-notifications": "ts-node --project tsconfig.scripts.json tests/accounting-period-notifications.pbt.test.ts",
     "test:accounting-period-notifications-unit": "ts-node --project tsconfig.scripts.json tests/accounting-period-notifications-unit.test.ts",
+    "test:env-config": "ts-node --project tsconfig.scripts.json tests/unit/env-config.test.ts",
+    "test:site-config": "ts-node --project tsconfig.scripts.json tests/unit/site-config.test.ts",
     "test:accounting-period-sales-validation": "ts-node --project tsconfig.scripts.json tests/accounting-period-sales-validation.test.ts",
     "test:accounting-period-purchase-validation": "ts-node --project tsconfig.scripts.json tests/accounting-period-purchase-validation.test.ts",
     "test:csrf-protection": "ts-node --project tsconfig.scripts.json __tests__/csrf-protection.test.ts",

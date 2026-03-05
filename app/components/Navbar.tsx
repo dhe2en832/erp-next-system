@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import SiteSelector from '@/components/site-selector';
+import { useSite } from '@/lib/site-context';
 
 interface Company {
   name: string;
@@ -37,8 +39,12 @@ export default function Navbar() {
   const [activeSubCategory, setActiveSubCategory] = useState<string | null>(null);
   const router = useRouter();
   const pathname = usePathname();
+  const { activeSite } = useSite();
 
   useEffect(() => {
+    // Don't fetch user info on login and site selection pages
+    const isPublicPage = pathname === '/login' || pathname === '/select-site' || pathname === '/select-company';
+    
     // Get selected company from localStorage
     const storedCompany = localStorage.getItem('selected_company');
     
@@ -60,6 +66,11 @@ export default function Navbar() {
         setUser({ full_name: data.full_name, roles: data.roles || [] });
         if (data.roles) setRoles(data.roles);
       } catch { /* ignore invalid data */ }
+    }
+
+    // Skip fetching user info on public pages
+    if (isPublicPage) {
+      return;
     }
 
     // Fetch current user info with roles — always overrides stale localStorage
@@ -126,7 +137,7 @@ export default function Navbar() {
       document.removeEventListener('click', handleClickOutside);
       window.removeEventListener('storage', handleStorageChange);
     };
-  }, []);
+  }, [pathname]); // Add pathname to dependencies
 
   const handleLogout = async () => {
     try {
@@ -378,8 +389,8 @@ export default function Navbar() {
     subCategories: cat.subCategories ? filterSubCategories(cat.subCategories) : undefined,
   }));
 
-  // Don't show navbar on login and company selection pages
-  if (pathname === '/login' || pathname === '/select-company') {
+  // Don't show navbar on login, site selection, and company selection pages
+  if (pathname === '/login' || pathname === '/select-site' || pathname === '/select-company') {
     return null;
   }
 
@@ -406,6 +417,27 @@ export default function Navbar() {
 
             {/* Company and User Info */}
             <div className="flex items-center space-x-6">
+              {/* Site Selector and Current Site Indicator */}
+              <div className="flex items-center space-x-4">
+                {/* Current Site Display Indicator */}
+                {activeSite && (
+                  <div className="hidden lg:flex items-center space-x-2 px-3 py-2 bg-indigo-50 rounded-lg border border-indigo-200">
+                    <div className="flex items-center">
+                      <svg className="w-4 h-4 text-indigo-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+                      </svg>
+                      <div>
+                        <p className="text-xs text-indigo-600 font-medium">Active Site</p>
+                        <p className="text-sm font-semibold text-indigo-900">{activeSite.displayName}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Site Selector Dropdown */}
+                <SiteSelector className="hidden sm:inline-block" showStatus={true} />
+              </div>
+
               {/* Company Info */}
               {selectedCompany && (
                 <div className="flex items-center space-x-3">
@@ -630,6 +662,25 @@ export default function Navbar() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
+              </div>
+              
+              {/* Site Selector in Mobile Menu */}
+              <div className="mb-6 pb-6 border-b border-gray-200">
+                <div className="mb-3">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Active Site</p>
+                  {activeSite && (
+                    <div className="flex items-center space-x-2 px-3 py-2 bg-indigo-50 rounded-lg border border-indigo-200 mb-3">
+                      <svg className="w-4 h-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+                      </svg>
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-indigo-900">{activeSite.displayName}</p>
+                        <p className="text-xs text-indigo-600">{activeSite.name}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <SiteSelector className="w-full" showStatus={true} />
               </div>
               
               {visibleCategories.map((category) => {

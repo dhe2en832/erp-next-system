@@ -3,9 +3,10 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import Navbar from "./components/Navbar";
 import { ToastProvider } from "../lib/toast-context";
+import { SiteProvider } from "../lib/site-context";
 import ToastContainer from "../components/ToastContainer";
 import { EnvironmentBadge } from "../components/EnvironmentBadge";
-import { validateEnv, getAppEnvironment } from '@/lib/env-validation';
+import { getAppEnvironment } from '@/lib/env-validation';
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -17,18 +18,13 @@ export const metadata: Metadata = {
 // Force dynamic rendering for all pages (required for useSearchParams)
 export const dynamic = 'force-dynamic';
 
-// Validate environment on server startup
-if (typeof window === 'undefined') {
-  try {
-    const env = validateEnv();
-    const appEnv = getAppEnvironment();
-    console.log(`🚀 Application started in ${appEnv} mode`);
-    console.log(`🔗 Connected to: ${env.ERPNEXT_API_URL}`);
-  } catch (error) {
-    console.error('❌ Environment validation failed:', error);
-    throw error;
-  }
-}
+// Log application startup
+// if (typeof window === 'undefined') {
+//   const appEnv = getAppEnvironment();
+//   console.log(`🚀 Application started in ${appEnv} mode`);
+//   console.log(`🌐 Multi-site support enabled`);
+//   console.log(`📍 Default site: demo.batasku.cloud`);
+// }
 
 export default function RootLayout({
   children,
@@ -38,14 +34,16 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <ToastProvider>
-          <Navbar />
-          <main className="min-h-screen bg-gray-50">
-            {children}
-          </main>
-          <ToastContainer />
-          <EnvironmentBadge />
-        </ToastProvider>
+        <SiteProvider>
+          <ToastProvider>
+            <Navbar />
+            <main className="min-h-screen bg-gray-50">
+              {children}
+            </main>
+            <ToastContainer />
+            <EnvironmentBadge />
+          </ToastProvider>
+        </SiteProvider>
       </body>
     </html>
   );

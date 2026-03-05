@@ -19,7 +19,7 @@ function getAuthHeaders(request: NextRequest): Record<string, string> {
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const company = searchParams.get('company') || 'Berkat Abadi Cirebon';
+    const company = searchParams.get('company');
 
     const headers = getAuthHeaders(request);
     if (!headers['Authorization'] && !headers['Cookie']) {

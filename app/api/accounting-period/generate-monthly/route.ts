@@ -1,10 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { erpnextClient } from '@/lib/erpnext';
+import { getERPNextClientForRequest, getSiteIdFromRequest, buildSiteAwareErrorResponse, logSiteError } from '@/lib/api-helpers';
 
 export async function POST(request: NextRequest) {
+  let siteId: string | null = null;
+  
   try {
+    // Extract site ID from request for error context
+    siteId = await getSiteIdFromRequest(request);
+    
+    // Get site-aware ERPNext client
+    const client = await getERPNextClientForRequest(request);
+    
     const body = await request.json();
-    const { company, fiscal_year, start_month = 1 } = body;
+    const { company, fiscal_year } = body;
 
     if (!company || !fiscal_year) {
       return NextResponse.json(
@@ -14,14 +22,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Get fiscal year details
-    const fiscalYearDoc = await erpnextClient.get('Fiscal Year', fiscal_year);
+    const fiscalYearDoc = await client.get('Fiscal Year', fiscal_year);
     const yearStartDate = new Date(fiscalYearDoc.year_start_date);
     const yearEndDate = new Date(fiscalYearDoc.year_end_date);
 
     // Generate monthly periods
-    const createdPeriods: any[] = [];
-    const skippedPeriods: any[] = [];
-    const errors: any[] = [];
+    const createdPeriods: unknown[] = [];
+    const skippedPeriods: unknown[] = [];
+    const errors: unknown[] = [];
 
     let currentDate = new Date(yearStartDate);
     let monthIndex = 0;
@@ -54,7 +62,7 @@ export async function POST(request: NextRequest) {
 
       try {
         // Check if period already exists
-        const existing = await erpnextClient.getList('Accounting Period', {
+        const existing = await client.getList('Accounting Period', {
           filters: [
             ['company', '=', company],
             ['start_date', '=', startDateStr],
@@ -72,7 +80,7 @@ export async function POST(request: NextRequest) {
           });
         } else {
           // Create period
-          const period = await erpnextClient.insert('Accounting Period', {
+          const period = await client.insert('Accounting Period', {
             period_name: periodName,
             company: company,
             start_date: startDateStr,
@@ -84,10 +92,11 @@ export async function POST(request: NextRequest) {
 
           createdPeriods.push(period);
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
+        logSiteError(error, `Create accounting period: ${periodName}`, siteId);
         errors.push({
           period_name: periodName,
-          error: error.message,
+          error: error instanceof Error ? error.message : 'Unknown error',
         });
       }
 
@@ -110,10 +119,22 @@ export async function POST(request: NextRequest) {
         },
       },
     });
-  } catch (error: any) {
-    console.error('Error generating monthly periods:', error);
+  } catch (error: unknown) {
+    logSiteError(error, 'Generate monthly periods', siteId);
+    
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    
+    // Provide specific guidance based on error type
+    if (errorResponse.errorType === 'authentication') {
+      errorResponse.message = `Authentication failed${siteId ? ` for site ${siteId}` : ''}. Please check your API credentials.`;
+    } else if (errorResponse.errorType === 'network') {
+      errorResponse.message = `Cannot connect to ERPNext${siteId ? ` (Site: ${siteId})` : ''}. Please check your network connection.`;
+    } else if (errorResponse.errorType === 'configuration') {
+      errorResponse.message = `Site configuration error${siteId ? ` (Site: ${siteId})` : ''}. Please verify your site settings.`;
+    }
+    
     return NextResponse.json(
-      { success: false, error: 'GENERATE_ERROR', message: error.message || 'Failed to generate monthly periods' },
+      errorResponse,
       { status: 500 }
     );
   }
