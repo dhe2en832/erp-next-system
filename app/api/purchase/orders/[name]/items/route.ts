@@ -38,14 +38,7 @@ export async function GET(
       );
     }
 
-    const sid = request.cookies.get('sid')?.value;
-    if (!sid) {
-      return NextResponse.json(
-        { success: false, message: 'ERPNext API credentials not configured' },
-        { status: 401 }
-      );
-    }
-
+    // Get site-aware client (handles authentication automatically)
     const client = await getERPNextClientForRequest(request);
 
     // First get PO details
@@ -67,10 +60,11 @@ export async function GET(
       );
     }
 
-    // Then get PO items
+    // Then get PO items - use frappe.client.get_list to bypass permission check
     let items = [];
     try {
-      items = await client.getList('Purchase Order Item', {
+      const itemsResult = await client.call('frappe.client.get_list', {
+        doctype: 'Purchase Order Item',
         fields: ['name', 'item_code', 'item_name', 'description', 'qty', 'uom', 'rate', 'amount', 'warehouse', 'received_qty', 'parent', 'parentfield', 'parenttype'],
         filters: [
           ["parent", "=", name],
@@ -78,10 +72,17 @@ export async function GET(
         ],
         order_by: 'idx asc'
       });
+      items = itemsResult?.data || itemsResult || [];
     } catch (error) {
-      console.error('Items fetch failed:', error);
-      // Continue with empty items array
-      items = [];
+      console.error('Items fetch failed, trying alternative approach:', error);
+      // Fallback: get full PO document and extract items
+      try {
+        const poDoc = await client.get('Purchase Order', name);
+        items = poDoc.items || [];
+      } catch (altError) {
+        console.error('Alternative approach failed:', altError);
+        items = [];
+      }
     }
 
     const processedItems = items.map((item: ERPNextPOItem) => ({

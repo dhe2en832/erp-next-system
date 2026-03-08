@@ -19,12 +19,7 @@ export async function GET(request: NextRequest) {
     const fromDate = searchParams.get('from_date');
     const toDate = searchParams.get('to_date');
 
-    const sid = request.cookies.get('sid')?.value;
-    if (!sid) {
-      return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Get site-aware client
+    // Get site-aware client (handles authentication automatically)
     const client = await getERPNextClientForRequest(request);
 
     // Handle detail request
@@ -67,12 +62,7 @@ export async function PUT(request: NextRequest) {
   const siteId = await getSiteIdFromRequest(request);
   
   try {
-    const sid = request.cookies.get('sid')?.value;
-    if (!sid) {
-      return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Get site-aware client
+    // Get site-aware client (handles authentication automatically)
     const client = await getERPNextClientForRequest(request);
 
     const body = await request.json();

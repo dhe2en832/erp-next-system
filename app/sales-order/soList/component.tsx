@@ -231,7 +231,7 @@ export default function SalesOrderList() {
       params.append('limit_page_length', pageSize.toString());
       params.append('start', ((currentPage - 1) * pageSize).toString());
 
-      // ✅ TAMBAHKAN INI: Urutkan dari yang terbaru (creation descending)
+      // ✅ Sort by creation date descending (newest first)
       params.append('order_by', 'creation desc');
       if (companyToUse) params.append('company', companyToUse);
       if (nameFilter) params.append('search', nameFilter);
@@ -489,10 +489,6 @@ export default function SalesOrderList() {
 
   const handleCardClick = (orderName: string) => {
     if (orderName) router.push(`/sales-order/soMain?name=${orderName}`);
-  };
-
-  const getStatusBadgeClass = (status: string): string => {
-    return STATUS_COLORS[status] || 'bg-gray-100 text-gray-800 border-gray-200';
   };
 
   const handleResetFilters = () => {

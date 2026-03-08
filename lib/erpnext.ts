@@ -8,9 +8,8 @@ function buildAuthHeaders() {
     throw new Error('ERP API credentials not configured');
   }
 
-  const authString = Buffer.from(`${apiKey}:${apiSecret}`).toString('base64');
   return {
-    Authorization: `Basic ${authString}`,
+    Authorization: `token ${apiKey}:${apiSecret}`,
     'Content-Type': 'application/json',
   } as Record<string, string>;
 }
@@ -82,10 +81,19 @@ export class ERPNextClient {
    * Get a single document by name
    */
   async get<T = any>(doctype: string, name: string): Promise<T> {
-    const res = await fetch(`${this.baseUrl}/api/resource/${doctype}/${name}`, {
+    // URL encode the name to handle special characters like %, +, (, )
+    const encodedName = encodeURIComponent(name);
+    
+    const res = await fetch(`${this.baseUrl}/api/resource/${doctype}/${encodedName}`, {
       method: 'GET',
       headers: this.getHeaders(),
     });
+
+    // Check content type before parsing
+    const contentType = res.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      throw new Error(`Failed to fetch ${doctype} ${name}: Document not found or invalid response`);
+    }
 
     const data = await res.json();
     if (!res.ok) {
@@ -179,16 +187,17 @@ export class ERPNextClient {
 
   /**
    * Submit a document (change docstatus to 1)
+   * Fetches latest document first to avoid timestamp mismatch
    */
   async submit(doctype: string, name: string): Promise<any> {
+    // Fetch latest document to get current modified timestamp
+    const latestDoc = await this.get(doctype, name);
+    
     const res = await fetch(`${this.baseUrl}/api/method/frappe.client.submit`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify({
-        doc: {
-          doctype,
-          name,
-        },
+        doc: latestDoc,
       }),
     });
 
@@ -201,14 +210,17 @@ export class ERPNextClient {
 
   /**
    * Cancel a document (change docstatus to 2)
+   * Fetches latest document first to avoid timestamp mismatch
    */
   async cancel(doctype: string, name: string): Promise<any> {
+    // Fetch latest document to get current modified timestamp
+    const latestDoc = await this.get(doctype, name);
+    
     const res = await fetch(`${this.baseUrl}/api/method/frappe.client.cancel`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify({
-        doctype,
-        name,
+        doc: latestDoc,
       }),
     });
 
@@ -234,6 +246,32 @@ export class ERPNextClient {
       throw new Error(data?.message || data?.exc || `Failed to call method ${method}`);
     }
     return data.message || data;
+  }
+
+  /**
+   * Get current logged-in user from session
+   * Returns the user email/ID from the session cookie
+   */
+  async getCurrentUser(sessionCookie?: string): Promise<string> {
+    const headers: Record<string, string> = { ...this.getHeaders() };
+    
+    // If session cookie provided, use it instead of API key
+    if (sessionCookie) {
+      delete headers.Authorization;
+      headers.Cookie = `sid=${sessionCookie}`;
+    }
+
+    const res = await fetch(`${this.baseUrl}/api/method/frappe.auth.get_logged_user`, {
+      method: 'GET',
+      headers,
+    });
+
+    const data = await res.json();
+    if (!res.ok || !data.message) {
+      // Fallback to Administrator if session user not found
+      return 'Administrator';
+    }
+    return data.message;
   }
 }
 

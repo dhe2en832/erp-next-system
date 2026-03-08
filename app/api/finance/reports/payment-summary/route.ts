@@ -34,11 +34,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const sid = request.cookies.get('sid')?.value;
-    if (!sid) {
-      return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
-    }
-
     const client = await getERPNextClientForRequest(request);
 
     // Build filters for ERPNext API

@@ -14,7 +14,9 @@ export async function GET(
   
   try {
     const cookies = request.cookies;
-    const sid = cookies.get('sid')?.value;
+    // Check site-specific cookie first, fallback to generic sid
+    const siteSpecificCookie = siteId ? `sid_${siteId.replace(/\./g, '-')}` : null;
+    const sid = (siteSpecificCookie && cookies.get(siteSpecificCookie)?.value) || cookies.get('sid')?.value;
 
     if (!sid) {
       return NextResponse.json(

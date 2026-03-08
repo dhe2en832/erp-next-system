@@ -145,7 +145,7 @@ export default function StockReconciliationMain() {
       if (data.success) {
         const name = data.data?.name || entryName || '';
         setSuccessMessage(`Rekonsiliasi Stok ${name} berhasil ${isEditMode ? 'diperbarui' : 'dibuat'}!`);
-        setTimeout(() => router.push('/stock-reconciliation/srList'), 2000);
+        setTimeout(() => router.replace('/stock-reconciliation/srList'), 2000);
       } else {
         setError(data.message || `Gagal ${isEditMode ? 'memperbarui' : 'membuat'} rekonsiliasi stok`);
       }

@@ -7,6 +7,7 @@ import PaymentSupplierDialog from '../../components/PaymentSupplierDialog';
 import CurrencyInput from '../../components/CurrencyInput';
 import PrintPreviewModal from '../../../components/print/PrintPreviewModal';
 import PaymentPrint from '../../../components/print/PaymentPrint';
+import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
 
 interface SalesInvoice {
   name: string;
@@ -75,6 +76,28 @@ interface PaymentMainProps {
 }
 
 export default function PaymentMain({ onBack, selectedCompany, editPayment, defaultPaymentType }: PaymentMainProps) {
+  // Helper function to format date to DD/MM/YYYY
+  const formatDateToDDMMYYYY = (date: Date) => {
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
+
+  // Helper function to convert DD/MM/YYYY to YYYY-MM-DD for API
+  const convertToAPIFormat = (ddmmyyyy: string): string => {
+    if (!ddmmyyyy || ddmmyyyy.length !== 10) return '';
+    const [day, month, year] = ddmmyyyy.split('/');
+    return `${year}-${month}-${day}`;
+  };
+
+  // Helper function to convert YYYY-MM-DD to DD/MM/YYYY for display
+  const convertToDisplayFormat = (yyyymmdd: string): string => {
+    if (!yyyymmdd || yyyymmdd.length !== 10) return '';
+    const [year, month, day] = yyyymmdd.split('-');
+    return `${day}/${month}/${year}`;
+  };
+
   const [isEditMode, setIsEditMode] = useState(false);
   const isEditModeRef = useRef(false);
   const [editingPaymentId, setEditingPaymentId] = useState('');
@@ -97,7 +120,7 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
     payment_type: defaultPaymentType || 'Receive',
     party_type: (defaultPaymentType === 'Pay') ? 'Supplier' : 'Customer',
     party: '',
-    posting_date: new Date().toISOString().split('T')[0],
+    posting_date: formatDateToDDMMYYYY(new Date()),
     paid_amount: 0,
     received_amount: 0,
     mode_of_payment: 'Kas',
@@ -105,10 +128,10 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
     debit_account: '',
     credit_account: '',
     check_number: '',
-    check_date: new Date().toISOString().split('T')[0],
+    check_date: formatDateToDDMMYYYY(new Date()),
     bank_reference: '',
     reference_no: '',
-    reference_date: new Date().toISOString().split('T')[0],
+    reference_date: formatDateToDDMMYYYY(new Date()),
     custom_notes_payment: '',
     selected_invoices: [],
     paid_from: '',
@@ -394,7 +417,7 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
         payment_type: paymentDetails.payment_type as 'Receive' | 'Pay',
         party_type: paymentDetails.party_type as 'Customer' | 'Supplier',
         party: paymentDetails.party,
-        posting_date: paymentDetails.posting_date,
+        posting_date: convertToDisplayFormat(paymentDetails.posting_date),
         paid_amount: paymentDetails.paid_amount || 0,
         received_amount: paymentDetails.received_amount || 0,
         mode_of_payment: paymentDetails.mode_of_payment || 'Cash',
@@ -402,10 +425,10 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
         debit_account: paymentDetails.payment_type === 'Receive' ? paidFromAccount : paidToAccount,
         credit_account: paymentDetails.payment_type === 'Receive' ? paidToAccount : paidFromAccount,
         check_number: paymentDetails.reference_no || '',
-        check_date: paymentDetails.reference_date || '',
+        check_date: convertToDisplayFormat(paymentDetails.reference_date || ''),
         bank_reference: paymentDetails.bank_reference || paymentDetails.reference_no || '',
         reference_no: paymentDetails.reference_no || '',
-        reference_date: paymentDetails.reference_date || '',
+        reference_date: convertToDisplayFormat(paymentDetails.reference_date || ''),
         custom_notes_payment: paymentDetails.custom_notes_payment || '',
         selected_invoices: paymentDetails.references?.map((ref: { reference_name: string; allocated_amount: number }) => ({
           invoice_name: ref.reference_name,
@@ -768,10 +791,15 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
       }
 
       // Default tanggal ke hari ini jika kosong
-      const today = new Date().toISOString().split('T')[0];
+      const today = formatDateToDDMMYYYY(new Date());
       const finalCheckDate = formData.check_date || today;
       const finalReferenceDate = formData.reference_date || today;
       const finalReferenceNo = formData.reference_no || formData.check_number || '';
+
+      // Convert dates to API format (YYYY-MM-DD)
+      const apiPostingDate = convertToAPIFormat(formData.posting_date);
+      const apiCheckDate = convertToAPIFormat(finalCheckDate);
+      const apiReferenceDate = convertToAPIFormat(finalReferenceDate);
 
       // Validasi akun Warkat untuk mode Warkat
       if (formData.mode_of_payment === 'Warkat') {
@@ -789,14 +817,14 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
         type: formData.payment_type,
         party_type: formData.party_type,
         party: formData.party,
-        posting_date: formData.posting_date,
+        posting_date: apiPostingDate,
         paid_amount: formData.payment_type === 'Receive' ? formData.received_amount : formData.paid_amount,
         received_amount: formData.payment_type === 'Receive' ? formData.received_amount : formData.paid_amount,
         mode_of_payment: formData.mode_of_payment,
         reference_no: finalReferenceNo,
-        reference_date: finalReferenceDate,
+        reference_date: apiReferenceDate,
         check_number: formData.check_number,
-        check_date: finalCheckDate,
+        check_date: apiCheckDate,
         bank_reference: formData.bank_reference,
         custom_notes_payment: formData.custom_notes_payment,
         paid_from: formData.paid_from,
@@ -854,7 +882,7 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
       payment_type: 'Receive',
       party_type: 'Customer',
       party: '',
-      posting_date: new Date().toISOString().split('T')[0],
+      posting_date: formatDateToDDMMYYYY(new Date()),
       paid_amount: 0,
       received_amount: 0,
       mode_of_payment: 'Kas',
@@ -1006,12 +1034,11 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal</label>
-                <input
-                  type="date"
-                  className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                <BrowserStyleDatePicker
                   value={formData.posting_date}
-                  onChange={(e) => setFormData(prev => ({ ...prev, posting_date: e.target.value }))}
-                  required
+                  onChange={(value: string) => setFormData(prev => ({ ...prev, posting_date: value }))}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="DD/MM/YYYY"
                 />
               </div>
 
@@ -1047,11 +1074,11 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal Referensi</label>
-                <input
-                  type="date"
-                  className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  value={formData.reference_date}
-                  onChange={(e) => setFormData(prev => ({ ...prev, reference_date: e.target.value }))}
+                <BrowserStyleDatePicker
+                  value={formData.reference_date || ''}
+                  onChange={(value: string) => setFormData(prev => ({ ...prev, reference_date: value }))}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="DD/MM/YYYY"
                 />
               </div>
             </div>
@@ -1208,11 +1235,11 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal Warkat</label>
-                  <input
-                    type="date"
-                    className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                    value={formData.check_date}
-                    onChange={(e) => setFormData(prev => ({ ...prev, check_date: e.target.value }))}
+                  <BrowserStyleDatePicker
+                    value={formData.check_date || ''}
+                    onChange={(value: string) => setFormData(prev => ({ ...prev, check_date: value }))}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    placeholder="DD/MM/YYYY"
                   />
                 </div>
                 <div>

@@ -94,18 +94,6 @@ export default function PurchaseReceiptMain() {
   const [supplierName, setSupplierName] = useState('');
   const [postingDate, setPostingDate] = useState(new Date().toISOString().split('T')[0]);
   const [purchaseOrder, setPurchaseOrder] = useState('');
-  const handlePOSelect = (po: PurchaseOrder) => {
-    // console.log('handlePOSelect called with PO:', po);
-    fetchPOItems(po.name);
-    setPoSearchCode('');
-    setPoSearchSupplier('');
-  };
-
-  const closePODialog = () => {
-    setShowPODialog(false);
-    setPoSearchCode('');
-    setPoSearchSupplier('');
-  };
   const [purchaseOrderName, setPurchaseOrderName] = useState('');
   const [currency, setCurrency] = useState('IDR');
   const [remarks, setRemarks] = useState('');
@@ -172,6 +160,19 @@ export default function PurchaseReceiptMain() {
     setSupplierName(selectedSupplier.supplier_name);
     setShowSupplierDialog(false);
     setSupplierSearch('');
+  };
+
+  const handlePOSelect = (po: PurchaseOrder) => {
+    // console.log('handlePOSelect called with PO:', po);
+    fetchPOItems(po.name);
+    setPoSearchCode('');
+    setPoSearchSupplier('');
+  };
+
+  const closePODialog = () => {
+    setShowPODialog(false);
+    setPoSearchCode('');
+    setPoSearchSupplier('');
   };
 
   useEffect(() => {
@@ -337,8 +338,8 @@ export default function PurchaseReceiptMain() {
       const data = await response.json();
      
 
-      if (data.message && data.message.success) {
-        const poData = data.message.data;
+      if (data.success) {
+        const poData = data.data;
         // console.log('PO data fetched:', poData);
         
         // Set form fields from PO data
@@ -640,7 +641,7 @@ export default function PurchaseReceiptMain() {
         setSuccessMessage(successMessage);
         setShowSuccessDialog(true);
         const savedName = data.data?.name || existingId || '';
-        if (savedName) { setShowPrintDialog(true); setPrintDocName(savedName); } else { setTimeout(() => { router.push('/purchase-receipts/prList'); }, 3000); }
+        if (savedName) { setShowPrintDialog(true); setPrintDocName(savedName); } else { setTimeout(() => { router.replace('/purchase-receipts/prList'); }, 3000); }
       } else {
         const userFriendlyError = parseERPNextError(data.message);
         setValidationMessage(userFriendlyError);
@@ -757,7 +758,7 @@ export default function PurchaseReceiptMain() {
     <>
     <PrintDialog
       isOpen={showPrintDialog}
-      onClose={() => { setShowPrintDialog(false); router.push('/purchase-receipts/prList'); }}
+      onClose={() => { setShowPrintDialog(false); router.replace('/purchase-receipts/prList'); }}
       documentType="Purchase Receipt"
       documentName={printDocName}
       documentLabel="Penerimaan Barang"

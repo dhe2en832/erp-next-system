@@ -3,7 +3,10 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import { ArrowLeft, Save, FileText } from 'lucide-react';
+import BrowserStyleDatePicker from '@/components/BrowserStyleDatePicker';
+import AccountSearchDialog from '@/components/AccountSearchDialog';
+import { formatDate, parseDate } from '@/utils/format';
+import { ArrowLeft, Save, FileText, Plus, Trash2 } from 'lucide-react';
 
 interface JournalMainProps {
   onBack: () => void;
@@ -25,20 +28,62 @@ interface AccountEntry {
   user_remark: string;
 }
 
+interface Account {
+  name: string;
+  account_name: string;
+  account_type?: string;
+}
+
 export default function JournalMain({ onBack, selectedCompany, journalName }: JournalMainProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [accounts, setAccounts] = useState<AccountEntry[]>([]);
+  const [accounts, setAccounts] = useState<AccountEntry[]>([
+    { account: '', debit_in_account_currency: 0, credit_in_account_currency: 0, user_remark: '' }
+  ]);
+  const [allAccounts, setAllAccounts] = useState<Account[]>([]);
+  const [showAccountDialog, setShowAccountDialog] = useState(false);
+  const [selectedRowIndex, setSelectedRowIndex] = useState<number | null>(null);
 
   const [formData, setFormData] = useState<JournalFormData>({
-    posting_date: new Date().toISOString().split('T')[0],
+    posting_date: '',
     voucher_type: 'Journal Entry',
     user_remark: '',
     company: selectedCompany,
   });
+
+  // Set default date on mount
+  useEffect(() => {
+    const today = new Date();
+    setFormData(prev => ({ ...prev, posting_date: formatDate(today.toISOString().split('T')[0]) }));
+  }, []);
+
+  // Fetch all accounts for selection
+  useEffect(() => {
+    if (selectedCompany) {
+      fetchAllAccounts();
+    }
+  }, [selectedCompany]);
+
+  const fetchAllAccounts = async () => {
+    try {
+      const res = await fetch(`/api/finance/accounts?company=${encodeURIComponent(selectedCompany)}`, { 
+        credentials: 'include' 
+      });
+      const data = await res.json();
+      if (data.success) {
+        // Filter out stock accounts to prevent the error
+        const filtered = (data.data || []).filter((acc: Account) => 
+          acc.account_type !== 'Stock' && !acc.name.includes('Persediaan')
+        );
+        setAllAccounts(filtered);
+      }
+    } catch (err) {
+      console.warn('Gagal memuat daftar akun:', err);
+    }
+  };
 
   // Load existing journal if journalName is provided
   useEffect(() => {
@@ -56,7 +101,7 @@ export default function JournalMain({ onBack, selectedCompany, journalName }: Jo
 
       if (data.success && data.data) {
         setFormData({
-          posting_date: data.data.posting_date || new Date().toISOString().split('T')[0],
+          posting_date: formatDate(data.data.posting_date || new Date().toISOString().split('T')[0]),
           voucher_type: data.data.voucher_type || 'Journal Entry',
           user_remark: data.data.user_remark || '',
           company: data.data.company || selectedCompany,
@@ -87,6 +132,24 @@ export default function JournalMain({ onBack, selectedCompany, journalName }: Jo
     setError('');
     setSuccess('');
 
+    // Validate accounts
+    const validAccounts = accounts.filter(acc => acc.account && (acc.debit_in_account_currency > 0 || acc.credit_in_account_currency > 0));
+    
+    if (validAccounts.length < 2) {
+      setError('Minimal 2 akun harus diisi (debit dan kredit harus balance)');
+      setSaving(false);
+      return;
+    }
+
+    const totalDebit = validAccounts.reduce((sum, acc) => sum + Number(acc.debit_in_account_currency || 0), 0);
+    const totalCredit = validAccounts.reduce((sum, acc) => sum + Number(acc.credit_in_account_currency || 0), 0);
+
+    if (Math.abs(totalDebit - totalCredit) > 0.01) {
+      setError(`Total Debit (Rp ${totalDebit.toLocaleString('id-ID')}) dan Kredit (Rp ${totalCredit.toLocaleString('id-ID')}) harus sama`);
+      setSaving(false);
+      return;
+    }
+
     try {
       const url = journalName
         ? `/api/finance/journal/${encodeURIComponent(journalName)}`
@@ -94,10 +157,19 @@ export default function JournalMain({ onBack, selectedCompany, journalName }: Jo
       
       const method = journalName ? 'PUT' : 'POST';
 
+      const payload = {
+        ...formData,
+        posting_date: parseDate(formData.posting_date), // Convert DD/MM/YYYY to YYYY-MM-DD
+        accounts: validAccounts,
+        total_debit: totalDebit,
+        total_credit: totalCredit,
+      };
+
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        credentials: 'include',
+        body: JSON.stringify(payload),
       });
 
       const data = await response.json();
@@ -105,7 +177,7 @@ export default function JournalMain({ onBack, selectedCompany, journalName }: Jo
       if (data.success) {
         setSuccess(journalName ? 'Journal berhasil diupdate' : 'Journal berhasil dibuat');
         setTimeout(() => {
-          router.push('/journal');
+          router.replace('/journal');
         }, 1500);
       } else {
         setError(data.message || 'Gagal menyimpan journal');
@@ -116,6 +188,37 @@ export default function JournalMain({ onBack, selectedCompany, journalName }: Jo
       setSaving(false);
     }
   };
+
+  const addAccountRow = () => {
+    setAccounts([...accounts, { account: '', debit_in_account_currency: 0, credit_in_account_currency: 0, user_remark: '' }]);
+  };
+
+  const removeAccountRow = (index: number) => {
+    if (accounts.length > 1) {
+      setAccounts(accounts.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateAccountRow = (index: number, field: keyof AccountEntry, value: string | number) => {
+    const updated = [...accounts];
+    updated[index] = { ...updated[index], [field]: value };
+    setAccounts(updated);
+  };
+
+  const handleOpenAccountDialog = (index: number) => {
+    setSelectedRowIndex(index);
+    setShowAccountDialog(true);
+  };
+
+  const handleSelectAccount = (accountName: string) => {
+    if (selectedRowIndex !== null) {
+      updateAccountRow(selectedRowIndex, 'account', accountName);
+    }
+  };
+
+  const totalDebit = accounts.reduce((sum, acc) => sum + Number(acc.debit_in_account_currency || 0), 0);
+  const totalCredit = accounts.reduce((sum, acc) => sum + Number(acc.credit_in_account_currency || 0), 0);
+  const isBalanced = Math.abs(totalDebit - totalCredit) < 0.01;
 
   if (loading) {
     return <LoadingSpinner message="Memuat data journal..." />;
@@ -165,12 +268,11 @@ export default function JournalMain({ onBack, selectedCompany, journalName }: Jo
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Tanggal Posting <span className="text-red-500">*</span>
               </label>
-              <input
-                type="date"
-                required
+              <BrowserStyleDatePicker
                 value={formData.posting_date}
-                onChange={(e) => setFormData({ ...formData, posting_date: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                onChange={(value: string) => setFormData({ ...formData, posting_date: value })}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="DD/MM/YYYY"
               />
             </div>
 
@@ -225,8 +327,128 @@ export default function JournalMain({ onBack, selectedCompany, journalName }: Jo
             />
           </div>
 
+          {/* Account Entries Table */}
+          <div>
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="text-sm font-medium text-gray-700">Detail Akun <span className="text-red-500">*</span></h3>
+              <button
+                type="button"
+                onClick={addAccountRow}
+                className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800 text-sm font-medium"
+              >
+                <Plus className="w-4 h-4" />
+                Tambah Baris
+              </button>
+            </div>
+            
+            <div className="border border-gray-200 rounded-lg overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">No</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Akun</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Keterangan</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Debit (Rp)</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Kredit (Rp)</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {accounts.map((acc, index) => (
+                      <tr key={index}>
+                        <td className="px-4 py-2 text-sm text-gray-500">{index + 1}</td>
+                        <td className="px-4 py-2">
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              className="block w-full border border-gray-300 rounded-md shadow-sm py-1.5 px-2 text-sm bg-gray-50"
+                              value={acc.account}
+                              readOnly
+                              placeholder="Klik tombol untuk pilih akun..."
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleOpenAccountDialog(index)}
+                              className="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-md hover:bg-indigo-700 whitespace-nowrap"
+                            >
+                              Pilih
+                            </button>
+                          </div>
+                        </td>
+                        <td className="px-4 py-2">
+                          <input
+                            type="text"
+                            className="block w-full border border-gray-300 rounded-md shadow-sm py-1.5 px-2 text-sm"
+                            value={acc.user_remark}
+                            onChange={(e) => updateAccountRow(index, 'user_remark', e.target.value)}
+                            placeholder="Keterangan..."
+                          />
+                        </td>
+                        <td className="px-4 py-2">
+                          <input
+                            type="text"
+                            className="block w-full border border-gray-300 rounded-md shadow-sm py-1.5 px-2 text-sm text-right"
+                            value={acc.debit_in_account_currency ? acc.debit_in_account_currency.toLocaleString('id-ID') : ''}
+                            onChange={(e) => {
+                              const rawValue = e.target.value.replace(/\./g, '');
+                              updateAccountRow(index, 'debit_in_account_currency', parseFloat(rawValue) || 0);
+                            }}
+                            placeholder="0"
+                          />
+                        </td>
+                        <td className="px-4 py-2">
+                          <input
+                            type="text"
+                            className="block w-full border border-gray-300 rounded-md shadow-sm py-1.5 px-2 text-sm text-right"
+                            value={acc.credit_in_account_currency ? acc.credit_in_account_currency.toLocaleString('id-ID') : ''}
+                            onChange={(e) => {
+                              const rawValue = e.target.value.replace(/\./g, '');
+                              updateAccountRow(index, 'credit_in_account_currency', parseFloat(rawValue) || 0);
+                            }}
+                            placeholder="0"
+                          />
+                        </td>
+                        <td className="px-4 py-2">
+                          {accounts.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeAccountRow(index)}
+                              className="text-red-600 hover:text-red-800"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-gray-50">
+                    <tr>
+                      <td colSpan={3} className="px-4 py-3 text-right text-sm font-medium text-gray-700">Total:</td>
+                      <td className={`px-4 py-3 text-right text-sm font-bold ${isBalanced ? 'text-gray-900' : 'text-red-600'}`}>
+                        Rp {totalDebit.toLocaleString('id-ID')}
+                      </td>
+                      <td className={`px-4 py-3 text-right text-sm font-bold ${isBalanced ? 'text-gray-900' : 'text-red-600'}`}>
+                        Rp {totalCredit.toLocaleString('id-ID')}
+                      </td>
+                      <td></td>
+                    </tr>
+                    {!isBalanced && (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-2 text-center text-sm text-red-600 bg-red-50">
+                          ⚠️ Debit dan Kredit harus balance!
+                        </td>
+                      </tr>
+                    )}
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          </div>
+
           {/* Account Entries - Only show if viewing existing journal */}
-          {journalName && accounts.length > 0 && (
+          {journalName && false && accounts.length > 0 && (
             <div>
               <h3 className="text-sm font-medium text-gray-700 mb-3">Detail Akun</h3>
               <div className="border border-gray-200 rounded-lg overflow-hidden">
@@ -287,10 +509,12 @@ export default function JournalMain({ onBack, selectedCompany, journalName }: Jo
               <FileText className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
               <div className="text-sm text-blue-800">
                 <p className="font-medium mb-1">Catatan:</p>
-                <p>
-                  Formulir ini adalah versi sederhana untuk membuat journal entry. 
-                  Untuk fitur lengkap dengan accounting entries, gunakan halaman Kas Masuk atau Kas Keluar.
-                </p>
+                <ul className="list-disc list-inside space-y-1">
+                  <li>Total Debit dan Kredit harus sama (balance)</li>
+                  <li>Minimal 2 akun harus diisi</li>
+                  <li>Akun persediaan tidak bisa digunakan (gunakan transaksi stock)</li>
+                  <li>Untuk kas masuk/keluar, gunakan menu Kas Masuk atau Kas Keluar</li>
+                </ul>
               </div>
             </div>
           </div>
@@ -306,7 +530,7 @@ export default function JournalMain({ onBack, selectedCompany, journalName }: Jo
             </button>
             <button
               type="submit"
-              disabled={saving}
+              disabled={saving || !isBalanced}
               className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {saving ? (
@@ -324,6 +548,16 @@ export default function JournalMain({ onBack, selectedCompany, journalName }: Jo
           </div>
         </form>
       </div>
+
+      {/* Account Search Dialog */}
+      <AccountSearchDialog
+        isOpen={showAccountDialog}
+        onClose={() => setShowAccountDialog(false)}
+        onSelect={handleSelectAccount}
+        accounts={allAccounts}
+        title="Pilih Akun"
+        currentValue={selectedRowIndex !== null ? accounts[selectedRowIndex]?.account : ''}
+      />
     </div>
   );
 }

@@ -30,6 +30,7 @@ interface OrderItem {
   available_stock: number;
   actual_stock: number;
   reserved_stock: number;
+  original_rate: number; // Harga asli dari item price (required)
 }
 
 export default function SalesOrderMain() {
@@ -56,7 +57,7 @@ export default function SalesOrderMain() {
     sales_person: '',
     custom_persentase_komisi_so: 0,
     custom_notes_so: '',
-    items: [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0, warehouse: '', stock_uom: '', available_stock: 0, actual_stock: 0, reserved_stock: 0 }],
+    items: [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0, warehouse: '', stock_uom: '', available_stock: 0, actual_stock: 0, reserved_stock: 0, original_rate: 0 }],
     payment_terms_template: '',
   });
 
@@ -168,12 +169,13 @@ export default function SalesOrderMain() {
           available_stock: 0,
           actual_stock: 0,
           reserved_stock: 0,
+          original_rate: item.rate || 0, // Set original rate dari data yang di-load
         }));
         
         if (mappedItems.length === 0) {
           mappedItems.push({ 
             item_code: '', item_name: '', qty: 1, rate: 0, amount: 0, 
-            warehouse: '', stock_uom: '', available_stock: 0, actual_stock: 0, reserved_stock: 0 
+            warehouse: '', stock_uom: '', available_stock: 0, actual_stock: 0, reserved_stock: 0, original_rate: 0
           });
         }
         
@@ -188,6 +190,14 @@ export default function SalesOrderMain() {
           items: mappedItems,
           payment_terms_template: order.payment_terms_template || '',
         });
+        
+        // Fetch stock info for each item after loading
+        for (let i = 0; i < mappedItems.length; i++) {
+          const item = mappedItems[i];
+          if (item.item_code) {
+            await checkItemStock(item.item_code, i, item);
+          }
+        }
       } else {
         setError('Gagal memuat detail pesanan');
       }
@@ -204,7 +214,7 @@ export default function SalesOrderMain() {
       ...formData,
       items: [
         ...formData.items,
-        { item_code: '', item_name: '', qty: 1, rate: 0, amount: 0, warehouse: '', stock_uom: '', available_stock: 0, actual_stock: 0, reserved_stock: 0 },
+        { item_code: '', item_name: '', qty: 1, rate: 0, amount: 0, warehouse: '', stock_uom: '', available_stock: 0, actual_stock: 0, reserved_stock: 0, original_rate: 0 },
       ],
     });
   };
@@ -325,7 +335,7 @@ export default function SalesOrderMain() {
       sales_person: '',
       custom_persentase_komisi_so: 0,
       custom_notes_so: '',
-      items: [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0, warehouse: '', stock_uom: '', available_stock: 0, actual_stock: 0, reserved_stock: 0 }],
+      items: [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0, warehouse: '', stock_uom: '', available_stock: 0, actual_stock: 0, reserved_stock: 0, original_rate: 0 }],
       payment_terms_template: '',
     });
     setSalesTeam([]);
@@ -368,6 +378,7 @@ export default function SalesOrderMain() {
         item_name: item.item_name,
         stock_uom: item.stock_uom || '',
         rate: rate,
+        original_rate: rate, // Simpan harga asli
       };
       newItems[currentItemIndex].amount = newItems[currentItemIndex].qty * newItems[currentItemIndex].rate;
       
@@ -418,6 +429,7 @@ export default function SalesOrderMain() {
           available_stock: bestWarehouse.available,
           actual_stock: bestWarehouse.actual,
           reserved_stock: bestWarehouse.reserved,
+          original_rate: currentItem.original_rate || currentItem.rate, // Preserve original_rate
         };
         
         setFormData(prev => ({
@@ -436,6 +448,7 @@ export default function SalesOrderMain() {
           available_stock: actualStock,
           actual_stock: data.length > 0 ? data[0].actual : 0,
           reserved_stock: data.length > 0 ? data[0].reserved : 0,
+          original_rate: currentItem.original_rate || currentItem.rate, // Preserve original_rate
         };
         
         setFormData(prev => ({
@@ -798,7 +811,7 @@ export default function SalesOrderMain() {
                         </button>
                       </div>
                     </div>
-                    <div className="col-span-3">
+                    <div className="col-span-2">
                       <label className="block text-xs font-medium text-gray-700">
                         Nama Barang <span className="text-red-500">*</span>
                       </label>
@@ -894,29 +907,32 @@ export default function SalesOrderMain() {
                         placeholder="Otomatis"
                       />
                     </div>
-                    <div className="col-span-1">
+                    <div className="col-span-2">
                       <label className="block text-xs font-medium text-gray-700">
                         Harga
                       </label>
                       <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        className={`mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 text-right ${
-                          isReadOnly ? 'bg-gray-100 cursor-not-allowed' : ''
+                        type="text"
+                        className={`mt-1 block w-full border rounded-md shadow-sm py-1 px-2 text-sm focus:outline-none focus:ring-indigo-500 text-right ${
+                          isReadOnly 
+                            ? 'bg-gray-100 cursor-not-allowed border-gray-300' 
+                            : item.original_rate && item.rate < item.original_rate
+                              ? 'border-yellow-400 focus:border-yellow-500 bg-yellow-50'
+                              : 'border-gray-300 focus:border-indigo-500'
                         }`}
-                        style={{
-                          MozAppearance: 'textfield',
-                          WebkitAppearance: 'none',
-                          appearance: 'none'
+                        value={item.rate ? item.rate.toLocaleString('id-ID') : '0'}
+                        onChange={(e) => {
+                          const rawValue = e.target.value.replace(/\./g, '');
+                          const numValue = parseFloat(rawValue) || 0;
+                          handleItemChange(index, 'rate', numValue);
                         }}
-                        value={item.rate || 0}
-                        onChange={(e) =>
-                          handleItemChange(index, 'rate', parseFloat(e.target.value) || 0)
-                        }
                         disabled={isReadOnly}
-                        onWheel={(e) => e.currentTarget.blur()}
                       />
+                      {item.original_rate && item.rate < item.original_rate && (
+                        <div className="mt-1 text-xs text-yellow-700 bg-yellow-50 border border-yellow-300 rounded px-2 py-1">
+                          ⚠️ Harga di bawah harga standar (Rp {item.original_rate.toLocaleString('id-ID')})
+                        </div>
+                      )}
                     </div>
                     <div className="col-span-2">
                       <label className="block text-xs font-medium text-gray-700">
@@ -1037,7 +1053,7 @@ export default function SalesOrderMain() {
       {/* Print Dialog after save */}
       <PrintDialog
         isOpen={showPrintDialog}
-        onClose={() => { setShowPrintDialog(false); router.push('/sales-order/soList'); }}
+        onClose={() => { setShowPrintDialog(false); router.replace('/sales-order/soList'); }}
         documentType="Sales Order"
         documentName={savedDocName}
         documentLabel="Pesanan Penjualan"
@@ -1046,7 +1062,7 @@ export default function SalesOrderMain() {
       {/* Print Preview Modal */}
       {showPrintPreview && editingOrder && (
         <PrintPreviewModal
-          title={`Sales Order - ${editingOrder.name}`}
+          title={`Sales Order dari main- ${editingOrder.name}`}
           onClose={() => setShowPrintPreview(false)}
           paperMode="continuous"
         >

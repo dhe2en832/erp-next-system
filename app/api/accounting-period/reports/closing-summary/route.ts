@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
     const nominal_accounts = allAccounts.filter(a => a.root_type === 'Income' || a.root_type === 'Expense');
     const real_accounts = allAccounts.filter(a => a.root_type === 'Asset' || a.root_type === 'Liability' || a.root_type === 'Equity');
     
-    const total_income = nominal_accounts.filter(a => a.root_type === 'Income').reduce((sum, a) => sum + a.balance, 0);
+    const total_income = nominal_accounts.filter(a => a.root_type === 'Income').reduce((sum, a) => sum + Math.abs(a.balance), 0);
     const total_expense = nominal_accounts.filter(a => a.root_type === 'Expense').reduce((sum, a) => sum + Math.abs(a.balance), 0);
     const net_income = total_income - total_expense;
 

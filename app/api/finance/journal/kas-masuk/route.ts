@@ -29,11 +29,6 @@ export async function POST(request: NextRequest) {
   const siteId = await getSiteIdFromRequest(request);
   
   try {
-    const sid = request.cookies.get('sid')?.value;
-    if (!sid) {
-      return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
-    }
-
     const body = await request.json();
     const { posting_date, cash_account, company, items } = body;
 

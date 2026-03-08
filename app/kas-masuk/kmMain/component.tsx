@@ -2,6 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
+import { formatDate, parseDate } from '../../../utils/format';
+import AccountSearchDialog from '../../../components/AccountSearchDialog';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,7 +33,7 @@ export default function KasMasukForm() {
   const [journalEntryName, setJournalEntryName] = useState('');
   const [isEditMode, setIsEditMode] = useState(false);
 
-  const [postingDate, setPostingDate] = useState(new Date().toISOString().split('T')[0]);
+  const [postingDate, setPostingDate] = useState('');
   const [cashAccount, setCashAccount] = useState('');
   const [items, setItems] = useState<KasItem[]>([
     { keterangan: '', nominal: 0, kategori: '' }
@@ -38,6 +41,17 @@ export default function KasMasukForm() {
 
   const [cashAccounts, setCashAccounts] = useState<Account[]>([]);
   const [incomeAccounts, setIncomeAccounts] = useState<Account[]>([]);
+  const [showAccountDialog, setShowAccountDialog] = useState(false);
+  const [selectedRowIndex, setSelectedRowIndex] = useState<number | null>(null);
+
+  // Set default date on mount
+  useEffect(() => {
+    const today = new Date();
+    const offset = today.getTimezoneOffset();
+    const localDate = new Date(today.getTime() - (offset * 60 * 1000));
+    const todayString = localDate.toISOString().split('T')[0];
+    setPostingDate(formatDate(new Date(todayString)));
+  }, []);
 
   useEffect(() => {
     const saved = localStorage.getItem('selected_company');
@@ -71,8 +85,8 @@ export default function KasMasukForm() {
       if (data.success && data.data) {
         const journal = data.data;
         
-        // Set posting date
-        setPostingDate(journal.posting_date || new Date().toISOString().split('T')[0]);
+        // Set posting date - convert from ISO to DD/MM/YYYY
+        setPostingDate(formatDate(journal.posting_date || new Date().toISOString().split('T')[0]));
         
         // Parse accounts to extract cash account and items
         const accounts = journal.accounts || [];
@@ -154,6 +168,17 @@ export default function KasMasukForm() {
     setItems(updated);
   };
 
+  const handleOpenAccountDialog = (index: number) => {
+    setSelectedRowIndex(index);
+    setShowAccountDialog(true);
+  };
+
+  const handleSelectAccount = (accountName: string) => {
+    if (selectedRowIndex !== null) {
+      updateRow(selectedRowIndex, 'kategori', accountName);
+    }
+  };
+
   const totalNominal = items.reduce((sum, item) => sum + Number(item.nominal || 0), 0);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -182,7 +207,7 @@ export default function KasMasukForm() {
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          posting_date: postingDate,
+          posting_date: parseDate(postingDate), // Convert DD/MM/YYYY to YYYY-MM-DD
           cash_account: cashAccount,
           company: selectedCompany,
           items: validItems,
@@ -197,7 +222,7 @@ export default function KasMasukForm() {
         
         // Redirect ke list kas masuk setelah 1.5 detik
         setTimeout(() => {
-          router.push('/kas-masuk');
+          router.replace('/kas-masuk');
         }, 1500);
       } else {
         setError(data.message || 'Gagal membuat jurnal kas masuk');
@@ -272,12 +297,11 @@ export default function KasMasukForm() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal Posting <span className="text-red-500">*</span></label>
-                <input
-                  type="date"
-                  required
-                  className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                <BrowserStyleDatePicker
                   value={postingDate}
-                  onChange={(e) => setPostingDate(e.target.value)}
+                  onChange={(value: string) => setPostingDate(value)}
+                  className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  placeholder="DD/MM/YYYY"
                 />
               </div>
               <div>
@@ -343,25 +367,34 @@ export default function KasMasukForm() {
                         </td>
                         <td className="px-4 py-2">
                           <input
-                            type="number"
+                            type="text"
                             className="block w-full border border-gray-300 rounded-md shadow-sm py-1.5 px-2 text-sm text-right"
-                            value={item.nominal || ''}
-                            onChange={(e) => updateRow(index, 'nominal', parseFloat(e.target.value) || 0)}
+                            value={item.nominal ? item.nominal.toLocaleString('id-ID') : ''}
+                            onChange={(e) => {
+                              const rawValue = e.target.value.replace(/\./g, '');
+                              const numValue = parseFloat(rawValue) || 0;
+                              updateRow(index, 'nominal', numValue);
+                            }}
                             placeholder="0"
-                            min="0"
                           />
                         </td>
                         <td className="px-4 py-2">
-                          <select
-                            className="block w-full border border-gray-300 rounded-md shadow-sm py-1.5 px-2 text-sm"
-                            value={item.kategori}
-                            onChange={(e) => updateRow(index, 'kategori', e.target.value)}
-                          >
-                            <option value="">Pilih Akun...</option>
-                            {incomeAccounts.map((acc) => (
-                              <option key={acc.name} value={acc.name}>{acc.name}</option>
-                            ))}
-                          </select>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              className="block w-full border border-gray-300 rounded-md shadow-sm py-1.5 px-2 text-sm bg-gray-50"
+                              value={item.kategori}
+                              readOnly
+                              placeholder="Klik tombol untuk pilih akun..."
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleOpenAccountDialog(index)}
+                              className="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-md hover:bg-indigo-700 whitespace-nowrap"
+                            >
+                              Pilih
+                            </button>
+                          </div>
                         </td>
                         <td className="px-4 py-2">
                           {items.length > 1 && (
@@ -411,6 +444,16 @@ export default function KasMasukForm() {
           </form>
         </div>
       </div>
+
+      {/* Account Search Dialog */}
+      <AccountSearchDialog
+        isOpen={showAccountDialog}
+        onClose={() => setShowAccountDialog(false)}
+        onSelect={handleSelectAccount}
+        accounts={incomeAccounts}
+        title="Pilih Akun Pendapatan"
+        currentValue={selectedRowIndex !== null ? items[selectedRowIndex]?.kategori : ''}
+      />
     </div>
   );
 }

@@ -5,6 +5,7 @@ import {
   buildSiteAwareErrorResponse,
   logSiteError 
 } from '@/lib/api-helpers';
+import { warehouseCache } from '@/lib/cache';
 
 export async function GET(request: NextRequest) {
   const siteId = await getSiteIdFromRequest(request);
@@ -14,7 +15,9 @@ export async function GET(request: NextRequest) {
     const company = searchParams.get('company');
 
     const cookies = request.cookies;
-    const sid = cookies.get('sid')?.value;
+    // Check site-specific cookie first, fallback to generic sid
+    const siteSpecificCookie = siteId ? `sid_${siteId.replace(/\./g, '-')}` : null;
+    const sid = (siteSpecificCookie && cookies.get(siteSpecificCookie)?.value) || cookies.get('sid')?.value;
 
     if (!sid) {
       return NextResponse.json(
@@ -34,7 +37,10 @@ export async function GET(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Build filters
-    const filters: any[] = [["company", "=", company]];
+    const filters: any[] = [
+      ["company", "=", company],
+      ["disabled", "=", 0]  // Only show active warehouses
+    ];
     
     // Add search filter if provided
     const search = searchParams.get('search');
@@ -42,20 +48,71 @@ export async function GET(request: NextRequest) {
       filters.push(["warehouse_name", "like", `%${search}%`]);
     }
 
-    // console.log('Warehouses filters:', filters);
+    // Build cache key: siteId-company-search
+    const cacheKey = `${siteId}-${company}-${search || 'all'}`;
 
-    const warehouses = await client.getList('Warehouse', {
-      fields: ['name', 'warehouse_name', 'company', 'is_group', 'parent_warehouse'],
-      filters,
-      order_by: 'warehouse_name',
-      limit_page_length: 500
-    });
+    // Use cache to reduce API calls (skip cache if search is active)
+    const warehouses = search 
+      ? await client.getList('Warehouse', {
+          fields: ['name', 'warehouse_name', 'company', 'is_group', 'parent_warehouse'],
+          filters,
+          order_by: 'warehouse_name',
+          limit_page_length: 500
+        })
+      : await warehouseCache.get(cacheKey, async () => {
+          return await client.getList('Warehouse', {
+            fields: ['name', 'warehouse_name', 'company', 'is_group', 'parent_warehouse'],
+            filters,
+            order_by: 'warehouse_name',
+            limit_page_length: 500
+          });
+        });
 
-    // console.log('Warehouses response:', warehouses);
+    // Fetch stock quantity for each warehouse from Bin
+    const warehousesWithStock = await Promise.all(
+      (warehouses || []).map(async (wh: any) => {
+        try {
+          // Skip stock calculation for warehouse groups
+          if (wh.is_group) {
+            return {
+              ...wh,
+              total_stock_qty: 0,
+              total_stock_value: 0,
+              total_items: 0
+            };
+          }
+          
+          // Get total stock quantity from Bin for this warehouse
+          const bins = await client.getList('Bin', {
+            fields: ['actual_qty', 'stock_value'],
+            filters: [["warehouse", "=", wh.name]],
+            limit_page_length: 1000
+          });
+          
+          const totalQty = bins.reduce((sum: number, bin: any) => sum + (bin.actual_qty || 0), 0);
+          const totalValue = bins.reduce((sum: number, bin: any) => sum + (bin.stock_value || 0), 0);
+          
+          return {
+            ...wh,
+            total_stock_qty: totalQty,
+            total_stock_value: totalValue,
+            total_items: bins.length
+          };
+        } catch (error) {
+          console.error(`Error fetching stock for warehouse ${wh.name}:`, error);
+          return {
+            ...wh,
+            total_stock_qty: 0,
+            total_stock_value: 0,
+            total_items: 0
+          };
+        }
+      })
+    );
 
     return NextResponse.json({
       success: true,
-      data: warehouses || [],
+      data: warehousesWithStock,
     });
   } catch (error: unknown) {
     logSiteError(error, 'GET /api/inventory/warehouses', siteId);
@@ -79,7 +136,9 @@ export async function POST(request: NextRequest) {
     }
 
     const cookies = request.cookies;
-    const sid = cookies.get('sid')?.value;
+    // Check site-specific cookie first, fallback to generic sid
+    const siteSpecificCookie = siteId ? `sid_${siteId.replace(/\./g, '-')}` : null;
+    const sid = (siteSpecificCookie && cookies.get(siteSpecificCookie)?.value) || cookies.get('sid')?.value;
     
     if (!sid) {
       return NextResponse.json(
@@ -108,6 +167,9 @@ export async function POST(request: NextRequest) {
     // console.log('Creating warehouse:', warehouseData);
 
     const result = await client.insert('Warehouse', warehouseData);
+    
+    // Invalidate cache after create
+    warehouseCache.clear(); // Clear all warehouse cache since it affects multiple companies
     
     // console.log('Create Warehouse Response:', {
     //   warehouseData,
@@ -141,7 +203,9 @@ export async function PUT(request: NextRequest) {
     }
 
     const cookies = request.cookies;
-    const sid = cookies.get('sid')?.value;
+    // Check site-specific cookie first, fallback to generic sid
+    const siteSpecificCookie = siteId ? `sid_${siteId.replace(/\./g, '-')}` : null;
+    const sid = (siteSpecificCookie && cookies.get(siteSpecificCookie)?.value) || cookies.get('sid')?.value;
     
     if (!sid) {
       return NextResponse.json(
@@ -169,6 +233,9 @@ export async function PUT(request: NextRequest) {
     // console.log('Updating warehouse:', { name, warehouseData });
 
     const result = await client.update('Warehouse', name, warehouseData);
+    
+    // Invalidate cache after update
+    warehouseCache.clear(); // Clear all warehouse cache since it affects multiple companies
     
     // console.log('Update Warehouse Response:', {
     //   name,

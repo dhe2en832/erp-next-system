@@ -230,7 +230,7 @@ export default function SupplierMain() {
       }
 
       setSuccessMessage(isEditMode ? 'Pemasok berhasil diperbarui!' : 'Pemasok berhasil ditambahkan!');
-      setTimeout(() => router.push('/suppliers'), 1500);
+      setTimeout(() => router.replace('/suppliers'), 1500);
     } catch (err) {
       console.error('Error saving supplier:', err);
       setError('Gagal menyimpan pemasok');

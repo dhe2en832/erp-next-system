@@ -16,11 +16,6 @@ export async function GET(request: NextRequest) {
     const from_date = searchParams.get('from_date');
     const to_date = searchParams.get('to_date');
 
-    const sid = request.cookies.get('sid')?.value;
-    if (!sid) {
-      return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
-    }
-
     if (!company) {
       return NextResponse.json({ success: false, message: 'Company required' }, { status: 400 });
     }
@@ -34,6 +29,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Get site-aware client (handles authentication automatically)
     const client = await getERPNextClientForRequest(request);
 
     // Get GL Entries for "Expenses Included In Asset Valuation" (ongkir masuk HPP)

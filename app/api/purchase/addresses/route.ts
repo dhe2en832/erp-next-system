@@ -10,14 +10,7 @@ export async function POST(request: NextRequest) {
   const siteId = await getSiteIdFromRequest(request);
   
   try {
-    const sid = request.cookies.get('sid')?.value;
-    if (!sid) {
-      return NextResponse.json(
-        { success: false, message: 'No authentication available' }, 
-        { status: 401 }
-      );
-    }
-
+    // Get site-aware client (handles authentication automatically)
     const client = await getERPNextClientForRequest(request);
     const body = await request.json();
     const { supplier_name, customer_name, address, country, city } = body;

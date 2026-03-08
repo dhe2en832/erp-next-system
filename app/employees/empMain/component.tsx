@@ -34,6 +34,51 @@ export default function EmployeeMain() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  // Mapping jabatan Inggris ke Indonesia
+  const designationTranslation: Record<string, string> = {
+    'Accountant': 'Akuntan',
+    'Administrative Assistant': 'Asisten Administrasi',
+    'Administrative Officer': 'Petugas Administrasi',
+    'Analyst': 'Analis',
+    'Associate': 'Rekan',
+    'Business Analyst': 'Analis Bisnis',
+    'Business Development Manager': 'Manajer Pengembangan Bisnis',
+    'Chief Executive Officer': 'Direktur Utama',
+    'Chief Financial Officer': 'Direktur Keuangan',
+    'Chief Operating Officer': 'Direktur Operasional',
+    'Chief Technology Officer': 'Direktur Teknologi',
+    'Consultant': 'Konsultan',
+    'Customer Service Representative': 'Perwakilan Layanan Pelanggan',
+    'Designer': 'Desainer',
+    'Engineer': 'Insinyur',
+    'Executive Assistant': 'Asisten Eksekutif',
+    'Finance Manager': 'Manajer Keuangan',
+    'Head of Marketing and Sales': 'Kepala Pemasaran dan Penjualan',
+    'HR Manager': 'Manajer SDM',
+    'Legal Manager': 'Manajer Hukum',
+    'Manager': 'Manajer',
+    'Marketing Manager': 'Manajer Pemasaran',
+    'Operations Manager': 'Manajer Operasional',
+    'Product Manager': 'Manajer Produk',
+    'Project Manager': 'Manajer Proyek',
+    'Quality Manager': 'Manajer Kualitas',
+    'Research Associate': 'Rekan Penelitian',
+    'Sales Manager': 'Manajer Penjualan',
+    'Secretary': 'Sekretaris',
+    'Senior Accountant': 'Akuntan Senior',
+    'Senior Engineer': 'Insinyur Senior',
+    'Software Developer': 'Pengembang Perangkat Lunak',
+    'Software Engineer': 'Insinyur Perangkat Lunak',
+    'Supervisor': 'Supervisor',
+    'Team Lead': 'Pemimpin Tim',
+    'Technician': 'Teknisi',
+    'Vice President': 'Wakil Presiden',
+  };
+
+  const translateDesignation = (designation: string): string => {
+    return designationTranslation[designation] || designation;
+  };
+
   const getTodayDDMMYYYY = () => {
     const today = new Date();
     const day = String(today.getDate()).padStart(2, '0');
@@ -168,6 +213,7 @@ export default function EmployeeMain() {
       const method = isEdit ? 'PUT' : 'POST';
       // Remove optional link fields if user leaves them blank to avoid ERPNext link validation
       const payload = { ...formData } as Record<string, unknown>;
+      
       // Ensure mandatory fields mapped
       payload.first_name = payload.first_name || payload.employee_name;
       payload.employee_name = payload.employee_name || payload.first_name;
@@ -194,7 +240,7 @@ export default function EmployeeMain() {
         setSuccess(successMsg);
         // show alert confirmation then redirect
         window.alert(successMsg);
-        router.push('/employees');
+        router.replace('/employees');
         if (!isEdit) {
           // Reset form after successful creation
           setFormData({
@@ -213,7 +259,7 @@ export default function EmployeeMain() {
         }
       } else {
         // Surface clearer message for link validation errors (e.g., department/designation not found)
-        const message = data.message || data.exc || 'Gagal menyimpan employee';
+        let message = data.message || data.exc || 'Gagal menyimpan employee';
         setError(message);
       }
     } catch (err) {
@@ -351,7 +397,7 @@ export default function EmployeeMain() {
             >
               <option value="">Pilih jabatan (opsional)</option>
               {designations.map((d) => (
-                <option key={d} value={d}>{d}</option>
+                <option key={d} value={d}>{translateDesignation(d)}</option>
               ))}
             </select>
           </div>

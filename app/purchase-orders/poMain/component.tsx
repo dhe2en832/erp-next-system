@@ -869,7 +869,7 @@ export default function PurchaseOrderMain() {
         const successMessage = isUpdate ? 'Pesanan Pembelian berhasil diperbarui!' : 'Pesanan Pembelian berhasil dibuat!';
         setSuccess(successMessage);
         const savedName = data.data?.name || existingId || '';
-        if (savedName) { setShowPrintDialog(true); setPrintDocName(savedName); } else { setTimeout(() => { router.push('/purchase-orders/poList'); }, 3000); }
+        if (savedName) { setShowPrintDialog(true); setPrintDocName(savedName); } else { setTimeout(() => { router.replace('/purchase-orders/poList'); }, 3000); }
       } else {
         setError(data.message || `Gagal ${isUpdate ? 'memperbarui' : 'membuat'} pesanan pembelian`);
       }
@@ -890,7 +890,7 @@ export default function PurchaseOrderMain() {
     <>
     <PrintDialog
       isOpen={showPrintDialog}
-      onClose={() => { setShowPrintDialog(false); router.push('/purchase-orders/poList'); }}
+      onClose={() => { setShowPrintDialog(false); router.replace('/purchase-orders/poList'); }}
       documentType="Purchase Order"
       documentName={printDocName}
       documentLabel="Pesanan Pembelian"

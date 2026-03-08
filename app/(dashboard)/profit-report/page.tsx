@@ -39,11 +39,14 @@ interface Summary {
 }
 
 export default function ProfitReportPage() {
+  // Get today's date in local timezone
   const today = new Date();
-  const todayStr = new Date(today).toISOString().slice(0, 10);
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  
+  // Get yesterday's date
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);
-  const yesterdayStr = yesterday.toISOString().slice(0, 10);
+  const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
 
   const [params, setParams] = useState<ProfitParams>({
     from_date: yesterdayStr,

@@ -10,8 +10,9 @@ export async function GET(request: NextRequest) {
   const siteId = await getSiteIdFromRequest(request);
   
   try {
-    const cookies = request.cookies;
-    const sid = cookies.get('sid')?.value;
+    // Check site-specific cookie first, fallback to generic sid
+    const siteSpecificCookie = siteId ? `sid_${siteId.replace(/\./g, '-')}` : null;
+    const sid = (siteSpecificCookie && request.cookies.get(siteSpecificCookie)?.value) || request.cookies.get('sid')?.value;
 
     if (!sid) {
       return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });

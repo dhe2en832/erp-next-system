@@ -18,6 +18,11 @@ export default function PeriodDetailPage() {
   const [error, setError] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'info' | 'balances' | 'journal' | 'audit'>('info');
+  
+  // Pagination for account balances
+  const [currentPage, setCurrentPage] = useState(1);
+  const [searchTerm, setSearchTerm] = useState('');
+  const itemsPerPage = 20;
 
   useEffect(() => {
     if (periodName) {
@@ -175,6 +180,38 @@ export default function PeriodDetailPage() {
     };
     return texts[status as keyof typeof texts] || status;
   };
+
+  const formatBalance = (balance: number, rootType: string) => {
+    const absBalance = Math.abs(balance);
+    const formatted = `Rp ${absBalance.toLocaleString('id-ID')}`;
+
+    // Determine position based on root type and balance sign
+    let position = '';
+    if (rootType === 'Income' || rootType === 'Liability' || rootType === 'Equity') {
+      position = balance < 0 ? '(Cr)' : '(Dr)';
+    } else if (rootType === 'Asset' || rootType === 'Expense') {
+      position = balance > 0 ? '(Dr)' : '(Cr)';
+    }
+
+    return `${formatted} ${position}`;
+  };
+
+  // Filter and paginate account balances
+  const filteredBalances = accountBalances.filter(acc => 
+    searchTerm === '' || 
+    acc.account.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    acc.account_name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const totalPages = Math.ceil(filteredBalances.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedBalances = filteredBalances.slice(startIndex, endIndex);
+
+  // Reset to page 1 when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
 
   if (loading) {
     return <LoadingSpinner message="Memuat detail periode..." />;
@@ -411,16 +448,33 @@ export default function PeriodDetailPage() {
       {activeTab === 'balances' && (
         <div className="bg-white shadow rounded-lg overflow-hidden">
           <div className="p-6 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">Saldo Akun</h2>
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Saldo Akun</h2>
+                <p className="text-sm text-gray-500 mt-1">Bisa di scroll untuk melihat semua akun</p>
+              </div>
+              <div className="flex items-center gap-4">
+                <input
+                  type="text"
+                  placeholder="Cari akun..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                <span className="text-sm text-gray-600">
+                  {filteredBalances.length} akun
+                </span>
+              </div>
+            </div>
           </div>
-          {accountBalances.length === 0 ? (
+          {filteredBalances.length === 0 ? (
             <div className="p-6 text-center text-gray-500">
-              Belum ada data saldo akun
+              {searchTerm ? 'Tidak ada akun yang ditemukan' : 'Belum ada data saldo akun'}
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto max-h-[500px] overflow-y-auto border-t border-gray-200">
               <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+                <thead className="bg-gray-50 sticky top-0 z-10">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Akun</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tipe</th>
@@ -430,7 +484,7 @@ export default function PeriodDetailPage() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {accountBalances.map((balance, idx) => (
+                  {filteredBalances.map((balance, idx) => (
                     <tr key={idx}>
                       <td className="px-6 py-4 text-sm">
                         <div className="font-medium text-gray-900">{balance.account_name}</div>
@@ -438,13 +492,13 @@ export default function PeriodDetailPage() {
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-900">{balance.root_type}</td>
                       <td className="px-6 py-4 text-sm text-right text-gray-900">
-                        {balance.debit.toLocaleString('id-ID')}
+                        Rp {balance.debit.toLocaleString('id-ID')}
                       </td>
                       <td className="px-6 py-4 text-sm text-right text-gray-900">
-                        {balance.credit.toLocaleString('id-ID')}
+                        Rp {balance.credit.toLocaleString('id-ID')}
                       </td>
                       <td className="px-6 py-4 text-sm text-right font-medium text-gray-900">
-                        {balance.balance.toLocaleString('id-ID')}
+                        {formatBalance(balance.balance, balance.root_type)}
                       </td>
                     </tr>
                   ))}
@@ -456,23 +510,25 @@ export default function PeriodDetailPage() {
       )}
 
       {activeTab === 'journal' && closingJournal && (
-        <div className="bg-white shadow rounded-lg p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Jurnal Penutup</h2>
-          <dl className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            <div>
-              <dt className="text-sm font-medium text-gray-500">Nomor Jurnal</dt>
-              <dd className="mt-1 text-sm text-gray-900">{closingJournal.name}</dd>
-            </div>
-            <div>
-              <dt className="text-sm font-medium text-gray-500">Tanggal Posting</dt>
-              <dd className="mt-1 text-sm text-gray-900">
-                {new Date(closingJournal.posting_date).toLocaleDateString('id-ID')}
-              </dd>
-            </div>
-          </dl>
-          <div className="overflow-x-auto">
+        <div className="bg-white shadow rounded-lg overflow-hidden">
+          <div className="p-6 border-b border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900">Jurnal Penutup</h2>
+            <dl className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+              <div>
+                <dt className="text-sm font-medium text-gray-500">Nomor Jurnal</dt>
+                <dd className="mt-1 text-sm text-gray-900">{closingJournal.name}</dd>
+              </div>
+              <div>
+                <dt className="text-sm font-medium text-gray-500">Tanggal Posting</dt>
+                <dd className="mt-1 text-sm text-gray-900">
+                  {new Date(closingJournal.posting_date).toLocaleDateString('id-ID')}
+                </dd>
+              </div>
+            </dl>
+          </div>
+          <div className="overflow-x-auto max-h-[500px] overflow-y-auto border-t border-gray-200">
             <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+              <thead className="bg-gray-50 sticky top-0 z-10">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Akun</th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Debit</th>
@@ -484,10 +540,10 @@ export default function PeriodDetailPage() {
                   <tr key={idx}>
                     <td className="px-6 py-4 text-sm text-gray-900">{acc.account}</td>
                     <td className="px-6 py-4 text-sm text-right text-gray-900">
-                      {acc.debit_in_account_currency?.toLocaleString('id-ID') || '-'}
+                      {acc.debit_in_account_currency ? `Rp ${acc.debit_in_account_currency.toLocaleString('id-ID')}` : '-'}
                     </td>
                     <td className="px-6 py-4 text-sm text-right text-gray-900">
-                      {acc.credit_in_account_currency?.toLocaleString('id-ID') || '-'}
+                      {acc.credit_in_account_currency ? `Rp ${acc.credit_in_account_currency.toLocaleString('id-ID')}` : '-'}
                     </td>
                   </tr>
                 ))}

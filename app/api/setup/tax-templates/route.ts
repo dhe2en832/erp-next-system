@@ -5,6 +5,7 @@ import {
   buildSiteAwareErrorResponse,
   logSiteError 
 } from '@/lib/api-helpers';
+import { taxTemplateCache } from '@/lib/cache';
 
 /**
  * GET /api/setup/tax-templates
@@ -65,48 +66,69 @@ export async function GET(request: NextRequest) {
       ? 'Sales Taxes and Charges Template' 
       : 'Purchase Taxes and Charges Template';
 
-    // Build filters
-    // Filter: company = company AND disabled = 0 (active only)
-    const filters = [
-      ["company", "=", company],
-      ["disabled", "=", 0]
-    ];
+    // Build cache key: siteId-type-company
+    const cacheKey = `${siteId}-${type}-${company}`;
 
-    // Fetch list of tax templates using client
-    const templateNames = await client.getList(docType, { 
-      filters,
-      fields: ['name']
-    });
+    // Use cache to reduce API calls
+    const templates = await taxTemplateCache.get(cacheKey, async () => {
+      // Build filters
+      // Filter: company = company AND disabled = 0 (active only)
+      const filters = [
+        ["company", "=", company],
+        ["disabled", "=", 0]
+      ];
 
-    // console.log(`Fetching details for ${templateNames.length} templates...`);
+      // Fetch list of tax templates using client
+      const templateNames = await client.getList(docType, { 
+        filters,
+        fields: ['name']
+      });
 
-    // Fetch full details for each template to get child table data
-    const templates = [];
+      console.log(`[Tax Templates] Found ${templateNames.length} templates from getList`);
+      console.log(`[Tax Templates] Template names:`, templateNames.map(t => t.name));
 
-    for (const templateName of templateNames) {
-      try {
-        // console.log(`Fetching template detail: ${templateName.name}`);
-        
-        const template = await client.getDoc(docType, templateName.name);
-        
-        // console.log(`Template ${template.name} has ${(template.taxes || []).length} tax rows`);
-        
-        templates.push({
-          name: template.name,
-          title: template.title,
-          company: template.company,
-          is_default: template.is_default || 0,
-          taxes: (template.taxes || []).map((tax: any) => ({
-            charge_type: tax.charge_type,
-            account_head: tax.account_head,
-            description: tax.description || tax.charge_type,
-            rate: tax.rate || 0,
-          }))
-        });
-      } catch (err) {
-        console.error(`Error fetching details for template ${templateName.name}:`, err);
+      // Fetch full details for each template to get child table data
+      const fetchedTemplates = [];
+
+      for (const templateName of templateNames) {
+        try {
+          console.log(`[Tax Templates] Fetching detail for: ${templateName.name}`);
+          
+          const template = await client.get(docType, templateName.name);
+          
+          console.log(`[Tax Templates] Fetched ${templateName.name} - Company: ${template.company}, Taxes: ${(template.taxes || []).length}`);
+          
+          // Verify template company matches requested company
+          // Skip templates with mismatched company (e.g., from restored database)
+          if (template.company !== company) {
+            console.log(`[Tax Templates] Skipping template ${templateName.name} - company mismatch (${template.company} != ${company})`);
+            continue;
+          }
+          
+          fetchedTemplates.push({
+            name: template.name,
+            title: template.title,
+            company: template.company,
+            is_default: template.is_default || 0,
+            taxes: (template.taxes || []).map((tax: any) => ({
+              charge_type: tax.charge_type,
+              account_head: tax.account_head,
+              description: tax.description || tax.charge_type,
+              rate: tax.rate || 0,
+            }))
+          });
+          
+          console.log(`[Tax Templates] Added template ${templateName.name} to result`);
+        } catch (err) {
+          console.error(`[Tax Templates] Error fetching template ${templateName.name}:`, err);
+          // Continue with other templates even if one fails
+          continue;
+        }
       }
-    }
+      
+      console.log(`[Tax Templates] Total templates in response: ${fetchedTemplates.length}`);
+      return fetchedTemplates;
+    });
 
     // console.log(`Found ${templates.length} active tax templates for ${type}`);
     // console.log('Templates with taxes:', JSON.stringify(templates, null, 2));

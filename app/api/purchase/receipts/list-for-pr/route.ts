@@ -21,17 +21,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get session cookie for authentication
-    const sid = request.cookies.get('sid')?.value;
-
-    if (!sid) {
-      return NextResponse.json(
-        { success: false, message: 'Unauthorized - Please login first' },
-        { status: 401 }
-      );
-    }
-
-    // Get site-aware client
+    // Get site-aware client (handles authentication automatically)
     const client = await getERPNextClientForRequest(request);
 
     // Try ERPNext custom method first

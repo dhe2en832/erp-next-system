@@ -741,70 +741,72 @@ export default function GLEntryPage() {
           /* ── DESKTOP: Table ───────────────────────────────────────────── */
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="min-w-full">
-                <thead>
-                  <tr className="bg-gray-50 border-b border-gray-100">
-                    <th className="px-4 py-3 text-left   text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Tanggal</th>
-                    <th className="px-4 py-3 text-left   text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Akun</th>
-                    <th className="px-4 py-3 text-right  text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Debit</th>
-                    <th className="px-4 py-3 text-right  text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Kredit</th>
-                    <th className="px-4 py-3 text-left   text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Tipe Voucher</th>
-                    <th className="px-4 py-3 text-left   text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">No. Voucher</th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {loading
-                    ? Array.from({ length: pageSize }).map((_, i) => <SkeletonRow key={i} />)
-                    : glEntries.length === 0
-                      ? <tr>
-                          <td colSpan={7} className="px-6 py-16 text-center text-gray-400">
-                            <BookOpen className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                            <p className="text-sm">Tidak ada data GL Entry ditemukan</p>
-                          </td>
-                        </tr>
-                      : glEntries.map(entry => (
-                          <tr key={entry.name} className="hover:bg-blue-50/40 transition-colors group">
-                            <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
-                              {formatDate(entry.posting_date)}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-gray-900 max-w-[220px]">
-                              <span className="line-clamp-1 block" title={entry.account}>{entry.account}</span>
-                            </td>
-                            {/* Debit — rata kanan, tabular nums */}
-                            <td className="px-4 py-3 text-sm text-right whitespace-nowrap tabular-nums">
-                              {entry.debit > 0
-                                ? <span className="font-semibold text-emerald-700">{formatCurrency(entry.debit)}</span>
-                                : <span className="text-gray-300">-</span>}
-                            </td>
-                            {/* Kredit — rata kanan, tabular nums */}
-                            <td className="px-4 py-3 text-sm text-right whitespace-nowrap tabular-nums">
-                              {entry.credit > 0
-                                ? <span className="font-semibold text-rose-700">{formatCurrency(entry.credit)}</span>
-                                : <span className="text-gray-300">-</span>}
-                            </td>
-                            <td className="px-4 py-3 text-sm whitespace-nowrap">
-                              <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full text-xs font-medium">
-                                {voucherLabel(entry.voucher_type)}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-sm text-gray-600 font-mono whitespace-nowrap">
-                              {entry.voucher_no}
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              <button
-                                onClick={() => setSelectedGLEntry(entry)}
-                                className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium opacity-0 group-hover:opacity-100 transition-opacity"
-                              >
-                                <Eye className="w-3.5 h-3.5" />
-                                Detail
-                              </button>
+              <div className="max-h-[500px] overflow-y-auto">
+                <table className="min-w-full">
+                  <thead className="sticky top-0 z-10">
+                    <tr className="bg-gray-50 border-b border-gray-100">
+                      <th className="px-4 py-3 text-left   text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Tanggal</th>
+                      <th className="px-4 py-3 text-left   text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Akun</th>
+                      <th className="px-4 py-3 text-right  text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Debit</th>
+                      <th className="px-4 py-3 text-right  text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Kredit</th>
+                      <th className="px-4 py-3 text-left   text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Tipe Voucher</th>
+                      <th className="px-4 py-3 text-left   text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">No. Voucher</th>
+                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {loading
+                      ? Array.from({ length: pageSize }).map((_, i) => <SkeletonRow key={i} />)
+                      : glEntries.length === 0
+                        ? <tr>
+                            <td colSpan={7} className="px-6 py-16 text-center text-gray-400">
+                              <BookOpen className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                              <p className="text-sm">Tidak ada data GL Entry ditemukan</p>
                             </td>
                           </tr>
-                        ))
-                  }
-                </tbody>
-              </table>
+                        : glEntries.map(entry => (
+                            <tr key={entry.name} className="hover:bg-blue-50/40 transition-colors group">
+                              <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
+                                {formatDate(entry.posting_date)}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-900 max-w-[220px]">
+                                <span className="line-clamp-1 block" title={entry.account}>{entry.account}</span>
+                              </td>
+                              {/* Debit — rata kanan, tabular nums */}
+                              <td className="px-4 py-3 text-sm text-right whitespace-nowrap tabular-nums">
+                                {entry.debit > 0
+                                  ? <span className="font-semibold text-emerald-700">{formatCurrency(entry.debit)}</span>
+                                  : <span className="text-gray-300">-</span>}
+                              </td>
+                              {/* Kredit — rata kanan, tabular nums */}
+                              <td className="px-4 py-3 text-sm text-right whitespace-nowrap tabular-nums">
+                                {entry.credit > 0
+                                  ? <span className="font-semibold text-rose-700">{formatCurrency(entry.credit)}</span>
+                                  : <span className="text-gray-300">-</span>}
+                              </td>
+                              <td className="px-4 py-3 text-sm whitespace-nowrap">
+                                <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full text-xs font-medium">
+                                  {voucherLabel(entry.voucher_type)}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-600 font-mono whitespace-nowrap">
+                                {entry.voucher_no}
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                <button
+                                  onClick={() => setSelectedGLEntry(entry)}
+                                  className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium opacity-0 group-hover:opacity-100 transition-opacity"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                  Detail
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                    }
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             {/* Totals Summary */}

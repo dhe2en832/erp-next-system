@@ -52,6 +52,28 @@ export default function ClosingSummaryReport({
     }).format(amount);
   };
 
+  const formatBalance = (balance: number, rootType: string) => {
+    const absBalance = Math.abs(balance);
+    const formatted = new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(absBalance);
+
+    // Determine position based on root type and balance sign
+    // Income & Liability & Equity = normal credit (negative balance)
+    // Asset & Expense = normal debit (positive balance)
+    let position = '';
+    if (rootType === 'Income' || rootType === 'Liability' || rootType === 'Equity') {
+      position = balance < 0 ? '(Cr)' : '(Dr)';
+    } else if (rootType === 'Asset' || rootType === 'Expense') {
+      position = balance > 0 ? '(Dr)' : '(Cr)';
+    }
+
+    return `${formatted} ${position}`;
+  };
+
   return (
     <div className="bg-white shadow rounded-lg overflow-hidden print:shadow-none">
       {/* Action Buttons */}
@@ -166,19 +188,19 @@ export default function ClosingSummaryReport({
           <div className="bg-white p-4 rounded-lg shadow-sm">
             <p className="text-sm text-gray-600 mb-1">Total Pendapatan</p>
             <p className="text-xl font-bold text-green-600">
-              {formatCurrency(nominal_accounts.filter(a => a.root_type === 'Income').reduce((sum, a) => sum + a.balance, 0))}
+              {formatBalance(nominal_accounts.filter(a => a.root_type === 'Income').reduce((sum, a) => sum + a.balance, 0), 'Income')}
             </p>
           </div>
           <div className="bg-white p-4 rounded-lg shadow-sm">
             <p className="text-sm text-gray-600 mb-1">Total Beban</p>
             <p className="text-xl font-bold text-red-600">
-              {formatCurrency(nominal_accounts.filter(a => a.root_type === 'Expense').reduce((sum, a) => sum + a.balance, 0))}
+              {formatBalance(nominal_accounts.filter(a => a.root_type === 'Expense').reduce((sum, a) => sum + a.balance, 0), 'Expense')}
             </p>
           </div>
           <div className="bg-white p-4 rounded-lg shadow-sm">
             <p className="text-sm text-gray-600 mb-1">Laba (Rugi) Bersih</p>
             <p className={`text-xl font-bold ${net_income >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {formatCurrency(net_income)}
+              {net_income >= 0 ? formatCurrency(net_income) : `${formatCurrency(Math.abs(net_income))} (Rugi)`}
             </p>
           </div>
         </div>
@@ -234,10 +256,11 @@ export default function ClosingSummaryReport({
 
       {/* Nominal Accounts (Income & Expense) */}
       <div className="p-8 border-b border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Akun Nominal (Pendapatan & Beban)</h3>
-        <div className="overflow-x-auto">
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">Akun Nominal (Pendapatan & Beban)</h3>
+        <p className="text-sm text-gray-600 mb-4">Akun-akun ini akan ditutup ke laba ditahan</p>
+        <div className="overflow-x-auto max-h-96 overflow-y-auto border border-gray-200 rounded-lg">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50 sticky top-0">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Akun</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tipe</th>
@@ -268,7 +291,7 @@ export default function ClosingSummaryReport({
                       {formatCurrency(account.credit)}
                     </td>
                     <td className="px-4 py-3 text-sm text-right font-medium text-gray-900">
-                      {formatCurrency(account.balance)}
+                      {formatBalance(account.balance, account.root_type)}
                     </td>
                   </tr>
                 ))
@@ -280,10 +303,11 @@ export default function ClosingSummaryReport({
 
       {/* Real Accounts (Asset, Liability, Equity) */}
       <div className="p-8">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Akun Riil (Aset, Liabilitas, Ekuitas)</h3>
-        <div className="overflow-x-auto">
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">Akun Riil (Aset, Liabilitas, Ekuitas)</h3>
+        <p className="text-sm text-gray-600 mb-4">Saldo akun-akun ini akan dibawa ke periode berikutnya</p>
+        <div className="overflow-x-auto max-h-96 overflow-y-auto border border-gray-200 rounded-lg">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50 sticky top-0">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Akun</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tipe</th>
@@ -314,7 +338,7 @@ export default function ClosingSummaryReport({
                       {formatCurrency(account.credit)}
                     </td>
                     <td className="px-4 py-3 text-sm text-right font-medium text-gray-900">
-                      {formatCurrency(account.balance)}
+                      {formatBalance(account.balance, account.root_type)}
                     </td>
                   </tr>
                 ))

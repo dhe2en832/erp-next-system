@@ -19,6 +19,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "item_code is required" }, { status: 400 });
     }
 
+    // Check site-specific cookie first, fallback to generic sid
+    const siteSpecificCookie = siteId ? `sid_${siteId.replace(/\./g, '-')}` : null;
+    const sid = (siteSpecificCookie && request.cookies.get(siteSpecificCookie)?.value) || request.cookies.get('sid')?.value;
+    if (!sid) {
+      return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
+    }
+
     // Tentukan price list berdasarkan parameter selling
     const priceList = selling === '0' ? 'Standar Pembelian' : 'Standard Jual';
 
@@ -40,10 +47,24 @@ export async function GET(request: NextRequest) {
     
     // console.log('Filters:', JSON.stringify(filters));
     
-    const result = await client.getList('Item Price', {
+    let result = await client.getList('Item Price', {
       fields: ['price_list_rate', 'item_code', 'price_list', 'custom_company'],
       filters
     });
+
+    // Jika tidak ketemu dengan filter company, coba tanpa filter company
+    if ((!result || result.length === 0) && company) {
+      // console.log('No price found with company filter, retrying without company filter');
+      const filtersWithoutCompany: any[] = [
+        ["item_code", "=", itemCode],
+        ["price_list", "=", priceList]
+      ];
+      
+      result = await client.getList('Item Price', {
+        fields: ['price_list_rate', 'item_code', 'price_list', 'custom_company'],
+        filters: filtersWithoutCompany
+      });
+    }
 
     // console.log('ERPNext data result:', result);
     // console.log('Filters used:', JSON.stringify(filters));

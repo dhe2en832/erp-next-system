@@ -491,35 +491,40 @@ export default function FinancialReportsPage() {
                 <span className="text-sm text-gray-500">{tbData.length} akun</span>
               </div>
               <div className="overflow-x-auto rounded-lg border border-gray-200">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Nama Akun</th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider w-44">Debit</th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider w-44">Kredit</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-100">
-                    {tbData.length === 0 ? (
-                      <tr><td colSpan={3} className="px-4 py-8 text-center text-gray-400">Tidak ada data</td></tr>
-                    ) : tbData.map(e => (
-                      <tr key={e.account} className="hover:bg-gray-50">
-                        <td className="px-4 py-2.5 text-sm text-gray-900">{e.account_name}</td>
-                        <td className="px-4 py-2.5 text-sm text-right tabular-nums text-gray-900">{e.debit > 0 ? fmtCur(e.debit) : <span className="text-gray-300">—</span>}</td>
-                        <td className="px-4 py-2.5 text-sm text-right tabular-nums text-gray-900">{e.credit > 0 ? fmtCur(e.credit) : <span className="text-gray-300">—</span>}</td>
+                <div className="max-h-[500px] overflow-y-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50 sticky top-0 z-10">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Nama Akun</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider w-44">Debit</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider w-44">Kredit</th>
                       </tr>
-                    ))}
-                  </tbody>
-                  {tbData.length > 0 && (
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-100">
+                      {tbData.length === 0 ? (
+                        <tr><td colSpan={3} className="px-4 py-8 text-center text-gray-400">Tidak ada data</td></tr>
+                      ) : tbData.map(e => (
+                        <tr key={e.account} className="hover:bg-gray-50">
+                          <td className="px-4 py-2.5 text-sm text-gray-900">{e.account_name}</td>
+                          <td className="px-4 py-2.5 text-sm text-right tabular-nums text-gray-900">{e.debit > 0 ? fmtCur(e.debit) : <span className="text-gray-300">—</span>}</td>
+                          <td className="px-4 py-2.5 text-sm text-right tabular-nums text-gray-900">{e.credit > 0 ? fmtCur(e.credit) : <span className="text-gray-300">—</span>}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {/* Footer outside scrollable area */}
+                {tbData.length > 0 && (
+                  <table className="min-w-full">
                     <tfoot className="bg-gray-50 border-t-2 border-gray-400">
                       <tr>
                         <td className="px-4 py-3 text-sm font-bold text-gray-900">JUMLAH</td>
-                        <td className="px-4 py-3 text-sm font-bold text-right tabular-nums text-gray-900">{fmtCur(tbTotD)}</td>
-                        <td className="px-4 py-3 text-sm font-bold text-right tabular-nums text-gray-900">{fmtCur(tbTotC)}</td>
+                        <td className="px-4 py-3 text-sm font-bold text-right tabular-nums text-gray-900 w-44">{fmtCur(tbTotD)}</td>
+                        <td className="px-4 py-3 text-sm font-bold text-right tabular-nums text-gray-900 w-44">{fmtCur(tbTotC)}</td>
                       </tr>
                     </tfoot>
-                  )}
-                </table>
+                  </table>
+                )}
               </div>
             </div>
           )}

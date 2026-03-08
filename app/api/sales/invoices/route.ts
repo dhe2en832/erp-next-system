@@ -23,16 +23,6 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '100');
     const start = parseInt(searchParams.get('start') || '0');
 
-    const cookies = request.cookies;
-    const sid = cookies.get('sid')?.value;
-
-    if (!sid) {
-      return NextResponse.json(
-        { success: false, message: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
     // Build filters
     let filtersArray: any[][] = [];
 

@@ -17,8 +17,9 @@ export async function GET(request: NextRequest) {
     const limitPageLength = searchParams.get('limit_page_length') || '20';
     const limitStart = searchParams.get('limit_start') || '0';
 
-    const cookies = request.cookies;
-    const sid = cookies.get('sid')?.value;
+    // Check site-specific cookie first, fallback to generic sid
+    const siteSpecificCookie = siteId ? `sid_${siteId.replace(/\./g, '-')}` : null;
+    const sid = (siteSpecificCookie && request.cookies.get(siteSpecificCookie)?.value) || request.cookies.get('sid')?.value;
     
     // Build filters array
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -92,7 +93,9 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ success: false, message: 'Employee name is required' }, { status: 400 });
     }
 
-    const sid = request.cookies.get('sid')?.value;
+    // Check site-specific cookie first, fallback to generic sid
+    const siteSpecificCookie = siteId ? `sid_${siteId.replace(/\./g, '-')}` : null;
+    const sid = (siteSpecificCookie && request.cookies.get(siteSpecificCookie)?.value) || request.cookies.get('sid')?.value;
     if (!sid) {
       return NextResponse.json({ success: false, message: 'No authentication available' }, { status: 401 });
     }
@@ -134,41 +137,39 @@ export async function PUT(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const siteId = await getSiteIdFromRequest(request);
-  
+
   try {
-    const cookies = request.cookies;
-    const sid = cookies.get('sid')?.value;
-
-    if (!sid) {
-      return NextResponse.json(
-        { success: false, message: 'No authentication available' },
-        { status: 401 }
-      );
-    }
-
     const body = await request.json();
 
     // Get site-aware client
     const client = await getERPNextClientForRequest(request);
-    
-    // Use client method instead of direct fetch
+
+    // Simply insert the employee - let ERPNext handle naming series
+    // If naming series counter is out of sync, this will fail with duplicate entry error
+    // User must fix the naming series counter on the server using fix_employee_naming_series.py
     const newEmployee = await client.insert('Employee', body);
 
     return NextResponse.json({ success: true, data: newEmployee });
   } catch (error) {
     logSiteError(error, 'POST /api/hr/employees', siteId);
-    
+
     // Extract detailed error message
     let errorMessage = 'Failed to create employee';
     if (error && typeof error === 'object') {
       const errorObj = error as any;
+
       if (errorObj.message) {
         errorMessage = errorObj.message;
       } else if (errorObj.exc) {
         errorMessage = errorObj.exc;
       }
+      
+      // Check if it's a duplicate entry error (naming series issue)
+      if (errorMessage.includes('Duplicate entry') && errorMessage.includes('HR-EMP-')) {
+        errorMessage = 'Naming series counter tidak sinkron. Silakan hubungi administrator untuk menjalankan fix_employee_naming_series.py di server.';
+      }
     }
-    
+
     return NextResponse.json(
       { success: false, message: errorMessage },
       { status: 500 }

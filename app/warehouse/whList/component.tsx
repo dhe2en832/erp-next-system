@@ -14,6 +14,9 @@ interface Warehouse {
   phone: string;
   is_group: boolean;
   parent_warehouse: string;
+  total_stock_qty?: number;
+  total_stock_value?: number;
+  total_items?: number;
 }
 
 export default function WarehouseList() {
@@ -141,11 +144,28 @@ export default function WarehouseList() {
             {warehouses.map((warehouse) => (
               <div key={warehouse.name} className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
                 <div className="flex items-start justify-between">
-                  <div>
+                  <div className="flex-1">
                     <h3 className="text-lg font-medium text-gray-900">{warehouse.warehouse_name}</h3>
                     <p className="text-sm text-gray-500 mt-1">{warehouse.name}</p>
+                    {warehouse.is_group ? (
+                      <div className="mt-2">
+                        <p className="text-sm text-gray-500 italic">Grup gudang - lihat gudang individual untuk detail stok</p>
+                      </div>
+                    ) : (
+                      <div className="mt-2 space-y-1">
+                        <p className="text-sm text-gray-700">
+                          <span className="font-medium">Jumlah Item:</span> {warehouse.total_items || 0}
+                        </p>
+                        <p className="text-sm text-gray-700">
+                          <span className="font-medium">Total Qty:</span> {(warehouse.total_stock_qty || 0).toLocaleString('id-ID')}
+                        </p>
+                        <p className="text-sm text-gray-700">
+                          <span className="font-medium">Nilai Stok:</span> Rp {(warehouse.total_stock_value || 0).toLocaleString('id-ID')}
+                        </p>
+                      </div>
+                    )}
                   </div>
-                  {warehouse.is_group && (
+                  {!!warehouse.is_group && (
                     <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                       Grup
                     </span>

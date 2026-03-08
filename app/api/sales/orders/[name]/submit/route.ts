@@ -40,7 +40,7 @@ export async function POST(
     // Get site-aware client
     const client = await getERPNextClientForRequest(request);
     
-    // Submit the Sales Order using client method
+    // Submit the Sales Order (will fetch latest doc automatically)
     const result = await client.submit('Sales Order', name);
     
     const orderData = result.docs?.[0] || result.doc || result.data || result;

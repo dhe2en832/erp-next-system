@@ -14,7 +14,9 @@ export async function GET(request: NextRequest) {
     const supplier = searchParams.get('supplier');
     const company = searchParams.get('company');
 
-    const sid = request.cookies.get('sid')?.value;
+    // Check site-specific cookie first, fallback to generic sid
+    const siteSpecificCookie = siteId ? `sid_${siteId.replace(/\./g, '-')}` : null;
+    const sid = (siteSpecificCookie && request.cookies.get(siteSpecificCookie)?.value) || request.cookies.get('sid')?.value;
     if (!sid) {
       return NextResponse.json(
         { success: false, message: 'Unauthorized - No session or API key found' },

@@ -9,7 +9,8 @@ import type { ClosingSummaryResponse } from '../../../../types/accounting-period
 export default function ClosingSummaryReportPage() {
   const router = useRouter();
   const params = useParams();
-  const periodName = params.name as string;
+  // Decode period name from URL params to avoid double encoding
+  const periodName = decodeURIComponent(params.name as string);
 
   // Add print styles
   useEffect(() => {

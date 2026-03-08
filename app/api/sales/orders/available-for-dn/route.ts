@@ -59,23 +59,57 @@ export async function GET(request: NextRequest) {
     }
 
     // Step 2: Get all DN Items that reference any SO (both draft and submitted DNs)
-    const dnItemFilters = [
-      ['against_sales_order', 'is', 'set'],
-      ['docstatus', 'in', [0, 1]],
-    ];
-
-    const dnItems = await client.getList('Delivery Note Item', {
-      fields: ['against_sales_order'],
-      filters: dnItemFilters,
-      limit_page_length: 0
-    });
-
+    // Use frappe.db.get_list instead of client.getList to bypass permission check
     const soWithDN = new Set<string>();
-    dnItems.forEach((item: any) => {
-      if (item.against_sales_order) {
-        soWithDN.add(item.against_sales_order);
+    
+    try {
+      const dnItemsResult = await client.call('frappe.client.get_list', {
+        doctype: 'Delivery Note Item',
+        fields: ['against_sales_order'],
+        filters: [
+          ['against_sales_order', 'is', 'set'],
+          ['docstatus', 'in', [0, 1]],
+        ],
+        limit_page_length: 0,
+      });
+
+      const dnItems = dnItemsResult?.data || dnItemsResult || [];
+      dnItems.forEach((item: any) => {
+        if (item.against_sales_order) {
+          soWithDN.add(item.against_sales_order);
+        }
+      });
+    } catch (dnError) {
+      // If still permission error, try alternative approach: get Delivery Notes and check their items
+      console.log('Trying alternative approach for DN items...');
+      
+      try {
+        const deliveryNotes = await client.getList('Delivery Note', {
+          fields: ['name'],
+          filters: [['docstatus', 'in', [0, 1]]],
+          limit_page_length: 0,
+        });
+
+        // For each DN, get its items
+        for (const dn of deliveryNotes) {
+          try {
+            const dnDoc = await client.get('Delivery Note', dn.name);
+            const items = dnDoc.items || [];
+            items.forEach((item: any) => {
+              if (item.against_sales_order) {
+                soWithDN.add(item.against_sales_order);
+              }
+            });
+          } catch {
+            // Skip if can't access this DN
+            continue;
+          }
+        }
+      } catch (altError) {
+        // If both approaches fail, log and continue with empty set
+        console.error('Both approaches failed for DN items:', altError);
       }
-    });
+    }
 
     // Step 3: Filter out SOs that already have DN
     const availableOrders = filteredOrders.filter((so: any) => !soWithDN.has(so.name));

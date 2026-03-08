@@ -106,6 +106,26 @@ export default function ReviewBalancesPage() {
     }).format(amount);
   };
 
+  const formatBalance = (balance: number, rootType: string) => {
+    const absBalance = Math.abs(balance);
+    const formatted = new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(absBalance);
+
+    // Determine position based on root type and balance sign
+    let position = '';
+    if (rootType === 'Income' || rootType === 'Liability' || rootType === 'Equity') {
+      position = balance < 0 ? '(Cr)' : '(Dr)';
+    } else if (rootType === 'Asset' || rootType === 'Expense') {
+      position = balance > 0 ? '(Dr)' : '(Cr)';
+    }
+
+    return `${formatted} ${position}`;
+  };
+
   if (loading) {
     return <LoadingSpinner message="Memuat saldo akun..." />;
   }
@@ -259,12 +279,12 @@ export default function ReviewBalancesPage() {
             Akun Nominal (Pendapatan & Beban)
           </h2>
           <p className="text-sm text-gray-500 mt-1">
-            Akun-akun ini akan ditutup ke laba ditahan
+            Akun-akun ini akan ditutup ke laba ditahan (bisa di scroll)
           </p>
         </div>
         
         {/* Scrollable Table Container - Max height 400px */}
-        <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+        <div className="overflow-x-auto max-h-[400px] overflow-y-auto border-t border-gray-200">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50 sticky top-0 z-10">
               <tr>
@@ -315,7 +335,7 @@ export default function ReviewBalancesPage() {
                       {formatCurrency(account.credit)}
                     </td>
                     <td className="px-6 py-4 text-sm text-right font-medium text-gray-900">
-                      {formatCurrency(account.balance)}
+                      {formatBalance(account.balance, account.root_type)}
                     </td>
                   </tr>
                 ))
@@ -334,7 +354,7 @@ export default function ReviewBalancesPage() {
               <span className={`text-lg font-bold ${
                 netIncome >= 0 ? 'text-green-600' : 'text-red-600'
               }`}>
-                {formatCurrency(netIncome)}
+                {formatBalance(netIncome, netIncome >= 0 ? 'Income' : 'Expense')}
               </span>
             </div>
           </div>
@@ -348,12 +368,12 @@ export default function ReviewBalancesPage() {
             Akun Riil (Aset, Liabilitas, Ekuitas)
           </h2>
           <p className="text-sm text-gray-500 mt-1">
-            Saldo akun-akun ini akan dibawa ke periode berikutnya
+            Saldo akun-akun ini akan dibawa ke periode berikutnya (bisa di scroll)
           </p>
         </div>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto max-h-[400px] overflow-y-auto border-t border-gray-200">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50 sticky top-0 z-10">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Akun
@@ -404,7 +424,7 @@ export default function ReviewBalancesPage() {
                       {formatCurrency(account.credit)}
                     </td>
                     <td className="px-6 py-4 text-sm text-right font-medium text-gray-900">
-                      {formatCurrency(account.balance)}
+                      {formatBalance(account.balance, account.root_type)}
                     </td>
                   </tr>
                 ))

@@ -219,7 +219,7 @@ export default function CommissionPaymentMain() {
 
       if (data.success) {
         setSuccessMessage(data.message || 'Pembayaran komisi berhasil!');
-        setTimeout(() => router.push('/commission-payment'), 2000);
+        setTimeout(() => router.replace('/commission-payment'), 2000);
       } else {
         setError(data.message || 'Gagal memproses pembayaran komisi');
       }

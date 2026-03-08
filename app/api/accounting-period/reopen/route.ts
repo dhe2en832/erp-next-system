@@ -63,6 +63,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Get session cookie to identify actual user
+    const sessionCookie = request.cookies.get('sid')?.value;
+    const currentUser = await client.getCurrentUser(sessionCookie);
+
     // Update period status to Open
     const now = new Date();
     const erpnextDatetime = now.toISOString().slice(0, 19).replace('T', ' ');
@@ -103,7 +107,7 @@ export async function POST(request: NextRequest) {
     await client.insert('Period Closing Log', {
       accounting_period: period_name,
       action_type: 'Reopened',
-      action_by: 'Administrator',
+      action_by: currentUser,
       action_date: erpnextDatetime,
       reason: auditReason,
       before_snapshot: JSON.stringify({ status: period.status }),

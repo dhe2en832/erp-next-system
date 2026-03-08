@@ -10,11 +10,46 @@ export async function GET(request: NextRequest) {
   const siteId = await getSiteIdFromRequest(request);
   
   try {
-    // Get site-aware client (uses API Key authentication)
-    const client = await getERPNextClientForRequest(request);
+    // CRITICAL: ONLY use session cookie (sid) for authentication
+    // This ensures we get the actual logged-in user, not the API Key owner (Administrator)
+    // API Key is used for other operations that require admin privileges, but NOT for user identity
+    
+    // Try site-specific cookie first, then fallback to generic sid
+    const cookieName = siteId ? `sid_${siteId}` : 'sid';
+    let sid = request.cookies.get(cookieName)?.value;
+    
+    // Fallback to generic sid if site-specific not found
+    if (!sid && siteId) {
+      sid = request.cookies.get('sid')?.value;
+    }
+    
+    if (!sid) {
+      console.log(`[/me] No session cookie found (tried: ${cookieName}${siteId ? ', sid' : ''})`);
+      return NextResponse.json({ success: false, message: 'Unauthorized - No session' }, { status: 401 });
+    }
+    
+    console.log(`[/me] Using session cookie: ${cookieName}`);
+    
+    // Determine API URL based on site
+    const apiUrl = siteId 
+      ? `https://${siteId.replace(/-/g, '.')}`
+      : (process.env.ERPNEXT_URL || process.env.ERPNEXT_API_URL || 'http://localhost:8000');
 
-    // Get current logged user id
-    const whoamiData = await client.call('frappe.auth.get_logged_user', {});
+    // Get current logged user id using ONLY session cookie
+    const whoamiResponse = await fetch(`${apiUrl}/api/method/frappe.auth.get_logged_user`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Cookie': `sid=${sid}`,
+      },
+      body: JSON.stringify({}),
+    });
+
+    if (!whoamiResponse.ok) {
+      return NextResponse.json({ success: false, message: 'Session expired or invalid' }, { status: 401 });
+    }
+
+    const whoamiData = await whoamiResponse.json();
     const userId = whoamiData.message || whoamiData;
 
     // If no user logged in, return 401
@@ -22,7 +57,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
     }
 
-    // Fetch user detail + roles
+    // Fetch user detail + roles using API Key (requires admin privilege to read roles)
+    // But we use the userId from session cookie to ensure we get the correct user
+    const client = await getERPNextClientForRequest(request);
     const userData = await client.get('User', userId);
     const roles = (userData.roles || []).map((r: any) => r.role);
 

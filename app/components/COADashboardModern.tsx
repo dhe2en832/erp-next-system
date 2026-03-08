@@ -56,6 +56,12 @@ export default function COADashboardModern() {
   };
 
   const buildTree = (accounts: Account[]): Account[] => {
+    // Guard against undefined or null accounts
+    if (!accounts || !Array.isArray(accounts)) {
+      console.warn('[COA] buildTree called with invalid accounts:', accounts);
+      return [];
+    }
+
     const map: Record<string, Account> = {};
     const roots: Account[] = [];
 
@@ -256,15 +262,35 @@ export default function COADashboardModern() {
       console.log('[COA] Fetching accounts for company:', selectedCompany || 'all');
       
       const res = await fetch(url);
+      
+      if (!res.ok) {
+        console.error('[COA] API request failed:', res.status, res.statusText);
+        setAccounts([]);
+        setLoading(false);
+        return;
+      }
+      
       const data = await res.json();
       
       console.log('[COA] API response:', data);
       
-      if (data.success) {
-        setAccounts(buildTree(data.accounts));
+      if (data.success && data.accounts && Array.isArray(data.accounts)) {
+        // Add balance field if missing (default to 0)
+        const accountsWithBalance = data.accounts.map((acc: Account) => ({
+          ...acc,
+          balance: acc.balance || 0
+        }));
+        
+        const tree = buildTree(accountsWithBalance);
+        console.log('[COA] Built tree with', tree.length, 'root accounts');
+        setAccounts(tree);
+      } else {
+        console.warn('[COA] Invalid response format or no accounts:', data);
+        setAccounts([]);
       }
     } catch (err) {
       console.error('[COA] Error fetching accounts:', err);
+      setAccounts([]);
     } finally {
       setLoading(false);
     }

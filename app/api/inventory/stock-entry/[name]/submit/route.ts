@@ -13,21 +13,11 @@ export async function POST(
   const siteId = await getSiteIdFromRequest(request);
   
   try {
-    const cookies = request.cookies;
-    const sid = cookies.get('sid')?.value;
-
-    if (!sid) {
-      return NextResponse.json(
-        { success: false, message: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
     const { name: entryName } = await params;
 
     // console.log('Submitting stock entry:', entryName);
 
-    // Get site-aware client
+    // Get site-aware client (handles authentication automatically)
     const client = await getERPNextClientForRequest(request);
 
     // Use client method instead of fetch

@@ -366,8 +366,8 @@ export default function CreditNoteMain() {
           amount: item.amount,
           warehouse: item.warehouse,
           sales_invoice_item: item.sales_invoice_item,
-          return_reason: item.return_reason,
-          return_item_notes: item.return_notes,
+          custom_return_reason: item.return_reason,
+          custom_return_item_notes: item.return_notes,
           custom_komisi_sales: item.custom_komisi_sales,
         })),
       };
@@ -382,7 +382,7 @@ export default function CreditNoteMain() {
 
       if (data.success) {
         alert('✅ Credit Note berhasil disimpan!');
-        router.push('/credit-note');
+        router.replace('/credit-note');
       } else {
         // Use error handler for ERPNext errors
         if (data._server_messages || data.exc) {
@@ -426,7 +426,7 @@ export default function CreditNoteMain() {
 
       if (data.success) {
         alert('✅ Credit Note berhasil diajukan!');
-        router.push('/credit-note');
+        router.replace('/credit-note');
       } else {
         // Use error handler for ERPNext errors
         if (data._server_messages || data.exc) {
@@ -470,7 +470,7 @@ export default function CreditNoteMain() {
 
       if (data.success) {
         alert('✅ Credit Note berhasil dibatalkan!');
-        router.push('/credit-note');
+        router.replace('/credit-note');
       } else {
         // Use error handler for ERPNext errors
         if (data._server_messages || data.exc) {

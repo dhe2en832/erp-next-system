@@ -24,11 +24,19 @@ export async function GET(request: NextRequest) {
       data: { data: salesOrderData } 
     });
 
-    // Also check Sales Team doctype
-    const salesTeamData = await client.getList('Sales Team', {
-      fields: ['*'],
-      limit_page_length: 1
-    });
+    // Also check Sales Team doctype - use frappe.client.get_list to bypass permission check
+    let salesTeamData = [];
+    try {
+      const salesTeamResult = await client.call('frappe.client.get_list', {
+        doctype: 'Sales Team',
+        fields: ['*'],
+        limit_page_length: 1
+      });
+      salesTeamData = salesTeamResult?.data || salesTeamResult || [];
+    } catch (error) {
+      console.error('Sales Team fetch failed:', error);
+      salesTeamData = [];
+    }
 
     return NextResponse.json({
       success: true,

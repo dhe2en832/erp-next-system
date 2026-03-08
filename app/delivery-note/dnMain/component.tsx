@@ -658,7 +658,7 @@ export default function DeliveryNoteMain() {
       {/* Print Dialog after save */}
       <PrintDialog
         isOpen={showPrintDialog}
-        onClose={() => { setShowPrintDialog(false); router.push('/delivery-note/dnList'); }}
+        onClose={() => { setShowPrintDialog(false); router.replace('/delivery-note/dnList'); }}
         documentType="Delivery Note"
         documentName={savedDocName}
         documentLabel="Surat Jalan"

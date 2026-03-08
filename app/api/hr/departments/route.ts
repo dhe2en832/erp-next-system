@@ -10,11 +10,6 @@ export async function GET(request: NextRequest) {
   const siteId = await getSiteIdFromRequest(request);
   
   try {
-    const sid = request.cookies.get('sid')?.value;
-    if (!sid) {
-      return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
-    }
-
     const fields = ['name', 'department_name'];
 
     // Get site-aware client

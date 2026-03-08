@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // console.log('Preview Sales Invoice Commission for DN:', delivery_note);
+    console.log('[Commission Preview] DN:', delivery_note, 'Site:', siteId);
 
     // Get site-aware client
     const client = await getERPNextClientForRequest(request);
@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
       delivery_note
     });
 
-    // console.log('Commission Preview Response Data:', data);
+    console.log('[Commission Preview] Response:', JSON.stringify(data, null, 2));
 
     // Return the preview data directly from ERPNext
     return NextResponse.json({

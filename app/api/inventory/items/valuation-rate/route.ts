@@ -23,9 +23,9 @@ export async function GET(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Get session cookie
-    const cookieHeader = request.headers.get('cookie');
-    const sid = cookieHeader?.match(/sid=([^;]+)/)?.[1];
+    // Check site-specific cookie first, fallback to generic sid
+    const siteSpecificCookie = siteId ? `sid_${siteId.replace(/\./g, '-')}` : null;
+    const sid = (siteSpecificCookie && request.cookies.get(siteSpecificCookie)?.value) || request.cookies.get('sid')?.value;
 
     if (!sid) {
       return NextResponse.json({

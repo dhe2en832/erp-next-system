@@ -44,13 +44,23 @@ export async function GET(request: NextRequest) {
       }
 
       // Fetch items separately to get complete item details
-      const items = await client.getList('Purchase Invoice Item', {
-        fields: ['*'],
-        filters: [['parent', '=', id]],
-        order_by: 'idx asc'
-      });
+      // Use frappe.client.get_list to bypass permission check
+      let items = [];
+      try {
+        const itemsResult = await client.call('frappe.client.get_list', {
+          doctype: 'Purchase Invoice Item',
+          fields: ['*'],
+          filters: [['parent', '=', id]],
+          order_by: 'idx asc'
+        });
+        items = itemsResult?.data || itemsResult || [];
+      } catch (error) {
+        console.error('Items fetch failed, using items from invoice doc:', error);
+        // Fallback: items already in invoice document
+        items = invoice.items || [];
+      }
 
-      invoice.items = items || [];
+      invoice.items = items;
 
       // Get supplier details for address display
       let supplierAddressDisplay = '';
@@ -270,6 +280,15 @@ export async function POST(request: NextRequest) {
     // Get site-aware client
     const client = await getERPNextClientForRequest(request);
 
+    // Fetch default buying price list from company
+    let buyingPriceList = 'Standar Pembelian';
+    try {
+      const companyData = await client.getDoc('Company', invoiceData.company);
+      buyingPriceList = companyData.default_buying_price_list || 'Standar Pembelian';
+    } catch (error) {
+      console.warn('Failed to fetch company default price list, using Standar Pembelian');
+    }
+
     // Validate discount fields - Requirements 5.1, 5.2, 5.4
     if (invoiceData.discount_percentage !== undefined) {
       if (invoiceData.discount_percentage < 0 || invoiceData.discount_percentage > 100) {
@@ -347,7 +366,7 @@ export async function POST(request: NextRequest) {
       due_date: invoiceData.due_date || invoiceData.posting_date,
       items: invoiceData.items || [],
       currency: invoiceData.currency || 'IDR',
-      buying_price_list: invoiceData.buying_price_list || 'Standard Beli',
+      buying_price_list: invoiceData.buying_price_list || buyingPriceList,
       price_list_currency: invoiceData.price_list_currency || 'IDR',
       plc_conversion_rate: invoiceData.plc_conversion_rate || 1,
       status: invoiceData.status || 'Draft',

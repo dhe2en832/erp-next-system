@@ -106,13 +106,17 @@ export async function POST(request: NextRequest) {
     // Calculate and save account balances snapshot
     const accountBalances = await calculateAllAccountBalances(period, client);
 
+    // Get session cookie to identify actual user
+    const sessionCookie = request.cookies.get('sid')?.value;
+    const currentUser = await client.getCurrentUser(sessionCookie);
+
     // Update period status to Closed
     const now = new Date();
     const erpnextDatetime = now.toISOString().slice(0, 19).replace('T', ' ');
     
     const updateData: any = {
       status: 'Closed',
-      closed_by: 'Administrator',
+      closed_by: currentUser,
       closed_on: erpnextDatetime,
     };
 
@@ -136,7 +140,7 @@ export async function POST(request: NextRequest) {
     await client.insert('Period Closing Log', {
       accounting_period: period_name,
       action_type: 'Closed',
-      action_by: 'Administrator',
+      action_by: currentUser,
       action_date: erpnextDatetime,
       before_snapshot: JSON.stringify({ status: 'Open' }),
       after_snapshot: JSON.stringify({ 

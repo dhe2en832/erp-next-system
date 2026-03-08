@@ -12,18 +12,13 @@ export async function GET(request: NextRequest) {
   const siteId = await getSiteIdFromRequest(request);
   
   try {
-    const sid = request.cookies.get('sid')?.value;
-    if (!sid) {
-      return NextResponse.json(
-        { success: false, message: 'No authentication available' }, 
-        { status: 401 }
-      );
-    }
+    const fields = ['name'];
 
+    // Get site-aware client (handles authentication automatically)
     const client = await getERPNextClientForRequest(request);
 
     const data = await client.getList('Supplier Group', {
-      fields: ['name'],
+      fields: fields,
       limit_page_length: 500
     });
 

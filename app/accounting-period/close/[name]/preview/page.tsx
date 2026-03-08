@@ -200,12 +200,12 @@ export default function PreviewJournalPage() {
         <div className="px-6 py-4 border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-900">Preview Jurnal Penutup</h2>
           <p className="text-sm text-gray-500 mt-1">
-            Jurnal ini akan dibuat secara otomatis saat periode ditutup
+            Jurnal ini akan dibuat secara otomatis saat periode ditutup (bisa di scroll)
           </p>
         </div>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto max-h-[400px] overflow-y-auto border-t border-gray-200">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50 sticky top-0 z-10">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Akun
@@ -252,29 +252,29 @@ export default function PreviewJournalPage() {
                 ))
               )}
             </tbody>
-            <tfoot className="bg-gray-50">
-              <tr>
-                <td colSpan={2} className="px-6 py-3 text-sm font-semibold text-gray-900 text-right">
-                  Total:
-                </td>
-                <td className="px-6 py-3 text-sm font-bold text-right text-gray-900">
-                  {formatCurrency(totalDebit)}
-                </td>
-                <td className="px-6 py-3 text-sm font-bold text-right text-gray-900">
-                  {formatCurrency(totalCredit)}
-                </td>
-              </tr>
-              {!isBalanced && (
-                <tr>
-                  <td colSpan={4} className="px-6 py-3">
-                    <div className="bg-red-50 border border-red-200 rounded p-2 text-sm text-red-700">
-                      ⚠️ Peringatan: Total debit dan kredit tidak seimbang!
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </tfoot>
           </table>
+        </div>
+        
+        {/* Total Footer - Outside scrollable container */}
+        <div className="border-t-2 border-gray-300 bg-gray-50">
+          <div className="px-6 py-3 flex items-center">
+            <div className="flex-1 text-sm font-semibold text-gray-900 text-right pr-6">
+              Total:
+            </div>
+            <div className="w-32 text-sm font-bold text-right text-gray-900">
+              {formatCurrency(totalDebit)}
+            </div>
+            <div className="w-32 text-sm font-bold text-right text-gray-900">
+              {formatCurrency(totalCredit)}
+            </div>
+          </div>
+          {!isBalanced && (
+            <div className="px-6 pb-3">
+              <div className="bg-red-50 border border-red-200 rounded p-2 text-sm text-red-700">
+                ⚠️ Peringatan: Total debit dan kredit tidak seimbang!
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

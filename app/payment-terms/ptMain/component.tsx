@@ -110,7 +110,7 @@ export default function PaymentTermsMain() {
 
       if (data.success) {
         setSuccessMessage(isEditMode ? 'Template berhasil diperbarui!' : 'Template berhasil ditambahkan!');
-        setTimeout(() => router.push('/payment-terms'), 1500);
+        setTimeout(() => router.replace('/payment-terms'), 1500);
       } else {
         setError(data.message || 'Gagal menyimpan template');
       }

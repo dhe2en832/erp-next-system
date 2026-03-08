@@ -18,11 +18,6 @@ export async function GET(request: NextRequest) {
     const to_date = searchParams.get('to_date');
     const limit = searchParams.get('limit') || '100';
 
-    const sid = request.cookies.get('sid')?.value;
-    if (!sid) {
-      return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
-    }
-
     if (!company) {
       return NextResponse.json({ success: false, message: 'Company required' }, { status: 400 });
     }

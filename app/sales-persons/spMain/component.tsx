@@ -168,7 +168,7 @@ export default function SalesPersonMain() {
 
       if (data.success) {
         setSuccessMessage(isEditMode ? 'Sales person berhasil diperbarui!' : 'Sales person berhasil ditambahkan!');
-        setTimeout(() => router.push('/sales-persons'), 1500);
+        setTimeout(() => router.replace('/sales-persons'), 1500);
       } else {
         setError(data.message || 'Gagal menyimpan sales person');
       }

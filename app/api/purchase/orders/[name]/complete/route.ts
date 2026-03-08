@@ -15,14 +15,7 @@ export async function POST(
   try {
     const { name } = await params;
 
-    const sid = request.cookies.get('sid')?.value;
-    if (!sid) {
-      return NextResponse.json(
-        { success: false, message: 'ERPNext API credentials not configured' },
-        { status: 401 }
-      );
-    }
-
+    // Get site-aware client (handles authentication automatically)
     const client = await getERPNextClientForRequest(request);
 
     // Complete the purchase order by updating docstatus and action

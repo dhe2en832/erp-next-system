@@ -29,9 +29,66 @@ export async function GET(
     // Fetch period details from ERPNext
     const period = await client.get<AccountingPeriod>('Accounting Period', periodName);
 
+    // Fetch account balances for this period
+    const glEntries = await client.getList('GL Entry', {
+      filters: [
+        ['company', '=', period.company],
+        ['posting_date', '>=', period.start_date],
+        ['posting_date', '<=', period.end_date],
+      ],
+      fields: ['account', 'debit', 'credit'],
+      limit: 10000,
+    });
+
+    // Get account details
+    const accounts = await client.getList('Account', {
+      filters: [['company', '=', period.company]],
+      fields: ['name', 'account_name', 'root_type', 'account_type'],
+      limit: 10000,
+    });
+
+    const accountMap = new Map(accounts.map((acc: any) => [acc.name, acc]));
+
+    // Aggregate balances by account
+    const accountBalances: Record<string, any> = {};
+    
+    glEntries.forEach((entry: any) => {
+      const accountInfo = accountMap.get(entry.account);
+      if (!accountBalances[entry.account]) {
+        accountBalances[entry.account] = {
+          account: entry.account,
+          account_name: accountInfo?.account_name || entry.account,
+          root_type: accountInfo?.root_type || 'Unknown',
+          account_type: accountInfo?.account_type || 'Unknown',
+          debit: 0,
+          credit: 0,
+          balance: 0,
+        };
+      }
+      accountBalances[entry.account].debit += entry.debit || 0;
+      accountBalances[entry.account].credit += entry.credit || 0;
+      accountBalances[entry.account].balance += (entry.debit || 0) - (entry.credit || 0);
+    });
+
+    const account_balances = Object.values(accountBalances);
+
+    // Fetch closing journal if exists
+    let closing_journal = null;
+    if (period.closing_journal_entry) {
+      try {
+        closing_journal = await client.get('Journal Entry', period.closing_journal_entry);
+      } catch (err) {
+        console.warn('Failed to fetch closing journal:', err);
+      }
+    }
+
     return NextResponse.json({
       success: true,
-      data: period,
+      data: {
+        ...period,
+        account_balances,
+        closing_journal,
+      },
     });
   } catch (error: unknown) {
     logSiteError(error, 'GET /api/accounting-period/periods/[name]', siteId);

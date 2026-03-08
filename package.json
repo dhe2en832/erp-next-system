@@ -98,6 +98,7 @@
     "test:invoice-list-status-refresh-bug": "ts-node --project tsconfig.scripts.json __tests__/invoice-list-status-and-refresh-bug-exploration.pbt.test.ts",
     "test:vps-deployment-runtime-fixes-bug": "ts-node --project tsconfig.scripts.json tests/vps-deployment-runtime-fixes-bug-exploration.pbt.test.ts",
     "test:api-routes-utility-backward-compatibility": "ts-node --project tsconfig.scripts.json __tests__/api-routes-utility-backward-compatibility.pbt.test.ts",
+    "test:back-button-bug-exploration": "ts-node --project tsconfig.scripts.json tests/back-button-after-form-submission-bug-exploration.pbt.test.ts",
     "replace-coa": "tsx scripts/replace-coa.ts",
     "update-coa": "tsx scripts/update-coa.ts",
     "fix-penjualan": "tsx scripts/fix-penjualan-account.ts",

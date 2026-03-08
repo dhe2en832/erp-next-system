@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import ItemDialog from '../../components/ItemDialog';
+import BrowserStyleDatePicker from '@/components/BrowserStyleDatePicker';
 
 export const dynamic = 'force-dynamic';
 
@@ -220,7 +221,7 @@ export default function StockEntryMain() {
 
       if (data.success) {
         setSuccessMessage(`Entri Stok ${data.data?.name || ''} berhasil dibuat!`);
-        setTimeout(() => router.push('/stock-entry/seList'), 2000);
+        setTimeout(() => router.replace('/stock-entry/seList'), 2000);
       } else {
         setError(data.message || 'Gagal membuat entri stok');
       }
@@ -339,7 +340,12 @@ export default function StockEntryMain() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal Posting</label>
-                  <input type="date" className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" value={newEntry.posting_date} onChange={(e) => setNewEntry(prev => ({ ...prev, posting_date: e.target.value }))} />
+                  <BrowserStyleDatePicker
+                    value={newEntry.posting_date}
+                    onChange={(value: string) => setNewEntry(prev => ({ ...prev, posting_date: value }))}
+                    className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    placeholder="DD/MM/YYYY"
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -428,7 +434,22 @@ export default function StockEntryMain() {
                             />
                           </td>
                           <td className="px-4 py-2">
-                            <input type="number" className="block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm" value={item.qty} onChange={(e) => updateItemRow(index, 'qty', parseFloat(e.target.value) || 0)} min="1" />
+                            <input 
+                              type="text" 
+                              className="block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm text-right" 
+                              value={item.qty.toLocaleString('id-ID')} 
+                              onChange={(e) => {
+                                const rawValue = e.target.value.replace(/\./g, '');
+                                const numValue = parseFloat(rawValue) || 0;
+                                updateItemRow(index, 'qty', numValue);
+                              }}
+                              onFocus={(e) => e.target.select()}
+                              onBlur={(e) => {
+                                const rawValue = e.target.value.replace(/\./g, '');
+                                const numValue = parseFloat(rawValue) || 1;
+                                updateItemRow(index, 'qty', numValue);
+                              }}
+                            />
                           </td>
                           <td className="px-4 py-2">
                             {newEntry.items.length > 1 && (

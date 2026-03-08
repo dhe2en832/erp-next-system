@@ -21,7 +21,9 @@ export async function GET(request: NextRequest) {
     const limitPageLength = parseInt(searchParams.get('limit_page_length') || '20', 10);
     const limitStart = parseInt(searchParams.get('limit_start') || '0', 10);
 
-    const sid = request.cookies.get('sid')?.value;
+    // Check site-specific cookie first, fallback to generic sid
+    const siteSpecificCookie = siteId ? `sid_${siteId.replace(/\./g, '-')}` : null;
+    const sid = (siteSpecificCookie && request.cookies.get(siteSpecificCookie)?.value) || request.cookies.get('sid')?.value;
     if (!sid) {
       return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
     }

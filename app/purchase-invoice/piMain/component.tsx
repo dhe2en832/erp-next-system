@@ -179,13 +179,9 @@ export default function PurchaseInvoiceMain() {
       const response = await fetch(`/api/purchase/invoices/detail?pi=${encodeURIComponent(id)}`);
       const data = await response.json();
 
-      if (data.message && data.message.success) {
-        const invoice = data.message.data;
-        // console.log('Purchase Invoice data received:', invoice);
-
-        // Set form data from fetched invoice
-        // console.log('Setting form data with invoice:', invoice);
-        // console.log('Invoice items:', invoice.items);
+      // Fix: API returns { success: true, data: {...} } not { message: { success: true, data: {...} } }
+      if (data.success && data.data) {
+        const invoice = data.data;
 
         setFormData({
           supplier: invoice.supplier,
@@ -204,25 +200,14 @@ export default function PurchaseInvoiceMain() {
             uom: item.uom,
             warehouse: item.warehouse,
             purchase_receipt: item.purchase_receipt,
-            pr_detail: item.pr_detail, // Database field name (already correct)
+            pr_detail: item.pr_detail,
             purchase_order: item.purchase_order,
-            po_detail: item.po_detail, // Database field name (already correct)
+            po_detail: item.po_detail,
           })),
           custom_notes_pi: invoice.custom_notes_pi || ''
         });
-
-        // console.log('Form data set successfully');
       } else {
-        // Handle permission error specifically
-        if (data.message && data.message.message && data.message.message.includes('izin')) {
-          setError('Permission Error: ' + data.message.message);
-          // Auto-redirect to list after 3 seconds for permission errors
-          setTimeout(() => {
-            router.push('/purchase-invoice/piList');
-          }, 3000);
-        } else {
-          setError(data.message?.message || 'Gagal mengambil data faktur pembelian');
-        }
+        setError(data.message || 'Gagal mengambil data faktur pembelian');
       }
     } catch (error) {
       console.error('Error fetching Purchase Invoice:', error);
@@ -262,8 +247,15 @@ export default function PurchaseInvoiceMain() {
       const data = await response.json();
       // console.log('Purchase Receipts API Response:', data);
 
-      if (data.message?.success) {
-        const receipts = data.message.data || [];
+      if (data.success) {
+        // Handle both nested and direct array structure
+        let receipts = [];
+        if (data.data?.data && Array.isArray(data.data.data)) {
+          receipts = data.data.data;
+        } else if (Array.isArray(data.data)) {
+          receipts = data.data;
+        }
+        
         // console.log('Available Purchase Receipts:', receipts);
         // console.log('PR Search Term:', prSearchTerm);
 
@@ -278,7 +270,7 @@ export default function PurchaseInvoiceMain() {
 
         setPurchaseReceipts(receipts);
       } else {
-        setPurchaseReceiptsError(data.message?.message || 'Gagal mengambil data penerimaan barang');
+        setPurchaseReceiptsError(data.message || 'Gagal mengambil data penerimaan barang');
         setPurchaseReceipts([]);
       }
     } catch (error) {
@@ -312,8 +304,8 @@ export default function PurchaseInvoiceMain() {
       const data = await response.json();
       // console.log('PR Detail Response:', data);
 
-      if (data.message?.success) {
-        const prData: PurchaseReceiptDetail = data.message.data;
+      if (data.success) {
+        const prData: PurchaseReceiptDetail = data.data;
         // console.log('PR Detail Data:', prData);
 
         // Map PR data to Purchase Invoice form
@@ -360,7 +352,7 @@ export default function PurchaseInvoiceMain() {
         setShowPurchaseReceiptDialog(false);
         setError('');
       } else {
-        setError(data.message?.message || 'Gagal mengambil detail penerimaan barang');
+        setError(data.message || 'Gagal mengambil detail penerimaan barang');
       }
     } catch (error) {
       console.error('Error fetching PR detail:', error);
@@ -613,7 +605,7 @@ export default function PurchaseInvoiceMain() {
           setSuccessMessage(successMessage);
           setShowSuccessDialog(true);
           const savedName = data.data?.name || existingId || '';
-          if (savedName) { setShowPrintDialog(true); setPrintDocName(savedName); } else { setTimeout(() => { router.push('/purchase-invoice/piList'); }, 3000); }
+          if (savedName) { setShowPrintDialog(true); setPrintDocName(savedName); } else { setTimeout(() => { router.replace('/purchase-invoice/piList'); }, 3000); }
         } else {
           // Parse ERPNext error into user-friendly message
           const userFriendlyError = parseERPNextError(data.message);
@@ -655,7 +647,7 @@ export default function PurchaseInvoiceMain() {
     <>
     <PrintDialog
       isOpen={showPrintDialog}
-      onClose={() => { setShowPrintDialog(false); router.push('/purchase-invoice/piList'); }}
+      onClose={() => { setShowPrintDialog(false); router.replace('/purchase-invoice/piList'); }}
       documentType="Purchase Invoice"
       documentName={printDocName}
       documentLabel="Faktur Pembelian"
@@ -776,13 +768,13 @@ export default function PurchaseInvoiceMain() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Alamat Pemasok
                   </label>
-                  <textarea
-                    value={formData.supplier_address_display || ''}
-                    readOnly
-                    rows={2}
-                    placeholder="Alamat pemasok akan ditampilkan di sini"
-                    className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 bg-gray-50 resize-none"
-                  />
+                  <div
+                    className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 bg-gray-50 min-h-[60px] whitespace-pre-wrap"
+                  >
+                    {formData.supplier_address_display 
+                      ? formData.supplier_address_display.replace(/<br\s*\/?>/gi, '\n')
+                      : 'Alamat pemasok akan ditampilkan di sini'}
+                  </div>
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">

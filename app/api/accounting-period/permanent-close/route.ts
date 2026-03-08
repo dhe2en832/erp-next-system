@@ -39,13 +39,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Get session cookie to identify actual user
+    const sessionCookie = request.cookies.get('sid')?.value;
+    const currentUser = await client.getCurrentUser(sessionCookie);
+
     // Update period status to Permanently Closed
     const now = new Date();
     const erpnextDatetime = now.toISOString().slice(0, 19).replace('T', ' ');
     
     await client.update('Accounting Period', period_name, {
       status: 'Permanently Closed',
-      permanently_closed_by: 'Administrator',
+      permanently_closed_by: currentUser,
       permanently_closed_on: erpnextDatetime,
     });
 
@@ -53,7 +57,7 @@ export async function POST(request: NextRequest) {
     await client.insert('Period Closing Log', {
       accounting_period: period_name,
       action_type: 'Permanently Closed',
-      action_by: 'Administrator',
+      action_by: currentUser,
       action_date: erpnextDatetime,
       before_snapshot: JSON.stringify({ status: 'Closed' }),
       after_snapshot: JSON.stringify({ status: 'Permanently Closed' }),

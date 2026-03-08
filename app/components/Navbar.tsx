@@ -151,7 +151,8 @@ export default function Navbar() {
       // Note: We keep site configurations (erpnext-sites-config) and active site (erpnext-active-site)
       // so users don't have to re-register sites after logout
       
-      router.push('/login');
+      // Use replace instead of push to prevent back button from returning to protected pages
+      router.replace('/login');
     }
   };
 
@@ -284,8 +285,8 @@ export default function Navbar() {
       name: 'Master Data',
       icon: '🗂️',
       items: [
-        { name: 'Pelanggan', href: '/customers' },
-        { name: 'Pemasok', href: '/suppliers' },
+        { name: 'Customers', href: '/customers' },
+        { name: 'Suppliers', href: '/suppliers' },
         { name: 'Karyawan', href: '/employees' },
         { name: 'Sales Person', href: '/sales-persons' },
         { name: 'Termin Pembayaran', href: '/payment-terms' }
@@ -346,7 +347,7 @@ export default function Navbar() {
   };
 
   const canSeeCategory = (category: MenuCategory) => {
-    if (!roles || roles.length === 0) return true;
+    if (!roles || roles.length === 0) return false;
     if (roles.includes('System Manager')) return true;
     const allowed = new Set<string>();
     roles.forEach(r => {
@@ -371,7 +372,7 @@ export default function Navbar() {
   };
 
   const filterItems = (items: MenuItem[]) => {
-    if (!roles || roles.length === 0) return items;
+    if (!roles || roles.length === 0) return [];
     if (roles.includes('System Manager')) return items;
     return items.filter(item =>
       !item.allowedRoles || item.allowedRoles.some(r => roles.includes(r))
@@ -379,7 +380,7 @@ export default function Navbar() {
   };
 
   const filterSubCategories = (subCategories: MenuSubCategory[]) => {
-    if (!roles || roles.length === 0) return subCategories;
+    if (!roles || roles.length === 0) return [];
     if (roles.includes('System Manager')) return subCategories;
     return subCategories.map(subCat => ({
       ...subCat,

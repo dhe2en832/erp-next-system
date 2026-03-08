@@ -1071,7 +1071,7 @@ export default function SalesInvoiceMain() {
       {/* Print Dialog after save */}
       <PrintDialog
         isOpen={showPrintDialog}
-        onClose={() => { setShowPrintDialog(false); router.push('/invoice/siList'); }}
+        onClose={() => { setShowPrintDialog(false); router.replace('/invoice/siList'); }}
         documentType="Sales Invoice"
         documentName={savedDocName}
         documentLabel="Faktur Penjualan"

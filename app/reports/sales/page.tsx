@@ -73,10 +73,18 @@ export default function SalesReportPage() {
   // ✅ FIX: Track pagination change source to prevent race conditions
   const pageChangeSourceRef = useRef<'pagination' | 'filter' | 'init'>('init');
 
-  // Helper to convert YYYY-MM-DD to DD/MM/YYYY
+  // Helper to format date to DD/MM/YYYY
   const formatToDDMMYYYY = (dateStr: string) => {
     if (!dateStr) return '';
     const [year, month, day] = dateStr.split('-');
+    return `${day}/${month}/${year}`;
+  };
+
+  // Helper to format Date object to DD/MM/YYYY
+  const formatDateToDDMMYYYY = (date: Date) => {
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
     return `${day}/${month}/${year}`;
   };
 
@@ -90,11 +98,14 @@ export default function SalesReportPage() {
   useEffect(() => {
     const saved = localStorage.getItem('selected_company');
     if (saved) setSelectedCompany(saved);
+    
+    // Always use current date, not cached values
     const today = new Date();
     const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-    // Set default dates in DD/MM/YYYY format
-    setFromDate(formatToDDMMYYYY(firstDay.toISOString().split('T')[0]));
-    setToDate(formatToDDMMYYYY(today.toISOString().split('T')[0]));
+    
+    // Set default dates in DD/MM/YYYY format using direct Date formatting
+    setFromDate(formatDateToDDMMYYYY(firstDay));
+    setToDate(formatDateToDDMMYYYY(today));
   }, []);
 
   // Sync URL dengan page state

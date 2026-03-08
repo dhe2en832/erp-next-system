@@ -106,16 +106,6 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const cookies = request.cookies;
-    const sid = cookies.get('sid')?.value;
-
-    if (!sid) {
-      return NextResponse.json(
-        { success: false, message: 'No authentication available. Please login or configure API keys.' },
-        { status: 401 }
-      );
-    }
-
     // Get site-aware client
     const client = await getERPNextClientForRequest(request);
     
@@ -138,19 +128,6 @@ export async function POST(request: NextRequest) {
   
   try {
     const orderData = await request.json();
-    // console.log('Sales Order POST Payload:', JSON.stringify(orderData, null, 2));
-
-    const cookies = request.cookies;
-    const sid = cookies.get('sid')?.value;
-    // console.log('Session ID (sid):', sid ? 'Present' : 'Missing');
-
-    if (!sid) {
-      console.error('No authentication available - no session and no API keys');
-      return NextResponse.json(
-        { success: false, message: 'No authentication available. Please login or configure API keys.' },
-        { status: 401 }
-      );
-    }
 
     // Get site-aware client
     const client = await getERPNextClientForRequest(request);

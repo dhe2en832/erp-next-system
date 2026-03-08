@@ -20,16 +20,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get session cookie for authentication
-    const sid = request.cookies.get('sid')?.value;
-
-    if (!sid) {
-      return NextResponse.json(
-        { success: false, message: 'Unauthorized - Please login first' },
-        { status: 401 }
-      );
-    }
-
     // Get site-aware client
     const client = await getERPNextClientForRequest(request);
 
@@ -37,17 +27,9 @@ export async function GET(request: NextRequest) {
     try {
       const data = await client.call('fetch_pr_list_for_pi', { company });
       
-      // Add debug info to response
-      const debuggedData = {
-        ...data,
-        debug: {
-          method: 'custom',
-          source: 'fetch_pr_list_for_pi',
-          items_count: data.message?.data?.length || 0
-        }
-      };
-      
-      return NextResponse.json(debuggedData);
+      // client.call() already returns normalized {success, data} structure
+      // Just pass it through
+      return NextResponse.json(data);
     } catch (customMethodError) {
       // Fallback to standard ERPNext API
     }
@@ -66,33 +48,19 @@ export async function GET(request: NextRequest) {
       limit_page_length: 100
     });
 
-    // Transform to expected format
-    const transformedData = {
-      message: {
-        success: true,
-        data: receipts.map((pr: any) => ({
-          name: pr.name,
-          supplier: pr.supplier,
-          supplier_name: pr.supplier_name,
-          posting_date: pr.posting_date,
-          company: pr.company,
-          grand_total: pr.grand_total,
-          per_billed: pr.per_billed || 0
-        }))
-      }
-    };
-
-    // Add debug info to response
-    const debuggedData = {
-      ...transformedData,
-      debug: {
-        method: 'standard',
-        source: 'standard_api',
-        items_count: transformedData.message.data.length
-      }
-    };
-
-    return NextResponse.json(debuggedData);
+    // Return consistent structure
+    return NextResponse.json({
+      success: true,
+      data: receipts.map((pr: any) => ({
+        name: pr.name,
+        supplier: pr.supplier,
+        supplier_name: pr.supplier_name,
+        posting_date: pr.posting_date,
+        company: pr.company,
+        grand_total: pr.grand_total,
+        per_billed: pr.per_billed || 0
+      }))
+    });
 
   } catch (error: unknown) {
     logSiteError(error, 'GET /api/purchase/receipts/list-for-pi', siteId);

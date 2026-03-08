@@ -306,7 +306,7 @@ export default function SalesReturnMain() {
         
         // Redirect to list after short delay
         setTimeout(() => {
-          router.push('/sales-return');
+          router.replace('/sales-return');
         }, 500);
       } else {
         const { bannerMessage } = handleERPNextError(

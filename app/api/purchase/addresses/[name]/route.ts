@@ -21,15 +21,8 @@ export async function GET(request: NextRequest, { params }: ParamsInput) {
   
   try {
     const name = await resolveName(params);
-    const sid = request.cookies.get('sid')?.value;
     
-    if (!sid) {
-      return NextResponse.json(
-        { success: false, message: 'No authentication available' }, 
-        { status: 401 }
-      );
-    }
-
+    // Get site-aware client (handles authentication automatically)
     const client = await getERPNextClientForRequest(request);
 
     // Try direct fetch by name

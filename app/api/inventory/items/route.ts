@@ -21,7 +21,9 @@ export async function GET(request: NextRequest) {
     const fieldsParam = searchParams.get('fields');
 
     const cookies = request.cookies;
-    const sid = cookies.get('sid')?.value;
+    // Check site-specific cookie first, fallback to generic sid
+    const siteSpecificCookie = siteId ? `sid_${siteId.replace(/\./g, '-')}` : null;
+    const sid = (siteSpecificCookie && cookies.get(siteSpecificCookie)?.value) || cookies.get('sid')?.value;
 
     // ✅ Dynamic fields with fallback to default
     const defaultFields = [
@@ -103,7 +105,9 @@ export async function POST(request: NextRequest) {
     const itemData = await request.json();
 
     const cookies = request.cookies;
-    const sid = cookies.get('sid')?.value;
+    // Check site-specific cookie first, fallback to generic sid
+    const siteSpecificCookie = siteId ? `sid_${siteId.replace(/\./g, '-')}` : null;
+    const sid = (siteSpecificCookie && cookies.get(siteSpecificCookie)?.value) || cookies.get('sid')?.value;
 
     if (!sid) {
       return NextResponse.json(
@@ -242,7 +246,9 @@ export async function PUT(request: NextRequest) {
     }
 
     const cookies = request.cookies;
-    const sid = cookies.get('sid')?.value;
+    // Check site-specific cookie first, fallback to generic sid
+    const siteSpecificCookie = siteId ? `sid_${siteId.replace(/\./g, '-')}` : null;
+    const sid = (siteSpecificCookie && cookies.get(siteSpecificCookie)?.value) || cookies.get('sid')?.value;
 
     if (!sid) {
       return NextResponse.json(
