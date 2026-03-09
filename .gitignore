@@ -36,8 +36,9 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 !.env.example
-!.env.staging
-!.env.production
+
+# PM2 ecosystem config (contains credentials)
+ecosystem.config.js
 
 # Environment files with sensitive data (never commit)
 .env.local
