@@ -188,7 +188,9 @@ export default function Navbar() {
       items: [
         { name: 'Pesanan Pembelian', href: '/purchase-orders' },
         { name: 'Penerimaan Barang', href: '/purchase-receipts' },
-        { name: 'Faktur Pembelian', href: '/purchase-invoice' }
+        { name: 'Faktur Pembelian', href: '/purchase-invoice' },
+        { name: 'Retur Pembelian', href: '/purchase-return' },
+        { name: 'Debit Memo', href: '/debit-note' }
       ]
     },
     {

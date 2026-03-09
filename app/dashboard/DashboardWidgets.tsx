@@ -182,6 +182,16 @@ export const ALL_QUICK_ACTIONS: QuickAction[] = [
     icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" />,
   },
   {
+    label: 'Retur Pembelian', href: '/purchase-return', colorClass: 'text-rose-600',
+    roles: ['Purchase User','Purchase Manager','Purchase Master Manager','Stock User','Stock Manager','System Manager'],
+    icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 15v-1a4 4 0 00-4-4H8m0 0l3 3m-3-3l3-3m9 14V5a2 2 0 00-2-2H6a2 2 0 00-2 2v16l4-2 4 2 4-2 4 2z" />,
+  },
+  {
+    label: 'Debit Memo', href: '/debit-note', colorClass: 'text-fuchsia-600',
+    roles: ['Purchase User','Purchase Manager','Purchase Master Manager','Accounts User','Accounts Manager','System Manager'],
+    icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" />,
+  },
+  {
     label: 'Pembayaran', href: '/payment', colorClass: 'text-yellow-600',
     roles: ['Accounts User','Accounts Manager','System Manager'],
     icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />,

@@ -219,9 +219,13 @@ export async function POST(request: NextRequest) {
       .map((item: any) => {
         const userItem = userItemsMap.get(item.item_code);
         const returnQty = -Math.abs(userItem.qty); // Negative for return
+        
         return {
           ...item,
           qty: returnQty,
+          received_qty: returnQty, // Must be negative for returns
+          accepted_qty: returnQty, // Must be negative for returns
+          rejected_qty: 0, // No rejected qty for returns
           rate: item.rate || userItem.rate || 0,
           amount: returnQty * (item.rate || userItem.rate || 0),
           warehouse: userItem.warehouse || item.warehouse,

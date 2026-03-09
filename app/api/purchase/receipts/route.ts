@@ -20,6 +20,7 @@ export async function GET(request: NextRequest) {
     const toDate = searchParams.get('to_date');
     const orderBy = searchParams.get('order_by');
     const supplier = searchParams.get('supplier');
+    const filtersParam = searchParams.get('filters');
 
     if (!company) {
       return NextResponse.json(
@@ -28,40 +29,50 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Build filters array
-    let filters: any[][] = [
-      ["company", "=", company]
-    ];
+    // Build filters array - use provided filters or build from params
+    let filters: any[][];
     
-    if (search) {
-      // Search by supplier name or PR number
-      filters.push(["supplier_name", "like", `%${search}%`]);
-    }
-    
-    if (documentNumber) {
-      // Search by PR number/document number
-      filters.push(["name", "like", `%${documentNumber}%`]);
-    }
-    
-    if (status) {
-      filters.push(["status", "=", status]);
-    }
-    
-    if (supplier) {
-      filters.push(["supplier", "=", supplier]);
-    }
-    
-    if (fromDate) {
-      filters.push(["posting_date", ">=", fromDate]);
-    }
-    
-    if (toDate) {
-      filters.push(["posting_date", "<=", toDate]);
+    if (filtersParam) {
+      // Use filters from query param (for dialog usage)
+      try {
+        filters = JSON.parse(filtersParam);
+      } catch {
+        filters = [["company", "=", company]];
+      }
+    } else {
+      // Build filters from individual params (for list page usage)
+      filters = [["company", "=", company]];
+      
+      if (search) {
+        // Search by supplier name or PR number
+        filters.push(["supplier_name", "like", `%${search}%`]);
+      }
+      
+      if (documentNumber) {
+        // Search by PR number/document number
+        filters.push(["name", "like", `%${documentNumber}%`]);
+      }
+      
+      if (status) {
+        filters.push(["status", "=", status]);
+      }
+      
+      if (supplier) {
+        filters.push(["supplier", "=", supplier]);
+      }
+      
+      if (fromDate) {
+        filters.push(["posting_date", ">=", fromDate]);
+      }
+      
+      if (toDate) {
+        filters.push(["posting_date", "<=", toDate]);
+      }
     }
 
     const fields = [
       "name", "supplier", "supplier_name", "posting_date",
-      "status", "grand_total", "currency"
+      "status", "grand_total", "currency", "items"
     ];
 
     // Get site-aware client

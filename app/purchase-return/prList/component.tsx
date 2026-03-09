@@ -8,11 +8,16 @@ import { formatDate, parseDate } from '../../../utils/format';
 import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
 import { Printer, FileText, Send, ArrowUp, Loader2, RotateCcw } from 'lucide-react';
 import ErrorDialog from '../../../components/ErrorDialog';
-import { SalesReturn } from '../../../types/sales-return';
+import { PurchaseReturn } from '../../../types/purchase-return';
 import PrintPreviewModal from '../../../components/print/PrintPreviewModal';
-import SalesReturnPrint from '../../../components/print/SalesReturnPrint';
+import PurchaseReturnPrint from '../../../components/print/PurchaseReturnPrint';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * Purchase Return List Component
+ * Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 6.8, 9.1, 9.2, 9.4, 9.5, 11.1
+ */
 
 // ─────────────────────────────────────────────────────────────
 // Hook: Deteksi mobile (breakpoint 768px)
@@ -31,8 +36,19 @@ function useIsMobile(breakpoint = 768) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Helper: Format currency
+// ─────────────────────────────────────────────────────────────
+const formatCurrency = (amount: number) => {
+  return new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    minimumFractionDigits: 0,
+  }).format(amount);
+};
+
+// ─────────────────────────────────────────────────────────────
 // Status Mapping: ERPNext Value (EN) → Indonesian Label (UI)
-// Sales Return status: Draft, Submitted, Cancelled
+// Purchase Return status: Draft, Submitted, Cancelled
 // ─────────────────────────────────────────────────────────────
 const STATUS_LABELS: Record<string, string> = {
   'Draft': 'Draft',
@@ -50,20 +66,9 @@ const getStatusLabel = (status: string): string => STATUS_LABELS[status] || stat
 const getStatusBadgeClass = (status: string): string => STATUS_COLORS[status] || 'bg-gray-100 text-gray-800 border-gray-200';
 
 // ─────────────────────────────────────────────────────────────
-// Helper: Format currency IDR
-// ─────────────────────────────────────────────────────────────
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('id-ID', {
-    style: 'currency',
-    currency: 'IDR',
-    minimumFractionDigits: 0,
-  }).format(amount);
-};
-
-// ─────────────────────────────────────────────────────────────
 // Main Component
 // ─────────────────────────────────────────────────────────────
-export default function SalesReturnList() {
+export default function PurchaseReturnList() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isMobile = useIsMobile(768);
@@ -72,14 +77,14 @@ export default function SalesReturnList() {
   const pageSize = isMobile ? 10 : 20;
   const useInfiniteScrollMode = isMobile;
 
-  const [returns, setReturns] = useState<SalesReturn[]>([]);
+  const [returns, setReturns] = useState<PurchaseReturn[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [dateFilter, setDateFilter] = useState({
     from_date: formatDate(new Date(Date.now() - 86400000)),
     to_date: formatDate(new Date()),
   });
-  const [customerFilter, setCustomerFilter] = useState('');
+  const [supplierFilter, setSupplierFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [documentNumberFilter, setDocumentNumberFilter] = useState('');
   const [selectedCompany, setSelectedCompany] = useState('');
@@ -164,61 +169,33 @@ export default function SalesReturnList() {
       const params = new URLSearchParams();
       params.append('limit_page_length', pageSize.toString());
       params.append('start', ((currentPage - 1) * pageSize).toString());
-      
-      // ✅ REQUEST FIELD SPESIFIK DARI ERPNext
-      params.append('fields', JSON.stringify([
-        'name',
-        'customer',
-        'customer_name',
-        'posting_date',
-        'status',
-        'grand_total',
-        'delivery_note',
-        'custom_notes',
-        'is_return',
-        'items'
-      ]));
-      
-      // ✅ SORTING: Data terbaru paling atas
       params.append('order_by', 'posting_date desc');
+      params.append('company', companyToUse);
       
-      // ✅ BUILD FILTERS ARRAY UNTUK ERPNext (Format JSON)
-      // ⚠️ PENTING: Sales Return menggunakan is_return = 1 (bukan 0)
-      const filters: [string, string, string | number][] = [
-        ["company", "=", companyToUse],
-        ["is_return", "=", 1],  // ✅ INCLUDE SALES RETURN ONLY
-      ];
-
       // Filter status
       if (statusFilter) {
-        filters.push(["status", "=", statusFilter]);
+        params.append('status', statusFilter);
       }
 
       // Filter tanggal posting
       if (dateFilter.from_date) {
         const parsed = parseDate(dateFilter.from_date);
-        if (parsed) filters.push(["posting_date", ">=", parsed]);
+        if (parsed) params.append('from_date', parsed);
       }
       if (dateFilter.to_date) {
         const parsed = parseDate(dateFilter.to_date);
-        if (parsed) filters.push(["posting_date", "<=", parsed]);
+        if (parsed) params.append('to_date', parsed);
       }
 
       // Filter search dengan LIKE (case-insensitive)
-      if (customerFilter) {
-        filters.push(["customer_name", "like", `%${customerFilter}%`]);
+      if (supplierFilter) {
+        params.append('search', supplierFilter);
       }
       if (documentNumberFilter) {
-        filters.push(["name", "like", `%${documentNumberFilter}%`]);
+        params.append('documentNumber', documentNumberFilter);
       }
 
-      // Append filters sebagai JSON string (ERPNext requirement)
-      params.append('filters', JSON.stringify(filters));
-
-      // 🔍 DEBUG: Log filters yang dikirim ke API
-      // console.log('🔍 ERPNext Filters:', JSON.stringify(filters));
-
-      const response = await fetch(`/api/sales/delivery-note-return?${params.toString()}`);
+      const response = await fetch(`/api/purchase/purchase-return?${params.toString()}`);
       const data = await response.json();
 
       if (data.success) {
@@ -239,36 +216,33 @@ export default function SalesReturnList() {
         } else {
           // Append untuk infinite scroll (hindari duplikat)
           setReturns(prev => {
-            const existingNames = new Set(prev.map((o: SalesReturn) => o.name));
-            const newItems = filteredData.filter((o: SalesReturn) => !existingNames.has(o.name));
+            const existingNames = new Set(prev.map((o: PurchaseReturn) => o.name));
+            const newItems = filteredData.filter((o: PurchaseReturn) => !existingNames.has(o.name));
             return [...prev, ...newItems];
           });
         }
         
         setError(filteredData.length === 0 && reset ? `Tidak ada retur untuk perusahaan: ${companyToUse}` : '');
       } else {
-        setError(data.message || 'Gagal memuat retur penjualan');
+        setError(data.message || 'Gagal memuat retur pembelian');
       }
     } catch (err) {
-      console.error('❌ Error fetching sales returns:', err);
-      setError('Gagal memuat retur penjualan');
+      console.error('❌ Error fetching purchase returns:', err);
+      setError('Gagal memuat retur pembelian');
     } finally {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [selectedCompany, dateFilter, customerFilter, documentNumberFilter, statusFilter, currentPage, pageSize]);
+  }, [selectedCompany, dateFilter, supplierFilter, documentNumberFilter, statusFilter, currentPage, pageSize]);
 
   // ─────────────────────────────────────────────────────────
   // Effects
   // ─────────────────────────────────────────────────────────
-  // Effects - FIXED VERSION - Prevent race conditions
-  // ─────────────────────────────────────────────────────────
-  
   // Reset page when filters change
   useEffect(() => {
     pageChangeSourceRef.current = 'filter';
     setCurrentPage(1);
-  }, [dateFilter, customerFilter, documentNumberFilter, statusFilter]);
+  }, [dateFilter, supplierFilter, documentNumberFilter, statusFilter]);
 
   // Fetch when page changes (separated from filter logic)
   useEffect(() => {
@@ -286,7 +260,7 @@ export default function SalesReturnList() {
       fetchReturns(shouldReset);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateFilter, customerFilter, documentNumberFilter, statusFilter]);
+  }, [dateFilter, supplierFilter, documentNumberFilter, statusFilter]);
 
   // ─────────────────────────────────────────────────────────
   // Infinite Scroll Handler (Mobile Only)
@@ -334,10 +308,6 @@ export default function SalesReturnList() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
   // ─────────────────────────────────────────────────────────
   // Actions
   // ─────────────────────────────────────────────────────────
@@ -349,7 +319,7 @@ export default function SalesReturnList() {
     }
 
     try {
-      const res = await fetch(`/api/sales/delivery-note-return/${returnName}/submit`, {
+      const res = await fetch(`/api/purchase/purchase-return/${returnName}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: returnName }),
@@ -376,7 +346,13 @@ export default function SalesReturnList() {
   const fetchDataForPrint = async (returnName: string) => {
     setLoadingPrintData(true);
     try {
-      const response = await fetch(`/api/sales/delivery-note-return/${encodeURIComponent(returnName)}`);
+      let companyToUse = selectedCompany;
+      if (!companyToUse) {
+        const stored = localStorage.getItem('selected_company');
+        if (stored) companyToUse = stored;
+      }
+      
+      const response = await fetch(`/api/purchase/purchase-return/${encodeURIComponent(returnName)}?company=${encodeURIComponent(companyToUse || '')}`);
       const result = await response.json();
       
       if (result.success) {
@@ -393,7 +369,7 @@ export default function SalesReturnList() {
   };
 
   const handleCardClick = (returnName: string) => {
-    if (returnName) router.push(`/sales-return/srMain?name=${returnName}`);
+    if (returnName) router.push(`/purchase-return/prMain?name=${returnName}`);
   };
 
   const handleResetFilters = () => {
@@ -401,7 +377,7 @@ export default function SalesReturnList() {
       from_date: formatDate(new Date(Date.now() - 86400000)),
       to_date: formatDate(new Date()),
     });
-    setCustomerFilter('');
+    setSupplierFilter('');
     setStatusFilter('');
     setDocumentNumberFilter('');
     setCurrentPage(1);
@@ -411,6 +387,10 @@ export default function SalesReturnList() {
     if (!loadingMore && hasMoreData) {
       setCurrentPage(prev => Math.min(prev + 1, totalPages));
     }
+  };
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   // ─────────────────────────────────────────────────────────
@@ -445,7 +425,7 @@ export default function SalesReturnList() {
   // Initial Loading State
   // ─────────────────────────────────────────────────────────
   if (loading && returns.length === 0) {
-    return <LoadingSpinner message="Memuat Retur Penjualan..." />;
+    return <LoadingSpinner message="Memuat Retur Pembelian..." />;
   }
 
   // ─────────────────────────────────────────────────────────
@@ -458,9 +438,9 @@ export default function SalesReturnList() {
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-4 py-4 sm:px-6 lg:px-8 sticky top-0 z-30">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <h1 className="text-2xl font-bold text-gray-900">Retur Penjualan</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Retur Pembelian</h1>
           <button
-            onClick={() => router.push('/sales-return/srMain')}
+            onClick={() => router.push('/purchase-return/prMain')}
             className="inline-flex items-center justify-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 min-h-[44px]"
           >
             <RotateCcw className="h-4 w-4 mr-2" />
@@ -493,7 +473,7 @@ export default function SalesReturnList() {
       <div className="bg-white border-b border-gray-200 px-4 py-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
           {[
-            { label: 'Cari Pelanggan', value: customerFilter, onChange: setCustomerFilter, placeholder: 'Nama pelanggan...' },
+            { label: 'Cari Supplier', value: supplierFilter, onChange: setSupplierFilter, placeholder: 'Nama supplier...' },
             { label: 'No. Dokumen', value: documentNumberFilter, onChange: setDocumentNumberFilter, placeholder: 'Nomor retur...' },
           ].map((field, i) => (
             <div key={i}>
@@ -565,9 +545,9 @@ export default function SalesReturnList() {
             <div className="hidden sm:flex items-center px-4 py-3 bg-gray-50 border-b border-gray-200 text-xs font-medium text-gray-500 uppercase">
               <div className="flex-1 min-w-0">
                 <div className="grid grid-cols-12 gap-4">
-                  <div className="col-span-3">Dokumen / Pelanggan</div>
+                  <div className="col-span-3">Dokumen / Supplier</div>
                   <div className="col-span-2">Tanggal</div>
-                  <div className="col-span-3">Surat Jalan</div>
+                  <div className="col-span-3">Tanda Terima</div>
                   <div className="col-span-2 text-right">Total</div>
                   <div className="col-span-1">Status</div>
                   <div className="col-span-1 text-right">Aksi</div>
@@ -591,7 +571,7 @@ export default function SalesReturnList() {
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold text-indigo-600 truncate">{ret.name}</p>
-                          <p className="text-xs text-gray-600 mt-0.5 truncate">{ret.customer_name}</p>
+                          <p className="text-xs text-gray-600 mt-0.5 truncate">{ret.supplier_name}</p>
                         </div>
                         <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full border ${getStatusBadgeClass(ret.status)}`}>
                           {getStatusLabel(ret.status)}
@@ -601,9 +581,9 @@ export default function SalesReturnList() {
                         <div>📅 {ret.posting_date}</div>
                         <div>📦 Item: {ret.items?.length || 0}</div>
                       </div>
-                      {ret.delivery_note && (
+                      {ret.return_against && (
                         <div className="text-xs text-gray-500">
-                          📄 Surat Jalan: {ret.delivery_note}
+                          📄 Tanda Terima: {ret.return_against}
                         </div>
                       )}
                       <div className="flex items-center justify-between pt-2 border-t border-gray-100">
@@ -622,25 +602,23 @@ export default function SalesReturnList() {
                           )}
                         </div>
                       </div>
-                      {ret.custom_notes && <p className="text-xs text-gray-400 italic truncate">📝 {ret.custom_notes}</p>}
                     </div>
                   ) : (
                     // ─── Desktop Row Layout ───
                     <div className="grid grid-cols-12 gap-4 items-center">
                       <div className="col-span-3 min-w-0">
                         <p className="text-sm font-semibold text-indigo-600 truncate">{ret.name}</p>
-                        <p className="text-xs text-gray-600 mt-0.5 truncate">{ret.customer_name}</p>
-                        {ret.custom_notes && <p className="text-xs text-gray-400 truncate mt-1">📝 {ret.custom_notes}</p>}
+                        <p className="text-xs text-gray-600 mt-0.5 truncate">{ret.supplier_name}</p>
                       </div>
                       <div className="col-span-2">
                         <p className="text-sm text-gray-900">{ret.posting_date}</p>
                         <p className="text-xs text-gray-500">Posting</p>
                       </div>
                       <div className="col-span-3">
-                        {ret.delivery_note ? (
+                        {ret.return_against ? (
                           <>
-                            <p className="text-sm text-indigo-600 truncate">{ret.delivery_note}</p>
-                            <p className="text-xs text-gray-500">Surat Jalan</p>
+                            <p className="text-sm text-indigo-600 truncate">{ret.return_against}</p>
+                            <p className="text-xs text-gray-500">Tanda Terima</p>
                           </>
                         ) : (
                           <p className="text-xs text-gray-400">-</p>
@@ -692,8 +670,8 @@ export default function SalesReturnList() {
           {returns.length === 0 && !loading && (
             <div className="text-center py-16 px-4">
               <FileText className="mx-auto h-12 w-12 text-gray-300" />
-              <p className="mt-4 text-sm text-gray-500">Tidak ada retur penjualan ditemukan</p>
-              <button onClick={() => router.push('/sales-return/srMain')} className="mt-4 inline-flex items-center px-4 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100">
+              <p className="mt-4 text-sm text-gray-500">Tidak ada retur pembelian ditemukan</p>
+              <button onClick={() => router.push('/purchase-return/prMain')} className="mt-4 inline-flex items-center px-4 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100">
                 + Buat Retur Baru
               </button>
             </div>
@@ -765,14 +743,14 @@ export default function SalesReturnList() {
       {/* Print Preview Modal */}
       {showPrintPreview && printData && (
         <PrintPreviewModal
-          title={`Retur Penjualan - ${printData.name}`}
+          title={`Retur Pembelian - ${printData.name}`}
           onClose={() => {
             setShowPrintPreview(false);
             setPrintData(null);
           }}
           paperMode="continuous"
         >
-          <SalesReturnPrint data={printData} companyName={selectedCompany} />
+          <PurchaseReturnPrint data={printData} companyName={selectedCompany} />
         </PrintPreviewModal>
       )}
     </div>

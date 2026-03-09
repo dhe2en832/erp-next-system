@@ -6,13 +6,17 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 import Pagination from '../../components/Pagination';
 import { formatDate, parseDate } from '../../../utils/format';
 import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
-import { Printer, FileText, Send, ArrowUp, Loader2, RotateCcw } from 'lucide-react';
+import { Plus, Printer, FileText, Send, ArrowUp, Loader2 } from 'lucide-react';
 import ErrorDialog from '../../../components/ErrorDialog';
-import { SalesReturn } from '../../../types/sales-return';
 import PrintPreviewModal from '../../../components/print/PrintPreviewModal';
-import SalesReturnPrint from '../../../components/print/SalesReturnPrint';
+import DebitNotePrint from '../../../components/print/DebitNotePrint';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * Debit Note List Component
+ * Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 6.8, 9.1, 9.2, 9.4, 9.5, 11.1
+ */
 
 // ─────────────────────────────────────────────────────────────
 // Hook: Deteksi mobile (breakpoint 768px)
@@ -31,8 +35,34 @@ function useIsMobile(breakpoint = 768) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────────────────────────
+interface DebitNote {
+  name: string;
+  supplier: string;
+  supplier_name: string;
+  posting_date: string;
+  status: string;
+  docstatus: number;
+  grand_total: number;
+  return_against: string;
+  items?: Array<{ item_code: string; qty: number }>;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Helper: Format currency
+// ─────────────────────────────────────────────────────────────
+const formatCurrency = (amount: number) => {
+  return new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    minimumFractionDigits: 0,
+  }).format(amount);
+};
+
+// ─────────────────────────────────────────────────────────────
 // Status Mapping: ERPNext Value (EN) → Indonesian Label (UI)
-// Sales Return status: Draft, Submitted, Cancelled
+// Debit Note status: Draft, Submitted, Cancelled
 // ─────────────────────────────────────────────────────────────
 const STATUS_LABELS: Record<string, string> = {
   'Draft': 'Draft',
@@ -50,20 +80,9 @@ const getStatusLabel = (status: string): string => STATUS_LABELS[status] || stat
 const getStatusBadgeClass = (status: string): string => STATUS_COLORS[status] || 'bg-gray-100 text-gray-800 border-gray-200';
 
 // ─────────────────────────────────────────────────────────────
-// Helper: Format currency IDR
-// ─────────────────────────────────────────────────────────────
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('id-ID', {
-    style: 'currency',
-    currency: 'IDR',
-    minimumFractionDigits: 0,
-  }).format(amount);
-};
-
-// ─────────────────────────────────────────────────────────────
 // Main Component
 // ─────────────────────────────────────────────────────────────
-export default function SalesReturnList() {
+export default function DebitNoteList() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isMobile = useIsMobile(768);
@@ -72,14 +91,14 @@ export default function SalesReturnList() {
   const pageSize = isMobile ? 10 : 20;
   const useInfiniteScrollMode = isMobile;
 
-  const [returns, setReturns] = useState<SalesReturn[]>([]);
+  const [debitNotes, setDebitNotes] = useState<DebitNote[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [dateFilter, setDateFilter] = useState({
-    from_date: formatDate(new Date(Date.now() - 86400000)),
+    from_date: formatDate(new Date(Date.now() - 30 * 86400000)), // Last 30 days
     to_date: formatDate(new Date()),
   });
-  const [customerFilter, setCustomerFilter] = useState('');
+  const [supplierFilter, setSupplierFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [documentNumberFilter, setDocumentNumberFilter] = useState('');
   const [selectedCompany, setSelectedCompany] = useState('');
@@ -117,7 +136,10 @@ export default function SalesReturnList() {
   // Company Selection from localStorage/cookies
   // ─────────────────────────────────────────────────────────
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
     let savedCompany = localStorage.getItem('selected_company');
+    
     if (!savedCompany) {
       const cookies = document.cookie.split(';');
       const companyCookie = cookies.find(c => c.trim().startsWith('selected_company='));
@@ -126,13 +148,14 @@ export default function SalesReturnList() {
         if (savedCompany) localStorage.setItem('selected_company', savedCompany);
       }
     }
+    
     if (savedCompany) setSelectedCompany(savedCompany);
   }, []);
 
   // ─────────────────────────────────────────────────────────
-  // Fetch Data dari ERPNext API
+  // Fetch Debit Notes
   // ─────────────────────────────────────────────────────────
-  const fetchReturns = useCallback(async (reset = false) => {
+  const fetchDebitNotes = useCallback(async (reset = false) => {
     if (reset) {
       setLoading(true);
       setError('');
@@ -141,6 +164,7 @@ export default function SalesReturnList() {
     }
 
     let companyToUse = selectedCompany;
+
     if (!companyToUse) {
       const stored = localStorage.getItem('selected_company');
       if (stored) companyToUse = stored;
@@ -150,132 +174,91 @@ export default function SalesReturnList() {
         if (cookie) companyToUse = cookie.split('=')[1];
       }
     }
-    
+
     if (!companyToUse) {
       setError('Perusahaan belum dipilih. Silakan pilih perusahaan terlebih dahulu.');
       setLoading(false);
       setLoadingMore(false);
       return;
     }
-    
+
     if (!selectedCompany && companyToUse) setSelectedCompany(companyToUse);
-    
+
     try {
       const params = new URLSearchParams();
       params.append('limit_page_length', pageSize.toString());
       params.append('start', ((currentPage - 1) * pageSize).toString());
+      params.append('order_by', 'creation desc');
       
-      // ✅ REQUEST FIELD SPESIFIK DARI ERPNext
-      params.append('fields', JSON.stringify([
-        'name',
-        'customer',
-        'customer_name',
-        'posting_date',
-        'status',
-        'grand_total',
-        'delivery_note',
-        'custom_notes',
-        'is_return',
-        'items'
-      ]));
+      if (companyToUse) params.append('company', companyToUse);
+      if (supplierFilter) params.append('search', supplierFilter);
+      if (documentNumberFilter) params.append('documentNumber', documentNumberFilter);
+      if (statusFilter) params.append('status', statusFilter);
       
-      // ✅ SORTING: Data terbaru paling atas
-      params.append('order_by', 'posting_date desc');
-      
-      // ✅ BUILD FILTERS ARRAY UNTUK ERPNext (Format JSON)
-      // ⚠️ PENTING: Sales Return menggunakan is_return = 1 (bukan 0)
-      const filters: [string, string, string | number][] = [
-        ["company", "=", companyToUse],
-        ["is_return", "=", 1],  // ✅ INCLUDE SALES RETURN ONLY
-      ];
-
-      // Filter status
-      if (statusFilter) {
-        filters.push(["status", "=", statusFilter]);
-      }
-
-      // Filter tanggal posting
       if (dateFilter.from_date) {
         const parsed = parseDate(dateFilter.from_date);
-        if (parsed) filters.push(["posting_date", ">=", parsed]);
+        if (parsed) params.append('from_date', parsed);
       }
       if (dateFilter.to_date) {
         const parsed = parseDate(dateFilter.to_date);
-        if (parsed) filters.push(["posting_date", "<=", parsed]);
+        if (parsed) params.append('to_date', parsed);
       }
 
-      // Filter search dengan LIKE (case-insensitive)
-      if (customerFilter) {
-        filters.push(["customer_name", "like", `%${customerFilter}%`]);
-      }
-      if (documentNumberFilter) {
-        filters.push(["name", "like", `%${documentNumberFilter}%`]);
-      }
+      const response = await fetch(`/api/purchase/debit-note?${params.toString()}`);
+      const result = await response.json();
 
-      // Append filters sebagai JSON string (ERPNext requirement)
-      params.append('filters', JSON.stringify(filters));
+      if (result.success) {
+        const debitNotesData = result.data || [];
 
-      // 🔍 DEBUG: Log filters yang dikirim ke API
-      // console.log('🔍 ERPNext Filters:', JSON.stringify(filters));
-
-      const response = await fetch(`/api/sales/delivery-note-return?${params.toString()}`);
-      const data = await response.json();
-
-      if (data.success) {
-        const filteredData = data.data || [];
-        
-        if (data.total_records !== undefined) {
-          setTotalRecords(data.total_records);
-          setTotalPages(Math.ceil(data.total_records / pageSize));
-          setHasMoreData(currentPage < Math.ceil(data.total_records / pageSize));
+        if (result.total_records !== undefined) {
+          setTotalRecords(result.total_records);
+          setTotalPages(Math.ceil(result.total_records / pageSize));
+          setHasMoreData(currentPage < Math.ceil(result.total_records / pageSize));
         } else {
-          setTotalRecords(filteredData.length);
+          setTotalRecords(debitNotesData.length);
           setTotalPages(1);
           setHasMoreData(false);
         }
-        
+
         if (reset) {
-          setReturns(filteredData);
+          setDebitNotes(debitNotesData);
         } else {
           // Append untuk infinite scroll (hindari duplikat)
-          setReturns(prev => {
-            const existingNames = new Set(prev.map((o: SalesReturn) => o.name));
-            const newItems = filteredData.filter((o: SalesReturn) => !existingNames.has(o.name));
+          setDebitNotes(prev => {
+            const existingNames = new Set(prev.map((o: DebitNote) => o.name));
+            const newItems = debitNotesData.filter((o: DebitNote) => !existingNames.has(o.name));
             return [...prev, ...newItems];
           });
         }
-        
-        setError(filteredData.length === 0 && reset ? `Tidak ada retur untuk perusahaan: ${companyToUse}` : '');
+
+        setError(debitNotesData.length === 0 && reset ? `Tidak ada debit memo untuk perusahaan: ${companyToUse}` : '');
       } else {
-        setError(data.message || 'Gagal memuat retur penjualan');
+        setError(result.message || 'Gagal memuat debit memo');
       }
     } catch (err) {
-      console.error('❌ Error fetching sales returns:', err);
-      setError('Gagal memuat retur penjualan');
+      console.error('❌ Error fetching debit notes:', err);
+      setError('Gagal memuat debit memo');
     } finally {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [selectedCompany, dateFilter, customerFilter, documentNumberFilter, statusFilter, currentPage, pageSize]);
+  }, [currentPage, pageSize, dateFilter, supplierFilter, statusFilter, documentNumberFilter, selectedCompany]);
 
   // ─────────────────────────────────────────────────────────
   // Effects
   // ─────────────────────────────────────────────────────────
-  // Effects - FIXED VERSION - Prevent race conditions
-  // ─────────────────────────────────────────────────────────
-  
   // Reset page when filters change
   useEffect(() => {
     pageChangeSourceRef.current = 'filter';
     setCurrentPage(1);
-  }, [dateFilter, customerFilter, documentNumberFilter, statusFilter]);
+  }, [dateFilter, supplierFilter, statusFilter, documentNumberFilter]);
 
   // Fetch when page changes (separated from filter logic)
   useEffect(() => {
     // Always reset for desktop pagination
     // Only append for mobile infinite scroll when page > 1
     const shouldReset = !useInfiniteScrollMode || currentPage === 1;
-    fetchReturns(shouldReset);
+    fetchDebitNotes(shouldReset);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, useInfiniteScrollMode]);
 
@@ -283,10 +266,10 @@ export default function SalesReturnList() {
   useEffect(() => {
     if (pageChangeSourceRef.current === 'filter') {
       const shouldReset = !useInfiniteScrollMode || currentPage === 1;
-      fetchReturns(shouldReset);
+      fetchDebitNotes(shouldReset);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateFilter, customerFilter, documentNumberFilter, statusFilter]);
+  }, [dateFilter, supplierFilter, statusFilter, documentNumberFilter]);
 
   // ─────────────────────────────────────────────────────────
   // Infinite Scroll Handler (Mobile Only)
@@ -334,49 +317,64 @@ export default function SalesReturnList() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+  // ─────────────────────────────────────────────────────────
+  // Handlers
+  // ─────────────────────────────────────────────────────────
+  const handleRowClick = (debitNoteName: string) => {
+    router.push(`/debit-note/dnMain?name=${encodeURIComponent(debitNoteName)}`);
   };
 
-  // ─────────────────────────────────────────────────────────
-  // Actions
-  // ─────────────────────────────────────────────────────────
-  const handleSubmitReturn = async (returnName: string, e?: React.MouseEvent) => {
+  const handleCreateNew = () => {
+    router.push('/debit-note/dnMain');
+  };
+
+  const handleApplyFilters = () => {
+    setCurrentPage(1);
+    fetchDebitNotes(true);
+  };
+
+  const handleSubmitDebitNote = async (debitNoteName: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
     
-    if (!confirm(`Apakah Anda yakin ingin mengajukan retur ${returnName}? Stok akan diperbarui.`)) {
+    if (!confirm(`Apakah Anda yakin ingin mengajukan debit memo ${debitNoteName}?`)) {
       return;
     }
 
     try {
-      const res = await fetch(`/api/sales/delivery-note-return/${returnName}/submit`, {
+      const res = await fetch(`/api/purchase/debit-note/${debitNoteName}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: returnName }),
+        body: JSON.stringify({ name: debitNoteName }),
       });
       const result = await res.json();
       if (result.success) {
-        setSuccessMessage(`✅ Retur ${returnName} berhasil diajukan!`);
-        fetchReturns(true);
+        setSuccessMessage(`✅ Debit memo ${debitNoteName} berhasil diajukan!`);
+        fetchDebitNotes(true);
         setTimeout(() => setSuccessMessage(''), 5000);
       } else {
-        setSubmitError(result.message || 'Gagal mengajukan retur');
+        setSubmitError(result.message || 'Gagal mengajukan debit memo');
       }
     } catch {
-      setSubmitError('Terjadi kesalahan saat mengajukan retur');
+      setSubmitError('Terjadi kesalahan saat mengajukan debit memo');
     }
   };
 
-  const handlePrint = async (returnName: string, e: React.MouseEvent) => {
+  const handlePrint = async (debitNoteName: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    await fetchDataForPrint(returnName);
+    await fetchDataForPrint(debitNoteName);
     setShowPrintPreview(true);
   };
 
-  const fetchDataForPrint = async (returnName: string) => {
+  const fetchDataForPrint = async (debitNoteName: string) => {
     setLoadingPrintData(true);
     try {
-      const response = await fetch(`/api/sales/delivery-note-return/${encodeURIComponent(returnName)}`);
+      let companyToUse = selectedCompany;
+      if (!companyToUse) {
+        const stored = localStorage.getItem('selected_company');
+        if (stored) companyToUse = stored;
+      }
+      
+      const response = await fetch(`/api/purchase/debit-note/${encodeURIComponent(debitNoteName)}?company=${encodeURIComponent(companyToUse || '')}`);
       const result = await response.json();
       
       if (result.success) {
@@ -392,16 +390,16 @@ export default function SalesReturnList() {
     }
   };
 
-  const handleCardClick = (returnName: string) => {
-    if (returnName) router.push(`/sales-return/srMain?name=${returnName}`);
+  const handleCardClick = (debitNoteName: string) => {
+    if (debitNoteName) router.push(`/debit-note/dnMain?name=${debitNoteName}`);
   };
 
   const handleResetFilters = () => {
     setDateFilter({
-      from_date: formatDate(new Date(Date.now() - 86400000)),
+      from_date: formatDate(new Date(Date.now() - 30 * 86400000)),
       to_date: formatDate(new Date()),
     });
-    setCustomerFilter('');
+    setSupplierFilter('');
     setStatusFilter('');
     setDocumentNumberFilter('');
     setCurrentPage(1);
@@ -411,6 +409,10 @@ export default function SalesReturnList() {
     if (!loadingMore && hasMoreData) {
       setCurrentPage(prev => Math.min(prev + 1, totalPages));
     }
+  };
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   // ─────────────────────────────────────────────────────────
@@ -442,15 +444,12 @@ export default function SalesReturnList() {
   );
 
   // ─────────────────────────────────────────────────────────
-  // Initial Loading State
+  // Render
   // ─────────────────────────────────────────────────────────
-  if (loading && returns.length === 0) {
-    return <LoadingSpinner message="Memuat Retur Penjualan..." />;
+  if (loading && debitNotes.length === 0) {
+    return <LoadingSpinner message="Memuat Debit Memo..." />;
   }
 
-  // ─────────────────────────────────────────────────────────
-  // Render UI
-  // ─────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gray-50">
       <ErrorDialog isOpen={!!submitError} title="Gagal Mengajukan" message={submitError} onClose={() => setSubmitError('')} />
@@ -458,13 +457,13 @@ export default function SalesReturnList() {
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-4 py-4 sm:px-6 lg:px-8 sticky top-0 z-30">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <h1 className="text-2xl font-bold text-gray-900">Retur Penjualan</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Debit Memo</h1>
           <button
-            onClick={() => router.push('/sales-return/srMain')}
+            onClick={handleCreateNew}
             className="inline-flex items-center justify-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 min-h-[44px]"
           >
-            <RotateCcw className="h-4 w-4 mr-2" />
-            + Buat Retur
+            <Plus className="h-4 w-4 mr-2" />
+            + Buat Debit Memo
           </button>
         </div>
       </div>
@@ -493,8 +492,8 @@ export default function SalesReturnList() {
       <div className="bg-white border-b border-gray-200 px-4 py-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
           {[
-            { label: 'Cari Pelanggan', value: customerFilter, onChange: setCustomerFilter, placeholder: 'Nama pelanggan...' },
-            { label: 'No. Dokumen', value: documentNumberFilter, onChange: setDocumentNumberFilter, placeholder: 'Nomor retur...' },
+            { label: 'Cari Supplier', value: supplierFilter, onChange: setSupplierFilter, placeholder: 'Nama supplier...' },
+            { label: 'No. Dokumen', value: documentNumberFilter, onChange: setDocumentNumberFilter, placeholder: 'Nomor debit memo...' },
           ].map((field, i) => (
             <div key={i}>
               <label className="block text-xs font-medium text-gray-500 mb-1">{field.label}</label>
@@ -553,7 +552,7 @@ export default function SalesReturnList() {
           {/* Progress Indicator */}
           <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 text-xs text-gray-600 flex items-center justify-between">
             <div>
-              <span className="font-medium">{returns.length}</span> dari <span className="font-medium">{totalRecords}</span> data
+              <span className="font-medium">{debitNotes.length}</span> dari <span className="font-medium">{totalRecords}</span> data
             </div>
             {useInfiniteScrollMode && hasMoreData && (
               <span className="text-indigo-600">• Scroll untuk load lebih banyak</span>
@@ -561,13 +560,13 @@ export default function SalesReturnList() {
           </div>
 
           {/* Table Header - Desktop Only */}
-          {!isMobile && returns.length > 0 && (
+          {!isMobile && debitNotes.length > 0 && (
             <div className="hidden sm:flex items-center px-4 py-3 bg-gray-50 border-b border-gray-200 text-xs font-medium text-gray-500 uppercase">
               <div className="flex-1 min-w-0">
                 <div className="grid grid-cols-12 gap-4">
-                  <div className="col-span-3">Dokumen / Pelanggan</div>
+                  <div className="col-span-3">Dokumen / Supplier</div>
                   <div className="col-span-2">Tanggal</div>
-                  <div className="col-span-3">Surat Jalan</div>
+                  <div className="col-span-3">Faktur Pembelian</div>
                   <div className="col-span-2 text-right">Total</div>
                   <div className="col-span-1">Status</div>
                   <div className="col-span-1 text-right">Aksi</div>
@@ -578,10 +577,10 @@ export default function SalesReturnList() {
 
           {/* Cards / Rows List */}
           <ul className="divide-y divide-gray-100">
-            {returns.map((ret) => (
+            {debitNotes.map((dn) => (
               <li 
-                key={ret.name}
-                onClick={() => handleCardClick(ret.name)}
+                key={dn.name}
+                onClick={() => handleCardClick(dn.name)}
                 className="cursor-pointer hover:bg-indigo-50/50 transition-colors"
               >
                 <div className="px-4 py-4">
@@ -590,31 +589,31 @@ export default function SalesReturnList() {
                     <div className="space-y-3">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-indigo-600 truncate">{ret.name}</p>
-                          <p className="text-xs text-gray-600 mt-0.5 truncate">{ret.customer_name}</p>
+                          <p className="text-sm font-semibold text-indigo-600 truncate">{dn.name}</p>
+                          <p className="text-xs text-gray-600 mt-0.5 truncate">{dn.supplier_name}</p>
                         </div>
-                        <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full border ${getStatusBadgeClass(ret.status)}`}>
-                          {getStatusLabel(ret.status)}
+                        <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full border ${getStatusBadgeClass(dn.status)}`}>
+                          {getStatusLabel(dn.status)}
                         </span>
                       </div>
                       <div className="grid grid-cols-2 gap-2 text-xs text-gray-500">
-                        <div>📅 {ret.posting_date}</div>
-                        <div>📦 Item: {ret.items?.length || 0}</div>
+                        <div>📅 {dn.posting_date}</div>
+                        <div>📦 Item: {dn.items?.length || 0}</div>
                       </div>
-                      {ret.delivery_note && (
+                      {dn.return_against && (
                         <div className="text-xs text-gray-500">
-                          📄 Surat Jalan: {ret.delivery_note}
+                          📄 Faktur: {dn.return_against}
                         </div>
                       )}
                       <div className="flex items-center justify-between pt-2 border-t border-gray-100">
-                        <span className="text-sm font-semibold text-gray-900">{formatCurrency(ret.grand_total)}</span>
+                        <span className="text-sm font-semibold text-gray-900">{formatCurrency(dn.grand_total)}</span>
                         <div className="flex items-center gap-1">
-                          <button onClick={(e) => handlePrint(ret.name, e)} className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Cetak">
+                          <button onClick={(e) => handlePrint(dn.name, e)} className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Cetak">
                             <Printer className="h-4 w-4" />
                           </button>
-                          {ret.status === 'Draft' && (
+                          {dn.status === 'Draft' && (
                             <button 
-                              onClick={(e) => handleSubmitReturn(ret.name, e)} 
+                              onClick={(e) => handleSubmitDebitNote(dn.name, e)} 
                               className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-green-600 rounded-lg hover:bg-green-700"
                             >
                               <Send className="h-3 w-3" /> Ajukan
@@ -622,46 +621,44 @@ export default function SalesReturnList() {
                           )}
                         </div>
                       </div>
-                      {ret.custom_notes && <p className="text-xs text-gray-400 italic truncate">📝 {ret.custom_notes}</p>}
                     </div>
                   ) : (
                     // ─── Desktop Row Layout ───
                     <div className="grid grid-cols-12 gap-4 items-center">
                       <div className="col-span-3 min-w-0">
-                        <p className="text-sm font-semibold text-indigo-600 truncate">{ret.name}</p>
-                        <p className="text-xs text-gray-600 mt-0.5 truncate">{ret.customer_name}</p>
-                        {ret.custom_notes && <p className="text-xs text-gray-400 truncate mt-1">📝 {ret.custom_notes}</p>}
+                        <p className="text-sm font-semibold text-indigo-600 truncate">{dn.name}</p>
+                        <p className="text-xs text-gray-600 mt-0.5 truncate">{dn.supplier_name}</p>
                       </div>
                       <div className="col-span-2">
-                        <p className="text-sm text-gray-900">{ret.posting_date}</p>
+                        <p className="text-sm text-gray-900">{dn.posting_date}</p>
                         <p className="text-xs text-gray-500">Posting</p>
                       </div>
                       <div className="col-span-3">
-                        {ret.delivery_note ? (
+                        {dn.return_against ? (
                           <>
-                            <p className="text-sm text-indigo-600 truncate">{ret.delivery_note}</p>
-                            <p className="text-xs text-gray-500">Surat Jalan</p>
+                            <p className="text-sm text-indigo-600 truncate">{dn.return_against}</p>
+                            <p className="text-xs text-gray-500">Faktur Pembelian</p>
                           </>
                         ) : (
                           <p className="text-xs text-gray-400">-</p>
                         )}
                       </div>
                       <div className="col-span-2 text-right">
-                        <p className="text-sm font-semibold text-gray-900">{formatCurrency(ret.grand_total)}</p>
-                        <p className="text-xs text-gray-500">{ret.items?.length || 0} item</p>
+                        <p className="text-sm font-semibold text-gray-900">{formatCurrency(dn.grand_total)}</p>
+                        <p className="text-xs text-gray-500">{dn.items?.length || 0} item</p>
                       </div>
                       <div className="col-span-1">
-                        <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full border ${getStatusBadgeClass(ret.status)}`}>
-                          {getStatusLabel(ret.status)}
+                        <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full border ${getStatusBadgeClass(dn.status)}`}>
+                          {getStatusLabel(dn.status)}
                         </span>
                       </div>
                       <div className="col-span-1">
                         <div className="flex items-center justify-end gap-1">
-                          <button onClick={(e) => handlePrint(ret.name, e)} className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Cetak">
+                          <button onClick={(e) => handlePrint(dn.name, e)} className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Cetak">
                             <Printer className="h-4 w-4" />
                           </button>
-                          {ret.status === 'Draft' && (
-                            <button onClick={(e) => handleSubmitReturn(ret.name, e)} className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg" title="Ajukan">
+                          {dn.status === 'Draft' && (
+                            <button onClick={(e) => handleSubmitDebitNote(dn.name, e)} className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg" title="Ajukan">
                               <Send className="h-4 w-4" />
                             </button>
                           )}
@@ -689,25 +686,25 @@ export default function SalesReturnList() {
           </ul>
 
           {/* Empty State */}
-          {returns.length === 0 && !loading && (
+          {debitNotes.length === 0 && !loading && (
             <div className="text-center py-16 px-4">
               <FileText className="mx-auto h-12 w-12 text-gray-300" />
-              <p className="mt-4 text-sm text-gray-500">Tidak ada retur penjualan ditemukan</p>
-              <button onClick={() => router.push('/sales-return/srMain')} className="mt-4 inline-flex items-center px-4 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100">
-                + Buat Retur Baru
+              <p className="mt-4 text-sm text-gray-500">Tidak ada debit memo ditemukan</p>
+              <button onClick={handleCreateNew} className="mt-4 inline-flex items-center px-4 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100">
+                + Buat Debit Memo Baru
               </button>
             </div>
           )}
 
           {/* Load More Button (Mobile Fallback) */}
-          {useInfiniteScrollMode && hasMoreData && !loadingMore && returns.length > 0 && (
+          {useInfiniteScrollMode && hasMoreData && !loadingMore && debitNotes.length > 0 && (
             <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 text-center">
               <button
                 onClick={handleLoadMoreClick}
                 className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors"
               >
                 <Loader2 className="h-4 w-4" />
-                Load More ({totalRecords - returns.length} remaining)
+                Load More ({totalRecords - debitNotes.length} remaining)
               </button>
             </div>
           )}
@@ -723,7 +720,7 @@ export default function SalesReturnList() {
           )}
 
           {/* End of Data Indicator */}
-          {!hasMoreData && returns.length > 0 && (
+          {!hasMoreData && debitNotes.length > 0 && (
             <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 text-center text-xs text-gray-500">
               ✓ Semua data telah dimuat
             </div>
@@ -765,14 +762,14 @@ export default function SalesReturnList() {
       {/* Print Preview Modal */}
       {showPrintPreview && printData && (
         <PrintPreviewModal
-          title={`Retur Penjualan - ${printData.name}`}
+          title={`Debit Memo - ${printData.name}`}
           onClose={() => {
             setShowPrintPreview(false);
             setPrintData(null);
           }}
           paperMode="continuous"
         >
-          <SalesReturnPrint data={printData} companyName={selectedCompany} />
+          <DebitNotePrint data={printData} companyName={selectedCompany} />
         </PrintPreviewModal>
       )}
     </div>

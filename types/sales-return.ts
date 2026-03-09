@@ -2,19 +2,25 @@
  * TypeScript interfaces for Sales Return Management
  * 
  * Requirements: 1.1, 1.2, 1.3, 1.4, 2.1, 2.2, 3.1, 3.2, 3.3, 8.1, 8.2
+ * Requirements: 1.4, 1.5, 15.1-15.7, 17.1-17.7
  */
 
 /**
- * Return Reason Enumeration
+ * Sales Return Reason Enumeration
  * Predefined reasons for product returns
  */
-export type ReturnReason = 
+export type SalesReturnReason = 
   | 'Damaged'
-  | 'Wrong Item'
   | 'Quality Issue'
+  | 'Wrong Item'
   | 'Customer Request'
   | 'Expired'
   | 'Other';
+
+/**
+ * @deprecated Use SalesReturnReason instead
+ */
+export type ReturnReason = SalesReturnReason;
 
 /**
  * Sales Return Line Item
@@ -27,46 +33,60 @@ export interface SalesReturnItem {
   item_code: string;
   /** Item description */
   item_name: string;
-  /** Return quantity */
+  /** Return quantity (negative for returns) */
   qty: number;
   /** Unit price */
   rate: number;
-  /** Line total (qty * rate) */
+  /** Line total (qty * rate, negative for returns) */
   amount: number;
   /** Unit of measure */
   uom: string;
   /** Warehouse for stock return */
   warehouse: string;
   /** Link to delivery note item row */
-  delivery_note_item: string;
+  dn_detail: string;
+  /** Link to delivery note item row (alternative field name) */
+  delivery_note_item?: string;
   /** Original delivered quantity */
-  delivered_qty: number;
+  delivered_qty?: number;
   /** Reason for return */
-  return_reason: ReturnReason;
+  custom_return_reason: SalesReturnReason;
+  /** Reason for return (alternative field name) */
+  return_reason?: SalesReturnReason;
   /** Additional notes (required for "Other" reason) */
+  custom_return_item_notes?: string;
+  /** Additional notes (alternative field name) */
   return_notes?: string;
 }
 
 /**
  * Sales Return Document
- * Represents a customer return based on a delivery note
+ * Represents a Delivery Note return document (doctype: "Delivery Note" with is_return=1)
  */
 export interface SalesReturn {
-  /** Return document number (RET-YYYY-NNNNN) */
+  /** Return document number */
   name: string;
+  /** Document type (always "Delivery Note" for sales returns) */
+  doctype: 'Delivery Note';
+  /** Flag indicating this is a return document (always 1) */
+  is_return: 1;
+  /** Reference to original Delivery Note being returned */
+  return_against: string;
+  /** Reference to source delivery note (alternative field name) */
+  delivery_note?: string;
   /** Customer ID */
   customer: string;
   /** Customer display name */
   customer_name: string;
   /** Return date (YYYY-MM-DD) */
   posting_date: string;
-  /** Reference to source delivery note */
-  delivery_note: string;
-  /** Document status */
-  status: 'Draft' | 'Submitted' | 'Cancelled';
   /** Company name */
   company: string;
-  /** Total value of returned items */
+  /** Document status */
+  status: 'Draft' | 'Submitted' | 'Cancelled';
+  /** Document status code (0=Draft, 1=Submitted, 2=Cancelled) */
+  docstatus: 0 | 1 | 2;
+  /** Total value of returned items (negative) */
   grand_total: number;
   /** Line items */
   items: SalesReturnItem[];
@@ -78,6 +98,8 @@ export interface SalesReturn {
   modified: string;
   /** Document owner */
   owner: string;
+  /** Last modified by */
+  modified_by: string;
 }
 
 /**
@@ -101,14 +123,20 @@ export interface SalesReturnFormItem {
   warehouse: string;
   /** Link to delivery note item row */
   delivery_note_item: string;
+  /** Link to delivery note item row (alternative field name) */
+  dn_detail?: string;
   /** Original delivered quantity (for validation) */
   delivered_qty: number;
   /** Calculated: delivered - already returned */
   remaining_qty: number;
   /** Reason for return */
-  return_reason: ReturnReason | '';
+  return_reason: SalesReturnReason | '';
+  /** Reason for return (alternative field name) */
+  custom_return_reason?: SalesReturnReason | '';
   /** Additional notes (required for "Other" reason) */
   return_notes?: string;
+  /** Additional notes (alternative field name) */
+  custom_return_item_notes?: string;
   /** Whether item is selected for return */
   selected: boolean;
 }
@@ -202,7 +230,9 @@ export interface CreateSalesReturnRequest {
     warehouse: string;
     delivery_note_item: string;
     return_reason: string;
+    custom_return_reason?: string;
     return_notes?: string;
+    custom_return_item_notes?: string;
   }>;
   /** Additional notes */
   custom_notes?: string;
