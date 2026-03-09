@@ -389,7 +389,7 @@ export default function SelectSitePage() {
                           </span>
                         )}
                       </div>
-                      <p className="text-sm text-gray-500">{site.apiUrl}</p>
+                      {/* URL hidden for security */}
                       {/* Company Name */}
                       {isFetchingCompany ? (
                         <p className="text-xs text-gray-400 mt-1">Memuat nama perusahaan...</p>
