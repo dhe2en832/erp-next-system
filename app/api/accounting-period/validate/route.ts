@@ -331,7 +331,7 @@ async function validateBankReconciliation(
       };
     }
 
-    console.error('Error checking bank reconciliation:', error);
+    console.warn('Bank reconciliation check skipped:', error.message || error);
     return {
       check_name: 'Bank Reconciliation Complete',
       passed: true,
@@ -542,7 +542,7 @@ async function validatePayrollEntries(
       };
     }
 
-    console.error('Error checking payroll entries:', error);
+    console.warn('Payroll validation check skipped:', error.message || error);
     return {
       check_name: 'Payroll Entries Recorded',
       passed: true,
