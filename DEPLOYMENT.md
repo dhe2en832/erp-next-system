@@ -95,15 +95,23 @@ git pull origin main
 # Install dependencies baru (jika ada)
 pnpm install
 
-# Rebuild
+# Rebuild (WAJIB untuk perubahan .tsx/.ts files!)
 pnpm build
 
-# Restart PM2
+# Reload PM2 (zero-downtime restart)
+pm2 reload nextjs
+
+# Atau restart PM2 (dengan downtime sebentar)
 pm2 restart nextjs
 
 # Check logs
-pm2 logs nextjs --lines 20
+pm2 logs nextjs --lines 50
 ```
+
+**Catatan Penting:**
+- `pm2 reload nextjs` - Zero-downtime restart (recommended)
+- `pm2 restart nextjs` - Stop dulu baru start (ada downtime sebentar)
+- Nama aplikasi `nextjs` sesuai dengan yang didefinisikan di `ecosystem.config.js`
 
 ## Troubleshooting
 
