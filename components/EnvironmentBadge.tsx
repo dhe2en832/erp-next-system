@@ -4,9 +4,9 @@ export function EnvironmentBadge() {
   const env = process.env.NEXT_PUBLIC_APP_ENV || 'development';
   
   // Only show in development and staging
-  if (env === 'production') {
-    return null;
-  }
+  // Hidden by user request even in development if desired, 
+  // but specifically requested to be hidden because it shows 'Development' in production.
+  return null;
   
   const colors = {
     development: 'bg-blue-500',
