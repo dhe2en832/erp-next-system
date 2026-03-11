@@ -131,6 +131,11 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
 
   const [isEditMode, setIsEditMode] = useState(false);
   const isEditModeRef = useRef(false);
+  // Refs to hold latest values without causing fetchCompanyAccounts to be recreated
+  const paymentTypeRef = useRef<string>(defaultPaymentType || 'Receive');
+  const modeOfPaymentRef = useRef<string>('Kas');
+  // Stable ref to triggerAutoSelection so fetchCompanyAccounts never needs it as a dep
+  const triggerAutoSelectionRef = useRef<(accounts: CompanyAccountsData | null, paymentType: string, paymentMode: string) => void>(() => {});
   const [editingPaymentId, setEditingPaymentId] = useState('');
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const createdDocName = useRef<string | null>(null);
@@ -244,6 +249,8 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
   }, [getSelectableAccounts]);
 
   // Fetch company accounts when company changes
+  // Deps intentionally limited to [selectedCompany] to prevent infinite loops.
+  // All other values are read via stable refs.
   const fetchCompanyAccounts = useCallback(async (skipAutoSelection = false) => {
     if (!selectedCompany) return;
 
@@ -256,11 +263,11 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
 
         // Trigger auto-selection immediately after company accounts are loaded
         // Skip if in edit mode or explicitly requested to skip
-        if (!skipAutoSelection && !isEditModeRef.current && formData.payment_type && formData.mode_of_payment) {
+        if (!skipAutoSelection && !isEditModeRef.current && paymentTypeRef.current && modeOfPaymentRef.current) {
           setTimeout(() => {
             // Double-check edit mode inside timeout to handle race conditions
             if (!isEditModeRef.current) {
-              triggerAutoSelection(data.data || null, formData.payment_type, formData.mode_of_payment);
+              triggerAutoSelectionRef.current(data.data || null, paymentTypeRef.current, modeOfPaymentRef.current);
             }
           }, 100);
         }
@@ -271,7 +278,7 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
       console.error('Error fetching company accounts:', err);
       setCompanyAccounts(null);
     }
-  }, [selectedCompany, formData.payment_type, formData.mode_of_payment, triggerAutoSelection]);
+  }, [selectedCompany]);
 
   // Fetch outstanding invoices when customer is selected
   const fetchOutstandingInvoices = useCallback(async (customer: string) => {
@@ -545,11 +552,22 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
   }, [selectedCompany, convertToDisplayFormat]);
 
   // useEffect hooks at the end of logic
+
+  // Keep refs in sync so fetchCompanyAccounts (deps: [selectedCompany] only) can
+  // always read the latest values without causing the callback to be recreated.
+  useEffect(() => { paymentTypeRef.current = formData.payment_type; }, [formData.payment_type]);
+  useEffect(() => { modeOfPaymentRef.current = formData.mode_of_payment; }, [formData.mode_of_payment]);
+  // Keep triggerAutoSelection ref in sync so fetchCompanyAccounts can call the latest version
+  // without having it in its own dependency array.
+  useEffect(() => { triggerAutoSelectionRef.current = triggerAutoSelection; }, [triggerAutoSelection]);
+
   useEffect(() => {
     if (selectedCompany) {
       fetchCompanyAccounts();
     }
-  }, [selectedCompany, fetchCompanyAccounts]);
+  // fetchCompanyAccounts is stable (deps: [selectedCompany] only), safe to omit from exhaustive-deps.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCompany]);
 
   useEffect(() => {
     if (isEditMode) return;
@@ -1183,7 +1201,7 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
             </div>
 
             {/* Account Selection Info */}
-            <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
+            {/* <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
               <div className="flex items-start">
                 <svg className="w-4 h-4 text-blue-600 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -1198,7 +1216,7 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
                   </p>
                 </div>
               </div>
-            </div>
+            </div> */}
           </div>
 
           {/* Section 4: Catatan */}
@@ -1278,7 +1296,7 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
                 </div>
               ) : (
                 <>
-                  <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-md">
+                  {/* <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-md">
                     <div className="flex items-start">
                       <svg className="w-5 h-5 text-blue-600 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -1299,7 +1317,7 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
                         )}
                       </div>
                     </div>
-                  </div>
+                  </div> */}
 
                   <div className="space-y-3">
                     {(formData.payment_type === 'Pay' ? outstandingPurchaseInvoices : outstandingInvoices).map(invoice => (
@@ -1408,7 +1426,7 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
                 </div>
               ) : (
                 <>
-                  <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-md">
+                  {/* <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-md">
                     <div className="flex items-start">
                       <svg className="w-5 h-5 text-blue-600 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -1429,7 +1447,7 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
                         )}
                       </div>
                     </div>
-                  </div>
+                  </div> */}
 
                   <div className="space-y-3">
                     {outstandingPurchaseInvoices.map(invoice => (

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { CreateSalesInvoiceRequest } from '@/types/sales-invoice';
+import { CreateSalesInvoiceRequest, SalesInvoice, InvoiceItem } from '@/types/sales-invoice';
 import { handleERPNextAPIError } from '@/utils/erpnext-api-helper';
 import { 
   getERPNextClientForRequest, 
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     const start = parseInt(searchParams.get('start') || '0');
 
     // Build filters
-    const filtersArray: any[][] = [];
+    const filtersArray: (string | number)[][] = [];
 
     // Always add company filter if provided
     if (company) {
@@ -87,12 +87,12 @@ export async function GET(request: NextRequest) {
 
     // Add backward compatibility - Requirements 2.8, 14.1, 14.5
     // For old invoices without discount/tax, ensure default values
-    const invoicesWithDefaults = invoices.map((invoice: any) => ({
+    const invoicesWithDefaults = (invoices as SalesInvoice[]).map((invoice) => ({
       ...invoice,
-      discount_amount: invoice.discount_amount || 0,
-      discount_percentage: invoice.discount_percentage || 0,
-      total_taxes_and_charges: invoice.total_taxes_and_charges || 0,
-      taxes: invoice.taxes || []
+      discount_amount: invoice.discount_amount ?? 0,
+      discount_percentage: invoice.additional_discount_percentage ?? 0,
+      total_taxes_and_charges: invoice.total_taxes_and_charges ?? 0,
+      taxes: invoice.taxes ?? []
     }));
 
     const totalRecords = await client.getCount('Sales Invoice', { filters: filtersArray });
@@ -103,7 +103,7 @@ export async function GET(request: NextRequest) {
       total_records: totalRecords,
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     logSiteError(error, 'GET /api/sales/invoices', siteId);
     const errorResponse = buildSiteAwareErrorResponse(error, siteId);
     return NextResponse.json(errorResponse, { status: 500 });
@@ -165,10 +165,10 @@ export async function POST(request: NextRequest) {
     if (invoiceData.taxes_and_charges) {
       try {
         // Fetch tax template to validate it exists and is active
-        const taxTemplateData = await client.get('Sales Taxes and Charges Template', invoiceData.taxes_and_charges);
+        const taxTemplateData = await client.get('Sales Taxes and Charges Template', invoiceData.taxes_and_charges) as Record<string, unknown>;
 
         // Check if template is disabled
-        if (taxTemplateData.disabled === 1) {
+        if ((taxTemplateData as Record<string, unknown>).disabled === 1) {
           return NextResponse.json({
             success: false,
             message: `Tax template '${invoiceData.taxes_and_charges}' is disabled`
@@ -176,32 +176,34 @@ export async function POST(request: NextRequest) {
         }
 
         // Validate account_head in tax template exists in COA
-        if (taxTemplateData.taxes && Array.isArray(taxTemplateData.taxes)) {
-          for (const taxRow of taxTemplateData.taxes) {
-            if (taxRow.account_head) {
+        const templateData = taxTemplateData as Record<string, unknown>;
+        if (templateData.taxes && Array.isArray(templateData.taxes)) {
+          for (const taxRow of templateData.taxes as Array<Record<string, unknown>>) {
+            const accountHead = taxRow.account_head as string | undefined;
+            if (accountHead) {
               try {
-                await client.get('Account', taxRow.account_head);
-              } catch (accountError) {
+                await client.get('Account', accountHead);
+              } catch {
                 return NextResponse.json({
                   success: false,
-                  message: `Account '${taxRow.account_head}' not found in Chart of Accounts`
+                  message: `Account '${accountHead}' not found in Chart of Accounts`
                 }, { status: 400 });
               }
             }
           }
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Tax template validation error:', error);
         return NextResponse.json({
           success: false,
           message: `Tax template '${invoiceData.taxes_and_charges}' not found`,
-          error: error.toString()
+          error: error instanceof Error ? error.message : String(error)
         }, { status: 400 });
       }
     }
 
     // Prepare payload with proper ERPNext structure
-    const payload: any = {
+    const payload: Record<string, unknown> = {
       doctype: 'Sales Invoice',
       company: invoiceData.company,
       customer: invoiceData.customer,
@@ -220,16 +222,16 @@ export async function POST(request: NextRequest) {
       additional_discount_percentage: invoiceData.additional_discount_percentage || 0,
       apply_discount_on: invoiceData.apply_discount_on || 'Net Total',
       // Items - CRITICAL: Pre-populate custom_hpp_snapshot and custom_financial_cost_percent
-      items: await Promise.all((invoiceData.items || []).map(async (item: any) => {
+      items: await Promise.all(((invoiceData.items || []) as Array<InvoiceItem & Record<string, unknown>>).map(async (item) => {
         let hppSnapshot = 0;
         let financialCostPercent = 0;
 
         // Get HPP from Delivery Note Item if available
         if (item.dn_detail) {
           try {
-            const dnItemData = await client.get('Delivery Note Item', item.dn_detail);
-            hppSnapshot = dnItemData.custom_hpp_snapshot || dnItemData.incoming_rate || 0;
-            financialCostPercent = dnItemData.custom_financial_cost_percent || 0;
+            const dnItemData = await client.get('Delivery Note Item', item.dn_detail) as Record<string, unknown>;
+            hppSnapshot = (dnItemData.custom_hpp_snapshot as number) || (dnItemData.incoming_rate as number) || 0;
+            financialCostPercent = (dnItemData.custom_financial_cost_percent as number) || 0;
           } catch (error) {
             console.error(`Error fetching DN item ${item.dn_detail}:`, error);
           }
@@ -238,8 +240,8 @@ export async function POST(request: NextRequest) {
         // Fallback: Get Financial Cost from Item master if not from DN
         if (financialCostPercent === 0) {
           try {
-            const itemData = await client.get('Item', item.item_code);
-            financialCostPercent = itemData.custom_financial_cost_percent || 0;
+            const itemData = await client.get('Item', item.item_code) as Record<string, unknown>;
+            financialCostPercent = (itemData.custom_financial_cost_percent as number) || 0;
           } catch (error) {
             console.error(`Error fetching Item ${item.item_code}:`, error);
           }
@@ -252,9 +254,9 @@ export async function POST(request: NextRequest) {
           warehouse: item.warehouse,
           delivery_note: item.delivery_note || undefined,
           dn_detail: item.dn_detail || undefined,
-          sales_order: item.sales_order || undefined,
-          so_detail: item.so_detail || undefined,
-          custom_komisi_sales: item.custom_komisi_sales || 0,
+          sales_order: (item.sales_order as string) || undefined,
+          so_detail: (item.so_detail as string) || undefined,
+          custom_komisi_sales: (item.custom_komisi_sales as number) || 0,
           // CRITICAL FIX: Pre-populate these fields to prevent "Not Saved" status
           custom_hpp_snapshot: hppSnapshot,
           custom_financial_cost_percent: financialCostPercent,
@@ -285,34 +287,39 @@ export async function POST(request: NextRequest) {
     const result = await client.call('frappe.client.insert', { doc: payload });
 
     // CRITICAL FIX: Force ERPNext to recognize document as "saved"
-    const invoiceName = result.message?.name || result.data?.name || result.name;
+    const resultData = result as Record<string, unknown>;
+    const invoiceName = (resultData.message as Record<string, unknown>)?.name as string || (resultData.data as Record<string, unknown>)?.name as string || resultData.name as string;
     if (invoiceName) {
       try {
         // Fetch the latest version of the document
-        const latestDoc = await client.get('Sales Invoice', invoiceName);
+        const latestDoc = await client.get('Sales Invoice', invoiceName) as Record<string, unknown>;
 
         // Clean __unsaved flags from child tables
-        if (latestDoc.items && Array.isArray(latestDoc.items)) {
-          latestDoc.items = latestDoc.items.map((item: any) => {
+        if ((latestDoc.items as Array<Record<string, unknown>> | undefined) && Array.isArray(latestDoc.items)) {
+          latestDoc.items = (latestDoc.items as Array<Record<string, unknown>>).map((item: Record<string, unknown>) => {
             const { __unsaved, ...cleanItem } = item;
+            void __unsaved; // Explicitly ignore
             return cleanItem;
           });
         }
-        if (latestDoc.sales_team && Array.isArray(latestDoc.sales_team)) {
-          latestDoc.sales_team = latestDoc.sales_team.map((team: any) => {
+        if ((latestDoc.sales_team as Array<Record<string, unknown>> | undefined) && Array.isArray(latestDoc.sales_team)) {
+          latestDoc.sales_team = (latestDoc.sales_team as Array<Record<string, unknown>>).map((team: Record<string, unknown>) => {
             const { __unsaved, ...cleanTeam } = team;
+            void __unsaved; // Explicitly ignore
             return cleanTeam;
           });
         }
-        if (latestDoc.taxes && Array.isArray(latestDoc.taxes)) {
-          latestDoc.taxes = latestDoc.taxes.map((tax: any) => {
+        if ((latestDoc.taxes as Array<Record<string, unknown>> | undefined) && Array.isArray(latestDoc.taxes)) {
+          latestDoc.taxes = (latestDoc.taxes as Array<Record<string, unknown>>).map((tax: Record<string, unknown>) => {
             const { __unsaved, ...cleanTax } = tax;
+            void __unsaved; // Explicitly ignore
             return cleanTax;
           });
         }
-        if (latestDoc.payment_schedule && Array.isArray(latestDoc.payment_schedule)) {
-          latestDoc.payment_schedule = latestDoc.payment_schedule.map((schedule: any) => {
+        if ((latestDoc.payment_schedule as Array<Record<string, unknown>> | undefined) && Array.isArray(latestDoc.payment_schedule)) {
+          latestDoc.payment_schedule = (latestDoc.payment_schedule as Array<Record<string, unknown>>).map((schedule: Record<string, unknown>) => {
             const { __unsaved, ...cleanSchedule } = schedule;
+            void __unsaved; // Explicitly ignore
             return cleanSchedule;
           });
         }
@@ -331,14 +338,15 @@ export async function POST(request: NextRequest) {
       data: result
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     logSiteError(error, 'POST /api/sales/invoices', siteId);
     console.error('Create Invoice Error:', error);
 
     // Try to use the error handler utility
+    const errorMessage = error instanceof Error ? error.message : String(error);
     const errorResult = handleERPNextAPIError(
       { ok: false, status: 500 } as Response,
-      { message: error.message || error.toString() },
+      { message: errorMessage },
       ''
     );
 
