@@ -6,7 +6,7 @@
  * Requirements: 5.1, 5.2, 5.3, 11.1, 11.3, 11.5
  */
 
-import { CreditNoteFormData, CreditNoteFormItem, CreditNoteReturnReason } from '@/types/credit-note';
+import { CreditNoteFormData } from '@/types/credit-note';
 
 /**
  * Validation result interface

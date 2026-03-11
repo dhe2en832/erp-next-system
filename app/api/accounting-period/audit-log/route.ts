@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
       ],
       limit,
       start,
-      order_by: 'action_date desc',
+      order_by: 'creation desc, action_date desc',
     });
 
     return NextResponse.json({

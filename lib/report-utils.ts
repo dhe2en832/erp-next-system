@@ -40,9 +40,9 @@ export function formatNumber(num: number): string {
 /**
  * Calculate invoice summary totals
  */
-export function calculateInvoiceSummary(invoices: any[]) {
+export function calculateInvoiceSummary(invoices: Record<string, unknown>[]) {
   const count = invoices.length;
-  const total = invoices.reduce((sum, inv) => sum + (inv.grand_total || 0), 0);
+  const total = invoices.reduce((sum, inv) => sum + (Number(inv.grand_total) || 0), 0);
   const average = count > 0 ? total / count : 0;
 
   return {
@@ -55,14 +55,14 @@ export function calculateInvoiceSummary(invoices: any[]) {
 /**
  * Calculate payment summary totals
  */
-export function calculatePaymentSummary(payments: any[]) {
+export function calculatePaymentSummary(payments: Record<string, unknown>[]) {
   const count = payments.length;
   const totalReceived = payments
     .filter(p => p.payment_type === 'Receive')
-    .reduce((sum, p) => sum + (p.paid_amount || 0), 0);
+    .reduce((sum, p) => sum + (Number(p.paid_amount) || 0), 0);
   const totalPaid = payments
     .filter(p => p.payment_type === 'Pay')
-    .reduce((sum, p) => sum + (p.paid_amount || 0), 0);
+    .reduce((sum, p) => sum + (Number(p.paid_amount) || 0), 0);
   const netBalance = totalReceived - totalPaid;
 
   return {

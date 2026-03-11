@@ -38,6 +38,86 @@ interface Summary {
   total_company_profit?: number;
 }
 
+interface InvoiceRow {
+  customer?: string;
+  sales_person?: string;
+  sales?: number;
+  hpp_base?: number;
+  financial_cost?: number;
+  hpp_total?: number;
+  gross_profit_before_overhead?: number;
+  gross_profit?: number;
+  base_profit?: number;
+  commission?: number;
+  company_margin?: number;
+  profit?: number;
+  [key: string]: unknown;
+}
+
+interface ItemRow {
+  invoice?: string;
+  customer?: string;
+  customer_name?: string;
+  sales_person?: string;
+  item_code?: string;
+  item_name?: string;
+  qty?: number;
+  rate?: number;
+  price_list_rate?: number;
+  hpp_rate?: number;
+  financial_cost_percent?: number;
+  sales?: number;
+  hpp_base?: number;
+  financial_cost?: number;
+  hpp_total?: number;
+  gross_profit_before_overhead?: number;
+  gross_profit?: number;
+  base_profit?: number;
+  margin_zone?: string;
+  commission?: number;
+  company_margin?: number;
+  company_profit?: number;
+  [key: string]: unknown;
+}
+
+interface CustomerRow {
+  invoices?: string[];
+  sales?: number;
+  hpp_base?: number;
+  financial_cost?: number;
+  hpp_total?: number;
+  gross_profit_before_overhead?: number;
+  gross_profit?: number;
+  base_profit?: number;
+  commission?: number;
+  company_margin?: number;
+  profit?: number;
+  [key: string]: unknown;
+}
+
+interface SalesRow {
+  invoices?: string[];
+  sales?: number;
+  hpp_base?: number;
+  financial_cost?: number;
+  hpp_total?: number;
+  gross_profit_before_overhead?: number;
+  gross_profit?: number;
+  base_profit?: number;
+  commission?: number;
+  company_margin?: number;
+  profit?: number;
+  [key: string]: unknown;
+}
+
+interface ProfitReportData {
+  summary: Summary;
+  by_invoice: Record<string, InvoiceRow>;
+  by_item: ItemRow[];
+  by_customer: Record<string, CustomerRow>;
+  by_sales: Record<string, SalesRow>;
+}
+
 export default function ProfitReportPage() {
   // Get today's date in local timezone
   const today = new Date();
@@ -59,7 +139,7 @@ export default function ProfitReportPage() {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<ProfitReportData | null>(null);
   const [expandedInvoice, setExpandedInvoice] = useState<string | null>(null);
   const [salesList, setSalesList] = useState<string[]>([]);
   const [customerList, setCustomerList] = useState<string[]>([]);
@@ -71,7 +151,7 @@ export default function ProfitReportPage() {
 
   const fetchData = async (override?: ProfitParams) => {
     const payload = override || params;
-    const payloadToSend = { ...payload } as Record<string, any>;
+    const payloadToSend = { ...payload } as Record<string, unknown>;
     // jangan kirim company kosong; biarkan backend pakai default/env
     if (!payloadToSend.company) {
       delete payloadToSend.company;
@@ -98,8 +178,8 @@ export default function ProfitReportPage() {
         throw new Error(json.message || "Gagal memuat laporan");
       }
       setData(json.data);
-    } catch (err: any) {
-      setError(err?.message || "Gagal memuat laporan");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Gagal memuat laporan");
     } finally {
       setLoading(false);
     }
@@ -146,7 +226,7 @@ export default function ProfitReportPage() {
 
   const comparisonData = useMemo(() => {
     if (!data?.by_invoice) return [];
-    return Object.entries(data.by_invoice).map(([invoice, inv]: [string, any]) => ({
+    return Object.entries(data.by_invoice).map(([invoice, inv]: [string, InvoiceRow]) => ({
       name: invoice,
       sales: inv.sales || 0,
       hpp_base: inv.hpp_base || 0,
@@ -159,7 +239,7 @@ export default function ProfitReportPage() {
 
   const salesChartData = useMemo(() => {
     if (!data?.by_sales) return [];
-    return Object.entries(data.by_sales).map(([sales_person, row]: [string, any]) => ({
+    return Object.entries(data.by_sales).map(([sales_person, row]: [string, SalesRow]) => ({
       name: sales_person,
       commission: row.commission || 0,
     }));
@@ -167,7 +247,7 @@ export default function ProfitReportPage() {
 
   const customerChartData = useMemo(() => {
     if (!data?.by_customer) return [];
-    return Object.entries(data.by_customer).map(([customer, c]: [string, any]) => ({
+    return Object.entries(data.by_customer).map(([customer, c]: [string, CustomerRow]) => ({
       name: customer,
       profit: c.profit || 0,
     }));
@@ -193,7 +273,7 @@ export default function ProfitReportPage() {
         const res = await fetch(`/api/sales/sales-persons?${qs.toString()}`);
         const json = await res.json();
         if (json.success) {
-          setSalesList((json.data || []).map((p: any) => p.full_name || p.name));
+          setSalesList((json.data || []).map((p: { full_name?: string; name: string }) => p.full_name || p.name));
         }
       } catch (err) {
         console.error("Fetch sales persons error", err);
@@ -212,7 +292,7 @@ export default function ProfitReportPage() {
         const res = await fetch(`/api/sales/customers?${qs.toString()}`);
         const json = await res.json();
         if (json.success) {
-          const names: string[] = (json.data || []).map((c: any) => String(c.customer_name || c.name));
+          const names: string[] = (json.data || []).map((c: { customer_name?: string; name: string }) => String(c.customer_name || c.name));
           setCustomerList([...new Set(names)]);
         }
       } catch (err) {
@@ -225,21 +305,21 @@ export default function ProfitReportPage() {
   const handleExportExcel = () => {
     if (!data) return;
     const wb = XLSX.utils.book_new();
-    const addSheet = (rows: any[], name: string) => {
+    const addSheet = (rows: unknown[], name: string) => {
       const ws = XLSX.utils.json_to_sheet(rows);
       XLSX.utils.book_append_sheet(wb, ws, name);
     };
 
     // Convert objects to arrays for Excel export
-    const invoiceArray = Object.entries(data.by_invoice || {}).map(([invoice, row]: [string, any]) => ({
+    const invoiceArray = Object.entries(data.by_invoice || {}).map(([invoice, row]: [string, InvoiceRow]) => ({
       invoice,
       ...row,
     }));
-    const customerArray = Object.entries(data.by_customer || {}).map(([customer, row]: [string, any]) => ({
+    const customerArray = Object.entries(data.by_customer || {}).map(([customer, row]: [string, CustomerRow]) => ({
       customer,
       ...row,
     }));
-    const salesArray = Object.entries(data.by_sales || {}).map(([sales, row]: [string, any]) => ({
+    const salesArray = Object.entries(data.by_sales || {}).map(([sales, row]: [string, SalesRow]) => ({
       sales,
       sales_total: row.sales,
       ...row,
@@ -502,9 +582,9 @@ export default function ProfitReportPage() {
               { key: "company_margin", label: "Margin Perusahaan" },
               { key: "profit", label: "Laba Perusahaan" },
             ]}
-            rows={Object.entries(data.by_customer || {}).map(([customer, row]: [string, any]) => ({
+            rows={Object.entries(data.by_customer || {}).map(([customer, row]: [string, CustomerRow]) => ({
               customer,
-              ...row,
+              ...(row as unknown as Record<string, unknown>),
             }))}
           />
           <TableSimple
@@ -523,10 +603,10 @@ export default function ProfitReportPage() {
               { key: "company_margin", label: "Margin Perusahaan" },
               { key: "profit", label: "Laba Perusahaan" },
             ]}
-            rows={Object.entries(data.by_sales || {}).map(([sales, row]: [string, any]) => ({
+            rows={Object.entries(data.by_sales || {}).map(([sales, row]: [string, SalesRow]) => ({
               sales,
               sales_total: row.sales,
-              ...row,
+              ...(row as unknown as Record<string, unknown>),
             }))}
           />
         </div>
@@ -626,7 +706,7 @@ function ChartCard({ title, subtitle, children }: { title: string; subtitle?: st
   );
 }
 
-function BarChartResponsive({ data, dataKeys }: { data: any[]; dataKeys: string[] }) {
+function BarChartResponsive({ data, dataKeys }: { data: Record<string, unknown>[]; dataKeys: string[] }) {
   return (
     <ResponsiveContainer width="100%" height="100%">
       <BarChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 20 }}>
@@ -648,7 +728,7 @@ function BarChartResponsive({ data, dataKeys }: { data: any[]; dataKeys: string[
   );
 }
 
-function BarChartSimple({ data, dataKey, color }: { data: any[]; dataKey: string; color: string }) {
+function BarChartSimple({ data, dataKey, color }: { data: Record<string, unknown>[]; dataKey: string; color: string }) {
   return (
     <ResponsiveContainer width="100%" height="100%">
       <BarChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 20 }}>
@@ -673,16 +753,18 @@ function TableInvoice({
   onToggle,
   itemsMap,
 }: {
-  rows: Record<string, any>;
+  rows: Record<string, InvoiceRow>;
   expandedInvoice: string | null;
   onToggle: (inv: string) => void;
-  itemsMap: any[];
+  itemsMap: ItemRow[];
 }) {
   const itemsByInvoice = useMemo(() => {
-    const map: Record<string, any[]> = {};
-    (itemsMap || []).forEach((it: any) => {
-      if (!map[it.invoice]) map[it.invoice] = [];
-      map[it.invoice].push(it);
+    const map: Record<string, ItemRow[]> = {};
+    (itemsMap || []).forEach((it: ItemRow) => {
+      if (it.invoice) {
+        if (!map[it.invoice]) map[it.invoice] = [];
+        map[it.invoice].push(it);
+      }
     });
     return map;
   }, [itemsMap]);
@@ -715,7 +797,7 @@ function TableInvoice({
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {invoiceEntries.map(([invoice, row]: [string, any]) => {
+            {invoiceEntries.map(([invoice, row]: [string, InvoiceRow]) => {
               const isOpen = expandedInvoice === invoice;
               return (
                 <Fragment key={invoice}>
@@ -754,9 +836,9 @@ function TableInvoice({
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
-                              {(itemsByInvoice[invoice] || []).map((it: any, idx: number) => (
-                                <tr key={`${invoice}-${it.item || it.item_code || idx}`}>
-                                  <td className="px-2 py-1">{it.item || it.item_code}</td>
+                              {(itemsByInvoice[invoice] || []).map((it: ItemRow, idx: number) => (
+                                <tr key={`${invoice}-${it.item_code || idx}`}>
+                                  <td className="px-2 py-1">{it.item_name || it.item_code}</td>
                                   <td className="px-2 py-1 text-right">{it.qty || 0}</td>
                                   <td className="px-2 py-1 text-right">{(it.sales || 0).toLocaleString("id-ID")}</td>
                                   <td className="px-2 py-1 text-right">{(it.hpp_total || 0).toLocaleString("id-ID")}</td>
@@ -787,7 +869,7 @@ function TableInvoice({
 
 type TableColumn = { key: string; label: string };
 
-function TableSimple({ title, columns, rows }: { title: string; columns: TableColumn[]; rows: any[] }) {
+function TableSimple({ title, columns, rows }: { title: string; columns: TableColumn[]; rows: Record<string, unknown>[] }) {
   return (
     <div className="bg-white rounded shadow p-4">
       <h3 className="text-lg font-semibold mb-2">{title}</h3>
@@ -806,10 +888,10 @@ function TableSimple({ title, columns, rows }: { title: string; columns: TableCo
                 {columns.map((col) => (
                   <td key={col.key} className="px-3 py-2">
                     {Array.isArray(row[col.key])
-                      ? row[col.key].join(", ") || "-"
+                      ? (row[col.key] as unknown[]).join(", ") || "-"
                       : typeof row[col.key] === "number"
-                        ? row[col.key].toLocaleString("id-ID")
-                        : row[col.key] ?? "-"}
+                        ? (row[col.key] as number).toLocaleString("id-ID")
+                        : (row[col.key] as string | null) ?? "-"}
                   </td>
                 ))}
               </tr>

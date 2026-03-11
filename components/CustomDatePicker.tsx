@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { formatDate, parseDate } from '../utils/format';
+import { useState, useEffect, useRef } from 'react';
+import { formatDate } from '../utils/format';
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface CustomDatePickerProps {

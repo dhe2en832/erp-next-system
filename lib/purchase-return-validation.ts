@@ -163,7 +163,12 @@ export function convertDateToDisplayFormat(dateStr: string): string {
  * Validate required fields for debit note form
  * Requirements: 7.5, 7.6, 8.5, 8.6
  */
-export function validateDebitNoteRequiredFields(formData: any): ValidationResult {
+export function validateDebitNoteRequiredFields(formData: {
+  supplier?: string;
+  posting_date?: string;
+  purchase_invoice?: string;
+  items: { selected: boolean; qty: number; remaining_qty: number; return_reason?: string; return_notes?: string }[];
+}): ValidationResult {
   const errors: string[] = [];
 
   // Validate supplier
@@ -182,13 +187,13 @@ export function validateDebitNoteRequiredFields(formData: any): ValidationResult
   }
 
   // Validate at least one item is selected
-  const selectedItems = formData.items.filter((item: any) => item.selected && item.qty > 0);
+  const selectedItems = formData.items.filter((item) => item.selected && item.qty > 0);
   if (selectedItems.length === 0) {
     errors.push('At least one item must be selected');
   }
 
   // Validate each selected item
-  formData.items.forEach((item: any, index: number) => {
+  formData.items.forEach((item, index: number) => {
     if (item.selected) {
       // Validate quantity
       if (item.qty <= 0) {

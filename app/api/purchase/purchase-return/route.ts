@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Build filters array for Purchase Receipt with is_return=1
-    let filters: any[][] = [
+    const filters: any[][] = [
       ["company", "=", company],
       ["is_return", "=", 1]
     ];
@@ -75,13 +75,15 @@ export async function GET(request: NextRequest) {
       filters: filters,
       limit_page_length: parseInt(limitPageLength || '20'),
       ...(start && { start: parseInt(start) }),
-      order_by: orderBy || 'creation desc'
+      order_by: orderBy || 'creation desc, posting_date desc'
     });
+
+    const totalRecords = await client.getCount('Purchase Receipt', { filters });
 
     return NextResponse.json({
       success: true,
       data: data || [],
-      total_records: data?.length || 0,
+      total_records: totalRecords,
     });
   } catch (error) {
     logSiteError(error, 'GET /api/purchase/purchase-return', siteId);

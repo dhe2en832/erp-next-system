@@ -77,10 +77,12 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    const totalRecords = await client.getCount('Supplier', { filters });
+
     return NextResponse.json({
       success: true,
       data: finalData,
-      total: finalData.length,
+      total: totalRecords,
       message: `Suppliers fetched successfully${search ? ' (hybrid search)' : ''}`
     });
   } catch (error: unknown) {

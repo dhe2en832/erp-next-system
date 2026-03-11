@@ -9,16 +9,18 @@ export const dynamic = 'force-dynamic';
 export default function JournalMainPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [selectedCompany, setSelectedCompany] = useState('');
+  const [selectedCompany] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('selected_company') || '';
+    }
+    return '';
+  });
 
   useEffect(() => {
-    const company = localStorage.getItem('selected_company');
-    if (company) {
-      setSelectedCompany(company);
-    } else {
+    if (!selectedCompany && typeof window !== 'undefined') {
       router.push('/select-company');
     }
-  }, [router]);
+  }, [router, selectedCompany]);
 
   const handleBack = () => {
     router.push('/journal');

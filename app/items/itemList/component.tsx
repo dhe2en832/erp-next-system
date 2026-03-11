@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import Pagination from '../../components/Pagination';
-import { Edit, Package, ArrowUp, Loader2, Search } from 'lucide-react';
+import { Edit, Package, ArrowUp, Search } from 'lucide-react';
 import ErrorDialog from '../../../components/ErrorDialog';
 
 export const dynamic = 'force-dynamic';
@@ -172,11 +172,11 @@ export default function ItemList() {
       const params = new URLSearchParams();
       params.append('limit_page_length', pageSize.toString());
       params.append('start', ((currentPage - 1) * pageSize).toString());
-      params.append('order_by', 'item_code asc'); // Changed from 'modified desc' for stable pagination
+      params.append('order_by', 'creation desc, item_code asc'); // Changed from 'modified desc' for stable pagination
 
       // ✅ ERPNext Filters: JSON array - Items are global, no company filter needed
       // Use OR logic for search: match item_name OR item_code OR description
-      const filters: any[] = [];
+      const filters: (string | number | boolean | null)[][] = [];
       
       if (itemCodeFilter?.trim()) {
         filters.push(['item_code', 'like', `%${itemCodeFilter.trim()}%`]);
@@ -232,7 +232,7 @@ export default function ItemList() {
       // });
 
       if (result.success) {
-        let itemsData = result.data || [];
+        const itemsData = result.data || [];
 
         // ✅ Fetch prices untuk setiap item (parallel)
         const itemsWithPrices = await Promise.all(
@@ -255,9 +255,9 @@ export default function ItemList() {
       } else {
         setError(result.message || 'Gagal memuat daftar barang');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('❌ Fetch Error:', err);
-      setError(err.message || 'Gagal memuat daftar barang');
+      setError(err instanceof Error ? err.message : 'Gagal memuat daftar barang');
     } finally {
       setLoading(false);
     }
@@ -334,31 +334,6 @@ export default function ItemList() {
     setCurrentPage(page);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
-
-  // ─────────────────────────────────────────────────────────
-  // Skeleton Loader Component
-  // ─────────────────────────────────────────────────────────
-  const SkeletonCard = () => (
-    <li className="px-4 py-4 border-b border-gray-100">
-      <div className="space-y-3 animate-pulse">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex-1">
-            <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-            <div className="h-3 bg-gray-200 rounded w-1/2 mt-2"></div>
-          </div>
-          <div className="h-5 bg-gray-200 rounded w-16"></div>
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <div className="h-3 bg-gray-200 rounded"></div>
-          <div className="h-3 bg-gray-200 rounded"></div>
-        </div>
-        <div className="flex items-center justify-between pt-2 border-t border-gray-100">
-          <div className="h-4 bg-gray-200 rounded w-24"></div>
-          <div className="h-8 w-8 bg-gray-200 rounded"></div>
-        </div>
-      </div>
-    </li>
-  );
 
   // ─────────────────────────────────────────────────────────
   // Initial Loading

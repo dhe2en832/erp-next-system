@@ -6,7 +6,6 @@
  */
 
 import { 
-  SiteConfig, 
   detectLegacyConfig, 
   migrateLegacyConfig as migrateLegacyToSiteConfig,
   MigrationResult 

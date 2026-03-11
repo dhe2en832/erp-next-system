@@ -58,6 +58,36 @@ interface DeliveryNoteFormData {
   items: DeliveryNoteItem[];
 }
 
+interface DeliveryNoteItem {
+  item_code: string;
+  item_name: string;
+  qty: number;
+  warehouse?: string;
+  against_sales_order?: string;
+}
+
+interface ERPNextDeliveryNote {
+  name: string;
+  status: string;
+  customer: string;
+  customer_name?: string;
+  posting_date: string;
+  lr_no?: string;
+  lr_date?: string;
+  transporter_name?: string;
+  vehicle_no?: string;
+  against_sales_order?: string;
+  items: DeliveryNoteItem[];
+  custom_notes_dn?: string;
+  remarks?: string;
+  docstatus?: number;
+  sales_team?: Array<{
+    sales_person: string;
+    allocated_percentage: number;
+  }>;
+  payment_terms_template?: string;
+}
+
 export default function DeliveryNoteMain() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -65,7 +95,7 @@ export default function DeliveryNoteMain() {
 
   const [loading, setLoading] = useState(!!dnName);
   const [selectedCompany, setSelectedCompany] = useState('');
-  const [editingDeliveryNote, setEditingDeliveryNote] = useState<any>(null);
+  const [editingDeliveryNote, setEditingDeliveryNote] = useState<ERPNextDeliveryNote | null>(null);
   const [currentDeliveryNoteStatus, setCurrentDeliveryNoteStatus] = useState<string>('');
   const [error, setError] = useState('');
   const [formLoading, setFormLoading] = useState(false);
@@ -129,18 +159,18 @@ export default function DeliveryNoteMain() {
         }
 
         setFormData({
-          customer: dn.customer,
-          customer_name: dn.customer_name,
-          posting_date: formatDate(dn.posting_date),
+          customer: (dn.customer as string),
+          customer_name: (dn.customer_name as string),
+          posting_date: formatDate(dn.posting_date as string),
           sales_order: salesOrderValue,
-          custom_notes_dn: dn.custom_notes_dn || '',
-          payment_terms_template: dn.payment_terms_template || '',
-          items: dn.items || [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0 }],
+          custom_notes_dn: (dn.custom_notes_dn as string) || '',
+          payment_terms_template: (dn.payment_terms_template as string) || '',
+          items: (dn.items as DeliveryNoteItem[]) || [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0 }],
         });
         // Load sales_team from DN
-        const loadedSalesTeam = dn.sales_team?.map((member: any) => ({
-          sales_person: member.sales_person || '',
-          allocated_percentage: member.allocated_percentage || 0
+        const loadedSalesTeam = (dn.sales_team as Record<string, unknown>[])?.map((member: Record<string, unknown>) => ({
+          sales_person: (member.sales_person as string) || '',
+          allocated_percentage: (member.allocated_percentage as number) || 0
         })) || [];
         setSalesTeam(loadedSalesTeam);
       } else {
@@ -171,18 +201,18 @@ export default function DeliveryNoteMain() {
       if (data.success) {
         const order = data.data;
         setFormData({
-          customer: order.customer,
-          customer_name: order.customer_name,
+          customer: (order.customer as string),
+          customer_name: (order.customer_name as string),
           posting_date: new Date().toISOString().split('T')[0],
           sales_order: salesOrderName,
-          custom_notes_dn: order.custom_notes_so || '',
-          payment_terms_template: order.payment_terms_template || '',
-          items: order.items || [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0 }],
+          custom_notes_dn: (order.custom_notes_so as string) || '',
+          payment_terms_template: (order.payment_terms_template as string) || '',
+          items: (order.items as DeliveryNoteItem[]) || [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0 }],
         });
         // Copy sales_team from SO
-        const loadedSalesTeam = order.sales_team?.map((member: any) => ({
-          sales_person: member.sales_person || '',
-          allocated_percentage: member.allocated_percentage || 0
+        const loadedSalesTeam = (order.sales_team as Record<string, unknown>[])?.map((member: Record<string, unknown>) => ({
+          sales_person: (member.sales_person as string) || '',
+          allocated_percentage: (member.allocated_percentage as number) || 0
         })) || [];
         setSalesTeam(loadedSalesTeam);
       }
@@ -261,10 +291,11 @@ export default function DeliveryNoteMain() {
 
       const data = await response.json();
 
-      if (data.success) {
-        const docName = data.data?.name || existingName || '';
-        createdDocName.current = docName;
+      if (response.ok && data.success) {
+        const docName = (data.data as Record<string, unknown>)?.name as string || existingName || '';
         setSavedDocName(docName);
+        createdDocName.current = docName;
+        setSuccessMessage(`Surat Jalan ${docName} berhasil ${editingDeliveryNote ? 'diperbarui' : 'dibuat'}`);
         setShowPrintDialog(true);
       } else {
         const { bannerMessage } = handleERPNextError(
@@ -275,14 +306,16 @@ export default function DeliveryNoteMain() {
         );
         setError(bannerMessage);
       }
-    } catch (err) {
-      console.error('Error creating delivery note:', err);
-      setError('Gagal membuat surat jalan');
+    } catch (error: unknown) {
+      console.error('Error submitting delivery note:', error);
+      setError('Terjadi kesalahan saat menyimpan data');
     } finally {
-      setFormLoading(false);
+      formLoadingSet(false);
       isSubmitting.current = false;
     }
   };
+
+  const formLoadingSet = (val: boolean) => setFormLoading(val);
 
   const getDefaultWarehouse = async (company: string) => {
     try {
@@ -331,32 +364,32 @@ export default function DeliveryNoteMain() {
       if (data.success) {
         const order = data.data;
         const defaultWarehouse = await getDefaultWarehouse(selectedCompany);
-        const deliveryNoteItems = order.items ? order.items.map((item: any) => ({
-          item_code: item.item_code,
-          item_name: item.item_name,
-          qty: item.qty,
-          rate: item.rate,
-          amount: item.amount,
-          uom: item.uom || 'Nos',
-          stock_uom: item.stock_uom || item.uom || 'Nos',
-          so_detail: item.name,
-          warehouse: item.warehouse || defaultWarehouse,
-          delivered_qty: item.qty,
+        const deliveryNoteItems = order.items ? (order.items as Record<string, unknown>[]).map((item: Record<string, unknown>) => ({
+          item_code: (item.item_code as string),
+          item_name: (item.item_name as string),
+          qty: (item.qty as number),
+          rate: (item.rate as number),
+          amount: (item.amount as number),
+          uom: (item.uom as string) || 'Nos',
+          stock_uom: (item.stock_uom as string) || (item.uom as string) || 'Nos',
+          so_detail: (item.name as string),
+          warehouse: (item.warehouse as string) || defaultWarehouse,
+          delivered_qty: (item.qty as number),
         })) : [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0, uom: 'Nos' }];
 
         setFormData({
-          customer: order.customer,
-          customer_name: order.customer_name,
+          customer: (order.customer as string),
+          customer_name: (order.customer_name as string),
           posting_date: new Date().toISOString().split('T')[0],
-          sales_order: order.name,
-          custom_notes_dn: order.custom_notes_so || '',
-          payment_terms_template: order.payment_terms_template || '',
+          sales_order: order.name as string,
+          custom_notes_dn: (order.custom_notes_so as string) || '',
+          payment_terms_template: (order.payment_terms_template as string) || '',
           items: deliveryNoteItems,
         });
         // Copy sales_team from SO
-        const loadedSalesTeam = order.sales_team?.map((member: any) => ({
-          sales_person: member.sales_person || '',
-          allocated_percentage: member.allocated_percentage || 0
+        const loadedSalesTeam = (order.sales_team as Record<string, unknown>[])?.map((member: Record<string, unknown>) => ({
+          sales_person: (member.sales_person as string) || '',
+          allocated_percentage: (member.allocated_percentage as number) || 0
         })) || [];
         setSalesTeam(loadedSalesTeam);
         
@@ -381,9 +414,7 @@ export default function DeliveryNoteMain() {
 
   const isReadOnly = editingDeliveryNote && currentDeliveryNoteStatus !== 'Draft';
 
-  if (loading) {
-    return <LoadingSpinner message="Memuat detail surat jalan..." />;
-  }
+  if (loading) return <LoadingSpinner />;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -602,7 +633,7 @@ export default function DeliveryNoteMain() {
                 value={formData.custom_notes_dn || ''}
                 onChange={(e) => setFormData({ ...formData, custom_notes_dn: e.target.value })}
                 placeholder="Tambahkan catatan untuk surat jalan ini..."
-                disabled={isReadOnly}
+                disabled={!!isReadOnly}
               />
             </div>
 
@@ -684,7 +715,7 @@ export default function DeliveryNoteMain() {
               vehicle_no: editingDeliveryNote.vehicle_no,
               against_sales_order: editingDeliveryNote.against_sales_order,
               items: editingDeliveryNote.items || [],
-              remarks: editingDeliveryNote.custom_notes_dn || editingDeliveryNote.remarks,
+              remarks: editingDeliveryNote.custom_notes_dn || editingDeliveryNote.remarks || '',
             }}
             companyName={selectedCompany}
           />

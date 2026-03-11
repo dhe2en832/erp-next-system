@@ -69,6 +69,7 @@ export default function EmployeeList() {
       params.set('limit_start', ((currentPage - 1) * pageSize).toString());
       
       if (searchTerm.trim()) params.set('search', searchTerm.trim());
+      params.set('order_by', 'creation desc');
 
       const response = await fetch(`/api/hr/employees?${params}`, { credentials: 'include' });
       const data = await response.json();

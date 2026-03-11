@@ -14,6 +14,7 @@ import { NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
 import { getERPNextClientForSite, ERPNextMultiClient } from './erpnext-multi';
 import { erpnextClient } from './erpnext';
+import type { SiteConfig } from './env-config';
 
 /**
  * Extract site ID from request
@@ -69,9 +70,11 @@ export async function getERPNextClientForRequest(
     
     // Load credentials from environment
     const { loadSiteCredentials } = await import('./site-credentials');
-    const tempSite: any = {
+    
+    const tempSite: SiteConfig = {
       id: siteId,
       name: siteName,
+      displayName: siteName.split('.')[0].toUpperCase(),
       apiUrl: apiUrl,
       apiKey: 'env',
       apiSecret: 'env',
@@ -81,11 +84,10 @@ export async function getERPNextClientForRequest(
     
     // If credentials found in environment, use them
     if (credentials.apiKey !== 'env' && credentials.apiSecret !== 'env') {
-      const siteConfig = {
+      const siteConfig: SiteConfig = {
         ...tempSite,
         apiKey: credentials.apiKey,
         apiSecret: credentials.apiSecret,
-        displayName: siteName.split('.')[0].toUpperCase(),
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };

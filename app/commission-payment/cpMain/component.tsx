@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import LoadingSpinner from '../../components/LoadingSpinner';
+import { useRouter } from 'next/navigation';
 import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
 import { formatDate, parseDate } from '../../../utils/format';
 
@@ -24,9 +23,14 @@ interface SalesPerson {
   full_name: string;
 }
 
+interface Account {
+  name: string;
+  account_name: string;
+  account_type: string;
+}
+
 export default function CommissionPaymentMain() {
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   const [selectedCompany, setSelectedCompany] = useState('');
   const [loading, setLoading] = useState(false);
@@ -57,7 +61,7 @@ export default function CommissionPaymentMain() {
   };
 
   // Fetch cash and bank accounts + commission account
-  const fetchCashBankAccounts = async (company: string) => {
+  const fetchCashBankAccounts = useCallback(async (company: string) => {
     if (!company) return;
     setLoadingAccounts(true);
     try {
@@ -70,9 +74,9 @@ export default function CommissionPaymentMain() {
       const commissionData = await commissionRes.json();
       
       if (cashBankData.success) {
-        setCashAccounts(cashBankData.data.filter((a: any) => a.account_type === 'Cash'));
-        setBankAccounts(cashBankData.data.filter((a: any) => a.account_type === 'Bank'));
-        const firstCash = cashBankData.data.find((a: any) => a.account_type === 'Cash');
+        setCashAccounts(cashBankData.data.filter((a: Account) => a.account_type === 'Cash'));
+        setBankAccounts(cashBankData.data.filter((a: Account) => a.account_type === 'Bank'));
+        const firstCash = cashBankData.data.find((a: Account) => a.account_type === 'Cash');
         if (firstCash) {
           setPaidFromAccount(firstCash.name);
         }
@@ -92,7 +96,7 @@ export default function CommissionPaymentMain() {
     } finally {
       setLoadingAccounts(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     const saved = localStorage.getItem('selected_company');
@@ -101,7 +105,7 @@ export default function CommissionPaymentMain() {
       setCompanyAbbr(getCompanyAbbr(saved));
       fetchCashBankAccounts(saved);
     }
-  }, []);
+  }, [fetchCashBankAccounts]);
 
   useEffect(() => {
     if (selectedCompany) fetchSalesPersons();
@@ -155,8 +159,8 @@ export default function CommissionPaymentMain() {
 
       if (data.success) {
         // Filter hanya yang belum dibayar (custom_commission_paid = false atau undefined)
-        const unpaidInvoices = (data.data || []).filter((inv: any) => !inv.custom_commission_paid);
-        setInvoices(unpaidInvoices.map((inv: any) => ({ ...inv, selected: true })));
+        const unpaidInvoices = (data.data || []).filter((inv: PayableInvoice) => !inv.custom_commission_paid);
+        setInvoices(unpaidInvoices.map((inv: PayableInvoice) => ({ ...inv, selected: true })));
       } else {
         setError(data.message || 'Gagal memuat faktur');
       }

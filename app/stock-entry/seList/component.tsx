@@ -123,7 +123,7 @@ export default function StockEntryList() {
       params.set('limit_start', ((currentPage - 1) * pageSize).toString());
       
       // Add base filters
-      const filtersArray: any[] = [["company", "=", selectedCompany]];
+      const filtersArray: [string, string, string][] = [["company", "=", selectedCompany]];
       
       // Add purpose filter
       if (purposeFilter) {
@@ -150,6 +150,7 @@ export default function StockEntryList() {
       }
       
       params.append('filters', JSON.stringify(filtersArray));
+      params.append('order_by', 'creation desc, posting_date desc, posting_time desc');
       
       // console.log('Fetch entries params:', params.toString());
       // console.log('Filters array:', filtersArray);
@@ -280,7 +281,7 @@ export default function StockEntryList() {
       } else {
         setError(data.message || 'Gagal submit entri stok');
       }
-    } catch (err) {
+    } catch {
       setError('Terjadi kesalahan saat submit entri stok');
     } finally {
       setSubmittingEntry(null);

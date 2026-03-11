@@ -273,7 +273,7 @@ async function testReportHistoricalConsistency(): Promise<void> {
     const today = new Date();
     const historicalDates: string[] = [];
 
-    for (let daysAgo of [30, 60, 90]) {
+    for (const daysAgo of [30, 60, 90]) {
       const date = new Date(today);
       date.setDate(date.getDate() - daysAgo);
       historicalDates.push(date.toISOString().split('T')[0]);

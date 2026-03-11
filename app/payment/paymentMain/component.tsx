@@ -9,6 +9,8 @@ import PrintPreviewModal from '../../../components/print/PrintPreviewModal';
 import PaymentPrint from '../../../components/print/PaymentPrint';
 import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
 
+import { PaymentEntry, PaymentWithReferences, PaymentReference } from '../../../types/payment-details';
+
 interface SalesInvoice {
   name: string;
   customer: string;
@@ -38,6 +40,35 @@ interface CompanyAccount {
   name: string;
   account_type: string;
   root_type: string;
+}
+
+interface CompanyAccountsData {
+  available_accounts?: CompanyAccount[];
+  default_receivable_account?: string;
+  default_payable_account?: string;
+  default_bank_account?: string;
+  default_cash_account?: string;
+  default_credit_card_account?: string;
+  default_advance_account?: string;
+  default_accounts?: {
+    bank?: string;
+    cash?: string;
+    receivable?: string;
+    payable?: string;
+    credit_card?: string;
+  };
+}
+
+interface AllocationResult {
+  allocation: Array<SalesInvoice | PurchaseInvoice | (SalesInvoice & { 
+    remaining_outstanding: number; 
+    allocation_status: string;
+  }) | (PurchaseInvoice & { 
+    remaining_outstanding: number; 
+    allocation_status: string;
+  })>;
+  unallocated: number;
+  totalAllocated: number;
 }
 
 interface PaymentFormData {
@@ -71,39 +102,38 @@ interface PaymentFormData {
 interface PaymentMainProps {
   onBack: () => void;
   selectedCompany: string;
-  editPayment?: any;
+  editPayment?: PaymentEntry | PaymentWithReferences;
   defaultPaymentType?: 'Receive' | 'Pay';
 }
 
 export default function PaymentMain({ onBack, selectedCompany, editPayment, defaultPaymentType }: PaymentMainProps) {
   // Helper function to format date to DD/MM/YYYY
-  const formatDateToDDMMYYYY = (date: Date) => {
+  const formatDateToDDMMYYYY = useCallback((date: Date) => {
     const day = date.getDate().toString().padStart(2, '0');
     const month = (date.getMonth() + 1).toString().padStart(2, '0');
     const year = date.getFullYear();
     return `${day}/${month}/${year}`;
-  };
+  }, []);
 
   // Helper function to convert DD/MM/YYYY to YYYY-MM-DD for API
-  const convertToAPIFormat = (ddmmyyyy: string): string => {
+  const convertToAPIFormat = useCallback((ddmmyyyy: string): string => {
     if (!ddmmyyyy || ddmmyyyy.length !== 10) return '';
     const [day, month, year] = ddmmyyyy.split('/');
     return `${year}-${month}-${day}`;
-  };
+  }, []);
 
   // Helper function to convert YYYY-MM-DD to DD/MM/YYYY for display
-  const convertToDisplayFormat = (yyyymmdd: string): string => {
+  const convertToDisplayFormat = useCallback((yyyymmdd: string): string => {
     if (!yyyymmdd || yyyymmdd.length !== 10) return '';
     const [year, month, day] = yyyymmdd.split('-');
     return `${day}/${month}/${year}`;
-  };
+  }, []);
 
   const [isEditMode, setIsEditMode] = useState(false);
   const isEditModeRef = useRef(false);
   const [editingPaymentId, setEditingPaymentId] = useState('');
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const createdDocName = useRef<string | null>(null);
-  const isSubmittingRef = useRef(false);
   const [outstandingInvoices, setOutstandingInvoices] = useState<SalesInvoice[]>([]);
   const [outstandingPurchaseInvoices, setOutstandingPurchaseInvoices] = useState<PurchaseInvoice[]>([]);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
@@ -141,48 +171,15 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
   const [formLoading, setFormLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
-  const [editingPayment, setEditingPayment] = useState<any>(null);
+  const [redirectCountdown, setRedirectCountdown] = useState(0);
+  const [editingPayment, setEditingPayment] = useState<PaymentEntry | PaymentWithReferences | null>(null);
   const [editingPaymentStatus, setEditingPaymentStatus] = useState('');
-  const [companyAccounts, setCompanyAccounts] = useState<any>({});
-  const [loadingAccounts, setLoadingAccounts] = useState(false);
+  const [companyAccounts, setCompanyAccounts] = useState<CompanyAccountsData | null>(null);
   const [showJournalPreview, setShowJournalPreview] = useState(false);
-
-  // Fetch company default accounts
-  const fetchCompanyAccounts = useCallback(async (skipAutoSelection = false) => {
-    if (!selectedCompany) return;
-
-    setLoadingAccounts(true);
-    try {
-      const response = await fetch(`/api/finance/company/accounts?company=${selectedCompany}`);
-      const data = await response.json();
-
-      if (data.success) {
-        setCompanyAccounts(data.data || {});
-
-        // Trigger auto-selection immediately after company accounts are loaded
-        // Skip if in edit mode or explicitly requested to skip
-        if (!skipAutoSelection && !isEditModeRef.current && formData.payment_type && formData.mode_of_payment) {
-          setTimeout(() => {
-            // Double-check edit mode inside timeout to handle race conditions
-            if (!isEditModeRef.current) {
-              triggerAutoSelection(data.data || {}, formData.payment_type, formData.mode_of_payment);
-            }
-          }, 100);
-        }
-      } else {
-        setCompanyAccounts({});
-      }
-    } catch (err) {
-      console.error('Error fetching company accounts:', err);
-      setCompanyAccounts({});
-    } finally {
-      setLoadingAccounts(false);
-    }
-  }, [selectedCompany, isEditMode, formData.payment_type, formData.mode_of_payment]);
 
   // Get selectable accounts filtered by mode_of_payment and payment_type
   const getSelectableAccounts = useCallback((mode: string, paymentType?: string): CompanyAccount[] => {
-    if (!companyAccounts.available_accounts) return [];
+    if (!companyAccounts?.available_accounts) return [];
     const accounts = companyAccounts.available_accounts as CompanyAccount[];
     // Use provided paymentType or fall back to formData (for backward compatibility)
     const effectivePaymentType = paymentType || formData.payment_type;
@@ -203,18 +200,18 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
       default:
         return accounts.filter(a => a.account_type === 'Cash');
     }
-  }, [companyAccounts.available_accounts, formData.payment_type]);
+  }, [companyAccounts?.available_accounts, formData.payment_type]);
 
   // Get the auto-set account (Receivable for Receive, Payable for Pay)
   const getAutoAccount = useCallback((paymentType: string): string => {
     if (paymentType === 'Receive') {
-      return companyAccounts.default_receivable_account || '';
+      return companyAccounts?.default_receivable_account || '';
     }
-    return companyAccounts.default_payable_account || '';
+    return companyAccounts?.default_payable_account || '';
   }, [companyAccounts]);
 
   // Manual trigger function for auto-selection
-  const triggerAutoSelection = useCallback((accounts: any, paymentType: string, paymentMode: string) => {
+  const triggerAutoSelection = useCallback((accounts: CompanyAccountsData | null, paymentType: string, paymentMode: string) => {
     if (!accounts || !paymentType || !paymentMode) return;
 
     // console.log('triggerAutoSelection called:', { paymentType, paymentMode, isEditMode });
@@ -246,50 +243,35 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
     }
   }, [getSelectableAccounts]);
 
-  // Auto-update accounts when payment type or mode changes
-  useEffect(() => {
-    // console.log('useEffect auto-selection:', { isEditMode, payment_type: formData.payment_type, mode_of_payment: formData.mode_of_payment, hasCompanyAccounts: !!companyAccounts.default_payable_account });
-    if (isEditMode) return;
-    if (!companyAccounts || !selectedCompany) return;
-    // Don't auto-select if paid_from already has a valid warkat/bank account (for edit mode safety)
-    if (formData.paid_from && (formData.paid_from.toLowerCase().includes('warkat') || formData.paid_from.toLowerCase().includes('bank') || formData.paid_from.toLowerCase().includes('kas'))) return;
-    triggerAutoSelection(companyAccounts, formData.payment_type, formData.mode_of_payment);
-  }, [formData.payment_type, formData.mode_of_payment, companyAccounts, selectedCompany, isEditMode, formData.paid_from]);
-
   // Fetch company accounts when company changes
-  useEffect(() => {
-    if (selectedCompany) {
-      fetchCompanyAccounts();
-    }
-  }, [selectedCompany, fetchCompanyAccounts]);
+  const fetchCompanyAccounts = useCallback(async (skipAutoSelection = false) => {
+    if (!selectedCompany) return;
 
-  // Handle edit payment on mount
-  useEffect(() => {
-    if (editPayment) {
-      handleEditPayment(editPayment);
-    } else {
-      // Trigger auto-selection for new payment
-      setTimeout(() => {
-        if (companyAccounts && formData.payment_type && formData.mode_of_payment) {
-          triggerAutoSelection(companyAccounts, formData.payment_type, formData.mode_of_payment);
+    try {
+      const response = await fetch(`/api/finance/company/accounts?company=${selectedCompany}`);
+      const data = await response.json();
+
+      if (data.success) {
+        setCompanyAccounts(data.data || null);
+
+        // Trigger auto-selection immediately after company accounts are loaded
+        // Skip if in edit mode or explicitly requested to skip
+        if (!skipAutoSelection && !isEditModeRef.current && formData.payment_type && formData.mode_of_payment) {
+          setTimeout(() => {
+            // Double-check edit mode inside timeout to handle race conditions
+            if (!isEditModeRef.current) {
+              triggerAutoSelection(data.data || null, formData.payment_type, formData.mode_of_payment);
+            }
+          }, 100);
         }
-      }, 200);
+      } else {
+        setCompanyAccounts(null);
+      }
+    } catch (err) {
+      console.error('Error fetching company accounts:', err);
+      setCompanyAccounts(null);
     }
-  }, [editPayment]);
-
-  // Handle customer selection from dialog
-  const handleCustomerSelect = (customer: { name: string; customer_name: string }) => {
-    setFormData(prev => ({ ...prev, party: customer.name }));
-    setSelectedCustomerName(customer.customer_name || customer.name);
-    fetchOutstandingInvoices(customer.name);
-  };
-
-  // Handle supplier selection from dialog
-  const handleSupplierSelect = (supplier: { name: string; supplier_name: string }) => {
-    setFormData(prev => ({ ...prev, party: supplier.name }));
-    setSelectedSupplierName(supplier.supplier_name || supplier.name);
-    fetchOutstandingPurchaseInvoices(supplier.name);
-  };
+  }, [selectedCompany, formData.payment_type, formData.mode_of_payment, triggerAutoSelection]);
 
   // Fetch outstanding invoices when customer is selected
   const fetchOutstandingInvoices = useCallback(async (customer: string) => {
@@ -341,6 +323,20 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
     }
   }, [selectedCompany]);
 
+  // Handle customer selection from dialog
+  const handleCustomerSelect = (customer: { name: string; customer_name: string }) => {
+    setFormData(prev => ({ ...prev, party: customer.name }));
+    setSelectedCustomerName(customer.customer_name || customer.name);
+    fetchOutstandingInvoices(customer.name);
+  };
+
+  // Handle supplier selection from dialog
+  const handleSupplierSelect = (supplier: { name: string; supplier_name: string }) => {
+    setFormData(prev => ({ ...prev, party: supplier.name }));
+    setSelectedSupplierName(supplier.supplier_name || supplier.name);
+    fetchOutstandingPurchaseInvoices(supplier.name);
+  };
+
   // Handle party change
   const handlePartyChange = (party: string) => {
     setFormData(prev => ({
@@ -382,7 +378,7 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
   };
 
   // Handle edit payment
-  const handleEditPayment = async (payment: any) => {
+  const handleEditPayment = useCallback(async (payment: PaymentEntry | PaymentWithReferences) => {
     try {
       setIsEditMode(true);
       isEditModeRef.current = true;
@@ -396,15 +392,15 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
         return;
       }
 
-      const paymentDetails = data.data;
+      const paymentDetails = data.data as PaymentWithReferences;
 
       // Extract account values - handle both string and object formats from ERPNext
       const paidFromAccount = typeof paymentDetails.paid_from === 'string' 
-        ? paymentDetails.paid_from 
-        : paymentDetails.paid_from?.name || '';
+        ? paymentDetails.paid_from
+        : (paymentDetails.paid_from as { name: string })?.name || '';
       const paidToAccount = typeof paymentDetails.paid_to === 'string' 
-        ? paymentDetails.paid_to 
-        : paymentDetails.paid_to?.name || '';
+        ? paymentDetails.paid_to
+        : (paymentDetails.paid_to as { name: string })?.name || '';
 
       // console.log('Edit Payment - Accounts:', { 
       //   paid_from: paidFromAccount, 
@@ -430,7 +426,7 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
         reference_no: paymentDetails.reference_no || '',
         reference_date: convertToDisplayFormat(paymentDetails.reference_date || ''),
         custom_notes_payment: paymentDetails.custom_notes_payment || '',
-        selected_invoices: paymentDetails.references?.map((ref: { reference_name: string; allocated_amount: number }) => ({
+        selected_invoices: paymentDetails.references?.map((ref: PaymentReference) => ({
           invoice_name: ref.reference_name,
           invoice_total: 0,
           outstanding_amount: ref.allocated_amount || 0,
@@ -444,7 +440,7 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
       if (paymentDetails.party_type === 'Customer') {
         setSelectedCustomerName(paymentDetails.party_name || paymentDetails.party);
 
-        const fetchInvoiceDetails = async (references: Array<{ reference_name: string; allocated_amount: number }>) => {
+        const fetchInvoiceDetails = async (references: PaymentReference[]) => {
           if (!references || references.length === 0) return [];
 
           const invoicePromises = references.map(async (ref) => {
@@ -469,22 +465,22 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
                   customer: invoice.customer || '',
                   posting_date: invoice.posting_date || '',
                   status: invoice.status || ''
-                };
+                } as SalesInvoice;
               } else {
                 return {
                   name: ref.reference_name, invoice_name: ref.reference_name,
                   invoice_total: 0, outstanding_amount: ref.allocated_amount || 0,
                   visual_outstanding: ref.allocated_amount || 0, allocated_amount: ref.allocated_amount || 0,
                   grand_total: 0, due_date: '', customer: '', posting_date: '', status: 'Unknown'
-                };
+                } as SalesInvoice;
               }
-            } catch (error) {
+            } catch {
               return {
                 name: ref.reference_name, invoice_name: ref.reference_name,
                 invoice_total: 0, outstanding_amount: ref.allocated_amount || 0,
                 visual_outstanding: ref.allocated_amount || 0, allocated_amount: ref.allocated_amount || 0,
                 grand_total: 0, due_date: '', customer: '', posting_date: '', status: 'Unknown'
-              };
+              } as SalesInvoice;
             }
           });
           return await Promise.all(invoicePromises);
@@ -495,7 +491,7 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
       } else {
         setSelectedSupplierName(paymentDetails.party_name || paymentDetails.party);
 
-        const fetchPurchaseInvoiceDetails = async (references: Array<{ reference_name: string; allocated_amount: number }>) => {
+        const fetchPurchaseInvoiceDetails = async (references: PaymentReference[]) => {
           if (!references || references.length === 0) return [];
 
           const invoicePromises = references.map(async (ref) => {
@@ -516,7 +512,7 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
                   due_date: invoice.due_date || '', supplier: invoice.supplier || '',
                   supplier_name: invoice.supplier_name || '', posting_date: invoice.posting_date || '',
                   status: invoice.status || ''
-                };
+                } as PurchaseInvoice;
               } else {
                 return {
                   name: ref.reference_name, invoice_name: ref.reference_name,
@@ -524,16 +520,16 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
                   visual_outstanding: ref.allocated_amount || 0, allocated_amount: ref.allocated_amount || 0,
                   grand_total: 0, due_date: '', supplier: '', supplier_name: '',
                   posting_date: '', status: 'Unknown'
-                };
+                } as PurchaseInvoice;
               }
-            } catch (error) {
+            } catch {
               return {
                 name: ref.reference_name, invoice_name: ref.reference_name,
                 invoice_total: 0, outstanding_amount: ref.allocated_amount || 0,
                 visual_outstanding: ref.allocated_amount || 0, allocated_amount: ref.allocated_amount || 0,
                 grand_total: 0, due_date: '', supplier: '', supplier_name: '',
                 posting_date: '', status: 'Unknown'
-              };
+              } as PurchaseInvoice;
             }
           });
           return await Promise.all(invoicePromises);
@@ -541,46 +537,38 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
 
         const allocatedPurchaseInvoices = await fetchPurchaseInvoiceDetails(paymentDetails.references || []);
         setOutstandingPurchaseInvoices(allocatedPurchaseInvoices);
-        setOutstandingInvoices([]);
       }
-
-      setEditingPayment(payment);
-      setEditingPaymentStatus(payment.status);
-
-      // Fetch accounts after setting edit values, with skipAutoSelection=true
-      if (selectedCompany) {
-        fetchCompanyAccounts(true);
-      }
-
-    } catch (error: unknown) {
-      console.error('Error fetching payment details:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Terjadi kesalahan saat memuat detail pembayaran';
-      setError(errorMessage);
+    } catch (err) {
+      console.error('Error in handleEditPayment:', err);
+      setError('Terjadi kesalahan saat memuat data');
     }
-  };
+  }, [selectedCompany, convertToDisplayFormat]);
 
-  // Get filtered accounts for dropdowns (now delegates to getSelectableAccounts)
-  const getFilteredAccounts = useCallback((accountType: 'debit' | 'credit'): CompanyAccount[] => {
-    if (!companyAccounts.available_accounts) return [];
-
-    // The selectable side uses mode-based filtering
-    // PAY:     credit side = selectable (source of funds), debit side = auto (Payable)
-    // RECEIVE: debit side  = selectable (destination),     credit side = auto (Receivable)
-    const isSelectableSide =
-      (formData.payment_type === 'Pay' && accountType === 'credit') ||
-      (formData.payment_type === 'Receive' && accountType === 'debit');
-
-    if (isSelectableSide) {
-      return getSelectableAccounts(formData.mode_of_payment);
+  // useEffect hooks at the end of logic
+  useEffect(() => {
+    if (selectedCompany) {
+      fetchCompanyAccounts();
     }
+  }, [selectedCompany, fetchCompanyAccounts]);
 
-    // Auto side: show Payable or Receivable accounts
-    const accounts = companyAccounts.available_accounts as CompanyAccount[];
-    if (formData.payment_type === 'Pay') {
-      return accounts.filter(a => a.account_type === 'Payable');
+  useEffect(() => {
+    if (isEditMode) return;
+    if (!companyAccounts || !selectedCompany) return;
+    if (formData.paid_from && (formData.paid_from.toLowerCase().includes('warkat') || formData.paid_from.toLowerCase().includes('bank') || formData.paid_from.toLowerCase().includes('kas'))) return;
+    triggerAutoSelection(companyAccounts, formData.payment_type, formData.mode_of_payment);
+  }, [formData.payment_type, formData.mode_of_payment, companyAccounts, selectedCompany, isEditMode, formData.paid_from, triggerAutoSelection]);
+
+  useEffect(() => {
+    if (editPayment) {
+      handleEditPayment(editPayment);
+    } else {
+      setTimeout(() => {
+        if (companyAccounts && formData.payment_type && formData.mode_of_payment) {
+          triggerAutoSelection(companyAccounts, formData.payment_type, formData.mode_of_payment);
+        }
+      }, 200);
     }
-    return accounts.filter(a => a.account_type === 'Receivable');
-  }, [companyAccounts.available_accounts, formData.payment_type, formData.mode_of_payment, getSelectableAccounts]);
+  }, [editPayment, companyAccounts, formData.payment_type, formData.mode_of_payment, handleEditPayment, triggerAutoSelection]);
 
   // Calculate total outstanding for validation
   const getTotalOutstanding = useCallback(() => {
@@ -613,8 +601,8 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
   }, [formData.selected_invoices, getTotalAllocationAmount, formData.payment_type]);
 
   // Calculate allocation preview (ERPNext FIFO logic)
-  const calculateAllocationPreview = useCallback((paymentAmount: number, invoices: any[]) => {
-    if (!invoices.length || paymentAmount <= 0) return { allocation: [], unallocated: paymentAmount };
+  const calculateAllocationPreview = useCallback((paymentAmount: number, invoices: Array<SalesInvoice | PurchaseInvoice>): AllocationResult => {
+    if (!invoices.length || paymentAmount <= 0) return { allocation: [], unallocated: paymentAmount, totalAllocated: 0 };
 
     const sortedInvoices = [...invoices].sort((a, b) =>
       new Date(a.due_date).getTime() - new Date(b.due_date).getTime()
@@ -641,27 +629,27 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
     };
   }, []);
 
-  const getJournalPreview = useCallback((paymentAmount: number, allocation: any) => {
+  const getJournalPreview = useCallback((paymentAmount: number, allocation: AllocationResult) => {
     const totalAllocated = allocation.totalAllocated || 0;
     const unallocated = paymentAmount - totalAllocated;
 
     if (formData.payment_type === 'Receive') {
       let debitAccount = '';
       if (formData.mode_of_payment === 'Bank Transfer' || formData.mode_of_payment === 'Warkat') {
-        debitAccount = companyAccounts.default_accounts?.bank || 'Bank Account';
+        debitAccount = companyAccounts?.default_accounts?.bank || 'Bank Account';
       } else if (formData.mode_of_payment === 'Credit Card') {
-        debitAccount = companyAccounts.default_accounts?.credit_card || 'Credit Card';
+        debitAccount = companyAccounts?.default_accounts?.credit_card || 'Credit Card';
       } else {
-        debitAccount = companyAccounts.default_accounts?.cash || 'Cash Account';
+        debitAccount = companyAccounts?.default_accounts?.cash || 'Cash Account';
       }
-      const creditAccount = companyAccounts.default_accounts?.receivable || 'Accounts Receivable';
+      const creditAccount = companyAccounts?.default_accounts?.receivable || 'Accounts Receivable';
 
       return {
         debit: { account: debitAccount, amount: paymentAmount },
         credits: [
           { account: creditAccount, amount: totalAllocated, reference: 'Customer Invoice Payments' },
           ...(unallocated > 0 ? [{
-            account: companyAccounts.default_advance_account || 'Customer Advance',
+            account: companyAccounts?.default_advance_account || 'Customer Advance',
             amount: unallocated, reference: 'Customer Overpayment'
           }] : [])
         ]
@@ -669,14 +657,14 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
     }
 
     if (formData.payment_type === 'Pay') {
-      const debitAccount = companyAccounts.default_accounts?.payable || 'Accounts Payable';
+      const debitAccount = companyAccounts?.default_accounts?.payable || 'Accounts Payable';
       let creditAccount = '';
       if (formData.mode_of_payment === 'Bank Transfer' || formData.mode_of_payment === 'Warkat') {
-        creditAccount = companyAccounts.default_accounts?.bank || 'Bank Account';
+        creditAccount = companyAccounts?.default_accounts?.bank || 'Bank Account';
       } else if (formData.mode_of_payment === 'Credit Card') {
-        creditAccount = companyAccounts.default_accounts?.credit_card || 'Credit Card';
+        creditAccount = companyAccounts?.default_accounts?.credit_card || 'Credit Card';
       } else {
-        creditAccount = companyAccounts.default_accounts?.cash || 'Cash Account';
+        creditAccount = companyAccounts?.default_accounts?.cash || 'Cash Account';
       }
 
       return {
@@ -684,7 +672,7 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
         credits: [
           { account: creditAccount, amount: totalAllocated, reference: 'Supplier Bill Payments' },
           ...(unallocated > 0 ? [{
-            account: companyAccounts.default_advance_account || 'Supplier Advance',
+            account: companyAccounts?.default_advance_account || 'Supplier Advance',
             amount: unallocated, reference: 'Supplier Overpayment'
           }] : [])
         ]
@@ -693,34 +681,6 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
 
     return { debit: { account: '', amount: 0 }, credits: [] };
   }, [formData.payment_type, formData.mode_of_payment, companyAccounts]);
-
-  const getRealPaidFrom = (paymentType: string, paymentMode: string) => {
-    if (paymentType === 'Receive') {
-      return companyAccounts.default_receivable_account || 'Accounts Receivable';
-    } else {
-      return companyAccounts.default_payable_account || 'Accounts Payable';
-    }
-  };
-
-  const getRealPaidTo = (paymentType: string, paymentMode: string) => {
-    if (paymentType === 'Receive') {
-      if (paymentMode === 'Bank Transfer' || paymentMode === 'Warkat') {
-        return companyAccounts.default_bank_account || companyAccounts.default_cash_account || 'Bank Account';
-      } else if (paymentMode === 'Credit Card') {
-        return companyAccounts.default_credit_card_account || companyAccounts.default_cash_account || 'Credit Card';
-      } else {
-        return companyAccounts.default_cash_account || 'Cash Account';
-      }
-    } else {
-      if (paymentMode === 'Bank Transfer' || paymentMode === 'Warkat') {
-        return companyAccounts.default_bank_account || companyAccounts.default_cash_account || 'Bank Account';
-      } else if (paymentMode === 'Credit Card') {
-        return companyAccounts.default_credit_card_account || companyAccounts.default_cash_account || 'Credit Card';
-      } else {
-        return companyAccounts.default_cash_account || 'Cash Account';
-      }
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -750,7 +710,7 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
       }
 
       const paymentAmount = formData.payment_type === 'Receive' ? formData.received_amount : formData.paid_amount;
-      const totalOutstanding = getTotalOutstanding();
+      const totalOutstanding = formData.payment_type === 'Receive' ? getTotalOutstanding() : getTotalPurchaseOutstanding();
 
       // Validasi akun wajib diisi
       if (!formData.paid_from || !formData.paid_to) {
@@ -861,12 +821,23 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
           msg += `\nKredit Pelanggan: Rp ${(paymentAmount - totalOutstanding).toLocaleString('id-ID')}`;
         }
         setSuccessMessage(msg);
-        setTimeout(() => { onBack(); }, 2000);
+        
+        // Setup countdown and redirect
+        setRedirectCountdown(3);
+        const timer = setInterval(() => {
+          setRedirectCountdown(prev => prev - 1);
+        }, 1000);
+
+        setTimeout(() => {
+          clearInterval(timer);
+          onBack();
+        }, 3000);
+        
         return;
       } else {
         setError(data.message || `Gagal ${isUpdate ? 'memperbarui' : 'membuat'} pembayaran`);
       }
-    } catch (err) {
+    } catch {
       setError('Terjadi kesalahan. Silakan coba lagi.');
     } finally {
       // Only reset loading if not successful (success case returns early)
@@ -941,16 +912,40 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
         )}
       </div>
 
-      {/* Success Message */}
+      {/* Success Dialog */}
       {successMessage && (
-        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-md">
-          <div className="flex">
-            <svg className="h-5 w-5 text-green-400 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-            </svg>
-            <div className="ml-3">
-              <h3 className="text-sm font-medium text-green-800">Berhasil!</h3>
-              <pre className="mt-1 text-sm text-green-700 whitespace-pre-wrap font-sans">{successMessage}</pre>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100]">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+            <div className="flex items-center mb-4">
+              <div className="flex-shrink-0">
+                <svg className="h-6 w-6 text-green-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-lg font-medium text-gray-900">Berhasil!</h3>
+              </div>
+            </div>
+            <div className="mb-4">
+              <pre className="text-sm text-gray-600 whitespace-pre-wrap font-sans">{successMessage}</pre>
+              <p className="text-sm text-gray-600 mt-2">
+                Entri pembayaran telah berhasil disimpan dan akan segera dialihkan ke daftar.
+              </p>
+              {redirectCountdown > 0 && (
+                <div className="mt-3 flex items-center justify-between">
+                  <div className="text-sm text-gray-600">
+                    Mengalihkan dalam <span className="font-bold text-green-600">{redirectCountdown}</span> detik...
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end">
+              <button
+                onClick={() => { setSuccessMessage(''); onBack(); }}
+                className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+              >
+                Ke Daftar Pembayaran
+              </button>
             </div>
           </div>
         </div>
@@ -1611,27 +1606,37 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
                 </div>
 
                 <div className="space-y-2 mb-3">
-                  {preview.allocation.map((invoice: any) => (
-                    <div key={invoice.name} className="flex flex-col sm:flex-row justify-between items-start sm:items-center text-sm bg-white p-2 rounded border border-blue-100 gap-1">
-                      <div className="flex-1">
-                        <span className="font-medium text-blue-800">{invoice.name}</span>
-                        <span className="text-gray-500 ml-2">(Jatuh Tempo: {invoice.due_date})</span>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-blue-700">
-                          Rp {invoice.outstanding_amount.toLocaleString('id-ID')} →
-                          <span className={`font-medium ml-1 ${invoice.allocation_status === 'Paid' ? 'text-green-600' :
-                            invoice.allocation_status === 'Partially Paid' ? 'text-orange-600' : 'text-gray-500'}`}>
-                            Rp {invoice.allocated_amount.toLocaleString('id-ID')}
-                          </span>
+                  {preview.allocation.map((invoice, index) => {
+                    const inv = invoice as { 
+                      name: string; 
+                      due_date: string; 
+                      outstanding_amount: number; 
+                      allocated_amount: number; 
+                      allocation_status: string;
+                      remaining_outstanding: number;
+                    };
+                    return (
+                      <div key={inv.name || index} className="flex flex-col sm:flex-row justify-between items-start sm:items-center text-sm bg-white p-2 rounded border border-blue-100 gap-1">
+                        <div className="flex-1">
+                          <span className="font-medium text-blue-800">{inv.name}</span>
+                          <span className="text-gray-500 ml-2">(Jatuh Tempo: {inv.due_date})</span>
                         </div>
-                        <div className="text-xs text-gray-500">
-                          {invoice.allocation_status === 'Paid' ? 'Lunas' : invoice.allocation_status === 'Partially Paid' ? 'Sebagian' : 'Belum'}
-                          {invoice.remaining_outstanding > 0 && ` (Sisa: Rp ${invoice.remaining_outstanding.toLocaleString('id-ID')})`}
+                        <div className="text-right">
+                          <div className="text-blue-700">
+                            Rp {inv.outstanding_amount.toLocaleString('id-ID')} →
+                            <span className={`font-medium ml-1 ${inv.allocation_status === 'Paid' ? 'text-green-600' :
+                              inv.allocation_status === 'Partially Paid' ? 'text-orange-600' : 'text-gray-500'}`}>
+                              Rp {inv.allocated_amount.toLocaleString('id-ID')}
+                            </span>
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {inv.allocation_status === 'Paid' ? 'Lunas' : inv.allocation_status === 'Partially Paid' ? 'Sebagian' : 'Belum'}
+                            {inv.remaining_outstanding > 0 && ` (Sisa: Rp ${inv.remaining_outstanding.toLocaleString('id-ID')})`}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 <div className="border-t border-blue-200 pt-3">
@@ -1707,10 +1712,10 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
                   </div>
 
                   <div className="border-t border-gray-300 pt-2 space-y-1">
-                    {journal.credits.map((credit: any, index: number) => (
+                    {journal.credits.map((credit, index) => (
                       <div key={index} className="flex justify-between items-center text-red-600">
-                        <span>Kredit: {credit.account}</span>
-                        <span className="font-medium">Rp {credit.amount.toLocaleString('id-ID')}</span>
+                        <span>Kredit: {(credit as { account: string }).account}</span>
+                        <span className="font-medium">Rp {(credit as { amount: number }).amount.toLocaleString('id-ID')}</span>
                       </div>
                     ))}
                   </div>
@@ -1723,7 +1728,7 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
                     <div className="flex justify-between items-center text-sm">
                       <span className="font-medium text-gray-900">Total Kredit:</span>
                       <span className="font-bold text-red-600">
-                        Rp {journal.credits.reduce((sum: number, credit: any) => sum + credit.amount, 0).toLocaleString('id-ID')}
+                        Rp {journal.credits.reduce((sum, credit) => sum + (credit as { amount: number }).amount, 0).toLocaleString('id-ID')}
                       </span>
                     </div>
                   </div>

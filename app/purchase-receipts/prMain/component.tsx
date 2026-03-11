@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import PrintDialog from '../../components/PrintDialog';
@@ -43,18 +43,6 @@ interface ERPNextPOItem {
   purchase_order: string;
   purchase_order_item: string;
   schedule_date: string;
-}
-
-interface PurchaseReceipt {
-  name: string;
-  supplier: string;
-  supplier_name: string;
-  posting_date: string;
-  purchase_order: string;
-  status: string;
-  grand_total: number;
-  currency: string;
-  items: PurchaseReceiptItem[];
 }
 
 interface PurchaseReceiptItem {
@@ -195,6 +183,142 @@ export default function PurchaseReceiptMain() {
     }
   }, []);
 
+  const fetchSuppliers = useCallback(async () => {
+    if (!selectedCompany) return;
+
+    try {
+      const response = await fetch(`/api/purchase/suppliers?company=${encodeURIComponent(selectedCompany)}`);
+      const data = await response.json();
+
+      if (data.success) {
+        setSuppliers(data.data || []);
+      }
+    } catch (err) {
+      console.error('Error fetching suppliers:', err);
+    }
+  }, [selectedCompany]);
+
+  const fetchPurchaseOrders = useCallback(async () => {
+    try {
+      if (!selectedCompany) return;
+
+      let url = `/api/purchase/receipts/list-for-pr?company=${encodeURIComponent(selectedCompany)}`;
+      if (supplier) {
+        url += `&supplier=${encodeURIComponent(supplier)}`;
+      }
+
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+      const data = await response.json();
+      let poData = [];
+      if (data.message && data.message.success && Array.isArray(data.message.data)) {
+        poData = data.message.data;
+      } else if (data.success && Array.isArray(data.data)) {
+        poData = data.data;
+      }
+
+      setPurchaseOrders(poData);
+    } catch (err) {
+      console.error('Error fetching purchase orders for PR:', err);
+      setPurchaseOrders([]);
+    }
+  }, [selectedCompany, supplier]);
+
+  const fetchWarehouses = useCallback(async () => {
+    try {
+      if (!selectedCompany) return;
+
+      const response = await fetch(`/api/inventory/warehouses?company=${encodeURIComponent(selectedCompany)}`, { credentials: 'include' });
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+      const data = await response.json();
+      if (data.error) throw new Error(data.error);
+
+      if (data.data && Array.isArray(data.data)) {
+        setWarehouses(data.data);
+      } else {
+        setWarehouses([]);
+      }
+    } catch (err) {
+      console.error('Error fetching warehouses:', err);
+      setWarehouses([]);
+      setError('Gagal mengambil data gudang');
+    }
+  }, [selectedCompany]);
+
+  const fetchPurchaseReceipt = useCallback(async (id: string) => {
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await fetch(`/api/purchase/receipts/${id}?company=${encodeURIComponent(selectedCompany)}`);
+      const data = await response.json();
+
+      if (data.success) {
+        const receipt = data.data;
+        
+        // Set basic header fields
+        setSupplier(receipt.supplier);
+        setSupplierName(receipt.supplier_name);
+        setPostingDate(receipt.posting_date);
+        setPurchaseOrder(receipt.purchase_order);
+        setCurrency(receipt.currency || 'IDR');
+        setRemarks(receipt.remarks || '');
+        
+        // Set receiving warehouse from set_warehouse or items
+        if (receipt.set_warehouse) {
+          setReceivingWarehouse(receipt.set_warehouse);
+        } else if (receipt.items && receipt.items.length > 0 && receipt.items[0].warehouse) {
+          setReceivingWarehouse(receipt.items[0].warehouse);
+        }
+        
+        // Process items to ensure all fields are properly set
+        let processedItems = [];
+        
+        if (receipt.items && Array.isArray(receipt.items) && receipt.items.length > 0) {
+          processedItems = receipt.items.map((item: PurchaseReceiptItem) => {
+            // Ensure all required fields are present
+            const processedItem: PurchaseReceiptItem = {
+              item_code: item.item_code || '',
+              item_name: item.item_name || '',
+              description: item.description || '',
+              qty: item.qty || 0,
+              received_qty: item.received_qty || 0,
+              rejected_qty: item.rejected_qty || 0,
+              uom: item.uom || '',
+              rate: item.rate || 0,
+              amount: item.amount || 0,
+              warehouse: item.warehouse || receipt.set_warehouse || '',
+              purchase_order: item.purchase_order || receipt.purchase_order || '',
+              purchase_order_item: item.purchase_order_item || '',
+              schedule_date: item.schedule_date || '',
+            };
+            
+            return processedItem;
+          });
+        }
+        
+        setSelectedItems(processedItems);
+        
+        // If no PO in header, get from first item
+        if (!receipt.purchase_order && receipt.items && receipt.items.length > 0) {
+          const firstPO = receipt.items[0].purchase_order;
+          if (firstPO) {
+            setPurchaseOrder(firstPO);
+          }
+        }
+      } else {
+        setError(data.message || 'Gagal mengambil data penerimaan barang');
+      }
+    } catch (err) {
+      console.error('Error fetching PR:', err);
+      setError('Terjadi kesalahan saat mengambil data');
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedCompany]);
+
   useEffect(() => {
     if (!selectedCompany) return;
     
@@ -218,115 +342,9 @@ export default function PurchaseReceiptMain() {
       setPrId(name);
       fetchPurchaseReceipt(name);
     }
-  }, [selectedCompany]);
+  }, [selectedCompany, fetchPurchaseReceipt]);
 
-  // Debug useEffect to monitor selectedItems
-  // useEffect(() => {
-  //   console.log('=== DEBUG selectedItems ===');
-  //   console.log('Length:', selectedItems.length);
-  //   console.log('Items:', selectedItems);
-  //   console.log('EditMode:', isEditMode, 'ViewMode:', isViewMode);
-  //   console.log('========================');
-  // }, [selectedItems, isEditMode, isViewMode]);
-
-  const fetchSuppliers = async () => {
-    if (!selectedCompany) return;
-
-    try {
-      const response = await fetch(`/api/purchase/suppliers?company=${encodeURIComponent(selectedCompany)}`);
-      const data = await response.json();
-
-      if (data.success) {
-        // console.log('Fetched suppliers:', data.data);
-        setSuppliers(data.data || []);
-      }
-    } catch (err) {
-      console.error('Error fetching suppliers:', err);
-    }
-  };
-
-
-  const fetchPurchaseReceipt = async (id: string) => {
-    setLoading(true);
-    setError('');
-
-    try {
-      const response = await fetch(`/api/purchase/receipts/${id}?company=${encodeURIComponent(selectedCompany)}`);
-      const data = await response.json();
-
-      if (data.success) {
-        const receipt = data.data;
-        // console.log('Fetched Purchase Receipt:', receipt);
-        // console.log('Items count:', receipt.items?.length || 0);
-        // console.log('Raw Items data:', receipt.items);
-        
-        // Set basic header fields
-        setSupplier(receipt.supplier);
-        setSupplierName(receipt.supplier_name);
-        setPostingDate(receipt.posting_date);
-        setPurchaseOrder(receipt.purchase_order);
-        setCurrency(receipt.currency || 'IDR');
-        setRemarks(receipt.remarks || '');
-        
-        // Set receiving warehouse from set_warehouse or items
-        if (receipt.set_warehouse) {
-          setReceivingWarehouse(receipt.set_warehouse);
-        } else if (receipt.items && receipt.items.length > 0 && receipt.items[0].warehouse) {
-          setReceivingWarehouse(receipt.items[0].warehouse);
-        }
-        
-        // Process items to ensure all fields are properly set
-        let processedItems = [];
-        
-        if (receipt.items && Array.isArray(receipt.items) && receipt.items.length > 0) {
-          processedItems = receipt.items.map((item: any) => {
-            // console.log('Processing item:', item);
-            
-            // Ensure all required fields are present
-            const processedItem: PurchaseReceiptItem = {
-              item_code: item.item_code || '',
-              item_name: item.item_name || '',
-              description: item.description || '',
-              qty: item.qty || 0,
-              received_qty: item.received_qty || 0,
-              rejected_qty: item.rejected_qty || 0,
-              uom: item.uom || '',
-              rate: item.rate || 0,
-              amount: item.amount || 0,
-              warehouse: item.warehouse || receipt.set_warehouse || '',
-              purchase_order: item.purchase_order || receipt.purchase_order || '',
-              purchase_order_item: item.purchase_order_item || '',
-              schedule_date: item.schedule_date || '',
-            };
-            
-            // console.log('Processed item:', processedItem);
-            return processedItem;
-          });
-        }
-        
-        // console.log('Final processed items:', processedItems);
-        setSelectedItems(processedItems);
-        
-        // If no PO in header, get from first item
-        if (!receipt.purchase_order && receipt.items && receipt.items.length > 0) {
-          const firstPO = receipt.items[0].purchase_order;
-          if (firstPO) {
-            setPurchaseOrder(firstPO);
-          }
-        }
-      } else {
-        // console.log('Failed to fetch Purchase Receipt:', data.message);
-        setError(data.message || 'Gagal mengambil data penerimaan barang');
-      }
-    } catch (err) {
-    
-      setError('Terjadi kesalahan saat mengambil data');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchPOItems = async (poName: string) => {
+  const fetchPOItems = useCallback(async (poName: string) => {
  
     setLoading(true);
     setError('');
@@ -389,40 +407,7 @@ export default function PurchaseReceiptMain() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const fetchWarehouses = async () => {
-    try {
-      if (!selectedCompany) {
-        console.warn('No company selected, skipping warehouse fetch');
-        return;
-      }
-
-      const response = await fetch(`/api/inventory/warehouses?company=${encodeURIComponent(selectedCompany)}`, { credentials: 'include' });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      if (data.error) {
-        throw new Error(data.error);
-      }
-
-      if (data.data && Array.isArray(data.data)) {
-        setWarehouses(data.data);
-      } else {
-        console.warn('No warehouse data received');
-        setWarehouses([]);
-      }
-    } catch (err) {
-      console.error('Error fetching warehouses:', err);
-      // Set empty array on error to prevent UI issues
-      setWarehouses([]);
-      // Optionally show error to user
-      setError('Gagal mengambil data gudang');
-    }
-  };
+  }, []);
 
   useEffect(() => {
     if (selectedCompany) {
@@ -430,7 +415,7 @@ export default function PurchaseReceiptMain() {
       fetchPurchaseOrders();
       fetchWarehouses();
     }
-  }, [selectedCompany]);
+  }, [selectedCompany, fetchSuppliers, fetchPurchaseOrders, fetchWarehouses]);
 
   useEffect(() => {
     if (selectedCompany) {
@@ -444,7 +429,7 @@ export default function PurchaseReceiptMain() {
         setRemarks('');
       }
     }
-  }, [supplier]);
+  }, [selectedCompany, supplier, isEditMode, isViewMode, fetchPurchaseOrders]);
 
   const validateForm = () => {
     if (!purchaseOrder) {
@@ -647,8 +632,7 @@ export default function PurchaseReceiptMain() {
         setValidationMessage(userFriendlyError);
         setShowValidationAlert(true);
       }
-    } catch (err) {
-      console.error('Purchase Receipt creation error:', err);
+    } catch {
       setError(`Gagal ${isEditMode ? 'memperbarui' : 'membuat'} penerimaan barang`);
     } finally {
       setLoading(false);
@@ -658,7 +642,6 @@ export default function PurchaseReceiptMain() {
 
   const updateItemQty = (index: number, field: 'received_qty' | 'rejected_qty', value: number) => {
     const newItems = [...selectedItems];
-    const oldValue = newItems[index][field];
     newItems[index][field] = value;
     
 
@@ -674,56 +657,6 @@ export default function PurchaseReceiptMain() {
   const removeItem = (index: number) => {
     const newItems = selectedItems.filter((_, i) => i !== index);
     setSelectedItems(newItems);
-  };
-
-  const calculateTotal = () => {
-    return selectedItems.reduce((total, item) => total + item.amount, 0);
-  };
-
-  const fetchPurchaseOrders = async () => {
-    try {
-      if (!selectedCompany) {
-        console.warn('No company selected, skipping PO fetch');
-        return;
-      }
-
-      // Use our proxy API that calls ERPNext method
-      let url = `/api/purchase/receipts/list-for-pr?company=${encodeURIComponent(selectedCompany)}`;
-      if (supplier) {
-        url += `&supplier=${encodeURIComponent(supplier)}`;
-        // console.log('Fetching POs for supplier:', supplier);
-      } else {
-        console.log('Fetching POs for all suppliers');
-      }
-
-      // console.log('Final URL:', url);
-
-      const response = await fetch(url);
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-
-      // Handle both custom method and standard API response formats
-      let poData = [];
-      if (data.message && data.message.success && Array.isArray(data.message.data)) {
-        poData = data.message.data;
-      } else if (data.success && Array.isArray(data.data)) {
-        poData = data.data;
-      }
-
-      // console.log('PO List for PR:', poData.length, 'items');
-      // console.log('PO Data:', poData);
-      // if (supplier) {
-      //   console.log('Filtered by supplier:', supplier);
-      // }
-      setPurchaseOrders(poData);
-    } catch (err) {
-      console.error('Error fetching purchase orders for PR:', err);
-      setPurchaseOrders([]);
-    }
   };
 
   const handleAddItem = () => {
@@ -744,10 +677,6 @@ export default function PurchaseReceiptMain() {
       schedule_date: '',
     };
     setSelectedItems([...selectedItems, newItem]);
-  };
-
-  const openItemDialog = (index: number) => {
-    // TODO: Implement item selection dialog
   };
 
   if (loading && !purchaseOrder) {

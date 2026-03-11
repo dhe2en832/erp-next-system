@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
       return await client.getList('Payment Terms Template', {
         fields: ['name'],
         limit_page_length: 100,
-        order_by: 'name'
+        order_by: 'creation desc, name asc'
       });
     });
 

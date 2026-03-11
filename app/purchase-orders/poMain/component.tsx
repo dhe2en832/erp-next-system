@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import ItemDialog from '../../components/ItemDialog';
 import LoadingSpinner from '../../components/LoadingSpinner';
@@ -22,16 +22,6 @@ interface Supplier {
   contact_person?: string;
 }
 
-interface Item {
-  name: string;
-  item_name: string;
-  item_code: string;
-  description: string;
-  stock_uom: string;
-  rate: number;
-  expense_account?: string;
-}
-
 interface PurchaseOrderItem {
   item_code: string;
   item_name: string;
@@ -46,11 +36,6 @@ interface PurchaseOrderItem {
   available_stock?: number;
   actual_stock?: number;
   reserved_stock?: number;
-}
-
-interface TermsAndConditions {
-  name: string;
-  terms: string;
 }
 
 interface TaxTemplate {
@@ -80,7 +65,6 @@ export default function PurchaseOrderMain() {
   const [scheduleDate, setScheduleDate] = useState('');
   const [currency, setCurrency] = useState('IDR');
   const [priceList, setPriceList] = useState('Standar Pembelian');
-  const [termsAndConditions, setTermsAndConditions] = useState('');
   const [taxesAndCharges, setTaxesAndCharges] = useState('');
   const [remarks, setRemarks] = useState('');
   
@@ -88,13 +72,10 @@ export default function PurchaseOrderMain() {
   const [contactPerson, setContactPerson] = useState('');
   const [deliveryLocation, setDeliveryLocation] = useState('');
   const [shippingAddress, setShippingAddress] = useState('');
-  const [billingAddress, setBillingAddress] = useState('');
   const [warehouse, setWarehouse] = useState('');
   
   // Items states
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [items, setItems] = useState<Item[]>([]);
-  const [termsList, setTermsList] = useState<TermsAndConditions[]>([]);
   const [taxTemplates, setTaxTemplates] = useState<TaxTemplate[]>([]);
   const [warehouses, setWarehouses] = useState<{name: string; warehouse_name: string}[]>([]);
   const [selectedItems, setSelectedItems] = useState<PurchaseOrderItem[]>([
@@ -113,11 +94,6 @@ export default function PurchaseOrderMain() {
       reserved_stock: 0
     }
   ]);
-  const [selectedItemCode, setSelectedItemCode] = useState('');
-  const [itemQty, setItemQty] = useState(1);
-  const [itemRate, setItemRate] = useState(0);
-  const [itemWarehouse, setItemWarehouse] = useState('');
-  const [itemScheduledDate, setItemScheduledDate] = useState('');
   
   // Calculations
   const [subtotal, setSubtotal] = useState(0);
@@ -135,417 +111,14 @@ export default function PurchaseOrderMain() {
   // Rate input states for each item
   const [rateInputValues, setRateInputValues] = useState<{[key: number]: string}>({});
   
-  // Countdown timer for redirect
-  const [redirectCountdown, setRedirectCountdown] = useState(0);
-
   // Filter suppliers based on search term
   const filteredSuppliers = suppliers.filter(supplier =>
     (supplier.supplier_name && supplier.supplier_name.toLowerCase().includes(supplierSearchTerm.toLowerCase())) ||
     (supplier.name && supplier.name.toLowerCase().includes(supplierSearchTerm.toLowerCase()))
   );
 
-  useEffect(() => {
-    // Get company from localStorage
-    let savedCompany = localStorage.getItem('selected_company');
-    
-    if (!savedCompany) {
-      const cookies = document.cookie.split(';');
-      const companyCookie = cookies.find(cookie => cookie.trim().startsWith('selected_company='));
-      if (companyCookie) {
-        savedCompany = companyCookie.split('=')[1];
-        if (savedCompany) {
-          localStorage.setItem('selected_company', savedCompany);
-        }
-      }
-    }
-    
-    if (savedCompany) {
-      setSelectedCompany(savedCompany);
-      fetchSuppliers(savedCompany);
-      fetchItems(savedCompany);
-      fetchWarehouses(savedCompany);
-      
-      // Check if we're editing or viewing an existing PO
-      const urlParams = new URLSearchParams(window.location.search);
-      const poIdParam = urlParams.get('id');
-      const poNameParam = urlParams.get('name');
-      const poIdentifier = poIdParam || poNameParam;
-      
-      if (poIdentifier) {
-        setIsEditMode(true);
-        setPoId(poIdentifier);
-        fetchPOData(poIdentifier, savedCompany);
-      }
-    }
-  }, []);
-
-  const fetchPOData = async (poId: string, company: string) => {
-    try {
-      setLoading(true);
-      const response = await fetch(`/api/purchase/orders/${poId}?company=${encodeURIComponent(company)}`);
-      const data = await response.json();
-      
-      if (data.success && data.data) {
-        const poData = data.data;
-        
-        // Check if PO status is non-Draft to set view mode
-        if (poData.status && poData.status !== 'Draft') {
-          setIsViewMode(true);
-          // console.log('PO is in view mode (non-Draft status):', poData.status);
-        }
-        
-        // Fill form with PO data
-        setSupplier(poData.supplier);
-        setTransactionDate(poData.transaction_date);
-        setScheduleDate(poData.schedule_date);
-        setCurrency(poData.currency || 'IDR');
-        setWarehouse(poData.set_warehouse || '');
-        setRemarks(poData.custom_notes_po || '');
-        
-        // Fetch supplier details to get address
-        if (poData.supplier) {
-          try {
-            const supplierResponse = await fetch(`/api/purchase/suppliers/${poData.supplier}`);
-            const supplierData = await supplierResponse.json();
-            
-            if (supplierData.success && supplierData.data) {
-              const supplierDetail = supplierData.data;
-              const address = formatAddress(supplierDetail.primary_address || '');
-              const contact = supplierDetail.contact_person || '';
-              
-              setContactPerson(contact);
-              setDeliveryLocation(address);
-              setShippingAddress(address);
-              setBillingAddress(address);
-              
-              // console.log('Supplier info loaded for PO:', {
-              //   supplier: poData.supplier,
-              //   address: address,
-              //   contact: contact
-              // });
-            }
-          } catch (supplierError) {
-            console.error('Error fetching supplier details for PO:', supplierError);
-            // Set empty address if supplier fetch fails
-            setContactPerson('');
-            setDeliveryLocation('');
-            setShippingAddress('');
-            setBillingAddress('');
-          }
-        }
-        
-        // Fill items
-        if (poData.items && poData.items.length > 0) {
-          const formattedItems = poData.items.map((item: any) => ({
-            item_code: item.item_code,
-            item_name: item.item_name || '',
-            description: item.description || '',
-            qty: item.qty,
-            rate: item.rate,
-            amount: item.amount || (item.qty * item.rate),
-            stock_uom: item.uom || '',
-            warehouse: item.warehouse || poData.set_warehouse || '',
-            scheduled_delivery_date: item.scheduled_delivery_date || poData.schedule_date,
-            available_stock: 0,
-            actual_stock: 0,
-            reserved_stock: 0
-          }));
-          setSelectedItems(formattedItems);
-          
-          // Check stock for each loaded item (for both edit and view modes)
-          formattedItems.forEach((item: any, index: number) => {
-            checkItemStock(item.item_code, index, item);
-          });
-        }
-        
-        // console.log('PO data loaded successfully:', poData);
-      } else {
-        setError(data.message || 'Gagal memuat data PO');
-      }
-    } catch (err) {
-      console.error('Error fetching PO data:', err);
-      setError('Gagal memuat data PO');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Update warehouse di semua item saat warehouse header berubah
-  useEffect(() => {
-    if (warehouse) {
-      setSelectedItems(prev => 
-        prev.map(item => ({
-          ...item,
-          warehouse: warehouse // Update semua item dengan warehouse dari header
-        }))
-      );
-    }
-  }, [warehouse]);
-
-  useEffect(() => {
-    // Calculate totals whenever items change
-    const newSubtotal = selectedItems.reduce((sum, item) => sum + item.amount, 0);
-    let newTaxAmount = 0;
-    
-    // Calculate tax based on selected tax template
-    if (taxesAndCharges) {
-      const taxTemplate = taxTemplates.find(t => t.name === taxesAndCharges);
-      if (taxTemplate) {
-        newTaxAmount = newSubtotal * (taxTemplate.tax_rate / 100);
-      }
-    }
-    
-    const newGrandTotal = newSubtotal + newTaxAmount;
-    
-    setSubtotal(newSubtotal);
-    setTaxAmount(newTaxAmount);
-    setGrandTotal(newGrandTotal);
-  }, [selectedItems, taxesAndCharges, taxTemplates]);
-
-  const fetchSuppliers = async (company: string) => {
-    try {
-      const response = await fetch(`/api/purchase/suppliers?company=${encodeURIComponent(company)}`);
-      const data = await response.json();
-      
-      if (data.success) {
-        setSuppliers(data.data || []);
-      }
-    } catch (err) {
-      console.error('Error fetching suppliers:', err);
-    }
-  };
-
-  const fetchItems = async (company: string) => {
-    try {
-      const response = await fetch(`/api/inventory/items?company=${encodeURIComponent(company)}`);
-      const data = await response.json();
-      
-      if (data.success) {
-        setItems(data.data || []);
-      }
-    } catch (err) {
-      console.error('Error fetching items:', err);
-    }
-  };
-
-  const fetchTermsAndConditions = async (company: string) => {
-    try {
-      const response = await fetch(`/api/setup/terms-and-conditions?company=${encodeURIComponent(company)}`);
-      
-      if (!response.ok) {
-        // API tidak ada atau error, gunakan fallback data
-        // console.log('Terms API not available, using fallback data');
-        setTermsList([
-          { name: 'Standar', terms: 'Syarat dan ketentuan standar berlaku' }
-        ]);
-        return;
-      }
-      
-      const data = await response.json();
-      
-      if (data.success) {
-        setTermsList(data.data || []);
-      } else {
-        // API error, gunakan fallback
-        // console.log('Terms API error, using fallback data');
-        setTermsList([
-          { name: 'Standar', terms: 'Syarat dan ketentuan standar berlaku' }
-        ]);
-      }
-    } catch (err) {
-      console.error('Error fetching terms and conditions:', err);
-      // Error network atau parsing, gunakan fallback
-      setTermsList([
-        { name: 'Standar', terms: 'Syarat dan ketentuan standar berlaku' }
-      ]);
-    }
-  };
-
-  const fetchTaxTemplates = async (company: string) => {
-    try {
-      const response = await fetch(`/api/setup/tax-templates?company=${encodeURIComponent(company)}`);
-      
-      if (!response.ok) {
-        // API tidak ada atau error, gunakan fallback data
-        // console.log('Tax templates API not available, using fallback data');
-        setTaxTemplates([
-          { name: 'PPN 11%', tax_rate: 11, description: 'Pajak Pertambahan Nilang 11%' }
-        ]);
-        return;
-      }
-      
-      const data = await response.json();
-      
-      if (data.success) {
-        setTaxTemplates(data.data || []);
-      } else {
-        // API error, gunakan fallback
-        // console.log('Tax templates API error, using fallback data');
-        setTaxTemplates([
-          { name: 'PPN 11%', tax_rate: 11, description: 'Pajak Pertambahan Nilang 11%' }
-        ]);
-      }
-    } catch (error) {
-      console.error('Error fetching tax templates:', error);
-      // Error network atau parsing, gunakan fallback
-      setTaxTemplates([
-        { name: 'PPN 11%', tax_rate: 11, description: 'Pajak Pertambahan Nilang 11%' }
-      ]);
-    }
-  };
-
-  const fetchWarehouses = async (company: string) => {
-    try {
-      const response = await fetch(`/api/inventory/warehouses?company=${encodeURIComponent(company)}`);
-      
-      if (!response.ok) {
-        // API tidak ada, gunakan fallback data
-        setWarehouses([
-          { name: 'WH-001', warehouse_name: 'Gudang Utama' },
-          { name: 'WH-002', warehouse_name: 'Gudang Cadangan' }
-        ]);
-        return;
-      }
-      
-      const data = await response.json();
-      
-      if (data.success) {
-        setWarehouses(data.data || []);
-      } else {
-        // API error, gunakan fallback
-        setWarehouses([
-          { name: 'WH-001', warehouse_name: 'Gudang Utama' },
-          { name: 'WH-002', warehouse_name: 'Gudang Cadangan' }
-        ]);
-      }
-    } catch (err) {
-      console.error('Error fetching warehouses:', err);
-      // Error network atau parsing, gunakan fallback
-      setWarehouses([
-        { name: 'WH-001', warehouse_name: 'Gudang Utama' },
-        { name: 'WH-002', warehouse_name: 'Gudang Cadangan' }
-      ]);
-    }
-  };
-
-  const handleItemChange = (itemCode: string) => {
-    setSelectedItemCode(itemCode);
-    const item = items.find(i => i.item_code === itemCode);
-    if (item) {
-      setItemRate(item.rate);
-    } else {
-      setItemRate(0);
-    }
-  };
-
-  const addItem = () => {
-    if (!selectedItemCode || itemQty <= 0) {
-      setError('Silakan pilih item dan masukkan jumlah yang valid');
-      return;
-    }
-
-    const item = items.find(i => i.item_code === selectedItemCode);
-    if (!item) {
-      setError('Item yang dipilih tidak ditemukan');
-      return;
-    }
-
-    const amount = itemQty * itemRate;
-    const newItem: PurchaseOrderItem = {
-      item_code: item.item_code,
-      item_name: item.item_name,
-      description: item.description,
-      qty: itemQty,
-      rate: itemRate,
-      amount: amount,
-      stock_uom: item.stock_uom,
-      warehouse: warehouse, // Gunakan gudang default
-      scheduled_delivery_date: scheduleDate // Gunakan tanggal jadwal default
-    };
-
-    setSelectedItems([...selectedItems, newItem]);
-    setSelectedItemCode('');
-    setItemQty(1);
-    setItemRate(0);
-    setError('');
-  };
-
-  const removeItem = (index: number) => {
-    setSelectedItems(selectedItems.filter((_, i) => i !== index));
-  };
-
-  const handleSupplierSelect = async (supplierCode: string, supplierName: string) => {
-    setSupplier(supplierCode);
-    setShowSupplierDialog(false);
-    setSupplierSearchTerm('');
-    
-    // console.log('Supplier selected:', supplierCode, supplierName);
-    
-    // Ambil detail supplier dari API
-    try {
-      const response = await fetch(`/api/purchase/suppliers/${supplierCode}`);
-      const data = await response.json();
-      
-      // console.log('Supplier detail response:', data);
-      
-      if (data.success && data.data) {
-        const supplierDetail = data.data;
-        
-        // Ambil data dari API response
-        const address = formatAddress(supplierDetail.primary_address || '');
-        const contact = supplierDetail.contact_person || '';
-        
-        setContactPerson(contact);
-        setDeliveryLocation(address);
-        setShippingAddress(address); // Alamat Supplier (visible) - sudah diformat
-        setBillingAddress(address);
-        
-        // console.log('Supplier info filled from API:', {
-        //   name: supplierDetail.name,
-        //   supplier_name: supplierDetail.supplier_name,
-        //   address: address,
-        //   contact: contact
-        // });
-      } else {
-        // console.log('Failed to fetch supplier detail:', data.message);
-        // Set kosong jika gagal
-        setContactPerson('');
-        setDeliveryLocation('');
-        setShippingAddress('');
-        setBillingAddress('');
-      }
-    } catch (error) {
-      console.error('Error fetching supplier detail:', error);
-      // Set kosong jika error
-      setContactPerson('');
-      setDeliveryLocation('');
-      setShippingAddress('');
-      setBillingAddress('');
-    }
-  };
-
-  const handleAddItem = () => {
-    setSelectedItems([
-      ...selectedItems,
-      { 
-        item_code: '', 
-        item_name: '', 
-        description: '',
-        qty: 1, 
-        rate: 0, 
-        amount: 0, 
-        stock_uom: '', 
-        warehouse: warehouse || '', // Gunakan warehouse dari header
-        scheduled_delivery_date: '',
-        available_stock: 0,
-        actual_stock: 0,
-        reserved_stock: 0
-      }
-    ]);
-  };
-
   // Check stock for selected item
-  const checkItemStock = async (itemCode: string, itemIndex: number, currentItem: PurchaseOrderItem) => {
+  const checkItemStock = useCallback(async (itemCode: string, itemIndex: number, currentItem: PurchaseOrderItem) => {
     // console.log('Checking stock for item:', itemCode, 'at index:', itemIndex, 'company:', selectedCompany);
     // console.log('Current item passed to stock check:', currentItem);
     // console.log('Using warehouse from item details:', currentItem.warehouse);
@@ -561,7 +134,7 @@ export default function PurchaseOrderMain() {
       
       if (!data.error && data.length > 0) {
         // Find stock info untuk warehouse dari item details
-        const selectedWarehouseStock = data.find((stock: any) => stock.warehouse === itemWarehouse);
+        const selectedWarehouseStock = data.find((stock: { warehouse: string }) => stock.warehouse === itemWarehouse);
         
         // console.log('Selected warehouse stock:', selectedWarehouseStock);
         
@@ -636,6 +209,306 @@ export default function PurchaseOrderMain() {
         )
       );
     }
+  }, [selectedCompany]);
+
+  const fetchPOData = useCallback(async (poId: string, company: string) => {
+    try {
+      setLoading(true);
+      const response = await fetch(`/api/purchase/orders/${poId}?company=${encodeURIComponent(company)}`);
+      const data = await response.json();
+      
+      if (data.success && data.data) {
+        const poData = data.data;
+        
+        // Check if PO status is non-Draft to set view mode
+        if (poData.status && poData.status !== 'Draft') {
+          setIsViewMode(true);
+          // console.log('PO is in view mode (non-Draft status):', poData.status);
+        }
+        
+        // Fill form with PO data
+        setSupplier(poData.supplier);
+        setTransactionDate(poData.transaction_date);
+        setScheduleDate(poData.schedule_date);
+        setCurrency(poData.currency || 'IDR');
+        setWarehouse(poData.set_warehouse || '');
+        setRemarks(poData.custom_notes_po || '');
+        
+        // Fetch supplier details to get address
+        if (poData.supplier) {
+          try {
+            const supplierResponse = await fetch(`/api/purchase/suppliers/${poData.supplier}`);
+            const supplierData = await supplierResponse.json();
+            
+            if (supplierData.success && supplierData.data) {
+              const supplierDetail = supplierData.data;
+              const address = formatAddress(supplierDetail.primary_address || '');
+              const contact = supplierDetail.contact_person || '';
+              
+              setContactPerson(contact);
+              setDeliveryLocation(address);
+              setShippingAddress(address);
+            }
+          } catch (supplierError) {
+            console.error('Error fetching supplier details for PO:', supplierError);
+            setContactPerson('');
+            setDeliveryLocation('');
+            setShippingAddress('');
+          }
+        }
+        
+        // Fill items
+        if (poData.items && poData.items.length > 0) {
+          const formattedItems = poData.items.map((item: {
+            item_code: string;
+            item_name?: string;
+            description?: string;
+            qty: number;
+            rate: number;
+            amount?: number;
+            uom?: string;
+            warehouse?: string;
+            scheduled_delivery_date?: string;
+          }) => ({
+            item_code: item.item_code,
+            item_name: item.item_name || '',
+            description: item.description || '',
+            qty: item.qty,
+            rate: item.rate,
+            amount: item.amount || (item.qty * item.rate),
+            stock_uom: item.uom || '',
+            warehouse: item.warehouse || poData.set_warehouse || '',
+            scheduled_delivery_date: item.scheduled_delivery_date || poData.schedule_date,
+            available_stock: 0,
+            actual_stock: 0,
+            reserved_stock: 0
+          }));
+          setSelectedItems(formattedItems);
+          
+          // Check stock for each loaded item (for both edit and view modes)
+          formattedItems.forEach((item: PurchaseOrderItem, index: number) => {
+            checkItemStock(item.item_code, index, item);
+          });
+        }
+      } else {
+        setError(data.message || 'Gagal memuat data PO');
+      }
+    } catch (err) {
+      console.error('Error fetching PO data:', err);
+      setError('Gagal memuat data PO');
+    } finally {
+      setLoading(false);
+    }
+  }, [checkItemStock]);
+
+  const fetchSuppliers = useCallback(async (company: string) => {
+    try {
+      const response = await fetch(`/api/purchase/suppliers?company=${encodeURIComponent(company)}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setSuppliers(data.data || []);
+      }
+    } catch (err) {
+      console.error('Error fetching suppliers:', err);
+    }
+  }, []);
+
+  const fetchTaxTemplates = useCallback(async (company: string) => {
+    try {
+      const response = await fetch(`/api/setup/tax-templates?company=${encodeURIComponent(company)}`);
+      
+      if (!response.ok) {
+        setTaxTemplates([
+          { name: 'PPN 11%', tax_rate: 11, description: 'Pajak Pertambahan Nilang 11%' }
+        ]);
+        return;
+      }
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        setTaxTemplates(data.data || []);
+      } else {
+        setTaxTemplates([
+          { name: 'PPN 11%', tax_rate: 11, description: 'Pajak Pertambahan Nilang 11%' }
+        ]);
+      }
+    } catch (error) {
+      console.error('Error fetching tax templates:', error);
+      setTaxTemplates([
+        { name: 'PPN 11%', tax_rate: 11, description: 'Pajak Pertambahan Nilang 11%' }
+      ]);
+    }
+  }, []);
+
+  const fetchWarehouses = useCallback(async (company: string) => {
+    try {
+      const response = await fetch(`/api/inventory/warehouses?company=${encodeURIComponent(company)}`);
+      
+      if (!response.ok) {
+        setWarehouses([
+          { name: 'WH-001', warehouse_name: 'Gudang Utama' },
+          { name: 'WH-002', warehouse_name: 'Gudang Cadangan' }
+        ]);
+        return;
+      }
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        setWarehouses(data.data || []);
+      } else {
+        setWarehouses([
+          { name: 'WH-001', warehouse_name: 'Gudang Utama' },
+          { name: 'WH-002', warehouse_name: 'Gudang Cadangan' }
+        ]);
+      }
+    } catch (err) {
+      console.error('Error fetching warehouses:', err);
+      setWarehouses([
+        { name: 'WH-001', warehouse_name: 'Gudang Utama' },
+        { name: 'WH-002', warehouse_name: 'Gudang Cadangan' }
+      ]);
+    }
+  }, []);
+
+  // Update warehouse di semua item saat warehouse header berubah
+  useEffect(() => {
+    if (warehouse) {
+      setSelectedItems(prev => 
+        prev.map(item => ({
+          ...item,
+          warehouse: warehouse // Update semua item dengan warehouse dari header
+        }))
+      );
+    }
+  }, [warehouse]);
+
+  useEffect(() => {
+    // Calculate totals whenever items change
+    const newSubtotal = selectedItems.reduce((sum, item) => sum + item.amount, 0);
+    let newTaxAmount = 0;
+    
+    // Calculate tax based on selected tax template
+    if (taxesAndCharges) {
+      const taxTemplate = taxTemplates.find(t => t.name === taxesAndCharges);
+      if (taxTemplate) {
+        newTaxAmount = newSubtotal * (taxTemplate.tax_rate / 100);
+      }
+    }
+    
+    const newGrandTotal = newSubtotal + newTaxAmount;
+    
+    setSubtotal(newSubtotal);
+    setTaxAmount(newTaxAmount);
+    setGrandTotal(newGrandTotal);
+  }, [selectedItems, taxesAndCharges, taxTemplates]);
+
+  useEffect(() => {
+    // Get company from localStorage
+    let savedCompany = localStorage.getItem('selected_company');
+    
+    if (!savedCompany) {
+      const cookies = document.cookie.split(';');
+      const companyCookie = cookies.find(cookie => cookie.trim().startsWith('selected_company='));
+      if (companyCookie) {
+        savedCompany = companyCookie.split('=')[1];
+        if (savedCompany) {
+          localStorage.setItem('selected_company', savedCompany);
+        }
+      }
+    }
+    
+    if (savedCompany) {
+      setSelectedCompany(savedCompany);
+      fetchSuppliers(savedCompany);
+      fetchWarehouses(savedCompany);
+      fetchTaxTemplates(savedCompany);
+      
+      // Check if we're editing or viewing an existing PO
+      const urlParams = new URLSearchParams(window.location.search);
+      const poIdParam = urlParams.get('id');
+      const poNameParam = urlParams.get('name');
+      const poIdentifier = poIdParam || poNameParam;
+      
+      if (poIdentifier) {
+        setIsEditMode(true);
+        setPoId(poIdentifier);
+        fetchPOData(poIdentifier, savedCompany);
+      }
+    }
+  }, [fetchSuppliers, fetchWarehouses, fetchTaxTemplates, fetchPOData]);
+
+  const removeItem = (index: number) => {
+    setSelectedItems(selectedItems.filter((_, i) => i !== index));
+  };
+
+  const handleSupplierSelect = async (supplierCode: string) => {
+    setSupplier(supplierCode);
+    setShowSupplierDialog(false);
+    setSupplierSearchTerm('');
+    
+    // console.log('Supplier selected:', supplierCode);
+    
+    // Ambil detail supplier dari API
+    try {
+      const response = await fetch(`/api/purchase/suppliers/${supplierCode}`);
+      const data = await response.json();
+      
+      // console.log('Supplier detail response:', data);
+      
+      if (data.success && data.data) {
+        const supplierDetail = data.data;
+        
+        // Ambil data dari API response
+        const address = formatAddress(supplierDetail.primary_address || '');
+        const contact = supplierDetail.contact_person || '';
+        
+        setContactPerson(contact);
+        setDeliveryLocation(address);
+        setShippingAddress(address); // Alamat Supplier (visible) - sudah diformat
+        
+        // console.log('Supplier info filled from API:', {
+        //   name: supplierDetail.name,
+        //   supplier_name: supplierDetail.supplier_name,
+        //   address: address,
+        //   contact: contact
+        // });
+      } else {
+        // console.log('Failed to fetch supplier detail:', data.message);
+        // Set kosong jika gagal
+        setContactPerson('');
+        setDeliveryLocation('');
+        setShippingAddress('');
+      }
+    } catch (error) {
+      console.error('Error fetching supplier detail:', error);
+      // Set kosong jika error
+      setContactPerson('');
+      setDeliveryLocation('');
+      setShippingAddress('');
+    }
+  };
+
+  const handleAddItem = () => {
+    setSelectedItems([
+      ...selectedItems,
+      { 
+        item_code: '', 
+        item_name: '', 
+        description: '',
+        qty: 1, 
+        rate: 0, 
+        amount: 0, 
+        stock_uom: '', 
+        warehouse: warehouse || '', // Gunakan warehouse dari header
+        scheduled_delivery_date: '',
+        available_stock: 0,
+        actual_stock: 0,
+        reserved_stock: 0
+      }
+    ]);
   };
 
   const handleItemSelect = async (item: { item_code: string; item_name: string; stock_uom?: string }) => {
@@ -752,7 +625,7 @@ export default function PurchaseOrderMain() {
                 {filteredSuppliers.map((sup) => (
                   <div
                     key={sup.name}
-                    onClick={() => handleSupplierSelect(sup.name, sup.supplier_name)}
+                    onClick={() => handleSupplierSelect(sup.name)}
                     className="p-3 border border-gray-200 rounded-md hover:bg-gray-50 cursor-pointer transition-colors"
                   >
                     <div className="flex justify-between items-start">
@@ -959,20 +832,13 @@ export default function PurchaseOrderMain() {
                 <p className="text-sm text-gray-600 mt-2">
                   Pesanan Pembelian telah berhasil disimpan dan akan segera dialihkan ke daftar.
                 </p>
-                {redirectCountdown > 0 && (
-                  <div className="mt-3 flex items-center justify-between">
-                    <div className="text-sm text-gray-600">
-                      Mengalihkan dalam <span className="font-bold text-green-600">{redirectCountdown}</span> detik...
-                    </div>
-                  </div>
-                )}
               </div>
               <div className="flex justify-end">
                 <button
                   onClick={() => router.push('/purchase-orders/poList')}
                   className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
                 >
-                  {redirectCountdown > 0 ? 'Langsung ke Daftar' : 'Ke Daftar PO'}
+                  Ke Daftar PO
                 </button>
               </div>
             </div>

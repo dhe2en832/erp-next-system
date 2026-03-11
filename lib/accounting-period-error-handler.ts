@@ -26,11 +26,11 @@ export type ErrorCategory =
 
 export interface ErrorDetails {
   field?: string;
-  value?: any;
+  value?: unknown;
   constraint?: string;
   required_role?: string;
   user_roles?: string[];
-  failed_validations?: any[];
+  failed_validations?: unknown[];
   resource?: string;
   identifier?: string;
   current_status?: string;
@@ -38,7 +38,7 @@ export interface ErrorDetails {
   backend?: string;
   operation?: string;
   backend_error?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface ApiErrorResponse {
@@ -169,7 +169,7 @@ export function getErrorMessage(code: string, fallback?: string): string {
 /**
  * Mengklasifikasikan error berdasarkan tipe dan konten
  */
-export function classifyError(error: any): {
+export function classifyError(error: unknown): {
   category: ErrorCategory;
   statusCode: number;
   message: string;
@@ -230,30 +230,33 @@ export function classifyError(error: any): {
     };
   }
 
+  // Cast error to handle potential network/response properties
+  const err = error as Record<string, unknown> & { response?: { status: number; data: unknown } };
+
   // Network errors
   if (
-    error.code === 'ECONNRESET' ||
-    error.code === 'ETIMEDOUT' ||
-    error.code === 'ECONNREFUSED'
+    err.code === 'ECONNRESET' ||
+    err.code === 'ETIMEDOUT' ||
+    err.code === 'ECONNREFUSED'
   ) {
     return {
       category: 'NETWORK_ERROR',
       statusCode: 503,
       message: 'Terjadi kesalahan jaringan. Silakan coba lagi.',
-      details: { code: error.code },
+      details: { code: err.code },
     };
   }
 
   // HTTP response errors
-  if (error.response) {
-    const status = error.response.status;
-    const data = error.response.data;
+  if (err.response) {
+    const status = err.response.status;
+    const data = err.response.data;
 
     if (status === 404) {
       return {
         category: 'NOT_FOUND',
         statusCode: 404,
-        message: parseErpError(data, 'Resource tidak ditemukan'),
+        message: parseErpError(data as Record<string, unknown>, 'Resource tidak ditemukan'),
       };
     }
 
@@ -261,7 +264,7 @@ export function classifyError(error: any): {
       return {
         category: 'AUTHORIZATION_ERROR',
         statusCode: 403,
-        message: parseErpError(data, 'Anda tidak memiliki izin untuk operasi ini'),
+        message: parseErpError(data as Record<string, unknown>, 'Anda tidak memiliki izin untuk operasi ini'),
       };
     }
 
@@ -269,7 +272,7 @@ export function classifyError(error: any): {
       return {
         category: 'CONFLICT',
         statusCode: 409,
-        message: parseErpError(data, 'Terjadi konflik data'),
+        message: parseErpError(data as Record<string, unknown>, 'Terjadi konflik data'),
       };
     }
 
@@ -277,20 +280,21 @@ export function classifyError(error: any): {
       return {
         category: 'INTEGRATION_ERROR',
         statusCode: 502,
-        message: parseErpError(data, 'Terjadi kesalahan pada server ERPNext'),
+        message: parseErpError(data as Record<string, unknown>, 'Terjadi kesalahan pada server ERPNext'),
         details: {
           backend: 'ERPNext',
-          backend_error: data?.message || data?.error,
+          backend_error: ((data as Record<string, unknown>)?.message || (data as Record<string, unknown>)?.error) as string,
         },
       };
     }
   }
 
   // Generic error
+  const message = error instanceof Error ? error.message : 'Terjadi kesalahan internal';
   return {
     category: 'INTERNAL_ERROR',
     statusCode: 500,
-    message: error.message || 'Terjadi kesalahan internal',
+    message,
   };
 }
 
@@ -301,19 +305,21 @@ export function classifyError(error: any): {
 /**
  * Mengecek apakah error adalah transient error yang bisa di-retry
  */
-export function isTransientError(error: any): boolean {
+export function isTransientError(error: unknown): boolean {
+  const err = error as Record<string, unknown> & { response?: { status: number } };
+  
   // Network errors
   if (
-    error.code === 'ECONNRESET' ||
-    error.code === 'ETIMEDOUT' ||
-    error.code === 'ECONNREFUSED'
+    err.code === 'ECONNRESET' ||
+    err.code === 'ETIMEDOUT' ||
+    err.code === 'ECONNREFUSED'
   ) {
     return true;
   }
 
   // HTTP 5xx errors (kecuali 501 Not Implemented)
-  if (error.response) {
-    const status = error.response.status;
+  if (err.response) {
+    const status = err.response.status;
     return status === 502 || status === 503 || status === 504;
   }
 
@@ -335,7 +341,7 @@ export async function withRetry<T>(
     maxRetries?: number;
     delayMs?: number;
     backoffMultiplier?: number;
-    onRetry?: (attempt: number, error: any) => void;
+    onRetry?: (attempt: number, error: unknown) => void;
   } = {}
 ): Promise<T> {
   const {
@@ -345,12 +351,12 @@ export async function withRetry<T>(
     onRetry,
   } = options;
 
-  let lastError: any;
+  let lastError: unknown;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       return await operation();
-    } catch (error: any) {
+    } catch (error) {
       lastError = error;
 
       // Hanya retry untuk transient errors
@@ -388,7 +394,7 @@ function sleep(ms: number): Promise<void> {
  * Membuat error response yang terstruktur
  */
 export function createErrorResponse(
-  error: any,
+  error: unknown,
   includeStack: boolean = false
 ): ApiErrorResponse {
   const classified = classifyError(error);
@@ -404,7 +410,7 @@ export function createErrorResponse(
   }
 
   // Include stack trace hanya di development
-  if (includeStack && process.env.NODE_ENV === 'development' && error.stack) {
+  if (includeStack && process.env.NODE_ENV === 'development' && error instanceof Error && error.stack) {
     response.details = {
       ...response.details,
       stack: error.stack,
@@ -417,7 +423,7 @@ export function createErrorResponse(
 /**
  * Mendapatkan HTTP status code dari error
  */
-export function getStatusCode(error: any): number {
+export function getStatusCode(error: unknown): number {
   const classified = classifyError(error);
   return classified.statusCode;
 }
@@ -431,16 +437,17 @@ export function getStatusCode(error: any): number {
  */
 export function logError(
   context: string,
-  error: any,
-  additionalInfo?: Record<string, any>
+  error: unknown,
+  additionalInfo?: Record<string, unknown>
 ): void {
   const classified = classifyError(error);
+  const stack = error instanceof Error ? error.stack : undefined;
 
   console.error(`[${context}] ${classified.category}:`, {
     message: classified.message,
     details: classified.details,
     ...additionalInfo,
-    stack: error.stack,
+    stack,
   });
 
   // Di production, kirim ke monitoring service (Sentry, etc.)
@@ -461,7 +468,7 @@ export function logError(
  * Validate required fields dan throw ValidationError jika ada yang missing
  */
 export function validateRequiredFields(
-  data: Record<string, any>,
+  data: Record<string, unknown>,
   requiredFields: string[]
 ): void {
   const missingFields = requiredFields.filter(

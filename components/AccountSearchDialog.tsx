@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 
 interface Account {
   name: string;
@@ -26,16 +26,14 @@ export default function AccountSearchDialog({
   currentValue = '',
 }: AccountSearchDialogProps) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [filteredAccounts, setFilteredAccounts] = useState<Account[]>(accounts);
 
-  useEffect(() => {
+  const filteredAccounts = useMemo(() => {
     if (!searchTerm.trim()) {
-      setFilteredAccounts(accounts);
-      return;
+      return accounts;
     }
 
     const term = searchTerm.toLowerCase();
-    const filtered = accounts.filter((acc) => {
+    return accounts.filter((acc) => {
       const accountNumber = acc.name.split(' - ')[0] || '';
       const accountName = acc.account_name || acc.name;
       return (
@@ -44,7 +42,6 @@ export default function AccountSearchDialog({
         acc.name.toLowerCase().includes(term)
       );
     });
-    setFilteredAccounts(filtered);
   }, [searchTerm, accounts]);
 
   const handleSelect = (accountName: string) => {

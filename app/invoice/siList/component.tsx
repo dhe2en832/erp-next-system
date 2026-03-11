@@ -9,7 +9,7 @@ import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
 import { Printer, FileText, Send, ArrowUp, Loader2, CreditCard } from 'lucide-react';
 import ErrorDialog from '../../../components/ErrorDialog';
 import PrintPreviewModal from '../../../components/print/PrintPreviewModal';
-import SalesInvoicePrint from '../../../components/print/SalesInvoicePrint';
+import SalesInvoicePrint, { SalesInvoicePrintProps } from '../../../components/print/SalesInvoicePrint';
 
 export const dynamic = 'force-dynamic';
 
@@ -140,7 +140,7 @@ export default function SalesInvoiceList() {
 
   // Print preview states
   const [showPrintPreview, setShowPrintPreview] = useState(false);
-  const [printData, setPrintData] = useState<any>(null);
+  const [printData, setPrintData] = useState<SalesInvoicePrintProps['data'] | null>(null);
   const [loadingPrintData, setLoadingPrintData] = useState(false);
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -234,7 +234,7 @@ export default function SalesInvoiceList() {
       ]));
       
       // ✅ SORTING: Data terbaru paling atas
-      params.append('order_by', 'posting_date desc');
+      params.append('order_by', 'creation desc, posting_date desc');
       
       // ✅ BUILD FILTERS ARRAY UNTUK ERPNext (Format JSON)
       const filters: [string, string, string | number][] = [

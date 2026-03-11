@@ -63,10 +63,15 @@ export async function getCurrentUser(request: NextRequest): Promise<UserInfo | n
     }
 
     // Get user details including roles
-    const userDoc = await erpnextClient.get('User', username);
+    const userDoc = await erpnextClient.get<{
+      name: string;
+      email: string;
+      full_name?: string;
+      roles?: { role: string }[];
+    }>('User', username);
     
     // Extract roles from user document
-    const roles = userDoc.roles?.map((r: any) => r.role) || [];
+    const roles = userDoc.roles?.map((r) => r.role) || [];
 
     return {
       name: userDoc.name,
@@ -337,9 +342,9 @@ export async function requirePermission(
   const result = await permissionCheck(user);
   
   if (!result.allowed) {
-    const error = new Error(result.reason || 'Permission denied');
-    (error as any).statusCode = 403;
-    (error as any).details = {
+    const error = new Error(result.reason || 'Permission denied') as Error & { statusCode?: number; details?: Record<string, unknown> };
+    error.statusCode = 403;
+    error.details = {
       required_role: result.required_role,
       user_roles: result.user_roles,
     };

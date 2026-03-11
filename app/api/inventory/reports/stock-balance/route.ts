@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     // Try to enrich with item names
     const itemCodes = [...new Set((bins || []).map((b: any) => b.item_code))];
 
-    let itemNames: Record<string, string> = {};
+    const itemNames: Record<string, string> = {};
     if (itemCodes.length > 0 && itemCodes.length <= 100) {
       try {
         const itemFilters = [['name', 'in', itemCodes]];

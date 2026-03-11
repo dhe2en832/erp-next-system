@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, Suspense, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import PrintLayout, { PrintColumn, PrintSignature } from '../../components/PrintLayout';
 import PrintPreviewModal from '../../../components/PrintPreviewModal';
@@ -35,16 +35,12 @@ const PO_SIGS: PrintSignature[] = [
 function PurchaseOrderPrint() {
   const searchParams = useSearchParams();
   const name = searchParams.get('name');
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showPreview, setShowPreview] = useState(false);
 
-  useEffect(() => {
-    if (name) fetchData(name);
-  }, [name]);
-
-  const fetchData = async (docName: string) => {
+  const fetchData = useCallback(async (docName: string) => {
     try {
       const companyFromQuery = searchParams.get('company') || '';
       const companyFromStorage = typeof window !== 'undefined' ? localStorage.getItem('selected_company') || '' : '';
@@ -57,54 +53,58 @@ function PurchaseOrderPrint() {
       const response = await fetch(endpoint, { credentials: 'include' });
       const result = await response.json();
       if (result.success && result.data) {
-        setData(result.data);
+        setData(result.data as Record<string, unknown>);
       } else {
         setError(result.message || 'Gagal memuat data pesanan pembelian');
       }
     } catch { setError('Gagal memuat data'); }
     finally { setLoading(false); }
-  };
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (name) fetchData(name);
+  }, [name, fetchData]);
 
   if (loading) return <LoadingSpinner message="Memuat data cetak..." />;
   if (error) return <div className="p-8 text-red-600">{error}</div>;
   if (!data) return <div className="p-8 text-gray-500">Data tidak ditemukan</div>;
 
   const company = typeof window !== 'undefined' ? localStorage.getItem('selected_company') || '' : '';
-  const docTitle = `Purchase Order ${data.name}`;
-  const supplierAddress = data.address_display || data.supplier_address || data.shipping_address_name || data.shipping_address || '';
-  const totalQty = (data.items || []).reduce((acc: number, it: any) => acc + Number(it.qty || 0), 0);
-  const totalItems = (data.items || []).length;
+  const docTitle = `Purchase Order ${data.name as string}`;
+  const supplierAddress = (data.address_display as string) || (data.supplier_address as string) || (data.shipping_address_name as string) || (data.shipping_address as string) || '';
+  const totalQty = ((data.items as Record<string, unknown>[]) || []).reduce((acc: number, it: Record<string, unknown>) => acc + Number(it.qty || 0), 0);
+  const totalItems = ((data.items as Record<string, unknown>[]) || []).length;
 
   const layoutContent = (
     <PrintLayout
       documentTitle="PURCHASE ORDER"
-      documentNumber={data.name}
-      documentDate={data.transaction_date || ''}
+      documentNumber={data.name as string}
+      documentDate={(data.transaction_date as string) || ''}
       companyName={company}
       partyLabel="Pemasok"
-      partyName={data.supplier_name || data.supplier || ''}
+      partyName={(data.supplier_name as string) || (data.supplier as string) || ''}
       partyAddress={supplierAddress}
       totalQuantity={totalQty}
       totalItems={totalItems}
-      items={(data.items || []).map((item: any, idx: number) => ({
+      items={((data.items as Record<string, unknown>[]) || []).map((item: Record<string, unknown>, idx: number) => ({
         no: idx + 1,
-        item_code: item.item_code,
-        item_name: item.item_name,
-        qty: item.qty,
-        uom: item.uom || item.stock_uom,
-        rate: item.rate,
-        amount: item.amount,
+        item_code: item.item_code as string,
+        item_name: item.item_name as string,
+        qty: item.qty as number,
+        uom: (item.uom || item.stock_uom) as string,
+        rate: item.rate as number,
+        amount: item.amount as number,
       }))}
       columns={PO_COLUMNS}
       showPrice={true}
-      totalAmount={data.grand_total || 0}
-      terbilang={fixTerbilang(data.base_in_words || data.in_words || '')}
+      totalAmount={(data.grand_total as number) || 0}
+      terbilang={fixTerbilang((data.base_in_words as string) || (data.in_words as string) || '')}
       metaRight={[
-        ...(data.schedule_date ? [{ label: 'Tgl Kirim', value: data.schedule_date }] : []),
-        ...(data.payment_terms_template ? [{ label: 'Syarat Bayar', value: data.payment_terms_template }] : []),
+        ...(data.schedule_date ? [{ label: 'Tgl Kirim', value: data.schedule_date as string }] : []),
+        ...(data.payment_terms_template ? [{ label: 'Syarat Bayar', value: data.payment_terms_template as string }] : []),
       ]}
       signatures={PO_SIGS}
-      status={data.status}
+      status={data.status as string}
     />
   );
 
@@ -116,8 +116,8 @@ function PurchaseOrderPrint() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
           </svg>
           <div className="text-center">
-            <p className="font-semibold text-gray-800 text-lg">{data.name}</p>
-            <p className="text-sm text-gray-500">{data.supplier_name || data.supplier}</p>
+            <p className="font-semibold text-gray-800 text-lg">{data.name as string}</p>
+            <p className="text-sm text-gray-500">{(data.supplier_name as string) || (data.supplier as string)}</p>
           </div>
           <button
             onClick={() => setShowPreview(true)}

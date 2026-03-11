@@ -50,7 +50,8 @@ export default function WarehouseList() {
         company: selectedCompany,
         ...(searchTerm && { search: searchTerm }),
         limit_page_length: pageSize.toString(),
-        start: ((currentPage - 1) * pageSize).toString()
+        start: ((currentPage - 1) * pageSize).toString(),
+        order_by: 'creation desc'
       });
 
       const response = await fetch(`/api/inventory/warehouses?${params}`);

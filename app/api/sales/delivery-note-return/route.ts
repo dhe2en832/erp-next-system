@@ -110,11 +110,13 @@ export async function GET(request: NextRequest) {
       return_processed_by: dn.return_processed_by,
       creation: dn.creation,
     }));
-    
+
+    const totalRecords = await client.getCount('Delivery Note', { filters: filtersArray });
+
     return NextResponse.json({
       success: true,
       data: transformedData,
-      total_records: transformedData.length,
+      total_records: totalRecords,
     });
   } catch (error: unknown) {
     logSiteError(error, 'GET /api/sales/delivery-note-return', siteId);

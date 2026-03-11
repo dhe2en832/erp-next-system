@@ -16,7 +16,6 @@ export default function PeriodComparisonPage() {
   const [loading, setLoading] = useState(true);
   const [comparing, setComparing] = useState(false);
   const [error, setError] = useState('');
-  const [company, setCompany] = useState('');
   const [accountFilter, setAccountFilter] = useState('');
   const [accountTypeFilter, setAccountTypeFilter] = useState<string>('');
 
@@ -33,9 +32,6 @@ export default function PeriodComparisonPage() {
 
         if (data.success) {
           setPeriods(data.data || []);
-          if (data.data && data.data.length > 0) {
-            setCompany(data.data[0].company);
-          }
         } else {
           setError(data.message || 'Gagal memuat daftar periode');
         }

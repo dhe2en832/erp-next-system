@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     const data = await client.getList('Fiscal Year', {
       fields: ['name', 'year_start_date', 'year_end_date', 'company'],
       filters,
-      order_by: 'year_start_date desc',
+      order_by: 'creation desc, year_start_date desc',
       limit_page_length: 10
     });
 

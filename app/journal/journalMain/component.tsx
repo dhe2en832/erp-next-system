@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import BrowserStyleDatePicker from '@/components/BrowserStyleDatePicker';
@@ -61,13 +61,7 @@ export default function JournalMain({ onBack, selectedCompany, journalName }: Jo
   }, []);
 
   // Fetch all accounts for selection
-  useEffect(() => {
-    if (selectedCompany) {
-      fetchAllAccounts();
-    }
-  }, [selectedCompany]);
-
-  const fetchAllAccounts = async () => {
+  const fetchAllAccounts = useCallback(async () => {
     try {
       const res = await fetch(`/api/finance/accounts?company=${encodeURIComponent(selectedCompany)}`, { 
         credentials: 'include' 
@@ -83,16 +77,16 @@ export default function JournalMain({ onBack, selectedCompany, journalName }: Jo
     } catch (err) {
       console.warn('Gagal memuat daftar akun:', err);
     }
-  };
+  }, [selectedCompany]);
+
+  useEffect(() => {
+    if (selectedCompany) {
+      fetchAllAccounts();
+    }
+  }, [selectedCompany, fetchAllAccounts]);
 
   // Load existing journal if journalName is provided
-  useEffect(() => {
-    if (journalName) {
-      loadJournal();
-    }
-  }, [journalName]);
-
-  const loadJournal = async () => {
+  const loadJournal = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
@@ -109,22 +103,28 @@ export default function JournalMain({ onBack, selectedCompany, journalName }: Jo
         
         // Load accounts
         if (data.data.accounts && Array.isArray(data.data.accounts)) {
-          setAccounts(data.data.accounts.map((acc: any) => ({
-            account: acc.account || '',
-            debit_in_account_currency: parseFloat(acc.debit_in_account_currency || acc.debit || 0),
-            credit_in_account_currency: parseFloat(acc.credit_in_account_currency || acc.credit || 0),
-            user_remark: acc.user_remark || '',
+          setAccounts(data.data.accounts.map((acc: Record<string, unknown>) => ({
+            account: (acc.account as string) || '',
+            debit_in_account_currency: parseFloat((acc.debit_in_account_currency || acc.debit || 0) as string),
+            credit_in_account_currency: parseFloat((acc.credit_in_account_currency || acc.credit || 0) as string),
+            user_remark: (acc.user_remark as string) || '',
           })));
         }
       } else {
         setError(data.message || 'Gagal memuat data journal');
       }
-    } catch (err) {
+    } catch {
       setError('Terjadi kesalahan saat memuat data journal');
     } finally {
       setLoading(false);
     }
-  };
+  }, [journalName, selectedCompany]);
+
+  useEffect(() => {
+    if (journalName) {
+      loadJournal();
+    }
+  }, [journalName, loadJournal]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -182,7 +182,7 @@ export default function JournalMain({ onBack, selectedCompany, journalName }: Jo
       } else {
         setError(data.message || 'Gagal menyimpan journal');
       }
-    } catch (err) {
+    } catch {
       setError('Terjadi kesalahan saat menyimpan journal');
     } finally {
       setSaving(false);

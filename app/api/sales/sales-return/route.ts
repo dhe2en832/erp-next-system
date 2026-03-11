@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
     const filters = searchParams.get('filters');
     const limit = parseInt(searchParams.get('limit_page_length') || searchParams.get('limit') || '20');
     const start = parseInt(searchParams.get('start') || '0');
-    const orderBy = searchParams.get('order_by') || 'creation desc';
+    const orderBy = searchParams.get('order_by') || 'creation desc, posting_date desc';
     const search = searchParams.get('search');
     const documentNumber = searchParams.get('documentNumber');
     const status = searchParams.get('status');
@@ -90,10 +90,12 @@ export async function GET(request: NextRequest) {
       order_by: orderBy
     });
 
+    const totalRecords = await client.getCount('Sales Return', { filters: filtersArray.length > 0 ? filtersArray : undefined });
+
     return NextResponse.json({
       success: true,
       data: salesReturns,
-      total_records: salesReturns?.length || 0,
+      total_records: totalRecords,
     });
 
   } catch (error) {

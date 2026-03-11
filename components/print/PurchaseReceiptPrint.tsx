@@ -10,7 +10,7 @@
 import PrintLayout from './PrintLayout';
 import type { PrintLayoutProps } from '@/types/print';
 
-interface PurchaseReceiptPrintProps {
+export interface PurchaseReceiptPrintProps {
   data: {
     name: string;
     posting_date: string;
@@ -63,8 +63,8 @@ export default function PurchaseReceiptPrint({ data, companyName, companyLogo }:
     columns: [
       { key: 'item_code', label: 'Kode', align: 'left', width: '15%' },
       { key: 'item_name', label: 'Nama Item', align: 'left', width: '30%' },
-      { key: 'qty', label: 'Dipesan', align: 'right', width: '12%', format: (v) => v.toString() },
-      { key: 'received_qty', label: 'Diterima', align: 'right', width: '12%', format: (v) => v?.toString() || '-' },
+      { key: 'qty', label: 'Dipesan', align: 'right', width: '12%', format: (v) => String(v || 0) },
+      { key: 'received_qty', label: 'Diterima', align: 'right', width: '12%', format: (v) => String(v || '-') },
       { key: 'warehouse', label: 'Gudang', align: 'left', width: '21%' },
     ],
     showPrice: false,

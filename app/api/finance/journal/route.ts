@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     const kas_type = searchParams.get('kas_type'); // 'masuk' atau 'keluar'
     const limit_page_length = searchParams.get('limit_page_length') || '20';
     const start = searchParams.get('start') || '0';
-    const order_by = searchParams.get('order_by') || 'creation desc';
+    const order_by = searchParams.get('order_by') || 'creation desc, posting_date desc';
 
     if (!company) {
       return NextResponse.json(

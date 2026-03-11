@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import LoadingSpinner from '../../components/LoadingSpinner';
 
@@ -35,14 +35,7 @@ export default function PaymentTermsMain() {
     terms: [{ payment_term: '', description: '', invoice_portion: 100, due_date_based_on: 'Day(s) after invoice date', credit_days: 0 }],
   });
 
-  useEffect(() => {
-    if (templateName) {
-      setIsEditMode(true);
-      fetchDetail(templateName);
-    }
-  }, [templateName]);
-
-  const fetchDetail = async (name: string) => {
+  const fetchDetail = useCallback(async (name: string) => {
     setLoading(true);
     try {
       const response = await fetch(`/api/setup/payment-terms/detail?name=${encodeURIComponent(name)}`, { credentials: 'include' });
@@ -52,7 +45,7 @@ export default function PaymentTermsMain() {
         const d = data.data;
         setFormData({
           template_name: d.template_name || d.name || '',
-          terms: d.terms && d.terms.length > 0 ? d.terms.map((t: any) => ({
+          terms: d.terms && d.terms.length > 0 ? d.terms.map((t: PaymentTerm) => ({
             payment_term: t.payment_term || '',
             description: t.description || '',
             invoice_portion: t.invoice_portion || 0,
@@ -63,13 +56,19 @@ export default function PaymentTermsMain() {
       } else {
         setError('Gagal memuat detail termin pembayaran');
       }
-    } catch (err) {
-      console.error('Error fetching payment terms detail:', err);
+    } catch {
       setError('Gagal memuat detail termin pembayaran');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (templateName) {
+      setIsEditMode(true);
+      fetchDetail(templateName);
+    }
+  }, [templateName, fetchDetail]);
 
   const handleAddTerm = () => {
     setFormData({

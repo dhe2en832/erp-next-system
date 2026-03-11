@@ -28,12 +28,10 @@ import { ReportLayoutProps, ReportColumn, ReportRow } from '@/types/print';
 // Constants
 // ============================================================================
 
-const A4_HEIGHT_MM = 297;
 const A4_PRINTABLE_HEIGHT_MM = 277; // 297 - 10 (top) - 10 (bottom)
 const MM_TO_PX = 96 / 25.4;
 const HEADER_HEIGHT_PX = 80;
 const FOOTER_HEIGHT_PX = 30;
-const ROW_HEIGHT_PX = 20; // Approximate row height
 
 // ============================================================================
 // Sub-Components (Internal)
@@ -70,6 +68,7 @@ function ReportHeader({
     }}>
       {companyLogo && (
         <div style={{ marginBottom: '8px' }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img 
             src={companyLogo} 
             alt="Logo" 
@@ -216,7 +215,7 @@ function ReportTable({
                   textAlign: col.align || 'left',
                   ...(colIndex === 0 ? getIndentStyle(row.indent) : {}),
                 }}>
-                  {col.format ? col.format(row[col.key]) : row[col.key]}
+                  {(col.format ? col.format(row[col.key]) : row[col.key]) as React.ReactNode}
                 </td>
               ))}
             </tr>
@@ -302,11 +301,6 @@ export default function ReportLayout(props: ReportLayoutProps) {
     
     // Report options
     showHierarchy = false,
-    showTotals = true,
-    
-    // Layout options
-    paperSize = 'A4',
-    orientation = 'portrait',
   } = props;
 
   // Pagination state (Task 8.5)

@@ -8,11 +8,11 @@
 /**
  * Extract user-friendly error message from ERPNext API response
  */
-export function extractERPNextErrorMessage(data: any, defaultMessage: string = 'Operation failed'): string {
+export function extractERPNextErrorMessage(data: Record<string, unknown>, defaultMessage: string = 'Operation failed'): string {
   let errorMessage = defaultMessage;
   
   // Priority 1: Parse _server_messages (most user-friendly)
-  if (data._server_messages) {
+  if (data._server_messages && typeof data._server_messages === 'string') {
     try {
       const serverMessages = JSON.parse(data._server_messages);
       
@@ -27,13 +27,13 @@ export function extractERPNextErrorMessage(data: any, defaultMessage: string = '
           return errorMessage;
         }
       }
-    } catch (e) {
+    } catch {
       console.log('Failed to parse _server_messages');
     }
   }
   
   // Priority 2: Parse exception message from exc
-  if (data.exc) {
+  if (data.exc && typeof data.exc === 'string') {
     try {
       const excArray = JSON.parse(data.exc);
       
@@ -51,18 +51,18 @@ export function extractERPNextErrorMessage(data: any, defaultMessage: string = '
           }
         }
       }
-    } catch (e) {
+    } catch {
       console.log('Failed to parse exc');
     }
   }
   
   // Priority 3: Use data.message if available
-  if (data.message) {
+  if (data.message && typeof data.message === 'string') {
     return data.message;
   }
   
   // Priority 4: Use exception field
-  if (data.exception) {
+  if (data.exception && typeof data.exception === 'string') {
     return data.exception;
   }
   
@@ -119,24 +119,67 @@ export function showGenericErrorAlert(errorMessage: string, documentType: string
  * Handle ERPNext API error response with user-friendly alerts
  */
 export function handleERPNextError(
-  data: any,
+  data: Record<string, unknown>,
   postingDate: string,
   documentType: string = 'dokumen',
   defaultMessage: string = 'Gagal menyimpan'
 ): { errorMessage: string; bannerMessage: string } {
   const errorMessage = extractERPNextErrorMessage(data, defaultMessage);
+  const effectiveDate = (data as { data?: { posting_date?: string } })?.data?.posting_date || postingDate;
   
   if (isClosedPeriodError(errorMessage)) {
-    showClosedPeriodAlert(postingDate, errorMessage, documentType);
+    showClosedPeriodAlert(effectiveDate, errorMessage, documentType);
     return {
       errorMessage,
       bannerMessage: '⚠️ Periode akuntansi tertutup. Silakan ubah tanggal posting ke periode yang terbuka.'
     };
   } else {
-    showGenericErrorAlert(errorMessage, documentType, postingDate);
+    showGenericErrorAlert(errorMessage, documentType, effectiveDate);
     return {
       errorMessage,
       bannerMessage: `❌ ${errorMessage}`
     };
   }
+}
+
+interface ToastFunctions {
+  success: (message: string) => void;
+  error: (message: string) => void;
+  loading: (message: string) => string;
+  dismiss: (id?: string) => void;
+}
+
+/**
+ * Handle API response: check for error, show alert, and throw if needed
+ */
+export async function handleApiResponse(
+  response: Response,
+  toast: ToastFunctions, // Allow any toast library
+  successMessage: string = 'Operasi berhasil disimpan',
+  throwOnError: boolean = true
+): Promise<Record<string, unknown>> {
+  const data: Record<string, unknown> = await response.json();
+
+  if (!response.ok) {
+    const errorMessage = extractERPNextErrorMessage(data, 'Gagal menyimpan perubahan');
+
+    if (isClosedPeriodError(errorMessage)) {
+      const postingDate = (data as { data?: { posting_date?: string } })?.data?.posting_date || 'tanggal yang relevan';
+      showClosedPeriodAlert(postingDate, errorMessage);
+    } else {
+      toast.error(errorMessage);
+    }
+
+    if (throwOnError) {
+      throw new Error(errorMessage);
+    }
+    
+    return data; // Return error data if not throwing
+  }
+
+  if (successMessage) {
+    toast.success(successMessage);
+  }
+
+  return data;
 }

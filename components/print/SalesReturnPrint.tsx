@@ -34,7 +34,7 @@ interface SalesReturnPrintProps {
       uom?: string;
       stock_uom?: string;
     }>;
-    total: number;
+    total?: number;
     net_total?: number;
     total_taxes_and_charges?: number;
     grand_total: number;
@@ -52,11 +52,12 @@ export default function SalesReturnPrint({
   data, 
   companyName,
 }: SalesReturnPrintProps) {
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: unknown) => {
+    const numAmount = typeof amount === 'number' ? amount : Number(amount);
     return new Intl.NumberFormat('id-ID', {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
-    }).format(amount);
+    }).format(isNaN(numAmount) ? 0 : numAmount);
   };
 
   const formatDate = (dateStr: string) => {
@@ -91,7 +92,7 @@ export default function SalesReturnPrint({
     columns: [
       { key: 'item_code', label: 'Kode', align: 'left', width: '15%' },
       { key: 'item_name', label: 'Nama Item', align: 'left', width: '40%' },
-      { key: 'qty', label: 'Qty', align: 'right', width: '10%', format: (v) => v.toString() },
+      { key: 'qty', label: 'Qty', align: 'right', width: '10%', format: (v) => String(v || 0) },
       { key: 'rate', label: 'Harga', align: 'right', width: '17%', format: formatCurrency },
       { key: 'amount', label: 'Jumlah', align: 'right', width: '18%', format: formatCurrency },
     ],

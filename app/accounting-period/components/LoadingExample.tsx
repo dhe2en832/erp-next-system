@@ -12,7 +12,6 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 import LoadingButton from '@/components/LoadingButton';
 import LoadingOverlay from '@/components/LoadingOverlay';
 import {
-  Skeleton,
   SkeletonText,
   SkeletonCard,
   SkeletonTable,
@@ -297,7 +296,7 @@ export default function LoadingExample() {
           </li>
           <li className="flex items-start">
             <span className="text-blue-600 mr-2">✓</span>
-            <span>Provide specific loading messages that describe what's happening</span>
+            <span>Provide specific loading messages that describe what&apos;s happening</span>
           </li>
           <li className="flex items-start">
             <span className="text-blue-600 mr-2">✓</span>

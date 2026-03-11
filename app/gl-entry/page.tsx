@@ -124,12 +124,14 @@ interface DatePickerProps {
 }
 
 function BrowserStyleDatePicker({ value, onChange, label, placeholder = 'DD/MM/YYYY', className = '' }: DatePickerProps) {
-  const [display, setDisplay] = useState('');
+  const [display, setDisplay] = useState(value ? isoToDisplay(value) : '');
+  const [prevValue, setPrevValue] = useState(value);
   const nativeRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
+  if (value !== prevValue) {
+    setPrevValue(value);
     setDisplay(value ? isoToDisplay(value) : '');
-  }, [value]);
+  }
 
   const commit = (raw: string) => {
     if (/^\d{2}\/\d{2}\/\d{4}$/.test(raw)) {
@@ -348,7 +350,6 @@ function PaginationBar({ currentPage, totalPages, totalRecords, pageSize, onPage
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function GLEntryPage() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const isMobile = useIsMobile();
   const pageSize = isMobile ? 10 : 20;
@@ -671,7 +672,7 @@ export default function GLEntryPage() {
               )}
               {searchTerm && (
                 <span className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full">
-                  "{searchTerm}"
+                  &quot;{searchTerm}&quot;
                   <button onClick={() => setSearchTerm('')}><X className="w-3 h-3" /></button>
                 </span>
               )}

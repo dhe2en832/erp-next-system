@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Build filters array
-    let filtersArray: any[] = [];
+    const filtersArray: any[] = [];
     
     // CRITICAL: Filter by is_return=1 to get only Credit Notes (Sales Invoice returns)
     filtersArray.push(["is_return", "=", 1]);
@@ -118,7 +118,7 @@ export async function GET(request: NextRequest) {
       filters: filtersArray,
       limit_page_length: parseInt(limit),
       start: parseInt(start),
-      order_by: orderBy || 'posting_date desc'
+      order_by: orderBy || 'creation desc, posting_date desc'
     });
 
     // Transform data: docstatus → status, return_against → sales_invoice
@@ -146,10 +146,12 @@ export async function GET(request: NextRequest) {
         };
       });
       
+      const totalRecords = await client.getCount('Sales Invoice', { filters: filtersArray });
+
       return NextResponse.json({
         success: true,
         data: transformedData,
-        total_records: transformedData.length,
+        total_records: totalRecords,
       });
   } catch (error: unknown) {
     logSiteError(error, 'GET /api/sales/credit-note', siteId);

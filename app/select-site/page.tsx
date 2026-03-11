@@ -7,10 +7,11 @@
  * Similar to company selection flow.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSite } from '@/lib/site-context';
 import { getHealthMonitor, type HealthCheckResult } from '@/lib/site-health';
+import { SiteConfig } from '@/lib/env-config';
 
 export default function SelectSitePage() {
   const router = useRouter();
@@ -29,18 +30,19 @@ export default function SelectSitePage() {
   const [addSiteError, setAddSiteError] = useState('');
 
   // Fetch company name for a site
-  const fetchCompanyForSite = async (site: any) => {
-    if (companyNames.has(site.id) || fetchingCompanies.has(site.id)) {
+  const fetchCompanyForSite = useCallback(async (site: SiteConfig) => {
+    const siteId = site.id;
+    if (!siteId || companyNames.has(siteId) || fetchingCompanies.has(siteId)) {
       return; // Already fetched or fetching
     }
 
     // Use cached company name if available
     if (site.companyName) {
-      setCompanyNames(prev => new Map(prev).set(site.id, site.companyName));
+      setCompanyNames(prev => new Map(prev).set(siteId, site.companyName as string));
       return;
     }
 
-    setFetchingCompanies(prev => new Set(prev).add(site.id));
+    setFetchingCompanies(prev => new Set(prev).add(siteId));
 
     try {
       const url = `${site.apiUrl}/api/resource/Company?fields=["name","company_name"]&limit_page_length=1`;
@@ -62,27 +64,27 @@ export default function SelectSitePage() {
         const data = await response.json();
         if (data.data && data.data.length > 0) {
           const companyName = data.data[0].company_name || data.data[0].name;
-          setCompanyNames(prev => new Map(prev).set(site.id, companyName));
+          setCompanyNames(prev => new Map(prev).set(siteId, companyName));
         }
       }
-    } catch (error) {
+    } catch {
       // Silently fail - company name is optional
-      console.log(`Could not fetch company name for site ${site.id}`);
+      console.log(`Could not fetch company name for site ${siteId}`);
     } finally {
       setFetchingCompanies(prev => {
         const next = new Set(prev);
-        next.delete(site.id);
+        next.delete(siteId);
         return next;
       });
     }
-  };
+  }, [companyNames, fetchingCompanies]);
 
   // Fetch company names for all sites on mount
   useEffect(() => {
     sites.forEach(site => {
       fetchCompanyForSite(site);
     });
-  }, [sites]);
+  }, [sites, fetchCompanyForSite]);
 
   // Subscribe to health status updates
   useEffect(() => {
@@ -195,7 +197,6 @@ export default function SelectSitePage() {
       // Build site config
       const apiUrl = `https://${siteName}`;
       const displayName = siteName.split('.')[0].toUpperCase();
-      const siteId = siteName.replace(/\./g, '-');
 
       // Validate connection to ERPNext via backend API (no CORS issues!)
       try {

@@ -11,7 +11,6 @@
  * @validates Requirements 1.3
  */
 
-import React from 'react';
 import SystemReportPrint from './SystemReportPrint';
 import { ReportColumn } from '@/types/print';
 
@@ -20,6 +19,7 @@ import { ReportColumn } from '@/types/print';
 // ============================================================================
 
 export interface PurchaseReportData {
+  [key: string]: unknown;
   /** Transaction date */
   date: string;
   
@@ -63,8 +63,8 @@ export interface PurchaseReportPrintProps {
 /**
  * Format currency in Indonesian Rupiah
  */
-function formatCurrency(value: any): string {
-  const num = parseFloat(value) || 0;
+function formatCurrency(value: unknown): string {
+  const num = typeof value === 'number' ? value : parseFloat(value as string) || 0;
   return new Intl.NumberFormat('id-ID', {
     style: 'currency',
     currency: 'IDR',
@@ -76,17 +76,17 @@ function formatCurrency(value: any): string {
 /**
  * Format date in Indonesian locale
  */
-function formatDate(value: any): string {
+function formatDate(value: unknown): string {
   if (!value) return '-';
   try {
-    const date = new Date(value);
+    const date = new Date(value as string | number | Date);
     return new Intl.DateTimeFormat('id-ID', {
       day: 'numeric',
       month: 'short',
       year: 'numeric',
     }).format(date);
   } catch {
-    return value;
+    return value as string;
   }
 }
 

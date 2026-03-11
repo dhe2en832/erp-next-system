@@ -40,12 +40,12 @@ export function sanitizeString(input: string | null | undefined): string {
 /**
  * Sanitize an object by sanitizing all string values recursively
  */
-export function sanitizeObject<T extends Record<string, any>>(obj: T): T {
+export function sanitizeObject<T extends Record<string, unknown>>(obj: T): T {
   if (!obj || typeof obj !== 'object') {
     return obj;
   }
   
-  const sanitized: any = Array.isArray(obj) ? [] : {};
+  const sanitized = (Array.isArray(obj) ? [] : {}) as Record<string, unknown>;
   
   for (const key in obj) {
     if (Object.prototype.hasOwnProperty.call(obj, key)) {
@@ -54,7 +54,7 @@ export function sanitizeObject<T extends Record<string, any>>(obj: T): T {
       if (typeof value === 'string') {
         sanitized[key] = sanitizeString(value);
       } else if (typeof value === 'object' && value !== null) {
-        sanitized[key] = sanitizeObject(value);
+        sanitized[key] = sanitizeObject(value as Record<string, unknown>);
       } else {
         sanitized[key] = value;
       }
@@ -74,7 +74,7 @@ export function sanitizeHtml(input: string | null | undefined): string {
   const str = String(input);
   
   // Remove dangerous tags and attributes
-  let sanitized = str
+  const sanitized = str
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
     .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
     .replace(/<object\b[^<]*(?:(?!<\/object>)<[^<]*)*<\/object>/gi, '')
@@ -174,7 +174,7 @@ export function sanitizeFileName(fileName: string | null | undefined): string {
 /**
  * Sanitize numeric input
  */
-export function sanitizeNumber(input: any): number {
+export function sanitizeNumber(input: unknown): number {
   const num = Number(input);
   
   if (isNaN(num) || !isFinite(num)) {
@@ -187,7 +187,7 @@ export function sanitizeNumber(input: any): number {
 /**
  * Sanitize boolean input
  */
-export function sanitizeBoolean(input: any): boolean {
+export function sanitizeBoolean(input: unknown): boolean {
   if (typeof input === 'boolean') {
     return input;
   }
@@ -233,25 +233,25 @@ export function sanitizeDate(dateStr: string | null | undefined): string {
 /**
  * Sanitize array of strings
  */
-export function sanitizeStringArray(arr: any[] | null | undefined): string[] {
+export function sanitizeStringArray(arr: unknown[] | null | undefined): string[] {
   if (!arr || !Array.isArray(arr)) {
     return [];
   }
   
-  return arr.map(item => sanitizeString(item));
+  return arr.map(item => sanitizeString(String(item)));
 }
 
 /**
  * Create a sanitization middleware for API routes
  */
 export function createSanitizationMiddleware() {
-  return (data: any): any => {
+  return (data: unknown): unknown => {
     if (typeof data === 'string') {
       return sanitizeString(data);
     }
     
     if (typeof data === 'object' && data !== null) {
-      return sanitizeObject(data);
+      return sanitizeObject(data as Record<string, unknown>);
     }
     
     return data;
@@ -261,7 +261,7 @@ export function createSanitizationMiddleware() {
 /**
  * Sanitize request body for API endpoints
  */
-export function sanitizeRequestBody<T extends Record<string, any>>(body: T): T {
+export function sanitizeRequestBody<T extends Record<string, unknown>>(body: T): T {
   return sanitizeObject(body);
 }
 

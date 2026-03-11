@@ -2,11 +2,11 @@
  * Parse ERPNext error response into a human-readable message.
  * Priority: _server_messages > exception message > exc > message > fallback
  */
-export function parseErpError(data: any, fallback = 'Terjadi kesalahan'): string {
+export function parseErpError(data: Record<string, unknown> | null | undefined, fallback = 'Terjadi kesalahan'): string {
   if (!data) return fallback;
 
   // _server_messages is the most user-friendly source
-  if (data._server_messages) {
+  if (data._server_messages && typeof data._server_messages === 'string') {
     try {
       const msgs = JSON.parse(data._server_messages);
       if (Array.isArray(msgs) && msgs.length > 0) {
@@ -19,10 +19,10 @@ export function parseErpError(data: any, fallback = 'Terjadi kesalahan'): string
   }
 
   // exc contains traceback array; last line of first entry is the exception message
-  if (data.exc) {
+  if (data.exc && typeof data.exc === 'string') {
     try {
       const excArr = JSON.parse(data.exc);
-      if (Array.isArray(excArr) && excArr.length > 0) {
+      if (Array.isArray(excArr) && excArr.length > 0 && typeof excArr[0] === 'string') {
         const lines = excArr[0].split('\n').filter(Boolean);
         const lastLine = lines[lines.length - 1] || '';
         // Strip "frappe.exceptions.XxxError: " prefix
@@ -33,10 +33,8 @@ export function parseErpError(data: any, fallback = 'Terjadi kesalahan'): string
     } catch {
       // fall through
     }
-    if (typeof data.exc === 'string') {
-      const lines = data.exc.split('\n').filter(Boolean);
-      return lines[lines.length - 1] || fallback;
-    }
+    const lines = data.exc.split('\n').filter(Boolean);
+    return lines[lines.length - 1] || fallback;
   }
 
   if (data.exception) {

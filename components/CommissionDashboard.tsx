@@ -14,7 +14,7 @@ interface CommissionData {
     net_earned_commission: number;
     commission_rate: number;
   };
-  sales_orders: any[];
+  sales_orders: Record<string, unknown>[];
   paid_invoices: Array<{
     name: string;
     base_grand_total: number;
@@ -22,7 +22,7 @@ interface CommissionData {
     status: string;
     custom_total_komisi_sales: number;
     credit_note_adjustment: number;
-    credit_notes: any[];
+    credit_notes: Record<string, unknown>[];
     net_commission: number;
     has_commission_payment: boolean;
     has_post_payment_credit_note: boolean;
@@ -156,7 +156,7 @@ export default function CommissionDashboard() {
           <span className="font-medium">Commission Rate:</span> {data.summary.commission_rate}%
         </p>
         <p className="text-sm text-gray-600 mt-1">
-          Komisi akan dibayarkan setelah Sales Invoice berstatus "Paid"
+          Komisi akan dibayarkan setelah Sales Invoice berstatus &quot;Paid&quot;
         </p>
       </div>
 
@@ -174,12 +174,12 @@ export default function CommissionDashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {data.sales_orders.slice(0, 10).map((so: any, index: number) => (
+                {data.sales_orders.slice(0, 10).map((so: Record<string, unknown>, index: number) => (
                   <tr key={index}>
-                    <td className="px-4 py-2 text-sm">{so.name}</td>
-                    <td className="px-4 py-2 text-sm">{so.transaction_date}</td>
+                    <td className="px-4 py-2 text-sm">{so.name as string}</td>
+                    <td className="px-4 py-2 text-sm">{so.transaction_date as string}</td>
                     <td className="px-4 py-2 text-sm text-right">
-                      Rp {so.base_grand_total.toLocaleString()}
+                      Rp {Number(so.base_grand_total || 0).toLocaleString()}
                     </td>
                   </tr>
                 ))}
@@ -204,12 +204,16 @@ export default function CommissionDashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {data.paid_invoices.slice(0, 10).map((inv: any, index: number) => (
-                  <tr key={index} className="hover:bg-gray-50">
+                {data.paid_invoices.map((inv: Record<string, unknown>, index: number) => (
+                  <tr 
+                    key={index} 
+                    className="cursor-pointer hover:bg-gray-50"
+                    onClick={() => setSelectedInvoice(inv.name as string === selectedInvoice ? null : inv.name as string)}
+                  >
                     <td className="px-4 py-2 text-sm">
                       <div className="flex items-center gap-2">
-                        {inv.name}
-                        {inv.has_post_payment_credit_note && (
+                        {inv.name as string}
+                        {(inv.has_post_payment_credit_note as boolean) && (
                           <span 
                             className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800"
                             title="Credit Note dibuat setelah komisi dibayar"
@@ -219,34 +223,12 @@ export default function CommissionDashboard() {
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-2 text-sm">{inv.posting_date}</td>
-                    <td className="px-4 py-2 text-sm text-right">
-                      Rp {inv.base_grand_total.toLocaleString()}
+                    <td className="px-4 py-2 text-sm">{inv.posting_date as string}</td>
+                    <td className="px-4 py-2 text-sm text-right font-medium">
+                      Rp {Number(inv.base_grand_total || 0).toLocaleString()}
                     </td>
-                    <td className="px-4 py-2 text-sm text-right text-purple-600 font-medium">
-                      Rp {(inv.custom_total_komisi_sales || 0).toLocaleString()}
-                    </td>
-                    <td className="px-4 py-2 text-sm text-right">
-                      {inv.credit_note_adjustment > 0 ? (
-                        <span className="text-red-600 font-medium">
-                          - Rp {inv.credit_note_adjustment.toLocaleString()}
-                        </span>
-                      ) : (
-                        <span className="text-gray-400">-</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-2 text-sm text-right text-indigo-600 font-semibold">
-                      Rp {inv.net_commission.toLocaleString()}
-                    </td>
-                    <td className="px-4 py-2 text-center">
-                      {inv.credit_notes && inv.credit_notes.length > 0 && (
-                        <button
-                          onClick={() => setSelectedInvoice(selectedInvoice === inv.name ? null : inv.name)}
-                          className="text-indigo-600 hover:text-indigo-800 text-xs font-medium"
-                        >
-                          {selectedInvoice === inv.name ? 'Hide' : 'View'} CNs ({inv.credit_notes.length})
-                        </button>
-                      )}
+                    <td className="px-4 py-2 text-sm text-right text-indigo-600 font-bold">
+                      Rp {Number(inv.net_commission || 0).toLocaleString()}
                     </td>
                   </tr>
                 ))}
@@ -260,8 +242,8 @@ export default function CommissionDashboard() {
       {selectedInvoice && (
         <div className="mt-6">
           {(() => {
-            const invoice = data.paid_invoices.find((inv: any) => inv.name === selectedInvoice);
-            if (!invoice || !invoice.credit_notes || invoice.credit_notes.length === 0) return null;
+            const invoice = data.paid_invoices.find((inv: Record<string, unknown>) => inv.name === selectedInvoice);
+            if (!invoice || !invoice.credit_notes || (invoice.credit_notes as unknown[]).length === 0) return null;
 
             return (
               <div className="bg-white rounded-lg shadow p-6">
@@ -271,7 +253,7 @@ export default function CommissionDashboard() {
                       Credit Notes untuk Invoice: {selectedInvoice}
                     </h3>
                     <p className="text-sm text-gray-600 mt-1">
-                      Total {invoice.credit_notes.length} Credit Note(s) mempengaruhi komisi invoice ini
+                      Total {(invoice.credit_notes as unknown[]).length} Credit Note(s) mempengaruhi komisi invoice ini
                     </p>
                   </div>
                   <button
@@ -302,13 +284,13 @@ export default function CommissionDashboard() {
                             Satu atau lebih Credit Note dibuat setelah komisi untuk invoice ini sudah dibayarkan.
                             Ini berarti ada penyesuaian komisi yang perlu diperhitungkan dalam pembayaran komisi berikutnya.
                           </p>
-                          {invoice.commission_payments && invoice.commission_payments.length > 0 && (
+                          {invoice.commission_payments && (invoice.commission_payments as unknown[]).length > 0 && (
                             <p className="mt-2">
                               <strong>Pembayaran Komisi:</strong>{' '}
-                              {invoice.commission_payments.map((p: any, i: number) => (
+                              {(invoice.commission_payments as Record<string, unknown>[]).map((p: Record<string, unknown>, i: number) => (
                                 <span key={i}>
-                                  {p.payment_name} ({p.payment_date})
-                                  {i < invoice.commission_payments.length - 1 ? ', ' : ''}
+                                  {p.payment_name as string} ({p.payment_date as string})
+                                  {i < (invoice.commission_payments as unknown[]).length - 1 ? ', ' : ''}
                                 </span>
                               ))}
                             </p>
@@ -320,54 +302,30 @@ export default function CommissionDashboard() {
                 )}
 
                 <div className="overflow-x-auto">
-                  <table className="w-full">
+                  <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">CN Number</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
-                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Commission Adj.</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">CN #</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tanggal</th>
+                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Grand Total</th>
+                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Potongan Komisi</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {invoice.credit_notes.map((cn: any, idx: number) => (
-                        <tr key={idx} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm">
-                            <a 
-                              href={`/credit-note?name=${cn.name}`}
-                              className="text-indigo-600 hover:text-indigo-800 font-medium"
-                            >
-                              {cn.name}
-                            </a>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {(invoice.credit_notes as Record<string, unknown>[]).map((cn: Record<string, unknown>, idx: number) => (
+                        <tr key={idx}>
+                          <td className="px-4 py-2 text-sm font-medium text-gray-900">{cn.name as string}</td>
+                          <td className="px-4 py-2 text-sm text-gray-500">{cn.posting_date as string}</td>
+                          <td className="px-4 py-2 text-sm text-right">
+                            Rp {Number(cn.grand_total || 0).toLocaleString()}
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-600">{cn.posting_date}</td>
-                          <td className="px-4 py-3 text-sm text-right text-red-600 font-medium">
-                            - Rp {Math.abs(cn.base_grand_total || 0).toLocaleString()}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-right text-red-600 font-semibold">
-                            - Rp {Math.abs(cn.custom_total_komisi_sales || 0).toLocaleString()}
+                          <td className="px-4 py-2 text-sm text-right text-red-600 font-medium">
+                            - Rp {Number(cn.custom_komisi_sales_amount || 0).toLocaleString()}
                           </td>
                         </tr>
                       ))}
-                      <tr className="bg-gray-50 font-semibold">
-                        <td colSpan={3} className="px-4 py-3 text-sm text-right text-gray-700">
-                          Total Adjustments:
-                        </td>
-                        <td className="px-4 py-3 text-sm text-right text-red-600">
-                          - Rp {invoice.credit_note_adjustment.toLocaleString()}
-                        </td>
-                      </tr>
                     </tbody>
                   </table>
-                </div>
-
-                <div className="mt-4 p-4 bg-indigo-50 rounded-lg">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium text-gray-700">Net Commission after CN adjustments:</span>
-                    <span className="text-lg font-bold text-indigo-600">
-                      Rp {invoice.net_commission.toLocaleString()}
-                    </span>
-                  </div>
                 </div>
               </div>
             );

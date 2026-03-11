@@ -369,7 +369,7 @@ export default function FinancialReportsPage() {
             <div className="w-8 h-8 flex items-center justify-center rounded-full bg-indigo-100 text-indigo-700 text-sm font-semibold">A4</div>
             <div>
               <p className="font-semibold text-gray-900">Cetak Dokumen</p>
-              <p className="text-xs text-gray-600">Gunakan tombol "Cetak {tabLabel}" di atas untuk pratinjau & cetak A4.</p>
+              <p className="text-xs text-gray-600">Gunakan tombol &quot;Cetak {tabLabel}&quot; di atas untuk pratinjau &amp; cetak A4.</p>
             </div>
           </div>
           <ul className="text-sm text-gray-700 list-disc list-inside space-y-1">

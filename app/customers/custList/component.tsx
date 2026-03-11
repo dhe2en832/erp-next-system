@@ -68,6 +68,7 @@ export default function CustomerList() {
       params.set('limit_start', ((currentPage - 1) * pageSize).toString());
       
       if (searchTerm.trim()) params.set('search', searchTerm.trim());
+      params.set('order_by', 'creation desc');
 
       const response = await fetch(`/api/sales/customers?${params}`, { credentials: 'include' });
       const data = await response.json();

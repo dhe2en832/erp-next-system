@@ -9,7 +9,7 @@ import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
 import { Printer, FileText, Send, ArrowUp, Loader2 } from 'lucide-react';
 import ErrorDialog from '../../../components/ErrorDialog';
 import PrintPreviewModal from '../../../components/print/PrintPreviewModal';
-import DeliveryNotePrint from '../../../components/print/DeliveryNotePrint';
+import DeliveryNotePrint, { DeliveryNotePrintProps } from '../../../components/print/DeliveryNotePrint';
 
 export const dynamic = 'force-dynamic';
 
@@ -108,7 +108,7 @@ export default function DeliveryNoteList() {
 
   // Print preview states
   const [showPrintPreview, setShowPrintPreview] = useState(false);
-  const [printData, setPrintData] = useState<any>(null);
+  const [printData, setPrintData] = useState<DeliveryNotePrintProps['data'] | null>(null);
   const [loadingPrintData, setLoadingPrintData] = useState(false);
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -180,8 +180,8 @@ export default function DeliveryNoteList() {
       params.append('limit_page_length', pageSize.toString());
       params.append('start', ((currentPage - 1) * pageSize).toString());
 
-      // ✅ TAMBAHKAN INI: Urutkan dari yang terbaru (posting_date descending)
-      params.append('order_by', 'posting_date desc');
+      // ✅ TAMBAHKAN INI: Urutkan dari yang terbaru (creation & posting_date descending)
+      params.append('order_by', 'creation desc, posting_date desc');
 
       // ✅ REQUEST FIELD SPESIFIK DARI ERPNext
       params.append('fields', JSON.stringify([

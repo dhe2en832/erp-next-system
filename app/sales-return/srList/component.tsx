@@ -94,7 +94,7 @@ export default function SalesReturnList() {
 
   // Print preview states
   const [showPrintPreview, setShowPrintPreview] = useState(false);
-  const [printData, setPrintData] = useState<any>(null);
+  const [printData, setPrintData] = useState<SalesReturn | null>(null);
   const [loadingPrintData, setLoadingPrintData] = useState(false);
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -180,7 +180,7 @@ export default function SalesReturnList() {
       ]));
       
       // ✅ SORTING: Data terbaru paling atas
-      params.append('order_by', 'posting_date desc');
+      params.append('order_by', 'creation desc, posting_date desc');
       
       // ✅ BUILD FILTERS ARRAY UNTUK ERPNext (Format JSON)
       // ⚠️ PENTING: Sales Return menggunakan is_return = 1 (bukan 0)
@@ -609,8 +609,13 @@ export default function SalesReturnList() {
                       <div className="flex items-center justify-between pt-2 border-t border-gray-100">
                         <span className="text-sm font-semibold text-gray-900">{formatCurrency(ret.grand_total)}</span>
                         <div className="flex items-center gap-1">
-                          <button onClick={(e) => handlePrint(ret.name, e)} className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Cetak">
-                            <Printer className="h-4 w-4" />
+                          <button 
+                            onClick={(e) => handlePrint(ret.name, e)} 
+                            disabled={loadingPrintData}
+                            className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg disabled:opacity-50" 
+                            title="Cetak"
+                          >
+                            {loadingPrintData ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
                           </button>
                           {ret.status === 'Draft' && (
                             <button 
@@ -657,8 +662,13 @@ export default function SalesReturnList() {
                       </div>
                       <div className="col-span-1">
                         <div className="flex items-center justify-end gap-1">
-                          <button onClick={(e) => handlePrint(ret.name, e)} className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Cetak">
-                            <Printer className="h-4 w-4" />
+                          <button 
+                            onClick={(e) => handlePrint(ret.name, e)} 
+                            disabled={loadingPrintData}
+                            className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg disabled:opacity-50" 
+                            title="Cetak"
+                          >
+                            {loadingPrintData ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
                           </button>
                           {ret.status === 'Draft' && (
                             <button onClick={(e) => handleSubmitReturn(ret.name, e)} className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg" title="Ajukan">

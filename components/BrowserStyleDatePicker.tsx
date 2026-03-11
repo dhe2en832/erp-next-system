@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { formatDate, parseDate } from '../utils/format';
+import { useMemo, useRef } from 'react';
+import { parseDate } from '../utils/format';
 import { Calendar, X } from 'lucide-react';
 
 interface BrowserStyleDatePickerProps {
@@ -17,25 +17,17 @@ export default function BrowserStyleDatePicker({
   placeholder = "DD/MM/YYYY", 
   className = "" 
 }: BrowserStyleDatePickerProps) {
-  const [internalValue, setInternalValue] = useState('');
   const dateInputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    // Convert DD/MM/YYYY to YYYY-MM-DD for the date input
-    // console.log('[DEBUG DatePicker] value prop:', value);
+  // Derived internal value for the HTML date input (YYYY-MM-DD format)
+  const internalValue = useMemo(() => {
     if (value && /^\d{2}\/\d{2}\/\d{4}$/.test(value)) {
-      const parsed = parseDate(value);
-      // console.log('[DEBUG DatePicker] parsed:', parsed);
-      setInternalValue(parsed || '');
+      return parseDate(value) || '';
     } else if (value && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
-      // Already YYYY-MM-DD, use directly
-      // console.log('[DEBUG DatePicker] already YYYY-MM-DD:', value);
-      setInternalValue(value);
-    } else {
-      // console.log('[DEBUG DatePicker] invalid format, clearing');
-      setInternalValue('');
+      return value;
     }
+    return '';
   }, [value]);
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -67,7 +59,6 @@ export default function BrowserStyleDatePicker({
 
   const handleClearClick = () => {
     onChange('');
-    setInternalValue('');
   };
 
   // Format the display value (DD/MM/YYYY)

@@ -2,18 +2,27 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Printer, FileText, ArrowUp, Loader2, Plus, CreditCard, AlertCircle } from 'lucide-react';
+import { 
+  Printer, 
+  FileText, 
+  ArrowUp, 
+  Loader2, 
+  Plus, 
+  CreditCard, 
+  AlertCircle 
+} from 'lucide-react';
 
 // ✅ Import reusable hooks & components
 import { useIsMobile, useInfiniteScroll } from '@/hooks';
 import {
-  LoadingSpinner,
   Pagination,
   ErrorDialog,
   BrowserStyleDatePicker,
   SkeletonCard,
   SkeletonList,
 } from '@/components';
+import PrintPreviewModal from '../../../components/print/PrintPreviewModal'; 
+import PurchaseInvoicePrint, { PurchaseInvoicePrintProps } from '../../../components/print/PurchaseInvoicePrint';
 
 import { formatDate, parseDate } from '../../../utils/format';
 
@@ -37,22 +46,6 @@ interface PurchaseInvoice {
   creation?: string;
   company?: string;
 }
-
-interface Supplier {
-  name: string;
-  supplier_name: string;
-}
-
-// ─────────────────────────────────────────────────────────────
-// Helper: Format currency
-// ─────────────────────────────────────────────────────────────
-const formatCurrency = (amount: number, currency = 'IDR') => {
-  return new Intl.NumberFormat('id-ID', {
-    style: 'currency',
-    currency: currency,
-    minimumFractionDigits: 0,
-  }).format(amount);
-};
 
 // ─────────────────────────────────────────────────────────────
 // Status Mapping: English (DB) → Indonesian (UI)
@@ -99,16 +92,15 @@ export default function PurchaseInvoiceList() {
   // State Management
   // ─────────────────────────────────────────────────────────
   const [invoices, setInvoices] = useState<PurchaseInvoice[]>([]);
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [dateFilter, setDateFilter] = useState({
-    from_date: formatDate(new Date(Date.now() - 86400000)),
-    to_date: formatDate(new Date()),
-  });
-  const [supplierFilter, setSupplierFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [supplierFilter, setSupplierFilter] = useState('');
+  const [dateFilter, setDateFilter] = useState({
+    from_date: '',
+    to_date: ''
+  });
   const [documentNumberFilter, setDocumentNumberFilter] = useState('');
   const [selectedCompany, setSelectedCompany] = useState('');
   const [error, setError] = useState('');
@@ -124,7 +116,12 @@ export default function PurchaseInvoiceList() {
   // Debounce for search
   const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
 
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+
+  // Print preview states
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
+  const [printData, setPrintData] = useState<PurchaseInvoicePrintProps['data'] | null>(null);
+  const [loadingPrintData, setLoadingPrintData] = useState(false);
   
   // Ref untuk tracking pagination source (prevent race conditions)
   const pageChangeSourceRef = useRef<'pagination' | 'filter' | 'init'>('init');
@@ -161,21 +158,6 @@ export default function PurchaseInvoiceList() {
     if (savedCompany) setSelectedCompany(savedCompany);
   }, []);
 
-  // ─────────────────────────────────────────────────────────
-  // Fetch Suppliers
-  // ─────────────────────────────────────────────────────────
-  const fetchSuppliers = useCallback(async () => {
-    const companyToUse = selectedCompany || localStorage.getItem('selected_company');
-    if (!companyToUse) return;
-
-    try {
-      const response = await fetch(`/api/purchase/suppliers?company=${encodeURIComponent(companyToUse)}`);
-      const data = await response.json();
-      if (data.success) setSuppliers(data.data || []);
-    } catch (err) {
-      console.error('Error fetching suppliers:', err);
-    }
-  }, [selectedCompany]);
 
   // ─────────────────────────────────────────────────────────
   // Fetch Data - MENGIKUTI POLA soList.tsx
@@ -223,8 +205,8 @@ export default function PurchaseInvoiceList() {
       params.append('limit_page_length', pageSize.toString());
       params.append('limit_start', ((currentPage - 1) * pageSize).toString());
 
-      // 🔥 WAJIB: Urutkan dari yang terbaru
-      params.append('order_by', 'creation desc');
+      // 🔥 WAJIB: Urutkan dari yang terbaru (creation & posting_date descending)
+      params.append('order_by', 'creation desc, posting_date desc');
 
       // 🔥 WAJIB: Company sebagai simple param (bukan di dalam filters JSON)
       params.append('company', companyToUse);
@@ -264,7 +246,7 @@ export default function PurchaseInvoiceList() {
         }
 
         // ✅ Secondary sort by creation date (fallback jika API tidak sorting)
-        invoicesData.sort((a: any, b: any) => {
+        invoicesData.sort((a: PurchaseInvoice, b: PurchaseInvoice) => {
           const dateA = new Date(a.creation || a.posting_date || '1970-01-01');
           const dateB = new Date(b.creation || b.posting_date || '1970-01-01');
           return dateB.getTime() - dateA.getTime();
@@ -415,9 +397,33 @@ export default function PurchaseInvoiceList() {
     }
   };
 
-  const handlePrint = (piName: string, e: React.MouseEvent) => {
+  const handleCreateNew = () => {
+    router.push('/purchase-invoice/piMain');
+  };
+
+  const fetchDataForPrint = async (invoiceName: string) => {
+    setLoadingPrintData(true);
+    try {
+      const response = await fetch(`/api/purchase/invoices?id=${invoiceName}&company=${selectedCompany}`);
+      const result = await response.json();
+      
+      if (result.success && result.data) {
+        setPrintData(result.data);
+      } else {
+        alert('Gagal memuat data untuk print');
+      }
+    } catch (error) {
+      console.error('Error fetching data for print:', error);
+      alert('Terjadi kesalahan saat memuat data');
+    } finally {
+      setLoadingPrintData(false);
+    }
+  };
+
+  const handlePrint = async (invoiceName: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    window.open(`/print/purchase-invoice?name=${encodeURIComponent(piName)}`, '_blank');
+    await fetchDataForPrint(invoiceName);
+    setShowPrintPreview(true);
   };
 
   const handleCardClick = (invoice: PurchaseInvoice) => {
@@ -678,10 +684,11 @@ export default function PurchaseInvoiceList() {
                           <div className="flex items-center gap-1">
                             <button
                               onClick={(e) => handlePrint(invoice.name, e)}
-                              className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg"
+                              disabled={loadingPrintData}
+                              className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg disabled:opacity-50"
                               title="Cetak"
                             >
-                              <Printer className="h-4 w-4" />
+                              {loadingPrintData ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
                             </button>
                             {invoice.status === 'Draft' && (
                               <button
@@ -798,7 +805,7 @@ export default function PurchaseInvoiceList() {
               <FileText className="mx-auto h-12 w-12 text-gray-300" />
               <p className="mt-4 text-sm text-gray-500">Tidak ada faktur pembelian yang ditemukan</p>
               <button
-                onClick={() => router.push('/purchase-invoice/piMain')}
+                onClick={handleCreateNew}
                 className="mt-4 inline-flex items-center px-4 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100"
               >
                 + Buat Faktur Baru
@@ -894,6 +901,19 @@ export default function PurchaseInvoiceList() {
             </div>
           </div>
         </div>
+      )}
+      {/* Print Preview Modal */}
+      {showPrintPreview && printData && (
+        <PrintPreviewModal
+          onClose={() => setShowPrintPreview(false)}
+          title="Pratinjau Cetak Faktur Pembelian"
+          paperMode="continuous"
+        >
+          <PurchaseInvoicePrint 
+             data={printData as PurchaseInvoicePrintProps['data']} 
+             companyName={selectedCompany}
+           />
+        </PrintPreviewModal>
       )}
     </div>
   );

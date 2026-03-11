@@ -12,13 +12,6 @@ interface Warehouse {
   warehouse_name: string;
 }
 
-interface Item {
-  name: string;
-  item_name: string;
-  item_code: string;
-  stock_uom: string;
-}
-
 interface StockEntryItem {
   item_code: string;
   item_name?: string;
@@ -31,7 +24,6 @@ export default function StockEntryMain() {
   const entryName = searchParams.get('name');
 
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
-  const [items, setItems] = useState<Item[]>([]);
   const [selectedCompany, setSelectedCompany] = useState('');
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
@@ -70,17 +62,6 @@ export default function StockEntryMain() {
     }
   }, [selectedCompany]);
 
-  const fetchItems = useCallback(async () => {
-    if (!selectedCompany) return;
-    try {
-      const response = await fetch(`/api/inventory/items?company=${selectedCompany}`);
-      const data = await response.json();
-      if (data.success) setItems(data.data || []);
-    } catch (err) {
-      console.error('Gagal memuat barang:', err);
-    }
-  }, [selectedCompany]);
-
   // Load entry details for edit mode
   useEffect(() => {
     if (entryName) {
@@ -114,7 +95,7 @@ export default function StockEntryMain() {
             from_warehouse: entry.from_warehouse || '',
             to_warehouse: entry.to_warehouse || '',
             docstatus: entry.docstatus || 0, // Add docstatus
-            items: entry.items?.map((item: any) => ({
+            items: entry.items?.map((item: { item_code: string; item_name?: string; description?: string; qty: number }) => ({
               item_code: item.item_code || '',
               item_name: item.item_name || item.description || '',
               qty: item.qty || 1
@@ -134,9 +115,8 @@ export default function StockEntryMain() {
   useEffect(() => {
     if (selectedCompany) {
       fetchWarehouses();
-      fetchItems();
     }
-  }, [selectedCompany, fetchWarehouses, fetchItems]);
+  }, [selectedCompany, fetchWarehouses]);
 
   // Auto-fill warehouse fields when header warehouse changes
   useEffect(() => {

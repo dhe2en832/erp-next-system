@@ -100,6 +100,7 @@ export default function CommissionPaymentList() {
         company: selectedCompany,
         limit_page_length: String(pageSize),
         limit_start: String((currentPage - 1) * pageSize),
+        order_by: 'creation desc, posting_date desc'
       });
 
       // Add filters if provided

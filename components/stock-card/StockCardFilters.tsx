@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { StockCardFiltersProps, TransactionType } from '@/types/stock-card';
 import HybridDatePicker from '@/components/HybridDatePicker';
 import { Search, X, RefreshCw } from 'lucide-react';
@@ -45,10 +45,34 @@ export default function StockCardFilters({
   const [supplierSearch, setSupplierSearch] = useState('');
 
   // Local state for controlled inputs
-  const [localFilters, setLocalFilters] = useState(filters);
+  const [localFilters, setLocalFilters] = useState(() => {
+    // Initial state from props
+    let initialFilters = filters;
+    
+    // Try to load from sessionStorage if available
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        try {
+          initialFilters = JSON.parse(saved);
+        } catch (e) {
+          console.error('Failed to parse saved filters:', e);
+        }
+      }
+    }
+    return initialFilters;
+  });
   
+  // Update parent on mount if we loaded from storage
+  useEffect(() => {
+    if (JSON.stringify(localFilters) !== JSON.stringify(filters)) {
+      onFilterChange(localFilters);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run once on mount
+
   // Validation error state
-  const [dateRangeError, setDateRangeError] = useState('');
+  // const [dateRangeError, setDateRangeError] = useState('');
   
   // Debounce timer ref
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -89,26 +113,6 @@ export default function StockCardFilters({
 
     return '';
   }, []);
-
-  // Load filters from sessionStorage on mount
-  useEffect(() => {
-    const savedFilters = sessionStorage.getItem(STORAGE_KEY);
-    if (savedFilters) {
-      try {
-        const parsed = JSON.parse(savedFilters);
-        // Use a callback to avoid direct setState in effect
-        setLocalFilters(prevFilters => {
-          if (JSON.stringify(prevFilters) !== JSON.stringify(parsed)) {
-            onFilterChange(parsed);
-            return parsed;
-          }
-          return prevFilters;
-        });
-      } catch (error) {
-        console.error('Failed to parse saved filters:', error);
-      }
-    }
-  }, [onFilterChange]);
 
   // Save filters to sessionStorage whenever they change
   useEffect(() => {
@@ -152,18 +156,11 @@ export default function StockCardFilters({
   }, []);
 
   // Validate filters whenever they change
-  useEffect(() => {
-    const error = validateDateRange(
+  const dateRangeError = useMemo(() => {
+    return validateDateRange(
       localFilters.dateRange.from_date,
       localFilters.dateRange.to_date
     );
-    // Use callback to avoid direct setState in effect
-    setDateRangeError(prevError => {
-      if (prevError !== error) {
-        return error;
-      }
-      return prevError;
-    });
   }, [localFilters.dateRange.from_date, localFilters.dateRange.to_date, validateDateRange]);
 
   // Transaction type options (Indonesian labels)

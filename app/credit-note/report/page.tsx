@@ -14,10 +14,15 @@ interface ReportFilters {
   return_reason: CreditNoteReturnReason | '';
 }
 
+interface SummaryItem {
+  count: number;
+  amount: number;
+}
+
 interface ReportSummary {
   total_count: number;
   total_amount: number;
-  breakdown_by_reason: Record<string, { count: number; amount: number }>;
+  breakdown_by_reason: Record<string, SummaryItem>;
 }
 
 // Hook: Deteksi mobile (breakpoint 768px)
@@ -119,7 +124,7 @@ export default function CreditNoteReportPage() {
 
   // Calculate summary
   const summary: ReportSummary = useMemo(() => {
-    const breakdown: Record<string, { count: number; amount: number }> = {};
+    const breakdown: Record<string, SummaryItem> = {};
     
     creditNotes.forEach(cn => {
       cn.items.forEach(item => {
@@ -211,7 +216,7 @@ export default function CreditNoteReportPage() {
     XLSX.utils.book_append_sheet(wb, wsDetail, 'Detail');
     
     // Items sheet
-    const itemsData: any[] = [];
+    const itemsData: Record<string, unknown>[] = [];
     creditNotes.forEach(cn => {
       cn.items.forEach(item => {
         itemsData.push({
@@ -337,7 +342,7 @@ export default function CreditNoteReportPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">Alasan Retur</label>
             <select
               value={filters.return_reason}
-              onChange={(e) => setFilters(prev => ({ ...prev, return_reason: e.target.value as any }))}
+              onChange={(e) => setFilters(prev => ({ ...prev, return_reason: e.target.value as CreditNoteReturnReason | '' }))}
               className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
             >
               <option value="">Semua</option>
@@ -355,7 +360,7 @@ export default function CreditNoteReportPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">Group By</label>
             <select
               value={groupBy}
-              onChange={(e) => setGroupBy(e.target.value as any)}
+              onChange={(e) => setGroupBy(e.target.value as 'none' | 'customer' | 'reason')}
               className="border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
             >
               <option value="none">Tidak ada grouping</option>

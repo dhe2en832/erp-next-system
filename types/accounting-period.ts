@@ -18,7 +18,7 @@ export interface AccountingPeriod {
   closed_documents?: Array<{
     document_type?: string;
     closed?: number;
-    [key: string]: any;
+    [key: string]: unknown;
   }>;
   creation: string;
   modified: string;
@@ -77,6 +77,7 @@ export interface AccountBalance {
 }
 
 export interface ClosingJournalEntry {
+  name: string;
   doctype: 'Journal Entry';
   voucher_type: 'Closing Entry';
   posting_date: string;
@@ -104,7 +105,7 @@ export interface ValidationResult {
     doctype?: string;
     name?: string;
     status?: string;
-    [key: string]: any;
+    [key: string]: unknown;
   }[];
   validation_skipped?: boolean;
   skip_reason?: string;
@@ -145,7 +146,7 @@ export interface CreatePeriodResponse {
 export interface GetPeriodDetailResponse {
   success: boolean;
   data: AccountingPeriod & {
-    closing_journal?: any;
+    closing_journal?: ClosingJournalEntry;
     account_balances?: AccountBalance[];
     validation_results?: ValidationResult[];
   };
@@ -172,7 +173,7 @@ export interface ClosePeriodResponse {
   success: boolean;
   data: {
     period: AccountingPeriod;
-    closing_journal: any;
+    closing_journal: ClosingJournalEntry;
     account_balances: AccountBalance[];
   };
   message: string;
@@ -212,7 +213,7 @@ export interface ClosingSummaryResponse {
   success: boolean;
   data: {
     period: AccountingPeriod;
-    closing_journal: any;
+    closing_journal: ClosingJournalEntry;
     account_balances: AccountBalance[];
     nominal_accounts: AccountBalance[];
     real_accounts: AccountBalance[];

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import LoadingSpinner from '../../../components/LoadingSpinner';
 import type { AccountingPeriod, ValidationResult } from '../../../../types/accounting-period';
@@ -17,43 +17,7 @@ export default function ClosingWizardPage() {
   const [error, setError] = useState('');
   const [allPassed, setAllPassed] = useState(false);
 
-  useEffect(() => {
-    if (periodName) {
-      fetchPeriodAndValidate();
-    }
-  }, [periodName]);
-
-  const fetchPeriodAndValidate = async () => {
-    setLoading(true);
-    setError('');
-    
-    try {
-      // Fetch period details
-      const periodResponse = await fetch(
-        `/api/accounting-period/periods/${encodeURIComponent(periodName)}`,
-        { credentials: 'include' }
-      );
-      const periodData = await periodResponse.json();
-
-      if (!periodData.success) {
-        setError(periodData.message || 'Gagal memuat detail periode');
-        setLoading(false);
-        return;
-      }
-
-      setPeriod(periodData.data);
-
-      // Run validations
-      await runValidations(periodData.data);
-    } catch (err) {
-      console.error('Error fetching period:', err);
-      setError('Gagal memuat detail periode');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const runValidations = async (periodData: AccountingPeriod) => {
+  const runValidations = useCallback(async (periodData: AccountingPeriod) => {
     setValidating(true);
     setError('');
 
@@ -82,38 +46,48 @@ export default function ClosingWizardPage() {
     } finally {
       setValidating(false);
     }
-  };
+  }, []);
+
+  const fetchPeriodAndValidate = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    
+    try {
+      // Fetch period details
+      const periodResponse = await fetch(
+        `/api/accounting-period/periods/${encodeURIComponent(periodName)}`,
+        { credentials: 'include' }
+      );
+      const periodData = await periodResponse.json();
+
+      if (!periodData.success) {
+        setError(periodData.message || 'Gagal memuat detail periode');
+        setLoading(false);
+        return;
+      }
+
+      setPeriod(periodData.data);
+
+      // Run validations
+      await runValidations(periodData.data);
+    } catch (err) {
+      console.error('Error fetching period:', err);
+      setError('Gagal memuat detail periode');
+    } finally {
+      setLoading(false);
+    }
+  }, [periodName, runValidations]);
+
+  // Fetch period on mount
+  useEffect(() => {
+    fetchPeriodAndValidate();
+  }, [fetchPeriodAndValidate]);
 
   const handleProceed = () => {
     if (!period) return;
     
     // Navigate to step 2 (review balances)
     router.push(`/accounting-period/close/${encodeURIComponent(period.name)}/review`);
-  };
-
-  const getSeverityIcon = (severity: string) => {
-    switch (severity) {
-      case 'error':
-        return (
-          <svg className="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-          </svg>
-        );
-      case 'warning':
-        return (
-          <svg className="w-5 h-5 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-          </svg>
-        );
-      case 'info':
-        return (
-          <svg className="w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-          </svg>
-        );
-      default:
-        return null;
-    }
   };
 
   const getSeverityBadge = (severity: string) => {
@@ -400,7 +374,7 @@ export default function ClosingWizardPage() {
                     <div className="text-sm text-blue-700 mt-2 space-y-2">
                       <p>
                         <span className="font-semibold">🔴 ERROR:</span> Masalah kritis yang HARUS diselesaikan sebelum periode dapat ditutup. 
-                        Jika ada error, tombol "Lanjut" akan dinonaktifkan sampai semua error diperbaiki.
+                        Jika ada error, tombol &quot;Lanjut&quot; akan dinonaktifkan sampai semua error diperbaiki.
                       </p>
                       <p>
                         <span className="font-semibold">🟡 WARNING:</span> Peringatan yang sebaiknya ditinjau, tetapi tidak menghalangi penutupan periode. 

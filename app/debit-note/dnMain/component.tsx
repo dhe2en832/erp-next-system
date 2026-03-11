@@ -8,14 +8,14 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import LoadingButton from '@/components/LoadingButton';
 import ErrorDialog from '@/components/ErrorDialog';
 import PurchaseInvoiceDialog from '@/components/debit-note/PurchaseInvoiceDialog';
 import BrowserStyleDatePicker from '@/components/BrowserStyleDatePicker';
-import { DebitNote, DebitNoteFormData, DebitNoteFormItem, DebitNoteItem, PurchaseInvoice, ReturnReason } from '@/types/debit-note';
+import { DebitNote, DebitNoteFormData, DebitNoteItem, PurchaseInvoice, ReturnReason } from '@/types/debit-note';
 import { validateDebitNoteRequiredFields, validateReturnQuantity, validateReturnReason, validateDateFormat, convertDateToAPIFormat, convertDateToDisplayFormat } from '@/lib/purchase-return-validation';
 import { calculateTotal, calculateRemainingQty } from '@/lib/purchase-return-calculations';
 import { handleERPNextError } from '@/utils/erpnext-error-handler';
@@ -55,6 +55,14 @@ export default function DebitNoteMain() {
   const [selectedCompany, setSelectedCompany] = useState('');
   const [showInvoiceDialog, setShowInvoiceDialog] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<PurchaseInvoice | null>(null);
+
+  // Debug: Track selected invoice
+  useEffect(() => {
+    if (selectedInvoice) {
+      console.log('Selected Invoice for Debit Note:', selectedInvoice.name);
+    }
+  }, [selectedInvoice]);
+
   const [debitNote, setDebitNote] = useState<DebitNote | null>(null);
   const [isReadOnly, setIsReadOnly] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -83,14 +91,7 @@ export default function DebitNoteMain() {
     if (savedCompany) setSelectedCompany(savedCompany);
   }, []);
 
-  // Load existing Debit Note if name provided
-  useEffect(() => {
-    if (debitNoteName) {
-      loadDebitNote(debitNoteName);
-    }
-  }, [debitNoteName]);
-
-  const loadDebitNote = async (name: string) => {
+  const loadDebitNote = useCallback(async (name: string) => {
     setLoading(true);
     setError('');
 
@@ -151,7 +152,14 @@ export default function DebitNoteMain() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedCompany]);
+
+  // Load existing Debit Note if name provided
+  useEffect(() => {
+    if (debitNoteName) {
+      loadDebitNote(debitNoteName);
+    }
+  }, [debitNoteName, loadDebitNote]);
 
   // Subtask 11.3: Document selection and auto-population
   const handleInvoiceSelect = async (invoice: PurchaseInvoice) => {
@@ -174,7 +182,7 @@ export default function DebitNoteMain() {
           posting_date: formatDate(new Date()),
           purchase_invoice: fullInvoice.name,
           custom_notes: '',
-          items: (fullInvoice.items || []).map((item: any) => ({
+          items: (fullInvoice.items || []).map((item: DebitNoteItem) => ({
             item_code: item.item_code,
             item_name: item.item_name,
             qty: 0,
@@ -413,12 +421,13 @@ export default function DebitNoteMain() {
       } else {
         // Error handling (Requirement 2.13, 3.10, 10.1, 10.4)
         if (data._server_messages || data.exc) {
-          const { errorMessage, bannerMessage } = handleERPNextError(
+          const { errorMessage: errmsg, bannerMessage } = handleERPNextError(
             data,
             formData.posting_date,
             'Debit Note',
             'Gagal menyimpan Debit Note'
           );
+          console.error('ERPNext Error:', errmsg);
           setError(bannerMessage);
         } else {
           setError(data.message || 'Gagal menyimpan debit note');
@@ -464,12 +473,13 @@ export default function DebitNoteMain() {
       } else {
         // Requirement 4.6: Display error message
         if (data._server_messages || data.exc) {
-          const { errorMessage, bannerMessage } = handleERPNextError(
+          const { errorMessage: errmsg, bannerMessage } = handleERPNextError(
             data,
             debitNote.posting_date,
             'Debit Note',
             'Gagal mengajukan Debit Note'
           );
+          console.error('ERPNext Error:', errmsg);
           setError(bannerMessage);
         } else {
           setError(data.message || 'Gagal mengajukan debit note');
@@ -513,12 +523,13 @@ export default function DebitNoteMain() {
       } else {
         // Requirement 5.6: Display error message
         if (data._server_messages || data.exc) {
-          const { errorMessage, bannerMessage } = handleERPNextError(
+          const { errorMessage: errmsg, bannerMessage } = handleERPNextError(
             data,
             debitNote.posting_date,
             'Debit Note',
             'Gagal membatalkan Debit Note'
           );
+          console.error('ERPNext Error:', errmsg);
           setError(bannerMessage);
         } else {
           setError(data.message || 'Gagal membatalkan debit note');

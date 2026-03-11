@@ -1,6 +1,6 @@
 'use client';
 
-import type { ClosingSummaryResponse } from '../../../types/accounting-period';
+import type { ClosingSummaryResponse, ClosingJournalAccount } from '../../../types/accounting-period';
 
 interface ClosingSummaryReportProps {
   data: ClosingSummaryResponse['data'];
@@ -24,6 +24,8 @@ export default function ClosingSummaryReport({
     real_accounts = [], 
     net_income = 0 
   } = data || {};
+
+  if (!period) return null;
 
   const getStatusBadge = (status: string) => {
     const badges = {
@@ -228,26 +230,36 @@ export default function ClosingSummaryReport({
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {closing_journal.accounts?.map((acc: any, idx: number) => (
-                  <tr key={idx}>
-                    <td className="px-4 py-3 text-sm text-gray-900">{acc.account}</td>
-                    <td className="px-4 py-3 text-sm text-right text-gray-900">
-                      {acc.debit_in_account_currency ? formatCurrency(acc.debit_in_account_currency) : '-'}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-right text-gray-900">
-                      {acc.credit_in_account_currency ? formatCurrency(acc.credit_in_account_currency) : '-'}
+                {!closing_journal.accounts || closing_journal.accounts.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="px-4 py-6 text-center text-sm text-gray-500">
+                      Tidak ada rincian jurnal penutup
                     </td>
                   </tr>
-                ))}
-                <tr className="bg-gray-50 font-semibold">
-                  <td className="px-4 py-3 text-sm text-gray-900">Total</td>
-                  <td className="px-4 py-3 text-sm text-right text-gray-900">
-                    {formatCurrency(closing_journal.accounts?.reduce((sum: number, acc: any) => sum + (acc.debit_in_account_currency || 0), 0) || 0)}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-right text-gray-900">
-                    {formatCurrency(closing_journal.accounts?.reduce((sum: number, acc: any) => sum + (acc.credit_in_account_currency || 0), 0) || 0)}
-                  </td>
-                </tr>
+                ) : (
+                  <>
+                    {closing_journal.accounts.map((acc: ClosingJournalAccount, idx: number) => (
+                      <tr key={idx}>
+                        <td className="px-4 py-3 text-sm text-gray-900">{acc.account}</td>
+                        <td className="px-4 py-3 text-sm text-right text-gray-900">
+                          {acc.debit_in_account_currency ? formatCurrency(acc.debit_in_account_currency) : '-'}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-right text-gray-900">
+                          {acc.credit_in_account_currency ? formatCurrency(acc.credit_in_account_currency) : '-'}
+                        </td>
+                      </tr>
+                    ))}
+                    <tr className="bg-gray-50 font-semibold">
+                      <td className="px-4 py-3 text-sm text-gray-900">Total</td>
+                      <td className="px-4 py-3 text-sm text-right text-gray-900">
+                        {formatCurrency(closing_journal.accounts.reduce((sum: number, acc: ClosingJournalAccount) => sum + (acc.debit_in_account_currency || 0), 0))}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-right text-gray-900">
+                        {formatCurrency(closing_journal.accounts.reduce((sum: number, acc: ClosingJournalAccount) => sum + (acc.credit_in_account_currency || 0), 0))}
+                      </td>
+                    </tr>
+                  </>
+                )}
               </tbody>
             </table>
           </div>

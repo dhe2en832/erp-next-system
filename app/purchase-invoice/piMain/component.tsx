@@ -1,14 +1,16 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import PrintDialog from '../../components/PrintDialog';
 import DiscountInput from '@/components/invoice/DiscountInput';
-import TaxTemplateSelect from '@/components/invoice/TaxTemplateSelect';
+import TaxTemplateSelect, { TaxTemplate } from '@/components/invoice/TaxTemplateSelect';
 import InvoiceSummary from '@/components/invoice/InvoiceSummary';
 import PrintPreviewModal from '../../../components/print/PrintPreviewModal';
 import PurchaseInvoicePrint from '../../../components/print/PurchaseInvoicePrint';
+
+import { TaxRow } from '@/types/sales-invoice';
 
 interface PurchaseReceipt {
   name: string;
@@ -125,7 +127,7 @@ export default function PurchaseInvoiceMain() {
   // Discount and Tax state
   const [discountPercentage, setDiscountPercentage] = useState<number>(0);
   const [discountAmount, setDiscountAmount] = useState<number>(0);
-  const [selectedTaxTemplate, setSelectedTaxTemplate] = useState<any>(null);
+  const [selectedTaxTemplate, setSelectedTaxTemplate] = useState<TaxTemplate | null>(null);
 
   // Get company from localStorage/cookie and check for edit mode
   useEffect(() => {
@@ -149,29 +151,8 @@ export default function PurchaseInvoiceMain() {
     setLoading(false);
   }, []);
 
-  // Check for edit/view mode from URL parameters
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const id = urlParams.get('id'); // For edit mode (draft)
-    const name = urlParams.get('name'); // For view mode (submitted)
-
-    if (selectedCompany && (id || name)) {
-      if (id) {
-        // Edit mode
-        setIsEditMode(true);
-        setInvoiceId(id);
-        fetchPurchaseInvoice(id);
-      } else if (name) {
-        // View mode
-        setIsViewMode(true);
-        setInvoiceId(name);
-        fetchPurchaseInvoice(name);
-      }
-    }
-  }, [selectedCompany]);
-
   // Fetch Purchase Invoice data for edit/view mode
-  const fetchPurchaseInvoice = async (id: string) => {
+  const fetchPurchaseInvoice = useCallback(async (id: string) => {
     setLoading(true);
     setError('');
 
@@ -191,7 +172,7 @@ export default function PurchaseInvoiceMain() {
           due_date: invoice.due_date,
           company: invoice.company,
           currency: invoice.currency,
-          items: (invoice.items || []).map((item: any) => ({
+          items: (invoice.items || []).map((item: PurchaseInvoiceItem) => ({
             item_code: item.item_code,
             item_name: item.item_name,
             qty: item.qty,
@@ -200,9 +181,9 @@ export default function PurchaseInvoiceMain() {
             uom: item.uom,
             warehouse: item.warehouse,
             purchase_receipt: item.purchase_receipt,
-            pr_detail: item.pr_detail,
+            purchase_receipt_item: item.purchase_receipt_item,
             purchase_order: item.purchase_order,
-            po_detail: item.po_detail,
+            purchase_order_item: item.purchase_order_item,
           })),
           custom_notes_pi: invoice.custom_notes_pi || ''
         });
@@ -225,7 +206,28 @@ export default function PurchaseInvoiceMain() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [router]);
+
+  // Check for edit/view mode from URL parameters
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const id = urlParams.get('id'); // For edit mode (draft)
+    const name = urlParams.get('name'); // For view mode (submitted)
+
+    if (selectedCompany && (id || name)) {
+      if (id) {
+        // Edit mode
+        setIsEditMode(true);
+        setInvoiceId(id);
+        fetchPurchaseInvoice(id);
+      } else if (name) {
+        // View mode
+        setIsViewMode(true);
+        setInvoiceId(name);
+        fetchPurchaseInvoice(name);
+      }
+    }
+  }, [selectedCompany, fetchPurchaseInvoice]);
 
   // Fetch available purchase receipts
   const fetchAvailablePurchaseReceipts = useCallback(async () => {
@@ -259,15 +261,6 @@ export default function PurchaseInvoiceMain() {
         // console.log('Available Purchase Receipts:', receipts);
         // console.log('PR Search Term:', prSearchTerm);
 
-        const filteredReceipts = receipts.filter((receipt: PurchaseReceipt) =>
-          prSearchTerm === '' ||
-          receipt.name.toLowerCase().includes(prSearchTerm.toLowerCase()) ||
-          receipt.supplier_name.toLowerCase().includes(prSearchTerm.toLowerCase())
-        );
-
-        // console.log('Filtered Purchase Receipts:', filteredReceipts);
-        // console.log('Filtered count:', filteredReceipts.length);
-
         setPurchaseReceipts(receipts);
       } else {
         setPurchaseReceiptsError(data.message || 'Gagal mengambil data penerimaan barang');
@@ -281,6 +274,15 @@ export default function PurchaseInvoiceMain() {
       setPurchaseReceiptsLoading(false);
     }
   }, [selectedCompany]);
+
+  // Filter receipts in view layer or memoized
+  const filteredReceipts = useMemo(() => {
+    return purchaseReceipts.filter((receipt: PurchaseReceipt) =>
+      prSearchTerm === '' ||
+      receipt.name.toLowerCase().includes(prSearchTerm.toLowerCase()) ||
+      receipt.supplier_name.toLowerCase().includes(prSearchTerm.toLowerCase())
+    );
+  }, [purchaseReceipts, prSearchTerm]);
 
   // Debug formData.items changes
   // useEffect(() => {
@@ -477,7 +479,7 @@ export default function PurchaseInvoiceMain() {
       
       // Calculate taxes
       let totalTaxes = 0;
-      const taxesPayload: any[] = [];
+      const taxesPayload: TaxRow[] = [];
       
       if (selectedTaxTemplate && selectedTaxTemplate.taxes) {
         let runningTotal = netTotal;
@@ -496,7 +498,7 @@ export default function PurchaseInvoiceMain() {
           totalTaxes += taxAmount;
           
           taxesPayload.push({
-            charge_type: taxRow.charge_type,
+            charge_type: taxRow.charge_type as "On Net Total" | "Actual" | "On Previous Row Total",
             account_head: taxRow.account_head,
             description: taxRow.description,
             rate: rate,
@@ -571,8 +573,6 @@ export default function PurchaseInvoiceMain() {
       // console.log('Invoice Data Items:', JSON.stringify(invoiceData.items, null, 2));
       // console.log('Sending Purchase Invoice data:', invoiceData);
 
-      let isSuccess = false;  // Track success state - declare outside try block
-      
       try {
         // Use PUT if editing OR if doc was already created in this session (retry guard)
         const existingId = isEditMode ? invoiceId : createdDocName.current;
@@ -584,8 +584,9 @@ export default function PurchaseInvoiceMain() {
 
         // For update, don't include doctype in payload
         if (isUpdate) {
-          const { doctype, ...updateData } = invoiceData;
-          invoiceData = updateData as any;
+          const { doctype: doctypeToExclude, ...updateData } = invoiceData;
+          console.log('Excluding doctype:', doctypeToExclude);
+          invoiceData = updateData as typeof invoiceData;
         }
 
         const response = await fetch(apiUrl, {
@@ -599,7 +600,6 @@ export default function PurchaseInvoiceMain() {
         // console.log('Submit Response:', data);
         
         if (data.success) {
-          isSuccess = true;
           if (!isEditMode && !createdDocName.current) createdDocName.current = data.data?.name || existingId || null;
           const successMessage = isEditMode ? 'Faktur Pembelian berhasil diperbarui!' : 'Faktur Pembelian berhasil dibuat!';
           setSuccessMessage(successMessage);
@@ -1192,25 +1192,13 @@ export default function PurchaseInvoiceMain() {
                 <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
                   {purchaseReceiptsError}
                 </div>
-              ) : purchaseReceipts.length === 0 ? (
+              ) : filteredReceipts.length === 0 ? (
                 <div className="text-center py-4">
                   <p className="text-gray-500">Tidak ada penerimaan barang tersedia</p>
                 </div>
               ) : (
                 <div className="space-y-2 max-h-96 overflow-y-auto">
-                  {purchaseReceipts
-                    .filter(receipt => {
-                      const matches = prSearchTerm === '' ||
-                        receipt.name.toLowerCase().includes(prSearchTerm.toLowerCase()) ||
-                        receipt.supplier_name.toLowerCase().includes(prSearchTerm.toLowerCase());
-
-                      // if (!matches) {
-                      //   console.log('Filtered out receipt:', receipt.name, '-', receipt.supplier_name, 'Search term:', prSearchTerm);
-                      // }
-
-                      return matches;
-                    })
-                    .map((receipt) => (
+                  {filteredReceipts.map((receipt) => (
                       <div
                         key={receipt.name}
                         onClick={() => handleSelectPurchaseReceipt(receipt.name)}
@@ -1315,37 +1303,36 @@ export default function PurchaseInvoiceMain() {
       )}
     </div>
 
-    {/* Print Preview Modal */}
-    {showPrintPreview && (isEditMode || isViewMode) && (
-      <PrintPreviewModal
-        title={`Purchase Invoice - ${invoiceId}`}
-        onClose={() => setShowPrintPreview(false)}
-        paperMode="continuous"
-      >
-        <PurchaseInvoicePrint
-          data={{
-            name: invoiceId,
-            posting_date: formData.posting_date,
-            docstatus: isViewMode ? 1 : 0,
-            supplier: formData.supplier,
-            supplier_name: formData.supplier_name,
-            due_date: formData.due_date,
-            items: formData.items.map(item => ({
-              item_code: item.item_code,
-              item_name: item.item_name,
-              qty: item.qty,
-              rate: item.rate,
-              amount: item.amount,
-            })),
-            total: formData.items.reduce((sum, item) => sum + item.amount, 0),
-            total_taxes_and_charges: selectedTaxTemplate ? (formData.items.reduce((sum, item) => sum + item.amount, 0) * (selectedTaxTemplate.tax_rate / 100)) : 0,
-            grand_total: formData.items.reduce((sum, item) => sum + item.amount, 0) + (selectedTaxTemplate ? (formData.items.reduce((sum, item) => sum + item.amount, 0) * (selectedTaxTemplate.tax_rate / 100)) : 0),
-            remarks: formData.custom_notes_pi,
-          }}
-          companyName={selectedCompany}
-        />
-      </PrintPreviewModal>
-    )}
+      {/* Print Preview Modal */}
+      {showPrintPreview && (isEditMode || isViewMode) && (
+        <PrintPreviewModal
+          title={`Purchase Invoice - ${invoiceId}`}
+          onClose={() => setShowPrintPreview(false)}
+          paperMode="continuous"
+        >
+          <PurchaseInvoicePrint
+            data={{
+              name: invoiceId,
+              posting_date: formData.posting_date,
+              docstatus: isViewMode ? 1 : 0,
+              supplier: formData.supplier,
+              supplier_name: formData.supplier_name,
+              due_date: formData.due_date,
+              items: formData.items.map(item => ({
+                item_code: item.item_code,
+                item_name: item.item_name,
+                qty: item.qty,
+                rate: item.rate,
+                amount: item.amount,
+              })),
+              total: formData.items.reduce((sum, item) => sum + item.amount, 0),
+              grand_total: formData.items.reduce((sum, item) => sum + item.amount, 0), // Basic fallback
+              remarks: formData.custom_notes_pi,
+            }}
+            companyName={selectedCompany}
+          />
+        </PrintPreviewModal>
+      )}
   
     </>
   );

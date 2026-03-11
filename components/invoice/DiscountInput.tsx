@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 
 export interface DiscountInputProps {
   subtotal: number;
@@ -29,6 +29,25 @@ export default function DiscountInput({
   const [amountValue, setAmountValue] = useState<string>(discountAmount.toString());
   const [error, setError] = useState<string>('');
 
+  // Sync state with props during render if props changed from outside
+  const [prevProps, setPrevProps] = useState({ discountPercentage, discountAmount });
+
+  if (prevProps.discountPercentage !== discountPercentage) {
+    const currentPercentage = parseFloat(percentageValue) || 0;
+    if (discountPercentage !== currentPercentage) {
+      setPercentageValue(discountPercentage.toString());
+    }
+    setPrevProps(prev => ({ ...prev, discountPercentage }));
+  }
+
+  if (prevProps.discountAmount !== discountAmount) {
+    const currentAmount = parseFloat(amountValue) || 0;
+    if (discountAmount !== currentAmount) {
+      setAmountValue(discountAmount.toString());
+    }
+    setPrevProps(prev => ({ ...prev, discountAmount }));
+  }
+
   // Normalize handler to support both unified onChange and legacy separate handlers
   const emitChange = (data: { discountPercentage: number; discountAmount: number }) => {
     if (onChange) {
@@ -43,11 +62,6 @@ export default function DiscountInput({
       onDiscountAmountChange(data.discountAmount);
     }
   };
-
-  useEffect(() => {
-    setPercentageValue(discountPercentage.toString());
-    setAmountValue(discountAmount.toString());
-  }, [discountPercentage, discountAmount]);
 
   const handlePercentageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;

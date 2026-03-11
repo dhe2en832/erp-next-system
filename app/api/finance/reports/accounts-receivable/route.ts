@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
       ['is_return', '=', '1'],
     ];
 
-    let returnsMap = new Map<string, number>();
+    const returnsMap = new Map<string, number>();
     try {
       const returnsData = await client.getList('Sales Invoice', {
         fields: ['name', 'return_against', 'grand_total', 'outstanding_amount'],

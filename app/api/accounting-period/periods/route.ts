@@ -68,19 +68,18 @@ export async function GET(request: NextRequest) {
       ],
       limit: validatedParams.limit || 20,
       start: validatedParams.start || 0,
-      order_by: 'start_date desc',
+      order_by: 'creation desc, start_date desc',
     });
 
     // Get total count (without pagination)
-    const allPeriods = await client.getList<AccountingPeriod>('Accounting Period', {
+    const totalCount = await client.getCount('Accounting Period', {
       filters: filters.length > 0 ? filters : undefined,
-      fields: ['name'],
     });
 
     const response: GetPeriodsResponse = {
       success: true,
       data: periods,
-      total_count: allPeriods.length,
+      total_count: totalCount,
     };
 
     return NextResponse.json(response);

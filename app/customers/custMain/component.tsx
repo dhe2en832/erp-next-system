@@ -95,8 +95,7 @@ export default function CustomerMain() {
     };
 
     fetchGroups();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [customerName, formData.customer_group]);
 
   useEffect(() => {
     const fetchTerritories = async () => {
@@ -122,8 +121,7 @@ export default function CustomerMain() {
     };
 
     fetchTerritories();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [customerName, formData.territory]);
 
   useEffect(() => {
     const fetchPriceLists = async () => {
@@ -149,8 +147,7 @@ export default function CustomerMain() {
     };
 
     fetchPriceLists();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [customerName, formData.default_price_list]);
 
   const fetchCustomerDetail = async (name: string) => {
     setLoading(true);
@@ -397,6 +394,24 @@ export default function CustomerMain() {
               {!territories.length && <option value="">{territoryLoading ? 'Memuat...' : 'Tidak ada wilayah'}</option>}
             </select>
             {territoryError && <p className="mt-1 text-xs text-red-600">{territoryError}</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Daftar Harga Default</label>
+            <select
+              value={formData.default_price_list}
+              onChange={(e) => setFormData({ ...formData, default_price_list: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              disabled={priceListLoading}
+            >
+              {priceLists.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+              {!priceLists.length && <option value="">{priceListLoading ? 'Memuat...' : 'Tidak ada daftar harga'}</option>}
+            </select>
+            {priceListError && <p className="mt-1 text-xs text-red-600">{priceListError}</p>}
           </div>
 
           <div>

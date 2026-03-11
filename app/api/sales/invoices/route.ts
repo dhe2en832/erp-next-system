@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const company = searchParams.get('company');
-    const order_by = searchParams.get('order_by') || 'creation desc';
+    const order_by = searchParams.get('order_by') || 'creation desc, posting_date desc';
     const search = searchParams.get('search');
     const documentNumber = searchParams.get('documentNumber');
     const status = searchParams.get('status');
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     const start = parseInt(searchParams.get('start') || '0');
 
     // Build filters
-    let filtersArray: any[][] = [];
+    const filtersArray: any[][] = [];
 
     // Always add company filter if provided
     if (company) {
@@ -92,9 +92,12 @@ export async function GET(request: NextRequest) {
       taxes: invoice.taxes || []
     }));
 
+    const totalRecords = await client.getCount('Sales Invoice', { filters: filtersArray });
+
     return NextResponse.json({
       success: true,
       data: invoicesWithDefaults,
+      total_records: totalRecords,
     });
 
   } catch (error: any) {

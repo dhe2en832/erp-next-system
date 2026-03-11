@@ -25,7 +25,7 @@ export default function StockReconciliationMain() {
 
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [items, setItems] = useState<Item[]>([]);
-  const [selectedCompany, setSelectedCompany] = useState('');
+  const [selectedCompany, setSelectedCompany] = useState<string>('');
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [newReconciliation, setNewReconciliation] = useState({
@@ -50,10 +50,10 @@ export default function StockReconciliationMain() {
           posting_date: rec.posting_date || new Date().toISOString().split('T')[0],
           posting_time: (rec.posting_time || new Date().toTimeString().split(' ')[0]).substring(0, 5),
           purpose: rec.purpose || 'Stock Reconciliation',
-          items: (rec.items || []).map((it: any) => ({
-            item_code: it.item_code || '',
-            current_qty: it.current_qty || 0,
-            qty: it.qty || 0,
+          items: (rec.items || []).map((it: Record<string, unknown>) => ({
+            item_code: (it.item_code as string) || '',
+            current_qty: (it.current_qty as number) || 0,
+            qty: (it.qty as number) || 0,
           }))
         });
       } else {
@@ -66,9 +66,11 @@ export default function StockReconciliationMain() {
   }, [entryName, selectedCompany]);
 
   useEffect(() => {
-    const savedCompany = localStorage.getItem('selected_company');
+    const savedCompany = typeof window !== 'undefined' ? localStorage.getItem('selected_company') : null;
     if (savedCompany) {
-      setSelectedCompany(savedCompany);
+      setTimeout(() => {
+        setSelectedCompany(savedCompany);
+      }, 0);
     } else {
       router.push('/select-company');
     }
@@ -76,7 +78,9 @@ export default function StockReconciliationMain() {
 
   useEffect(() => {
     if (entryName) {
-      fetchDetail();
+      setTimeout(() => {
+        fetchDetail();
+      }, 0);
     }
   }, [entryName, fetchDetail]);
 
@@ -103,7 +107,12 @@ export default function StockReconciliationMain() {
   }, [selectedCompany]);
 
   useEffect(() => {
-    if (selectedCompany) { fetchWarehouses(); fetchItems(); }
+    if (selectedCompany) {
+      setTimeout(() => {
+        fetchWarehouses();
+        fetchItems();
+      }, 0);
+    }
   }, [selectedCompany, fetchWarehouses, fetchItems]);
 
   const addItemRow = () => {

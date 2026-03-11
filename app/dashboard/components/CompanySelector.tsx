@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 interface Company {
   name: string;
@@ -19,11 +19,7 @@ export default function CompanySelector({ onCompanyChange }: CompanySelectorProp
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    fetchCompanies();
-  }, []);
-
-  const fetchCompanies = async () => {
+  const fetchCompanies = useCallback(async () => {
     try {
       const response = await fetch('/api/finance/company');
       const data = await response.json();
@@ -38,12 +34,16 @@ export default function CompanySelector({ onCompanyChange }: CompanySelectorProp
       } else {
         setError(data.message);
       }
-    } catch (err) {
+    } catch {
       setError('Failed to fetch companies');
     } finally {
       setLoading(false);
     }
-  };
+  }, [onCompanyChange]);
+
+  useEffect(() => {
+    fetchCompanies();
+  }, [fetchCompanies]);
 
   const handleCompanyChange = (companyName: string) => {
     const company = companies.find(c => c.name === companyName);

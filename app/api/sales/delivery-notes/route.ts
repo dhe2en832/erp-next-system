@@ -61,13 +61,15 @@ export async function GET(request: NextRequest) {
       filters,
       limit_page_length: limit,
       start,
-      order_by: 'posting_date desc',
+      order_by: 'creation desc, posting_date desc',
     });
+
+    const totalRecords = await client.getCount('Delivery Note', { filters });
 
     return NextResponse.json({
       success: true,
       data: deliveryNotes,
-      total_records: deliveryNotes.length,
+      total_records: totalRecords,
     });
 
   } catch (error) {

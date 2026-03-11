@@ -45,7 +45,7 @@ export default function PurchaseReceiptDialog({
       params.set('start', '0');
       
       // Build filters array for ERPNext
-      const filters: any[] = [
+      const filters: (string | number | string[])[][] = [
         ['company', '=', selectedCompany],
         ['docstatus', '=', 1], // Only submitted documents
         ['status', 'in', ['To Bill', 'Completed']] // Receipts that can be returned

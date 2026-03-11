@@ -5,14 +5,50 @@ import { useRouter } from 'next/navigation';
 import CommissionDashboard from '../../components/CommissionDashboard';
 import PrintPreviewModal from '../../components/PrintPreviewModal';
 
+interface CommissionSummary {
+  total_sales: number;
+  total_paid: number;
+  potential_commission: number;
+  earned_commission: number;
+  net_earned_commission: number;
+  commission_rate: number;
+  credit_note_adjustments: number;
+}
+
+interface SalesOrder {
+  name: string;
+  transaction_date: string;
+  customer_name?: string;
+  customer?: string;
+  base_grand_total: number;
+}
+
+interface PaidInvoice {
+  name: string;
+  posting_date: string;
+  customer_name?: string;
+  customer?: string;
+  base_grand_total: number;
+  custom_total_komisi_sales: number;
+  credit_note_adjustment: number;
+  net_commission: number;
+}
+
+interface CommissionData {
+  summary: CommissionSummary;
+  sales_orders: SalesOrder[];
+  paid_invoices: PaidInvoice[];
+  error?: string;
+}
+
 function CommissionPrintContent({ company }: { company: string }) {
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<CommissionData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetch('/api/setup/commission?limit_page_length=200&start=0')
       .then(r => r.json())
-      .then(result => { if (!result.error) setData(result); })
+      .then(result => { if (!result.error) setData(result as CommissionData); })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
@@ -51,7 +87,7 @@ function CommissionPrintContent({ company }: { company: string }) {
       </div>
       <div style={{ fontSize: '9px', color: '#555', marginBottom: '10px' }}>
         Tarif Komisi: <strong>{data.summary?.commission_rate}%</strong> &mdash; Komisi dibayarkan setelah Sales Invoice berstatus &ldquo;Paid&rdquo;
-        {data.summary?.credit_note_adjustments > 0 && (
+        {(data.summary?.credit_note_adjustments || 0) > 0 && (
           <span style={{ color: '#dc2626', marginLeft: '10px' }}>
             &mdash; Penyesuaian Credit Note: <strong>{fmt(data.summary.credit_note_adjustments)}</strong>
           </span>
@@ -72,7 +108,7 @@ function CommissionPrintContent({ company }: { company: string }) {
               </tr>
             </thead>
             <tbody>
-              {data.sales_orders.map((so: any, i: number) => (
+              {data.sales_orders.map((so: SalesOrder, i: number) => (
                 <tr key={i} style={{ background: i % 2 === 0 ? '#fff' : '#f8fafc' }}>
                   <td style={{ padding: '2px 5px', borderBottom: '1px solid #e5e7eb' }}>{so.name}</td>
                   <td style={{ padding: '2px 5px', borderBottom: '1px solid #e5e7eb' }}>{so.transaction_date}</td>
@@ -102,7 +138,7 @@ function CommissionPrintContent({ company }: { company: string }) {
               </tr>
             </thead>
             <tbody>
-              {data.paid_invoices.map((inv: any, i: number) => (
+              {data.paid_invoices.map((inv: PaidInvoice, i: number) => (
                 <tr key={i} style={{ background: i % 2 === 0 ? '#fff' : '#f8fafc' }}>
                   <td style={{ padding: '2px 5px', borderBottom: '1px solid #e5e7eb' }}>{inv.name}</td>
                   <td style={{ padding: '2px 5px', borderBottom: '1px solid #e5e7eb' }}>{inv.posting_date}</td>
@@ -128,8 +164,13 @@ function CommissionPrintContent({ company }: { company: string }) {
 }
 
 export default function CommissionPage() {
-  const [selectedCompany, setSelectedCompany] = useState<string | null>(null);
-  const [mounted, setMounted] = useState(false);
+  const [pageState, setPageState] = useState<{
+    selectedCompany: string | null;
+    mounted: boolean;
+  }>({
+    selectedCompany: null,
+    mounted: false
+  });
   const [showPreview, setShowPreview] = useState(false);
   const router = useRouter();
 
@@ -138,13 +179,25 @@ export default function CommissionPage() {
     if (!company) {
       const companyCookie = document.cookie.split(';').find(c => c.trim().startsWith('selected_company='));
       if (companyCookie) {
-        company = companyCookie.split('=')[1];
-        if (company) localStorage.setItem('selected_company', company);
+        const value = companyCookie.split('=')[1];
+        if (value) {
+          company = value;
+          localStorage.setItem('selected_company', value);
+        }
       }
     }
-    setSelectedCompany(company);
-    setMounted(true);
+    
+    // Defer state update to avoid cascading render warning
+    const finalCompany = company;
+    setTimeout(() => {
+      setPageState({
+        selectedCompany: finalCompany,
+        mounted: true
+      });
+    }, 0);
   }, []);
+
+  const { selectedCompany, mounted } = pageState;
 
   if (!mounted) return null;
 

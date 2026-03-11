@@ -1,9 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import type { AccountingPeriod, AccountBalance, PeriodClosingLog } from '../../../types/accounting-period';
+import type { 
+  AccountingPeriod, 
+  AccountBalance, 
+  PeriodClosingLog,
+  ClosingJournalEntry,
+  ClosingJournalAccount
+} from '../../../types/accounting-period';
 
 export default function PeriodDetailPage() {
   const router = useRouter();
@@ -13,7 +19,7 @@ export default function PeriodDetailPage() {
   const [period, setPeriod] = useState<AccountingPeriod | null>(null);
   const [accountBalances, setAccountBalances] = useState<AccountBalance[]>([]);
   const [auditLogs, setAuditLogs] = useState<PeriodClosingLog[]>([]);
-  const [closingJournal, setClosingJournal] = useState<any>(null);
+  const [closingJournal, setClosingJournal] = useState<ClosingJournalEntry | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
@@ -24,13 +30,23 @@ export default function PeriodDetailPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const itemsPerPage = 20;
 
-  useEffect(() => {
-    if (periodName) {
-      fetchPeriodDetail();
+  const fetchAuditLogs = useCallback(async () => {
+    try {
+      const response = await fetch(
+        `/api/accounting-period/audit-log?period_name=${encodeURIComponent(periodName)}&limit=50`,
+        { credentials: 'include' }
+      );
+      const data = await response.json();
+
+      if (data.success) {
+        setAuditLogs(data.data || []);
+      }
+    } catch (err) {
+      console.error('Error fetching audit logs:', err);
     }
   }, [periodName]);
 
-  const fetchPeriodDetail = async () => {
+  const fetchPeriodDetail = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
@@ -56,23 +72,13 @@ export default function PeriodDetailPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [periodName, fetchAuditLogs]);
 
-  const fetchAuditLogs = async () => {
-    try {
-      const response = await fetch(
-        `/api/accounting-period/audit-log?period_name=${encodeURIComponent(periodName)}&limit=50`,
-        { credentials: 'include' }
-      );
-      const data = await response.json();
-
-      if (data.success) {
-        setAuditLogs(data.data || []);
-      }
-    } catch (err) {
-      console.error('Error fetching audit logs:', err);
+  useEffect(() => {
+    if (periodName) {
+      fetchPeriodDetail();
     }
-  };
+  }, [periodName, fetchPeriodDetail]);
 
   const handleClose = () => {
     if (!period) return;
@@ -484,7 +490,7 @@ export default function PeriodDetailPage() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredBalances.map((balance, idx) => (
+                  {paginatedBalances.map((balance, idx) => (
                     <tr key={idx}>
                       <td className="px-6 py-4 text-sm">
                         <div className="font-medium text-gray-900">{balance.account_name}</div>
@@ -504,6 +510,29 @@ export default function PeriodDetailPage() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+          {totalPages > 1 && (
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
+              <div className="text-sm text-gray-700">
+                Menampilkan <span className="font-medium">{startIndex + 1}</span> sampai <span className="font-medium">{Math.min(endIndex, filteredBalances.length)}</span> dari <span className="font-medium">{filteredBalances.length}</span> akun
+              </div>
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1 border border-gray-300 rounded-md text-sm disabled:opacity-50"
+                >
+                  Sebelumnya
+                </button>
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1 border border-gray-300 rounded-md text-sm disabled:opacity-50"
+                >
+                  Selanjutnya
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -536,7 +565,7 @@ export default function PeriodDetailPage() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {closingJournal.accounts?.map((acc: any, idx: number) => (
+                {closingJournal.accounts?.map((acc: ClosingJournalAccount, idx: number) => (
                   <tr key={idx}>
                     <td className="px-6 py-4 text-sm text-gray-900">{acc.account}</td>
                     <td className="px-6 py-4 text-sm text-right text-gray-900">

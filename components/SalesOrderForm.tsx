@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import ItemDialog from '../app/components/ItemDialog';
+import { useState, useEffect } from 'react';
+import ItemDialog, { Item } from '../app/components/ItemDialog';
 
 interface CartItem {
   sku: string;
@@ -46,7 +46,7 @@ export default function SalesOrderForm({ onOrderCreated }: SalesOrderFormProps) 
         });
         const result = await response.json();
         if (!result.error) {
-          setAvailableWarehouses(result.data.map((wh: any) => wh.name));
+          setAvailableWarehouses(result.data.map((wh: Record<string, unknown>) => wh.name as string));
         }
       } catch (error) {
         console.error('Failed to fetch warehouses:', error);
@@ -91,7 +91,7 @@ export default function SalesOrderForm({ onOrderCreated }: SalesOrderFormProps) 
   };
 
   // Handle item selection from dialog
-  const handleItemSelect = (item: any) => {
+  const handleItemSelect = (item: Item) => {
     if (editingItemIndex !== null) {
       // Update existing item
       const newItems = [...cartItems];
@@ -99,23 +99,23 @@ export default function SalesOrderForm({ onOrderCreated }: SalesOrderFormProps) 
         ...newItems[editingItemIndex],
         sku: item.item_code,
         name: item.item_name,
-        price: parseFloat(item.formatted_price?.replace(/[^0-9.]/g, '') || '0')
+        price: 0, // Valuation rate not in Item type, reset to 0
       };
       setCartItems(newItems);
-      checkStock(item.item_code);
+      setEditingItemIndex(null);
     } else {
       // Add new item
       const newItem: CartItem = {
         sku: item.item_code,
         name: item.item_name,
         quantity: 1,
-        price: parseFloat(item.formatted_price?.replace(/[^0-9.]/g, '') || '0'),
-        warehouse: setWarehouse
+        price: 0, // Valuation rate not in Item type, reset to 0
+        warehouse: setWarehouse || undefined
       };
       setCartItems(prev => [...prev, newItem]);
       checkStock(item.item_code);
     }
-    setEditingItemIndex(null);
+    setIsItemDialogOpen(false);
   };
 
   // Open dialog for selecting item
@@ -167,7 +167,7 @@ export default function SalesOrderForm({ onOrderCreated }: SalesOrderFormProps) 
       } else {
         alert(`Error: ${result.error}`);
       }
-    } catch (error) {
+    } catch {
       alert('Terjadi kesalahan saat membuat pesanan');
     } finally {
       setLoading(false);

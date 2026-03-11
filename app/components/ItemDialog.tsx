@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
-interface Item {
+export interface Item {
   item_code: string;
   item_name: string;
   description?: string;
@@ -13,7 +13,7 @@ interface Item {
   projected_qty?: number;
 }
 
-interface StockInfo {
+export interface StockInfo {
   warehouse: string;
   available: number;
   actual: number;
@@ -33,15 +33,8 @@ export default function ItemDialog({ isOpen, onClose, onSelect, showStock = fals
   const [itemCodeFilter, setItemCodeFilter] = useState('');
   const [itemNameFilter, setItemNameFilter] = useState('');
   const [stockInfo, setStockInfo] = useState<{ [key: string]: StockInfo[] }>({});
-  const [selectedWarehouse, setSelectedWarehouse] = useState('');
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchItems();
-    }
-  }, [isOpen, itemCodeFilter, itemNameFilter]);
-
-  const checkStock = async (itemCode: string) => {
+  const checkStock = useCallback(async (itemCode: string) => {
     if (!showStock) return;
     
     try {
@@ -54,13 +47,13 @@ export default function ItemDialog({ isOpen, onClose, onSelect, showStock = fals
     } catch (error) {
       console.error('Stock check failed:', error);
     }
-  };
+  }, [showStock]);
 
-  const fetchItems = async () => {
+  const fetchItems = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      const filters: any[] = [];
+      const filters: (string | string[])[][] = [];
       const codeTerm = itemCodeFilter.trim();
       const nameTerm = itemNameFilter.trim();
       if (codeTerm) filters.push(["item_code", "like", `%${codeTerm}%`]);
@@ -84,7 +77,13 @@ export default function ItemDialog({ isOpen, onClose, onSelect, showStock = fals
     } finally {
       setLoading(false);
     }
-  };
+  }, [itemCodeFilter, itemNameFilter, showStock, checkStock]);
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchItems();
+    }
+  }, [isOpen, fetchItems]);
 
   const handleSelect = (item: Item) => {
     onSelect(item);

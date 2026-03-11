@@ -81,7 +81,7 @@ export default function LoginPage() {
       } else {
         setError(data.message || 'Login gagal');
       }
-    } catch (err) {
+    } catch {
       setError('Terjadi kesalahan. Silakan coba lagi.');
     } finally {
       setLoading(false);

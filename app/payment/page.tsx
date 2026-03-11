@@ -3,42 +3,47 @@
 import { useState, useEffect } from 'react';
 import PaymentList from './paymentList/component';
 import PaymentMain from './paymentMain/component';
+import { PaymentWithReferences } from '../../types/payment-details';
 
 export default function PaymentPage() {
   const [view, setView] = useState<'list' | 'form'>('list');
-  const [selectedCompany, setSelectedCompany] = useState('');
-  const [editPayment, setEditPayment] = useState<any>(null);
+  const [selectedCompany] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('selected_company') || '';
+    }
+    return '';
+  });
+  const [editPayment, setEditPayment] = useState<PaymentWithReferences | undefined>(undefined);
   const [showTypeDialog, setShowTypeDialog] = useState(false);
   const [defaultPaymentType, setDefaultPaymentType] = useState<'Receive' | 'Pay' | undefined>(undefined);
 
   useEffect(() => {
-    const savedCompany = localStorage.getItem('selected_company');
-    if (!savedCompany) {
-      window.location.href = '/select-company';
-      return;
+    if (!selectedCompany && typeof window !== 'undefined') {
+      const savedCompany = localStorage.getItem('selected_company');
+      if (!savedCompany) {
+        window.location.href = '/select-company';
+      }
     }
-    setSelectedCompany(savedCompany);
-  }, []);
+  }, [selectedCompany]);
 
-  const handleEdit = (payment: any) => {
-    setEditPayment(payment);
-    setDefaultPaymentType(undefined);
-    setView('form');
-  };
-
-  const handleCreate = () => {
-    setShowTypeDialog(true);
-  };
-
-  const handleSelectType = (type: 'Receive' | 'Pay') => {
-    setEditPayment(null);
+  const handleEdit = (payment: PaymentWithReferences) => {
+     setEditPayment(payment);
+     setView('form');
+   };
+ 
+   const handleCreate = () => {
+     setShowTypeDialog(true);
+   };
+ 
+   const handleSelectType = (type: 'Receive' | 'Pay') => {
+    setEditPayment(undefined);
     setDefaultPaymentType(type);
     setShowTypeDialog(false);
     setView('form');
   };
 
   const handleBack = () => {
-    setEditPayment(null);
+    setEditPayment(undefined);
     setDefaultPaymentType(undefined);
     setView('list');
   };

@@ -9,7 +9,7 @@ import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
 import { Plus, Printer, FileText, Send, ArrowUp, Loader2 } from 'lucide-react';
 import ErrorDialog from '../../../components/ErrorDialog';
 import PrintPreviewModal from '../../../components/print/PrintPreviewModal';
-import DebitNotePrint from '../../../components/print/DebitNotePrint';
+import DebitNotePrint, { DebitNotePrintProps } from '../../../components/print/DebitNotePrint';
 
 export const dynamic = 'force-dynamic';
 
@@ -113,8 +113,8 @@ export default function DebitNoteList() {
 
   // Print preview states
   const [showPrintPreview, setShowPrintPreview] = useState(false);
-  const [printData, setPrintData] = useState<any>(null);
-  const [loadingPrintData, setLoadingPrintData] = useState(false);
+  const [printData, setPrintData] = useState<DebitNotePrintProps['data'] | null>(null);
+  const [, setLoadingPrintData] = useState(false);
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   
@@ -188,7 +188,7 @@ export default function DebitNoteList() {
       const params = new URLSearchParams();
       params.append('limit_page_length', pageSize.toString());
       params.append('start', ((currentPage - 1) * pageSize).toString());
-      params.append('order_by', 'creation desc');
+      params.append('order_by', 'creation desc, posting_date desc');
       
       if (companyToUse) params.append('company', companyToUse);
       if (supplierFilter) params.append('search', supplierFilter);
@@ -320,17 +320,8 @@ export default function DebitNoteList() {
   // ─────────────────────────────────────────────────────────
   // Handlers
   // ─────────────────────────────────────────────────────────
-  const handleRowClick = (debitNoteName: string) => {
-    router.push(`/debit-note/dnMain?name=${encodeURIComponent(debitNoteName)}`);
-  };
-
   const handleCreateNew = () => {
     router.push('/debit-note/dnMain');
-  };
-
-  const handleApplyFilters = () => {
-    setCurrentPage(1);
-    fetchDebitNotes(true);
   };
 
   const handleSubmitDebitNote = async (debitNoteName: string, e?: React.MouseEvent) => {

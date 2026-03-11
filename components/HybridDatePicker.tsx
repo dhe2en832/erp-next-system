@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { formatDate, parseDate } from '../utils/format';
+import { useMemo, useRef } from 'react';
 import { Calendar } from 'lucide-react';
+import { parseDate } from '../utils/format';
 
 interface HybridDatePickerProps {
   value: string;
@@ -12,31 +12,13 @@ interface HybridDatePickerProps {
 }
 
 export default function HybridDatePicker({ value, onChange, placeholder = "DD/MM/YYYY", className = "" }: HybridDatePickerProps) {
-  const [inputValue, setInputValue] = useState(value);
-  const [displayValue, setDisplayValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const dateInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    setInputValue(value);
-    // Convert DD/MM/YYYY to a display format that matches the date picker
-    if (value && /^\d{2}\/\d{2}\/\d{4}$/.test(value)) {
-      const parsed = parseDate(value);
-      if (parsed) {
-        // For display, we'll keep DD/MM/YYYY
-        setDisplayValue(value);
-      }
-    } else {
-      setDisplayValue('');
-    }
-  }, [value]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
     // Only allow numbers and slashes, and basic DD/MM/YYYY format
     if (newValue === '' || /^\d{0,2}\/?\d{0,2}\/?\d{0,4}$/.test(newValue)) {
-      setInputValue(newValue);
-      setDisplayValue(newValue);
       onChange(newValue);
     }
   };
@@ -47,67 +29,53 @@ export default function HybridDatePicker({ value, onChange, placeholder = "DD/MM
       // Convert from YYYY-MM-DD to DD/MM/YYYY for display
       const [year, month, day] = dateValue.split('-');
       const formattedValue = `${day}/${month}/${year}`;
-      setInputValue(formattedValue);
-      setDisplayValue(formattedValue);
       onChange(formattedValue);
     } else {
-      setInputValue('');
-      setDisplayValue('');
       onChange('');
     }
   };
 
   const handleIconClick = () => {
-    // Focus the hidden date input to trigger the browser date picker
-    dateInputRef.current?.focus();
-    dateInputRef.current?.click();
-  };
-
-  const handleInputFocus = () => {
-    // When user focuses on text input, also focus the date input
-    // This ensures tab order works correctly
-    setTimeout(() => {
+    // Trigger the browser date picker
+    try {
+      dateInputRef.current?.showPicker?.();
+    } catch {
       dateInputRef.current?.focus();
-    }, 0);
+    }
   };
 
-  // Convert DD/MM/YYYY to YYYY-MM-DD for the hidden date input
-  const getDateInputValue = () => {
-    if (!inputValue) return '';
-    const parsed = parseDate(inputValue);
-    return parsed || '';
-  };
+  // Derived internal value for the HTML date input (YYYY-MM-DD format)
+  const internalDateValue = useMemo(() => {
+    if (value && /^\d{2}\/\d{2}\/\d{4}$/.test(value)) {
+      return parseDate(value) || '';
+    }
+    return '';
+  }, [value]);
 
   return (
-    <div className="relative">
-      {/* Text input for DD/MM/YYYY display */}
+    <div className={`relative flex items-center ${className}`}>
       <input
         ref={inputRef}
         type="text"
-        placeholder={placeholder}
-        className={`${className} pr-10`}
-        value={displayValue}
+        value={value}
         onChange={handleInputChange}
-        onFocus={handleInputFocus}
+        placeholder={placeholder}
+        className="w-full pl-3 pr-10 py-2 border rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
       />
-      
-      {/* Hidden date input that triggers browser date picker */}
+      <div 
+        className="absolute right-3 cursor-pointer text-gray-400 hover:text-indigo-500"
+        onClick={handleIconClick}
+      >
+        <Calendar size={18} />
+      </div>
       <input
         ref={dateInputRef}
         type="date"
-        className="absolute inset-0 opacity-0 cursor-pointer"
-        value={getDateInputValue()}
+        value={internalDateValue}
         onChange={handleDateChange}
+        className="absolute right-3 opacity-0 w-6 h-6 pointer-events-none"
+        tabIndex={-1}
       />
-      
-      {/* Calendar icon */}
-      <button
-        type="button"
-        onClick={handleIconClick}
-        className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-      >
-        <Calendar className="w-4 h-4" />
-      </button>
     </div>
   );
 }

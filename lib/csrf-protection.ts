@@ -164,7 +164,7 @@ export function isRequestProtected(headers: Record<string, string>): boolean {
  * This function logs the current CSRF protection configuration for debugging purposes.
  */
 export function logCSRFProtectionStatus(): void {
-  const validation = validateCSRFProtection();
+  // const validation = validateCSRFProtection();
   
   // console.log('=== CSRF Protection Status ===');
   // console.log(`Protected: ${validation.protected}`);

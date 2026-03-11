@@ -70,10 +70,12 @@ export async function GET(request: NextRequest) {
       date_of_joining: emp.date_of_joining || '',
     }));
 
+    const totalRecords = await client.getCount('Employee', { filters });
+
     return NextResponse.json({
       success: true,
       data: employeesList,
-      total: employeesList.length,
+      total: totalRecords,
     });
   } catch (error) {
     logSiteError(error, 'GET /api/hr/employees', siteId);

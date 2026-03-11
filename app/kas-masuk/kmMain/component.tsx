@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
 import { formatDate, parseDate } from '../../../utils/format';
@@ -18,6 +18,21 @@ interface Account {
   name: string;
   account_name: string;
   account_type?: string;
+}
+
+interface JournalAccount {
+  account: string;
+  debit?: number;
+  credit?: number;
+  debit_in_account_currency?: number;
+  credit_in_account_currency?: number;
+  user_remark?: string;
+}
+
+interface JournalData {
+  name: string;
+  posting_date: string;
+  accounts: JournalAccount[];
 }
 
 export default function KasMasukForm() {
@@ -44,46 +59,34 @@ export default function KasMasukForm() {
   const [showAccountDialog, setShowAccountDialog] = useState(false);
   const [selectedRowIndex, setSelectedRowIndex] = useState<number | null>(null);
 
-  // Set default date on mount
-  useEffect(() => {
-    const today = new Date();
-    const offset = today.getTimezoneOffset();
-    const localDate = new Date(today.getTime() - (offset * 60 * 1000));
-    const todayString = localDate.toISOString().split('T')[0];
-    setPostingDate(formatDate(new Date(todayString)));
-  }, []);
-
-  useEffect(() => {
-    const saved = localStorage.getItem('selected_company');
-    if (saved) setSelectedCompany(saved);
-  }, []);
-
-  useEffect(() => {
-    if (selectedCompany) {
-      fetchCashAccounts();
-      fetchIncomeAccounts();
-    }
+  const fetchCashAccounts = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/finance/accounts/cash-bank?company=${encodeURIComponent(selectedCompany)}`, { credentials: 'include' });
+      const data = await res.json();
+      if (data.success) setCashAccounts(data.data || []);
+    } catch { /* silent */ }
   }, [selectedCompany]);
 
-  // Fetch journal entry data if in edit mode
-  useEffect(() => {
-    if (journalName && selectedCompany) {
-      setIsEditMode(true);
-      fetchJournalData();
-    }
-  }, [journalName, selectedCompany]);
+  const fetchIncomeAccounts = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/finance/accounts/expense?company=${encodeURIComponent(selectedCompany)}&type=income`, { credentials: 'include' });
+      const data = await res.json();
+      if (data.success) setIncomeAccounts(data.data || []);
+    } catch { /* silent */ }
+  }, [selectedCompany]);
 
-  const fetchJournalData = async () => {
+  const fetchJournalData = useCallback(async () => {
+    if (!journalName) return;
     setFetchingData(true);
     setError('');
     try {
-      const res = await fetch(`/api/finance/journal/${encodeURIComponent(journalName!)}`, {
+      const res = await fetch(`/api/finance/journal/${encodeURIComponent(journalName)}`, {
         credentials: 'include',
       });
       const data = await res.json();
 
       if (data.success && data.data) {
-        const journal = data.data;
+        const journal: JournalData = data.data;
         
         // Set posting date - convert from ISO to DD/MM/YYYY
         setPostingDate(formatDate(journal.posting_date || new Date().toISOString().split('T')[0]));
@@ -92,7 +95,7 @@ export default function KasMasukForm() {
         const accounts = journal.accounts || [];
         
         // Find cash account (debit entry for kas masuk)
-        const cashEntry = accounts.find((acc: any) => 
+        const cashEntry = accounts.find((acc) => 
           (acc.debit_in_account_currency && acc.debit_in_account_currency > 0) ||
           (acc.debit && acc.debit > 0)
         );
@@ -101,7 +104,7 @@ export default function KasMasukForm() {
         }
         
         // Find income accounts (credit entries) - filter out entries with "Kas Masuk -" in user_remark
-        const incomeEntries = accounts.filter((acc: any) => {
+        const incomeEntries = accounts.filter((acc) => {
           const hasCredit = (acc.credit_in_account_currency && acc.credit_in_account_currency > 0) ||
                            (acc.credit && acc.credit > 0);
           const isNotCashSummary = !acc.user_remark || !acc.user_remark.includes('Kas Masuk -');
@@ -109,7 +112,7 @@ export default function KasMasukForm() {
         });
         
         if (incomeEntries.length > 0) {
-          const parsedItems = incomeEntries.map((acc: any) => {
+          const parsedItems = incomeEntries.map((acc) => {
             // Extract keterangan from user_remark, removing "Kas Masuk: " prefix if present
             let keterangan = acc.user_remark || '';
             if (keterangan.startsWith('Kas Masuk: ')) {
@@ -129,28 +132,41 @@ export default function KasMasukForm() {
       } else {
         setError(data.message || 'Gagal memuat data journal');
       }
-    } catch (err) {
+    } catch {
       setError('Terjadi kesalahan saat memuat data journal');
     } finally {
       setFetchingData(false);
     }
-  };
+  }, [journalName]);
 
-  const fetchCashAccounts = async () => {
-    try {
-      const res = await fetch(`/api/finance/accounts/cash-bank?company=${encodeURIComponent(selectedCompany)}`, { credentials: 'include' });
-      const data = await res.json();
-      if (data.success) setCashAccounts(data.data || []);
-    } catch { /* silent */ }
-  };
+  // Set default date on mount
+  useEffect(() => {
+    const today = new Date();
+    const offset = today.getTimezoneOffset();
+    const localDate = new Date(today.getTime() - (offset * 60 * 1000));
+    const todayString = localDate.toISOString().split('T')[0];
+    setPostingDate(formatDate(new Date(todayString)));
+  }, []);
 
-  const fetchIncomeAccounts = async () => {
-    try {
-      const res = await fetch(`/api/finance/accounts/expense?company=${encodeURIComponent(selectedCompany)}&type=income`, { credentials: 'include' });
-      const data = await res.json();
-      if (data.success) setIncomeAccounts(data.data || []);
-    } catch { /* silent */ }
-  };
+  useEffect(() => {
+    const saved = localStorage.getItem('selected_company');
+    if (saved) setSelectedCompany(saved);
+  }, []);
+
+  useEffect(() => {
+    if (selectedCompany) {
+      fetchCashAccounts();
+      fetchIncomeAccounts();
+    }
+  }, [selectedCompany, fetchCashAccounts, fetchIncomeAccounts]);
+
+  // Fetch journal entry data if in edit mode
+  useEffect(() => {
+    if (journalName && selectedCompany) {
+      setIsEditMode(true);
+      fetchJournalData();
+    }
+  }, [journalName, selectedCompany, fetchJournalData]);
 
   const addRow = () => {
     setItems([...items, { keterangan: '', nominal: 0, kategori: '' }]);

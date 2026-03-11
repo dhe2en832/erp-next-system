@@ -59,23 +59,15 @@ export async function GET(request: NextRequest) {
       filters: filtersArray,
       limit_page_length: parseInt(limitPageLength),
       start: parseInt(limitStart),
-      order_by: 'posting_date desc,posting_time desc'
+      order_by: orderBy || 'creation desc, posting_date desc, posting_time desc'
     });
 
-    // console.log('Stock Entry ERPNext Response:', {
-    //   dataCount: data?.length || 0,
-    //   firstFew: data?.slice(0, 3)?.map((e: any) => ({ 
-    //     name: e.name, 
-    //     from_warehouse: e.from_warehouse, 
-    //     to_warehouse: e.to_warehouse,
-    //     purpose: e.purpose
-    //   }))
-    // });
+    const totalRecords = await client.getCount('Stock Entry', { filters: filtersArray });
 
     return NextResponse.json({
       success: true,
       data: data || [],
-      total: data?.length || 0,
+      total: totalRecords,
     });
   } catch (error: unknown) {
     logSiteError(error, 'GET /api/inventory/stock-entry', siteId);

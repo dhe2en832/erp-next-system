@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import LoadingSpinner from '../../../components/LoadingSpinner';
 import ClosingSummaryReport from '../../components/ClosingSummaryReport';
@@ -32,15 +32,8 @@ export default function ClosingSummaryReportPage() {
   const [data, setData] = useState<ClosingSummaryResponse['data'] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [exporting, setExporting] = useState<'pdf' | 'excel' | null>(null);
 
-  useEffect(() => {
-    if (periodName) {
-      fetchClosingSummary();
-    }
-  }, [periodName]);
-
-  const fetchClosingSummary = async () => {
+  const fetchClosingSummary = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
@@ -76,12 +69,17 @@ export default function ClosingSummaryReportPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [periodName]);
+
+  useEffect(() => {
+    if (periodName) {
+      fetchClosingSummary();
+    }
+  }, [periodName, fetchClosingSummary]);
 
   const handleExport = async (format: 'pdf' | 'excel') => {
     if (!data) return;
 
-    setExporting(format);
     try {
       const response = await fetch(
         `/api/accounting-period/reports/closing-summary?period_name=${encodeURIComponent(periodName)}&company=${encodeURIComponent(data.period.company)}&format=${format}`,
@@ -102,8 +100,6 @@ export default function ClosingSummaryReportPage() {
     } catch (err) {
       console.error(`Error exporting to ${format}:`, err);
       alert(`Gagal export ke ${format.toUpperCase()}`);
-    } finally {
-      setExporting(null);
     }
   };
 

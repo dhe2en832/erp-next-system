@@ -9,7 +9,7 @@ import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
 import { Printer, FileText, Truck, CreditCard, Send, ArrowUp, Loader2 } from 'lucide-react';
 import ErrorDialog from '../../../components/ErrorDialog';
 import PrintPreviewModal from '../../../components/print/PrintPreviewModal';
-import SalesOrderPrint from '../../../components/print/SalesOrderPrint';
+import SalesOrderPrint, { SalesOrderPrintProps } from '../../../components/print/SalesOrderPrint';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,38 +29,7 @@ function useIsMobile(breakpoint = 768) {
   return isMobile;
 }
 
-// ─────────────────────────────────────────────────────────────
-// Hook: Infinite Scroll Observer
-// ─────────────────────────────────────────────────────────────
-function useInfiniteScroll(callback: () => void, hasMore: boolean, isLoading: boolean) {
-  const observerRef = useRef<IntersectionObserver | null>(null);
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    if (isLoading || !hasMore) return;
-
-    observerRef.current = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) {
-          callback();
-        }
-      },
-      { rootMargin: '100px' } // Trigger 100px sebelum bottom
-    );
-
-    if (sentinelRef.current) {
-      observerRef.current.observe(sentinelRef.current);
-    }
-
-    return () => {
-      if (observerRef.current) {
-        observerRef.current.disconnect();
-      }
-    };
-  }, [callback, hasMore, isLoading]);
-
-  return sentinelRef;
-}
 
 // ─────────────────────────────────────────────────────────────
 // Types
@@ -89,7 +58,7 @@ const formatCurrency = (amount: number) => {
 };
 
 // ─────────────────────────────────────────────────────────────
-// Status Mapping: English (DB) → Indonesian (UI)
+// Status Mapping: ERPNext Value (EN) → Indonesian Label (UI)
 // ─────────────────────────────────────────────────────────────
 const STATUS_LABELS: Record<string, string> = {
   'Draft': 'Draft',
@@ -156,7 +125,7 @@ export default function SalesOrderList() {
   
   // Print preview states
   const [showPrintPreview, setShowPrintPreview] = useState(false);
-  const [printOrderData, setPrintOrderData] = useState<any>(null);
+  const [printOrderData, setPrintOrderData] = useState<SalesOrderPrintProps['data'] | null>(null);
   const [loadingPrintData, setLoadingPrintData] = useState(false);
 
   // Ref untuk sentinel infinite scroll
@@ -232,7 +201,7 @@ export default function SalesOrderList() {
       params.append('start', ((currentPage - 1) * pageSize).toString());
 
       // ✅ Sort by creation date descending (newest first)
-      params.append('order_by', 'creation desc');
+      params.append('order_by', 'creation desc, transaction_date desc');
       if (companyToUse) params.append('company', companyToUse);
       if (nameFilter) params.append('search', nameFilter);
       if (documentNumberFilter) params.append('documentNumber', documentNumberFilter);
@@ -264,7 +233,7 @@ export default function SalesOrderList() {
           setHasMoreData(false);
         }
 
-        ordersData.sort((a: any, b: any) => {
+        ordersData.sort((a: SalesOrder, b: SalesOrder) => {
           const dateA = new Date(a.creation || a.transaction_date || '1970-01-01');
           const dateB = new Date(b.creation || b.transaction_date || '1970-01-01');
           return dateB.getTime() - dateA.getTime();

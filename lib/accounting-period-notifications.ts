@@ -99,7 +99,7 @@ export async function getUsersWithRole(role: string): Promise<NotificationRecipi
   }
 
   const data = await response.json();
-  return data.data.map((user: any) => ({
+  return data.data.map((user: { email: string; full_name?: string; name: string }) => ({
     email: user.email,
     full_name: user.full_name || user.name
   }));

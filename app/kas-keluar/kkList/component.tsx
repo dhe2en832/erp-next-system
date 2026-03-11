@@ -111,7 +111,7 @@ export default function KasKeluarList() {
       const params = new URLSearchParams();
       params.append('limit_page_length', String(pageSize));
       params.append('start', String((currentPage - 1) * pageSize));
-      params.append('order_by', 'creation desc');
+      params.append('order_by', 'creation desc, posting_date desc');
       params.append('company', company);
       
       // Filter untuk Kas Keluar: cari di user_remark
@@ -222,7 +222,7 @@ export default function KasKeluarList() {
       } else {
         setError(data.message || 'Gagal submit journal entry');
       }
-    } catch (err) {
+    } catch {
       setError('Terjadi kesalahan saat submit journal entry');
     } finally {
       setSubmittingId(null);

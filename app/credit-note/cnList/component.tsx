@@ -15,14 +15,28 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 import Pagination from '../../components/Pagination';
 import { formatDate, parseDate } from '../../../utils/format';
 import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
-import { Printer, FileText, Send, ArrowUp, Loader2, RotateCcw, XCircle } from 'lucide-react';
+import { 
+  Printer, 
+  FileText, 
+  Send, 
+  ArrowUp, 
+  Loader2, 
+  RotateCcw, 
+  XCircle 
+} from 'lucide-react';
 import ErrorDialog from '../../../components/ErrorDialog';
 import { CreditNote } from '../../../types/credit-note';
 // import PrintPreviewModal from '../../../components/PrintPreviewModal';
 import PrintPreviewModal from '../../../components/print/PrintPreviewModal'; 
-import CreditNotePrint from '../../../components/print/CreditNotePrint';
+import CreditNotePrint, { CreditNotePrintProps } from '../../../components/print/CreditNotePrint';
 
 export const dynamic = 'force-dynamic';
+
+type CreditNotePrintData = CreditNote & {
+  customer_address?: string;
+  total: number;
+  in_words?: string;
+};
 
 // Hook: Deteksi mobile (breakpoint 768px)
 function useIsMobile(breakpoint = 768) {
@@ -94,8 +108,8 @@ export default function CreditNoteList() {
 
   // Print preview states
   const [showPrintPreview, setShowPrintPreview] = useState(false);
-  const [printData, setPrintData] = useState<any>(null);
-  const [loadingPrintData, setLoadingPrintData] = useState(false);
+  const [printData, setPrintData] = useState<CreditNotePrintData | null>(null);
+  const [, setLoadingPrintData] = useState(false);
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const pageChangeSourceRef = useRef<'pagination' | 'filter' | 'init'>('init');
@@ -156,7 +170,7 @@ export default function CreditNoteList() {
       const params = new URLSearchParams();
       params.append('limit_page_length', pageSize.toString());
       params.append('start', ((currentPage - 1) * pageSize).toString());
-      params.append('order_by', 'posting_date desc');
+      params.append('order_by', 'creation desc, posting_date desc');
       
       // Add filters
       if (statusFilter) params.append('status', statusFilter);
@@ -305,7 +319,7 @@ export default function CreditNoteList() {
     }
   };
 
-  const handleCancelCreditNote = async (creditNoteName: string, e?: React.MouseEvent) => {
+  const handleCancelCreditNote = useCallback(async (creditNoteName: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
     
     if (!confirm(`Apakah Anda yakin ingin membatalkan credit note ${creditNoteName}?`)) {
@@ -329,7 +343,7 @@ export default function CreditNoteList() {
     } catch {
       setSubmitError('Terjadi kesalahan saat membatalkan credit note');
     }
-  };
+  }, [fetchCreditNotes]);
 
   const handlePrint = async (creditNoteName: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -370,6 +384,8 @@ export default function CreditNoteList() {
         setPrintData({
           ...creditNoteData,
           customer_address: customerAddress,
+          total: creditNoteData.total || creditNoteData.grand_total, // ERPNext should provide total, but fallback to grand_total
+          in_words: creditNoteData.in_words || '',
         });
       } else {
         alert('Gagal memuat data untuk print');
@@ -598,6 +614,15 @@ export default function CreditNoteList() {
                           </button>
                           {cn.status === 'Draft' && (
                             <button 
+                              onClick={(e) => handleCancelCreditNote(cn.name, e)} 
+                              className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg"
+                              title="Batalkan"
+                            >
+                              <XCircle className="h-4 w-4" />
+                            </button>
+                          )}
+                          {cn.status === 'Draft' && (
+                            <button 
                               onClick={(e) => handleSubmitCreditNote(cn.name, e)} 
                               className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-green-600 rounded-lg hover:bg-green-700"
                             >
@@ -645,6 +670,11 @@ export default function CreditNoteList() {
                           <button onClick={(e) => handlePrint(cn.name, e)} className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Cetak">
                             <Printer className="h-4 w-4" />
                           </button>
+                          {cn.status === 'Draft' && (
+                            <button onClick={(e) => handleCancelCreditNote(cn.name, e)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg" title="Batalkan">
+                              <XCircle className="h-4 w-4" />
+                            </button>
+                          )}
                           {cn.status === 'Draft' && (
                             <button onClick={(e) => handleSubmitCreditNote(cn.name, e)} className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg" title="Ajukan">
                               <Send className="h-4 w-4" />
@@ -758,7 +788,7 @@ export default function CreditNoteList() {
           paperMode="continuous"
         >
           <CreditNotePrint 
-            data={printData} 
+            data={printData as CreditNotePrintProps['data']} 
             companyName={selectedCompany}
           />
         </PrintPreviewModal>

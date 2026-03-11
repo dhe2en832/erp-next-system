@@ -19,6 +19,13 @@ export interface PaymentEntry {
   status: string;
   docstatus: number;
   sales_person?: string;
+  paid_from?: string | { name: string };
+  paid_to?: string | { name: string };
+  reference_no?: string;
+  reference_date?: string;
+  bank_reference?: string;
+  clearance_date?: string;
+  custom_notes_payment?: string;
 }
 
 export interface PaymentWithReferences extends PaymentEntry {

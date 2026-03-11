@@ -84,13 +84,15 @@ export async function GET(request: NextRequest) {
       filters: filtersArray,
       limit_page_length: parseInt(limitPageLength),
       start: parseInt(limitStart),
-      order_by: orderBy || 'creation desc'
+      order_by: orderBy || 'creation desc, posting_date desc'
     });
+
+    const totalRecords = await client.getCount('Payment Entry', { filters: filtersArray });
 
     return NextResponse.json({
       success: true,
-      data: data,
-      total_records: data.length,
+      data,
+      total_records: totalRecords,
     });
   } catch (error: unknown) {
     logSiteError(error, 'GET /api/finance/payments', siteId);

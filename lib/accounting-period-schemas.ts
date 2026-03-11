@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { sanitizeString, sanitizeDate } from './input-sanitization';
+import { sanitizeString } from './input-sanitization';
 
 // Base schemas
 export const periodTypeSchema = z.enum(['Monthly', 'Quarterly', 'Yearly']);

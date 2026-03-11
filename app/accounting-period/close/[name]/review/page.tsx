@@ -1,9 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import LoadingSpinner from '../../../../components/LoadingSpinner';
 import type { AccountingPeriod, AccountBalance } from '../../../../../types/accounting-period';
+
+interface BalancesData {
+  cumulative: AccountBalance[];
+  period_only: AccountBalance[];
+}
 
 export default function ReviewBalancesPage() {
   const router = useRouter();
@@ -12,17 +17,12 @@ export default function ReviewBalancesPage() {
 
   const [period, setPeriod] = useState<AccountingPeriod | null>(null);
   const [accountBalances, setAccountBalances] = useState<AccountBalance[]>([]);
+  const [balancesData, setBalancesData] = useState<BalancesData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [viewMode, setViewMode] = useState<'cumulative' | 'period_only'>('cumulative');
 
-  useEffect(() => {
-    if (periodName) {
-      fetchPeriodAndBalances();
-    }
-  }, [periodName]);
-
-  const fetchPeriodAndBalances = async () => {
+  const fetchPeriodAndBalances = useCallback(async () => {
     setLoading(true);
     setError('');
     
@@ -47,15 +47,15 @@ export default function ReviewBalancesPage() {
         `/api/accounting-period/balances/${encodeURIComponent(periodName)}`,
         { credentials: 'include' }
       );
-      const balancesData = await balancesResponse.json();
+      const resData = await balancesResponse.json();
 
-      if (balancesData.success) {
+      if (resData.success) {
         // Set initial view to cumulative
-        setAccountBalances(balancesData.data.cumulative || []);
+        setAccountBalances(resData.data.cumulative || []);
         // Store both datasets in state for switching
-        (window as any).__balancesData = balancesData.data;
+        setBalancesData(resData.data);
       } else {
-        setError(balancesData.message || 'Gagal memuat saldo akun');
+        setError(resData.message || 'Gagal memuat saldo akun');
       }
     } catch (err) {
       console.error('Error fetching data:', err);
@@ -63,7 +63,13 @@ export default function ReviewBalancesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [periodName]);
+
+  useEffect(() => {
+    if (periodName) {
+      fetchPeriodAndBalances();
+    }
+  }, [periodName, fetchPeriodAndBalances]);
 
   const handleBack = () => {
     router.push(`/accounting-period/close/${encodeURIComponent(periodName)}`);
@@ -76,7 +82,6 @@ export default function ReviewBalancesPage() {
 
   const handleViewModeChange = (mode: 'cumulative' | 'period_only') => {
     setViewMode(mode);
-    const balancesData = (window as any).__balancesData;
     if (balancesData) {
       setAccountBalances(mode === 'cumulative' ? balancesData.cumulative : balancesData.period_only);
     }

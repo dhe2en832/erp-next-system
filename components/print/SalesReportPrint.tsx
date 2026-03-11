@@ -63,8 +63,8 @@ export interface SalesReportPrintProps {
 /**
  * Format currency in Indonesian Rupiah
  */
-function formatCurrency(value: any): string {
-  const num = parseFloat(value) || 0;
+function formatCurrency(value: unknown): string {
+  const num = typeof value === 'number' ? value : parseFloat(value as string) || 0;
   return new Intl.NumberFormat('id-ID', {
     style: 'currency',
     currency: 'IDR',
@@ -76,17 +76,17 @@ function formatCurrency(value: any): string {
 /**
  * Format date in Indonesian locale
  */
-function formatDate(value: any): string {
+function formatDate(value: unknown): string {
   if (!value) return '-';
   try {
-    const date = new Date(value);
+    const date = new Date(value as string | number | Date);
     return new Intl.DateTimeFormat('id-ID', {
       day: 'numeric',
       month: 'short',
       year: 'numeric',
     }).format(date);
   } catch {
-    return value;
+    return value as string;
   }
 }
 
@@ -150,7 +150,7 @@ export default function SalesReportPrint(props: SalesReportPrintProps) {
       companyLogo={companyLogo}
       dateRange={dateRange}
       columns={columns}
-      data={data}
+      data={data as unknown as Record<string, unknown>[]}
       groupBy={groupByCustomer ? 'customer' : undefined}
       showSubtotals={groupByCustomer}
       showGrandTotal={true}

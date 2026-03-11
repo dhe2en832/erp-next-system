@@ -141,7 +141,7 @@ export interface PrintLayoutProps {
   
   // Items
   /** Line items array */
-  items: Record<string, any>[];
+  items: Record<string, unknown>[];
   
   /** Column definitions for item table */
   columns: PrintColumn[];
@@ -256,7 +256,7 @@ export interface PrintColumn {
   align?: 'left' | 'center' | 'right';
   
   /** Value formatter function (optional) */
-  format?: (value: any) => string;
+  format?: (value: unknown) => string;
 }
 
 /**
@@ -287,7 +287,7 @@ export interface ReportColumn {
   align?: 'left' | 'center' | 'right';
   
   /** Value formatter function (optional) */
-  format?: (value: any) => string;
+  format?: (value: unknown) => string;
 }
 
 /**
@@ -295,7 +295,7 @@ export interface ReportColumn {
  */
 export interface ReportRow {
   /** Row data keyed by column key */
-  [key: string]: any;
+  [key: string]: unknown;
   
   /** Indentation level for hierarchy (0-5) (optional) */
   indent?: number;

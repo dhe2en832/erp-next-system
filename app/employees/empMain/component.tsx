@@ -150,7 +150,7 @@ export default function EmployeeMain() {
             employee_name: emp.employee_name || emp.first_name || '',
             date_of_birth: toDisplayDate(emp.date_of_birth),
             date_of_joining: toDisplayDate(emp.date_of_joining) || getTodayDDMMYYYY(),
-            company: emp.company || formData.company || '',
+            company: emp.company || '',
           });
         }
       } else {
@@ -259,7 +259,7 @@ export default function EmployeeMain() {
         }
       } else {
         // Surface clearer message for link validation errors (e.g., department/designation not found)
-        let message = data.message || data.exc || 'Gagal menyimpan employee';
+        const message = data.message || data.exc || 'Gagal menyimpan employee';
         setError(message);
       }
     } catch (err) {

@@ -18,7 +18,7 @@ function fixTerbilang(raw: string): string {
     .trim();
 }
 
-interface PurchaseInvoicePrintProps {
+export interface PurchaseInvoicePrintProps {
   data: {
     name: string;
     posting_date: string;
@@ -47,15 +47,18 @@ interface PurchaseInvoicePrintProps {
 }
 
 export default function PurchaseInvoicePrint({ data, companyName, companyLogo }: PurchaseInvoicePrintProps) {
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: unknown) => {
+    const numAmount = typeof amount === 'number' ? amount : Number(amount);
     return new Intl.NumberFormat('id-ID', {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
-    }).format(amount);
+    }).format(isNaN(numAmount) ? 0 : numAmount);
   };
 
   const formatDate = (dateStr: string) => {
+    if (!dateStr) return '-';
     const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return '-';
     return new Intl.DateTimeFormat('id-ID', {
       day: 'numeric',
       month: 'long',
@@ -95,7 +98,7 @@ export default function PurchaseInvoicePrint({ data, companyName, companyLogo }:
     columns: [
       { key: 'item_code', label: 'Kode', align: 'left', width: '15%' },
       { key: 'item_name', label: 'Nama Item', align: 'left', width: '40%' },
-      { key: 'qty', label: 'Qty', align: 'right', width: '10%', format: (v) => v.toString() },
+      { key: 'qty', label: 'Qty', align: 'right', width: '10%', format: (v) => String(v || 0) },
       { key: 'rate', label: 'Harga', align: 'right', width: '17%', format: formatCurrency },
       { key: 'amount', label: 'Jumlah', align: 'right', width: '18%', format: formatCurrency },
     ],

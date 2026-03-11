@@ -43,14 +43,25 @@ export async function GET(request: NextRequest) {
     if (fromDate) filters.push(['posting_date', '>=', fromDate]);
     if (toDate) filters.push(['posting_date', '<=', toDate]);
 
+    const limitPageLength = searchParams.get('limit_page_length') || '20';
+    const limitStart = searchParams.get('limit_start') || '0';
+    const orderBy = searchParams.get('order_by') || 'creation desc, posting_date desc, posting_time desc';
+
     const data = await client.getList('Stock Reconciliation', {
       fields: ['name', 'posting_date', 'posting_time', 'company', 'purpose'],
       filters,
-      order_by: 'posting_date desc,posting_time desc',
-      limit_page_length: 100
+      order_by: orderBy,
+      limit_page_length: parseInt(limitPageLength),
+      start: parseInt(limitStart)
     });
 
-    return NextResponse.json({ success: true, data: data || [] });
+    const totalRecords = await client.getCount('Stock Reconciliation', { filters });
+
+    return NextResponse.json({
+      success: true,
+      data: data || [],
+      total_records: totalRecords,
+    });
   } catch (error: unknown) {
     logSiteError(error, 'GET /api/inventory/reconciliation', siteId);
     const errorResponse = buildSiteAwareErrorResponse(error, siteId);

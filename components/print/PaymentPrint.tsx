@@ -44,15 +44,18 @@ interface PaymentPrintProps {
 }
 
 export default function PaymentPrint({ data, companyName, companyLogo }: PaymentPrintProps) {
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: unknown) => {
+    const numAmount = typeof amount === 'number' ? amount : Number(amount);
     return new Intl.NumberFormat('id-ID', {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
-    }).format(amount);
+    }).format(isNaN(numAmount) ? 0 : numAmount);
   };
 
   const formatDate = (dateStr: string) => {
+    if (!dateStr) return '-';
     const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return '-';
     return new Intl.DateTimeFormat('id-ID', {
       day: 'numeric',
       month: 'long',

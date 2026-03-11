@@ -48,6 +48,7 @@ function DocumentHeader({
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
         {companyLogo && (
+          /* eslint-disable-next-line @next/next/no-img-element */
           <img 
             src={companyLogo} 
             alt="Logo" 
@@ -211,7 +212,7 @@ function ItemTable({
   items,
   columns,
 }: {
-  items: Record<string, any>[];
+  items: Record<string, unknown>[];
   columns: PrintColumn[];
 }) {
   return (
@@ -261,7 +262,7 @@ function ItemTable({
                   padding: '4px 6px',
                   textAlign: col.align || 'left',
                 }}>
-                  {col.format ? col.format(item[col.key]) : item[col.key]}
+                  {(col.format ? col.format(item[col.key]) : item[col.key]) as React.ReactNode}
                 </td>
               ))}
             </tr>

@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     const fiscalYears = await client.getList('Fiscal Year', {
       filters: filters.length > 0 ? filters : undefined,
       fields: ['name', 'year', 'year_start_date', 'year_end_date', 'disabled'],
-      order_by: 'year_start_date desc',
+      order_by: 'creation desc, year_start_date desc',
     });
 
     // Filter out disabled fiscal years

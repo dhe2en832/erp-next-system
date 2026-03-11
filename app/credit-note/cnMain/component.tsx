@@ -55,6 +55,13 @@ export default function CreditNoteMain() {
   const [showInvoiceDialog, setShowInvoiceDialog] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<SalesInvoice | null>(null);
   const [creditNote, setCreditNote] = useState<CreditNote | null>(null);
+
+  // Debug: Track selected invoice for side effects if needed
+  useEffect(() => {
+    if (selectedInvoice) {
+      // Logic for selected invoice side effects could go here
+    }
+  }, [selectedInvoice]);
   const [isReadOnly, setIsReadOnly] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [itemErrors, setItemErrors] = useState<Record<number, { qty?: string; reason?: string; notes?: string }>>({});
@@ -134,13 +141,13 @@ export default function CreditNoteMain() {
       } else {
         // Use error handler for ERPNext errors
         if (data._server_messages || data.exc) {
-          const { errorMessage } = handleERPNextError(
+          const { errorMessage: errmsg } = handleERPNextError(
             data,
             '',
             'Credit Note',
             'Gagal memuat Credit Note'
           );
-          setError(errorMessage);
+          setError(errmsg);
         } else {
           setError(data.message || 'Gagal memuat credit note');
         }
@@ -386,12 +393,13 @@ export default function CreditNoteMain() {
       } else {
         // Use error handler for ERPNext errors
         if (data._server_messages || data.exc) {
-          const { errorMessage, bannerMessage } = handleERPNextError(
+          const { errorMessage: errmsg, bannerMessage } = handleERPNextError(
             data,
             formData.posting_date,
             'Credit Note',
             'Gagal menyimpan Credit Note'
           );
+          console.error('ERPNext Error Detail:', errmsg);
           setError(bannerMessage);
         } else {
           setError(data.message || 'Gagal menyimpan credit note');
@@ -430,12 +438,13 @@ export default function CreditNoteMain() {
       } else {
         // Use error handler for ERPNext errors
         if (data._server_messages || data.exc) {
-          const { errorMessage, bannerMessage } = handleERPNextError(
+          const { errorMessage: errmsg, bannerMessage } = handleERPNextError(
             data,
             creditNote.posting_date,
             'Credit Note',
             'Gagal mengajukan Credit Note'
           );
+          console.error('ERPNext Error Detail:', errmsg);
           setError(bannerMessage);
         } else {
           setError(data.message || 'Gagal mengajukan credit note');
@@ -474,12 +483,13 @@ export default function CreditNoteMain() {
       } else {
         // Use error handler for ERPNext errors
         if (data._server_messages || data.exc) {
-          const { errorMessage, bannerMessage } = handleERPNextError(
+          const { errorMessage: errmsg, bannerMessage } = handleERPNextError(
             data,
             creditNote.posting_date,
             'Credit Note',
             'Gagal membatalkan Credit Note'
           );
+          console.error('ERPNext Error Detail:', errmsg);
           setError(bannerMessage);
         } else {
           setError(data.message || 'Gagal membatalkan credit note');

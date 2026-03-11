@@ -125,7 +125,7 @@ export class SiteHealthMonitor {
 
         if (response.ok) {
           const data = await response.json();
-          const results = data.results.map((r: any) => ({
+          const results = data.results.map((r: HealthCheckResult & { timestamp: string }) => ({
             ...r,
             timestamp: new Date(r.timestamp),
           }));

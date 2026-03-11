@@ -27,7 +27,8 @@ export async function GET(request: NextRequest) {
       fields: ['name', 'sales_person_name', 'employee'],
       filters: filters.length > 0 ? filters : undefined,
       limit_page_length: limitPageLength,
-      start: limitStart
+      start: limitStart,
+      order_by: 'creation desc, sales_person_name asc'
     });
 
     // Transform sales person master data
@@ -41,10 +42,12 @@ export async function GET(request: NextRequest) {
       allocated_amount: 0,
     }));
 
+    const totalRecords = await client.getCount('Sales Person', { filters: filters.length > 0 ? filters : undefined });
+
     return NextResponse.json({
       success: true,
       data: salesPersonsList,
-      total: salesPersonsList.length,
+      total: totalRecords,
     });
 
   } catch (error: unknown) {

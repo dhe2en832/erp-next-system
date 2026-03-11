@@ -41,14 +41,15 @@ export interface ProfitLossAccount {
 // Helper Functions
 // ============================================================================
 
-function formatCurrency(value: number): string {
-  if (value === 0) return '-';
+function formatCurrency(value: unknown): string {
+  const numValue = typeof value === 'number' ? value : Number(value);
+  if (isNaN(numValue) || numValue === 0) return '-';
   return new Intl.NumberFormat('id-ID', {
     style: 'currency',
     currency: 'IDR',
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
-  }).format(value).replace('IDR', 'Rp').trim();
+  }).format(numValue).replace('IDR', 'Rp').trim();
 }
 
 function mapToReportRows(accounts: ProfitLossAccount[]): ReportRow[] {

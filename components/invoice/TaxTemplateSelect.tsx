@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 export interface TaxTemplate {
   name: string;
@@ -35,19 +35,7 @@ export default function TaxTemplateSelect({
   const [error, setError] = useState<string>('');
   const [selectedValue, setSelectedValue] = useState<string>(value);
 
-  useEffect(() => {
-    // Only fetch tax templates if company is provided
-    // This prevents API errors when component mounts before company is selected
-    if (company) {
-      fetchTaxTemplates();
-    }
-  }, [type, company]);
-
-  useEffect(() => {
-    setSelectedValue(value);
-  }, [value]);
-
-  const fetchTaxTemplates = async () => {
+  const fetchTaxTemplates = useCallback(async () => {
     setLoading(true);
     setError('');
 
@@ -66,14 +54,6 @@ export default function TaxTemplateSelect({
       const result = await response.json();
       
       if (result.success) {
-        // console.log('[TaxTemplateSelect] Loaded templates:', {
-        //   count: result.data?.length || 0,
-        //   templates: result.data?.map((t: TaxTemplate) => ({
-        //     name: t.name,
-        //     title: t.title,
-        //     taxesCount: t.taxes?.length || 0
-        //   }))
-        // });
         setTemplates(result.data || []);
       } else {
         throw new Error(result.error || 'Gagal mengambil data template pajak');
@@ -84,7 +64,19 @@ export default function TaxTemplateSelect({
     } finally {
       setLoading(false);
     }
-  };
+  }, [type, company]);
+
+  useEffect(() => {
+     // Only fetch tax templates if company is provided
+     // This prevents API errors when component mounts before company is selected
+     if (company) {
+       fetchTaxTemplates();
+     }
+   }, [company, fetchTaxTemplates]);
+
+   useEffect(() => {
+     setSelectedValue(value);
+   }, [value]);
 
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const templateName = e.target.value;

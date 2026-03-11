@@ -9,7 +9,7 @@ import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
 import { Printer, FileText, ArrowUp, Loader2, Plus } from 'lucide-react';
 import ErrorDialog from '../../../components/ErrorDialog';
 import PrintPreviewModal from '../../../components/print/PrintPreviewModal';
-import PurchaseReceiptPrint from '../../../components/print/PurchaseReceiptPrint';
+import PurchaseReceiptPrint, { PurchaseReceiptPrintProps } from '../../../components/print/PurchaseReceiptPrint';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,35 +32,6 @@ function useIsMobile(breakpoint = 768) {
 // ─────────────────────────────────────────────────────────────
 // Hook: Infinite Scroll Observer - INLINE seperti soList
 // ─────────────────────────────────────────────────────────────
-function useInfiniteScroll(callback: () => void, hasMore: boolean, isLoading: boolean) {
-  const observerRef = useRef<IntersectionObserver | null>(null);
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (isLoading || !hasMore) return;
-
-    observerRef.current = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) {
-          callback();
-        }
-      },
-      { rootMargin: '100px' }
-    );
-
-    if (sentinelRef.current) {
-      observerRef.current.observe(sentinelRef.current);
-    }
-
-    return () => {
-      if (observerRef.current) {
-        observerRef.current.disconnect();
-      }
-    };
-  }, [callback, hasMore, isLoading]);
-
-  return sentinelRef;
-}
 
 // ─────────────────────────────────────────────────────────────
 // Types
@@ -74,11 +45,6 @@ interface PurchaseReceipt {
   grand_total: number;
   currency: string;
   creation?: string;
-}
-
-interface Supplier {
-  name: string;
-  supplier_name: string;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -158,10 +124,8 @@ export default function PurchaseReceiptList() {
   const useInfiniteScrollMode = isMobile;
 
   const [receipts, setReceipts] = useState<PurchaseReceipt[]>([]);
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [actionLoading, setActionLoading] = useState(false);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [dateFilter, setDateFilter] = useState({
@@ -182,7 +146,7 @@ export default function PurchaseReceiptList() {
 
   // Print preview states
   const [showPrintPreview, setShowPrintPreview] = useState(false);
-  const [printData, setPrintData] = useState<any>(null);
+  const [printData, setPrintData] = useState<PurchaseReceiptPrintProps['data'] | null>(null);
   const [loadingPrintData, setLoadingPrintData] = useState(false);
 
   // Ref untuk sentinel infinite scroll
@@ -223,20 +187,8 @@ export default function PurchaseReceiptList() {
   }, []);
 
   // ─────────────────────────────────────────────────────────
-  // Fetch Suppliers
+  // Fetch Suppliers - REMOVED AS UNUSED
   // ─────────────────────────────────────────────────────────
-  const fetchSuppliers = useCallback(async () => {
-    const companyToUse = selectedCompany || localStorage.getItem('selected_company');
-    if (!companyToUse) return;
-
-    try {
-      const response = await fetch(`/api/purchase/suppliers?company=${encodeURIComponent(companyToUse)}`);
-      const data = await response.json();
-      if (data.success) setSuppliers(data.data || []);
-    } catch (err) {
-      console.error('Error fetching suppliers:', err);
-    }
-  }, [selectedCompany]);
 
   // ─────────────────────────────────────────────────────────
   // Fetch Data - MENGIKUTI POLA soList.tsx
@@ -252,9 +204,9 @@ export default function PurchaseReceiptList() {
     let companyToUse = selectedCompany;
 
     if (!companyToUse) {
-      const stored = localStorage.getItem('selected_company');
+      const stored = typeof window !== 'undefined' ? localStorage.getItem('selected_company') : null;
       if (stored) companyToUse = stored;
-      else {
+      else if (typeof document !== 'undefined') {
         const cookies = document.cookie.split(';');
         const cookie = cookies.find(c => c.trim().startsWith('selected_company='));
         if (cookie) companyToUse = cookie.split('=')[1];
@@ -275,8 +227,8 @@ export default function PurchaseReceiptList() {
       params.append('limit_page_length', pageSize.toString());
       params.append('start', ((currentPage - 1) * pageSize).toString());
 
-      // ✅ WAJIB: Urutkan dari yang terbaru (creation descending)
-      params.append('order_by', 'creation desc');
+      // ✅ WAJIB: Urutkan dari yang terbaru (creation & posting_date descending)
+      params.append('order_by', 'creation desc, posting_date desc');
       
       if (companyToUse) params.append('company', companyToUse);
       if (supplierFilter) params.append('search', supplierFilter);
@@ -296,7 +248,7 @@ export default function PurchaseReceiptList() {
       const result = await response.json();
 
       if (result.success) {
-        const receiptsData = result.data || [];
+        const receiptsData: PurchaseReceipt[] = result.data || [];
 
         if (result.total_records !== undefined) {
           setTotalRecords(result.total_records);
@@ -309,7 +261,7 @@ export default function PurchaseReceiptList() {
         }
 
         // ✅ Secondary sort by creation date (fallback jika API tidak sorting)
-        receiptsData.sort((a: any, b: any) => {
+        receiptsData.sort((a, b) => {
           const dateA = new Date(a.creation || a.posting_date || '1970-01-01');
           const dateB = new Date(b.creation || b.posting_date || '1970-01-01');
           return dateB.getTime() - dateA.getTime();
@@ -321,7 +273,7 @@ export default function PurchaseReceiptList() {
           // Append untuk infinite scroll (hindari duplikat)
           setReceipts(prev => {
             const existingNames = new Set(prev.map(o => o.name));
-            const newReceipts = receiptsData.filter((o: PurchaseReceipt) => !existingNames.has(o.name));
+            const newReceipts = receiptsData.filter(o => !existingNames.has(o.name));
             return [...prev, ...newReceipts];
           });
         }
@@ -341,9 +293,6 @@ export default function PurchaseReceiptList() {
   // ─────────────────────────────────────────────────────────
   // Effects - FIXED VERSION - Prevent race conditions
   // ─────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (selectedCompany) fetchSuppliers();
-  }, [selectedCompany, fetchSuppliers]);
 
   // Reset page when filters change
   useEffect(() => {
@@ -418,7 +367,6 @@ export default function PurchaseReceiptList() {
   // ─────────────────────────────────────────────────────────
   const handleSubmit = async (prName: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
-    setActionLoading(true);
     try {
       const res = await fetch(`/api/purchase/receipts/${prName}/submit`, {
         method: 'POST',
@@ -437,8 +385,6 @@ export default function PurchaseReceiptList() {
       }
     } catch {
       setSubmitError('Gagal mengajukan Penerimaan Barang');
-    } finally {
-      setActionLoading(false);
     }
   };
 
@@ -475,7 +421,7 @@ export default function PurchaseReceiptList() {
         setPrintData({
           ...prData,
           supplier_address: supplierAddress,
-        });
+        } as PurchaseReceiptPrintProps['data']);
       } else {
         alert('Gagal memuat data untuk print');
       }

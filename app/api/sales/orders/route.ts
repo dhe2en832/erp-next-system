@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     const filters = searchParams.get('filters');
     const limit = searchParams.get('limit') || '20';
     const start = searchParams.get('start') || '0';
-    const orderBy = searchParams.get('order_by') || 'creation desc';
+    const orderBy = searchParams.get('order_by') || 'creation desc, transaction_date desc';
     const search = searchParams.get('search');
     const documentNumber = searchParams.get('documentNumber');
     const status = searchParams.get('status');
@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     const toDate = searchParams.get('to_date');
 
     // Build filters
-    let filtersArray: any[][] = [];
+    const filtersArray: any[][] = [];
     
     // Always add company filter if company is provided
     const company = searchParams.get('company');
@@ -81,9 +81,12 @@ export async function GET(request: NextRequest) {
       order_by: orderBy
     });
 
+    const totalRecords = await client.getCount('Sales Order', { filters: filtersArray });
+
     return NextResponse.json({
       success: true,
       data: orders,
+      total_records: totalRecords,
     });
   } catch (error) {
     logSiteError(error, 'GET /api/sales/orders', siteId);

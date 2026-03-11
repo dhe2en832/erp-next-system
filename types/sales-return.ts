@@ -86,8 +86,16 @@ export interface SalesReturn {
   status: 'Draft' | 'Submitted' | 'Cancelled';
   /** Document status code (0=Draft, 1=Submitted, 2=Cancelled) */
   docstatus: 0 | 1 | 2;
+  /** Subtotal before taxes */
+  total?: number;
+  /** Net total after discount */
+  net_total?: number;
+  /** Total taxes and charges */
+  total_taxes_and_charges?: number;
   /** Total value of returned items (negative) */
   grand_total: number;
+  /** Total in words */
+  in_words?: string;
   /** Line items */
   items: SalesReturnItem[];
   /** Additional notes */
@@ -247,7 +255,7 @@ export interface CreateSalesReturnResponse {
   data?: {
     name: string;
     status: string;
-    [key: string]: any;
+    [key: string]: unknown;
   };
   error?: string;
 }

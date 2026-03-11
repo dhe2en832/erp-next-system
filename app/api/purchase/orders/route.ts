@@ -12,8 +12,8 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const company = searchParams.get('company');
-    const limitPageLength = searchParams.get('limit_page_length');
-    const limitStart = searchParams.get('limit_start');
+    const limitPageLength = searchParams.get('limit_page_length') || searchParams.get('pageSize');
+    const limitStart = searchParams.get('limit_start') || searchParams.get('start');
     const search = searchParams.get('search');
     const documentNumber = searchParams.get('documentNumber');
     const status = searchParams.get('status');
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Build filters array
-    let filters: any[][] = [
+    const filters: any[][] = [
       ["company", "=", company]
     ];
 
@@ -86,7 +86,7 @@ export async function GET(request: NextRequest) {
       filters: filters,
       limit_page_length: parseInt(limitPageLength || '20'),
       ...(limitStart && { start: parseInt(limitStart) }),
-      ...(orderBy && { order_by: orderBy })
+      ...(orderBy ? { order_by: orderBy } : { order_by: 'creation desc, transaction_date desc' })
     });
 
     // Transform data to match frontend interface
@@ -100,9 +100,12 @@ export async function GET(request: NextRequest) {
       currency: po.currency || 'IDR'
     }));
 
+    const totalRecords = await client.getCount('Purchase Order', { filters: filters });
+
     return NextResponse.json({
       success: true,
       data: transformedData,
+      total_records: totalRecords,
       message: 'Purchase Orders fetched successfully'
     });
   } catch (error) {

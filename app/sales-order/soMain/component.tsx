@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import CustomerDialog from '../../components/CustomerDialog';
 import ItemDialog from '../../components/ItemDialog';
@@ -33,6 +33,53 @@ interface OrderItem {
   original_rate: number; // Harga asli dari item price (required)
 }
 
+interface ERPNextSalesOrderItem {
+  item_code: string;
+  item_name: string;
+  qty: number;
+  rate: number;
+  amount: number;
+  warehouse: string;
+  stock_uom: string;
+  uom?: string;
+}
+
+interface ERPNextSalesOrder {
+  name: string;
+  status: string;
+  customer: string;
+  customer_name: string;
+  transaction_date: string;
+  delivery_date: string;
+  sales_person: string;
+  salesperson?: string;
+  owner?: string;
+  custom_persentase_komisi_so?: number;
+  custom_notes_so?: string;
+  remarks?: string;
+  items: ERPNextSalesOrderItem[];
+  payment_terms_template: string;
+  sales_team?: Array<{
+    sales_person: string;
+    allocated_percentage: number;
+  }>;
+  docstatus?: number;
+  address_display?: string;
+  customer_address?: string;
+  shipping_address_name?: string;
+  total?: number;
+  total_taxes_and_charges?: number;
+  grand_total?: number;
+  in_words?: string;
+}
+
+interface StockInfo {
+  warehouse: string;
+  available: number;
+  actual: number;
+  reserved: number;
+}
+
 export default function SalesOrderMain() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -40,7 +87,7 @@ export default function SalesOrderMain() {
 
   const [loading, setLoading] = useState(!!orderName);
   const [selectedCompany, setSelectedCompany] = useState('');
-  const [editingOrder, setEditingOrder] = useState<any>(null);
+  const [editingOrder, setEditingOrder] = useState<ERPNextSalesOrder | null>(null);
   const [currentOrderStatus, setCurrentOrderStatus] = useState<string>('');
   const [error, setError] = useState('');
   const [formLoading, setFormLoading] = useState(false);
@@ -92,7 +139,7 @@ export default function SalesOrderMain() {
         if (data.success) {
           setPaymentTermsList(data.data || []);
         }
-      } catch (err) {
+      } catch {
         // silently fail — dropdown will be empty
       }
     };
@@ -113,14 +160,83 @@ export default function SalesOrderMain() {
     }));
   }, []);
 
-  // Fetch order details in edit mode
-  useEffect(() => {
-    if (orderName && selectedCompany) {
-      fetchOrderDetails(orderName);
+  const getDefaultWarehouse = useCallback(async (company: string) => {
+    try {
+      const response = await fetch(`/api/finance/company/settings?company=${encodeURIComponent(company)}`);
+      const data = await response.json();
+      if (data.success && data.data?.default_warehouse) {
+        return data.data.default_warehouse;
+      }
+    } catch (error: unknown) {
+      console.error('Failed to fetch company settings:', error);
     }
-  }, [orderName, selectedCompany]);
 
-  const fetchOrderDetails = async (name: string) => {
+    // Fallback: fetch available warehouses and pick the first one
+    try {
+      const whResponse = await fetch(`/api/inventory/warehouses?company=${encodeURIComponent(company)}`);
+      const whData = await whResponse.json();
+      if (whData.success && whData.data && whData.data.length > 0) {
+        return whData.data[0].name;
+      }
+    } catch (error: unknown) {
+      console.error('Failed to fetch warehouses:', error);
+    }
+
+    // Last resort fallback
+    return 'Stores';
+  }, []);
+
+  const checkItemStock = useCallback(async (itemCode: string, itemIndex: number, currentItem: OrderItem) => {
+    try {
+      const response = await fetch(`/api/inventory/check?item_code=${itemCode}`);
+      const data = await response.json();
+      
+      if (!data.error && data.length > 0) {
+        const bestWarehouse = (data as StockInfo[]).reduce((prev, current) => 
+          (prev.available >= current.available) ? prev : current
+        );
+        
+        const updatedItem = {
+          ...currentItem,
+          warehouse: bestWarehouse.warehouse,
+          available_stock: bestWarehouse.available,
+          actual_stock: bestWarehouse.actual,
+          reserved_stock: bestWarehouse.reserved,
+          original_rate: currentItem.original_rate || currentItem.rate, // Preserve original_rate
+        };
+        
+        setFormData(prev => ({
+          ...prev,
+          items: prev.items.map((item, index) => 
+            index === itemIndex ? updatedItem : item
+          )
+        }));
+      } else {
+        const defaultWarehouse = await getDefaultWarehouse(selectedCompany);
+        const actualStock = data.length > 0 ? data[0].available : 0;
+        
+        const updatedItem = {
+          ...currentItem,
+          warehouse: defaultWarehouse,
+          available_stock: actualStock,
+          actual_stock: data.length > 0 ? data[0].actual : 0,
+          reserved_stock: data.length > 0 ? data[0].reserved : 0,
+          original_rate: currentItem.original_rate || currentItem.rate, // Preserve original_rate
+        };
+        
+        setFormData(prev => ({
+          ...prev,
+          items: prev.items.map((item, index) => 
+            index === itemIndex ? updatedItem : item
+          )
+        }));
+      }
+    } catch (error: unknown) {
+      console.error('Stock check failed:', error);
+    }
+  }, [selectedCompany, getDefaultWarehouse]);
+
+  const fetchOrderDetails = useCallback(async (name: string) => {
     if (!name || name === 'undefined') {
       console.error('Invalid order name:', name);
       return;
@@ -132,7 +248,7 @@ export default function SalesOrderMain() {
       const data = await response.json();
       
       if (data.success) {
-        const order = data.data;
+        const order = data.data as ERPNextSalesOrder;
         
         setEditingOrder(order);
         setCurrentOrderStatus(order.status || '');
@@ -142,7 +258,7 @@ export default function SalesOrderMain() {
         
         if (order.sales_team && Array.isArray(order.sales_team) && order.sales_team.length > 0) {
           salesPersonValue = order.sales_team[0].sales_person || '';
-          loadedSalesTeam = order.sales_team.map((member: any) => ({
+          loadedSalesTeam = order.sales_team.map((member: { sales_person: string; allocated_percentage: number }) => ({
             sales_person: member.sales_person || '',
             allocated_percentage: member.allocated_percentage || 0
           }));
@@ -158,7 +274,7 @@ export default function SalesOrderMain() {
         
         setSalesTeam(loadedSalesTeam);
         
-        const mappedItems = (order.items || []).map((item: any) => ({
+        const mappedItems = (order.items || []).map((item: ERPNextSalesOrderItem) => ({
           item_code: item.item_code || '',
           item_name: item.item_name || '',
           qty: item.qty || 0,
@@ -207,7 +323,15 @@ export default function SalesOrderMain() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [checkItemStock]);
+
+  // Fetch order details in edit mode
+  useEffect(() => {
+    if (orderName && selectedCompany) {
+      fetchOrderDetails(orderName);
+    }
+  }, [orderName, selectedCompany, fetchOrderDetails]);
+
 
   const handleAddItem = () => {
     setFormData({
@@ -244,7 +368,7 @@ export default function SalesOrderMain() {
         const customerData = result.data;
         
         if (customerData.sales_team && customerData.sales_team.length > 0) {
-          const primarySalesPerson = customerData.sales_team.find((member: any) => 
+          const primarySalesPerson = customerData.sales_team.find((member: { sales_person: string; allocated_percentage: number; idx?: number }) => 
             member.allocated_percentage === 100 || member.idx === 1
           );
           
@@ -281,67 +405,14 @@ export default function SalesOrderMain() {
         }
       }
       
-      // await getFallbackSalesPerson(customerName);
     } catch (error) {
       console.error('Error fetching customer detail:', error);
-      // await getFallbackSalesPerson(customerName);
     }
   };
 
   const handleRemoveItem = (index: number) => {
     const newItems = formData.items.filter((_, i) => i !== index);
     setFormData({ ...formData, items: newItems });
-  };
-
-  const getFallbackSalesPerson = async (_customerName: string) => {
-    const customerSalesPersonMapping: Record<string, string> = {
-      'Grant Plastics Ltd.': 'Kantor',
-      'Palmer Productions Ltd.': 'Tim Penjualan',
-    };
-    
-    let defaultSalesPerson = customerSalesPersonMapping[_customerName];
-
-    // If no mapping, pick first available sales person from API
-    if (!defaultSalesPerson) {
-      try {
-        const spRes = await fetch('/api/sales/sales-persons', { credentials: 'include' });
-        if (spRes.ok) {
-          const spData = await spRes.json();
-          const first = Array.isArray(spData.data) ? spData.data[0] : null;
-          if (first?.name) {
-            defaultSalesPerson = first.name;
-          }
-        }
-      } catch (err) {
-        console.error('Fallback sales person lookup failed:', err);
-      }
-    }
-    
-    if (!defaultSalesPerson) {
-      return;
-    }
-    
-    setFormData(prev => ({ ...prev, sales_person: defaultSalesPerson }));
-    setSalesTeam([{ sales_person: defaultSalesPerson, allocated_percentage: 100 }]);
-  };
-
-  const resetForm = () => {
-    const today = formatDate(new Date());
-    setFormData({
-      customer: '',
-      customer_name: '',
-      transaction_date: today,
-      delivery_date: today,
-      sales_person: '',
-      custom_persentase_komisi_so: 0,
-      custom_notes_so: '',
-      items: [{ item_code: '', item_name: '', qty: 1, rate: 0, amount: 0, warehouse: '', stock_uom: '', available_stock: 0, actual_stock: 0, reserved_stock: 0, original_rate: 0 }],
-      payment_terms_template: '',
-    });
-    setSalesTeam([]);
-    setError('');
-    setEditingOrder(null);
-    setCurrentOrderStatus('');
   };
 
   const handleItemChange = (index: number, field: keyof OrderItem, value: string | number) => {
@@ -384,82 +455,6 @@ export default function SalesOrderMain() {
       
       setFormData({ ...formData, items: newItems });
       checkItemStock(item.item_code, currentItemIndex, newItems[currentItemIndex]);
-    }
-  };
-
-  const getDefaultWarehouse = async (company: string) => {
-    try {
-      const response = await fetch(`/api/finance/company/settings?company=${encodeURIComponent(company)}`);
-      const data = await response.json();
-      if (data.success && data.data?.default_warehouse) {
-        return data.data.default_warehouse;
-      }
-    } catch (error: unknown) {
-      console.error('Failed to fetch company settings:', error);
-    }
-
-    // Fallback: fetch available warehouses and pick the first one
-    try {
-      const whResponse = await fetch(`/api/inventory/warehouses?company=${encodeURIComponent(company)}`);
-      const whData = await whResponse.json();
-      if (whData.success && whData.data && whData.data.length > 0) {
-        return whData.data[0].name;
-      }
-    } catch (error: unknown) {
-      console.error('Failed to fetch warehouses:', error);
-    }
-
-    // Last resort fallback
-    return 'Stores';
-  };
-
-  const checkItemStock = async (itemCode: string, itemIndex: number, currentItem: OrderItem) => {
-    try {
-      const response = await fetch(`/api/inventory/check?item_code=${itemCode}`);
-      const data = await response.json();
-      
-      if (!data.error && data.length > 0) {
-        const bestWarehouse = data.reduce((prev: any, current: any) => 
-          (prev.available >= current.available) ? prev : current
-        );
-        
-        const updatedItem = {
-          ...currentItem,
-          warehouse: bestWarehouse.warehouse,
-          available_stock: bestWarehouse.available,
-          actual_stock: bestWarehouse.actual,
-          reserved_stock: bestWarehouse.reserved,
-          original_rate: currentItem.original_rate || currentItem.rate, // Preserve original_rate
-        };
-        
-        setFormData(prev => ({
-          ...prev,
-          items: prev.items.map((item, index) => 
-            index === itemIndex ? updatedItem : item
-          )
-        }));
-      } else {
-        const defaultWarehouse = await getDefaultWarehouse(selectedCompany);
-        const actualStock = data.length > 0 ? data[0].available : 0;
-        
-        const updatedItem = {
-          ...currentItem,
-          warehouse: defaultWarehouse,
-          available_stock: actualStock,
-          actual_stock: data.length > 0 ? data[0].actual : 0,
-          reserved_stock: data.length > 0 ? data[0].reserved : 0,
-          original_rate: currentItem.original_rate || currentItem.rate, // Preserve original_rate
-        };
-        
-        setFormData(prev => ({
-          ...prev,
-          items: prev.items.map((item, index) => 
-            index === itemIndex ? updatedItem : item
-          )
-        }));
-      }
-    } catch (error: unknown) {
-      console.error('Stock check failed:', error);
     }
   };
 

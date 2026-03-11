@@ -13,7 +13,7 @@ import {
   SalesReturnFormItem, 
   DeliveryNote, 
   SalesReturn,
-  ReturnReason 
+  SalesReturnReason
 } from '../../../types/sales-return';
 
 export const dynamic = 'force-dynamic';
@@ -31,8 +31,6 @@ export default function SalesReturnMain() {
   const [currentStatus, setCurrentStatus] = useState<string>('');
   const [error, setError] = useState('');
   const [formLoading, setFormLoading] = useState(false);
-  const [savedDocName, setSavedDocName] = useState('');
-  const createdDocName = useRef<string | null>(returnName || null);
   const isSubmitting = useRef(false);
 
   // Form data state
@@ -46,7 +44,6 @@ export default function SalesReturnMain() {
   });
 
   // Dialog state
-  const [selectedDeliveryNote, setSelectedDeliveryNote] = useState<DeliveryNote | null>(null);
   const [showDeliveryNoteDialog, setShowDeliveryNoteDialog] = useState(false);
 
   // Get company on mount
@@ -82,19 +79,19 @@ export default function SalesReturnMain() {
         setCurrentStatus(returnDoc.status || '');
 
         // Map return items to form items (qty is negative in backend, make positive for display)
-        const mappedItems: SalesReturnFormItem[] = (returnDoc.items || []).map((item: any) => ({
-          item_code: item.item_code || '',
-          item_name: item.item_name || '',
-          qty: Math.abs(item.qty || 0), // Convert negative to positive for display
-          rate: item.rate || 0,
-          amount: Math.abs(item.amount || 0), // Convert negative to positive for display
-          uom: item.uom || '',
-          warehouse: item.warehouse || '',
-          delivery_note_item: item.delivery_note_item || '',
-          delivered_qty: item.delivered_qty || 0,
-          remaining_qty: item.delivered_qty || 0,
-          return_reason: item.return_reason || '',
-          return_notes: item.return_item_notes || '', // Note: return_item_notes in backend
+        const mappedItems: SalesReturnFormItem[] = (returnDoc.items || []).map((item: Record<string, unknown>) => ({
+          item_code: (item.item_code as string) || '',
+          item_name: (item.item_name as string) || '',
+          qty: Math.abs((item.qty as number) || 0), // Convert negative to positive for display
+          rate: (item.rate as number) || 0,
+          amount: Math.abs((item.amount as number) || 0), // Convert negative to positive for display
+          uom: (item.uom as string) || '',
+          warehouse: (item.warehouse as string) || '',
+          delivery_note_item: (item.delivery_note_item as string) || '',
+          delivered_qty: (item.delivered_qty as number) || 0,
+          remaining_qty: (item.delivered_qty as number) || 0,
+          return_reason: (item.return_reason as string) || '',
+          return_notes: (item.return_item_notes as string) || '', // Note: return_item_notes in backend
           selected: true,
         }));
 
@@ -118,7 +115,6 @@ export default function SalesReturnMain() {
   };
 
   const handleDeliveryNoteSelect = async (deliveryNote: DeliveryNote) => {
-    setSelectedDeliveryNote(deliveryNote);
     setFormLoading(true);
     setError('');
     
@@ -136,17 +132,17 @@ export default function SalesReturnMain() {
         const fullDN = data.data;
         
         // Map delivery note items to form items
-        const mappedItems: SalesReturnFormItem[] = (fullDN.items || []).map((item: any) => ({
-          item_code: item.item_code,
-          item_name: item.item_name,
+        const mappedItems: SalesReturnFormItem[] = (fullDN.items || []).map((item: Record<string, unknown>) => ({
+          item_code: (item.item_code as string) || '',
+          item_name: (item.item_name as string) || '',
           qty: 0, // User will enter return quantity
-          rate: item.rate,
+          rate: (item.rate as number) || 0,
           amount: 0,
-          uom: item.uom,
-          warehouse: item.warehouse,
-          delivery_note_item: item.name,
-          delivered_qty: item.qty,
-          remaining_qty: item.qty, // TODO: Calculate actual remaining qty
+          uom: (item.uom as string) || '',
+          warehouse: (item.warehouse as string) || '',
+          delivery_note_item: (item.name as string) || '',
+          delivered_qty: (item.qty as number) || 0,
+          remaining_qty: (item.qty as number) || 0, // Will be updated by fetchRemainingQty
           return_reason: '',
           return_notes: '',
           selected: false,
@@ -161,6 +157,9 @@ export default function SalesReturnMain() {
           items: mappedItems,
         });
 
+        // Fetch remaining quantities for these items
+        fetchRemainingQty(fullDN.name);
+
         // Close dialog
         setShowDeliveryNoteDialog(false);
       } else {
@@ -174,19 +173,51 @@ export default function SalesReturnMain() {
     }
   };
 
-  const handleItemChange = (index: number, field: keyof SalesReturnFormItem, value: any) => {
-    const newItems = [...formData.items];
-    newItems[index] = { ...newItems[index], [field]: value };
-    
-    // Recalculate amount when qty or rate changes
-    if (field === 'qty' || field === 'rate') {
-      newItems[index].amount = newItems[index].qty * newItems[index].rate;
+  const fetchRemainingQty = async (dnName: string) => {
+    try {
+      const response = await fetch(`/api/sales/delivery-note-return/remaining-qty?delivery_note=${dnName}`);
+      const data = await response.json();
+      if (data.success) {
+        const remainingQtys = data.data || {};
+        setFormData(prev => ({
+          ...prev,
+          items: prev.items.map(item => ({
+            ...item,
+            remaining_qty: remainingQtys[item.delivery_note_item] !== undefined 
+              ? remainingQtys[item.delivery_note_item] 
+              : item.delivered_qty
+          }))
+        }));
+      }
+    } catch (err) {
+      console.error('Error fetching remaining qty:', err);
     }
-    
-    setFormData({ ...formData, items: newItems });
   };
 
-  const handleItemSelect = (index: number, selected: boolean) => {
+  const handleItemChange = (index: number, field: keyof SalesReturnFormItem, value: string | number | boolean) => {
+    const newItems = [...formData.items];
+    const item = { ...newItems[index] };
+    
+    // Type-safe property assignment
+    if (field === 'qty') item.qty = value as number;
+    else if (field === 'rate') item.rate = value as number;
+    else if (field === 'amount') item.amount = value as number;
+    else if (field === 'return_reason') item.return_reason = value as SalesReturnReason | '';
+    else if (field === 'return_notes') item.return_notes = value as string;
+    else if (field === 'selected') item.selected = value as boolean;
+    
+    newItems[index] = item;
+    
+    // Recalculate amount if qty or rate changes
+    if (field === 'qty' || field === 'rate') {
+      newItems[index].amount = (newItems[index].qty || 0) * (newItems[index].rate || 0);
+    }
+    
+    setFormData(prev => ({ ...prev, items: newItems }));
+  };
+
+  const handleItemSelect = (_index: number, selected: boolean) => {
+    const index = _index;
     const newItems = [...formData.items];
     newItems[index].selected = selected;
     
@@ -221,7 +252,7 @@ export default function SalesReturnMain() {
       errors.push('Minimal satu item harus dipilih untuk diretur');
     }
 
-    selectedItems.forEach((item, index) => {
+    selectedItems.forEach((item) => {
       if (item.qty <= 0) {
         errors.push(`Item ${item.item_name}: Jumlah retur harus lebih dari 0`);
       }
@@ -301,7 +332,7 @@ export default function SalesReturnMain() {
         // Show success toast
         toast.success(
           'Berhasil',
-          data.message || 'Retur penjualan berhasil disimpan'
+          (data.message as string) || 'Retur penjualan berhasil disimpan'
         );
         
         // Redirect to list after short delay
@@ -310,7 +341,7 @@ export default function SalesReturnMain() {
         }, 500);
       } else {
         const { bannerMessage } = handleERPNextError(
-          data,
+          data as Record<string, unknown>,
           formData.posting_date,
           'Retur Penjualan',
           'Gagal menyimpan retur penjualan'
@@ -318,7 +349,7 @@ export default function SalesReturnMain() {
         setError(bannerMessage);
         toast.error('Gagal', bannerMessage);
       }
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Error saving return:', err);
       const errorMsg = 'Gagal menyimpan retur penjualan';
       setError(errorMsg);
@@ -594,7 +625,7 @@ export default function SalesReturnMain() {
             {/* Conditional Notes Fields */}
             {formData.items.some(item => item.selected && item.return_reason === 'Other') && (
               <div className="mt-6 space-y-4">
-                <h3 className="text-sm font-medium text-gray-900">Catatan Tambahan untuk Alasan "Lainnya"</h3>
+                <h3 className="text-sm font-medium text-gray-900">Catatan Tambahan untuk Alasan &quot;Lainnya&quot;</h3>
                 {formData.items.map((item, index) => (
                   item.selected && item.return_reason === 'Other' && (
                     <div key={index} className="border border-gray-200 rounded-md p-4">

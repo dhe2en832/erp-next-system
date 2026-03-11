@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import LoadingSpinner from '../../../../components/LoadingSpinner';
 import type { AccountingPeriod, ClosingJournalAccount } from '../../../../../types/accounting-period';
@@ -27,13 +27,7 @@ export default function PreviewJournalPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    if (periodName) {
-      fetchPreviewData();
-    }
-  }, [periodName]);
-
-  const fetchPreviewData = async () => {
+  const fetchPreviewData = useCallback(async () => {
     setLoading(true);
     setError('');
 
@@ -57,7 +51,13 @@ export default function PreviewJournalPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [periodName]);
+
+  useEffect(() => {
+    if (periodName) {
+      fetchPreviewData();
+    }
+  }, [periodName, fetchPreviewData]);
 
   const handleBack = () => {
     router.push(`/accounting-period/close/${encodeURIComponent(periodName)}/review`);

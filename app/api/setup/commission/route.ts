@@ -41,12 +41,12 @@ export async function GET(request: NextRequest) {
     });
 
     // Query Credit Notes and Commission Payments
-    const invoiceNames = invoices.map((inv: any) => inv.name);
-    let creditNotes: any[] = [];
-    let commissionPayments: any[] = [];
+    const invoiceNames = invoices.map((inv: Record<string, unknown>) => inv.name as string);
+    let creditNotes: Record<string, unknown>[] = [];
+    let commissionPayments: Record<string, unknown>[] = [];
     
     if (invoiceNames.length > 0) {
-      creditNotes = await client.getList('Sales Invoice', {
+      creditNotes = await client.getList<Record<string, unknown>>('Sales Invoice', {
         fields: ['name', 'return_against', 'base_grand_total', 'posting_date', 'custom_total_komisi_sales'],
         filters: [
           ['docstatus', '=', 1],
@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
       });
 
       try {
-        commissionPayments = await client.getList('Journal Entry', {
+        commissionPayments = await client.getList<Record<string, unknown>>('Journal Entry', {
           fields: ['name', 'posting_date', 'accounts.reference_name', 'accounts.reference_type'],
           filters: [
             ['docstatus', '=', 1],
@@ -69,26 +69,29 @@ export async function GET(request: NextRequest) {
     }
 
     // Group Credit Notes by return_against
-    const creditNotesByInvoice: Record<string, any[]> = {};
-    creditNotes.forEach((cn: any) => {
-      if (!creditNotesByInvoice[cn.return_against]) {
-        creditNotesByInvoice[cn.return_against] = [];
+    const creditNotesByInvoice: Record<string, Record<string, unknown>[]> = {};
+    creditNotes.forEach((cn: Record<string, unknown>) => {
+      const returnAgainst = cn.return_against as string;
+      if (!creditNotesByInvoice[returnAgainst]) {
+        creditNotesByInvoice[returnAgainst] = [];
       }
-      creditNotesByInvoice[cn.return_against].push(cn);
+      creditNotesByInvoice[returnAgainst].push(cn);
     });
 
     // Create a map of paid invoices
-    const paidInvoicesByName: Record<string, any> = {};
-    commissionPayments.forEach((payment: any) => {
-      if (payment.accounts) {
-        payment.accounts.forEach((acc: any) => {
-          if (acc.reference_type === 'Sales Invoice' && acc.reference_name) {
-            if (!paidInvoicesByName[acc.reference_name]) {
-              paidInvoicesByName[acc.reference_name] = [];
+    const paidInvoicesByName: Record<string, { payment_name: string; payment_date: string }[]> = {};
+    commissionPayments.forEach((payment: Record<string, unknown>) => {
+      const accounts = payment.accounts as Record<string, unknown>[] | undefined;
+      if (accounts) {
+        accounts.forEach((acc: Record<string, unknown>) => {
+          const refName = acc.reference_name as string;
+          if (acc.reference_type === 'Sales Invoice' && refName) {
+            if (!paidInvoicesByName[refName]) {
+              paidInvoicesByName[refName] = [];
             }
-            paidInvoicesByName[acc.reference_name].push({
-              payment_name: payment.name,
-              payment_date: payment.posting_date
+            paidInvoicesByName[refName].push({
+              payment_name: payment.name as string,
+              payment_date: payment.posting_date as string
             });
           }
         });
@@ -96,32 +99,34 @@ export async function GET(request: NextRequest) {
     });
 
     // Calculate commission adjustments
-    const paidInvoicesWithAdjustments = invoices.map((inv: any) => {
-      const relatedCreditNotes = creditNotesByInvoice[inv.name] || [];
-      const commissionPaymentsForInvoice = paidInvoicesByName[inv.name] || [];
+    const paidInvoicesWithAdjustments = (invoices as Record<string, unknown>[]).map((inv: Record<string, unknown>) => {
+      const invName = inv.name as string;
+      const relatedCreditNotes = creditNotesByInvoice[invName] || [];
+      const commissionPaymentsForInvoice = paidInvoicesByName[invName] || [];
       
       const creditNoteAdjustment = relatedCreditNotes.reduce(
-        (sum: number, cn: any) => sum + Math.abs(cn.custom_total_komisi_sales || 0),
+        (sum: number, cn: Record<string, unknown>) => sum + Math.abs((cn.custom_total_komisi_sales as number) || 0),
         0
       );
       
       let hasPostPaymentCreditNote = false;
       if (commissionPaymentsForInvoice.length > 0 && relatedCreditNotes.length > 0) {
         const latestPaymentDate = commissionPaymentsForInvoice
-          .map((p: any) => new Date(p.payment_date))
+          .map((p: { payment_date: string }) => new Date(p.payment_date))
           .sort((a: Date, b: Date) => b.getTime() - a.getTime())[0];
         
-        hasPostPaymentCreditNote = relatedCreditNotes.some((cn: any) => {
-          const cnDate = new Date(cn.posting_date);
+        hasPostPaymentCreditNote = relatedCreditNotes.some((cn: Record<string, unknown>) => {
+          const cnDate = new Date(cn.posting_date as string);
           return cnDate > latestPaymentDate;
         });
       }
       
+      const invCommission = inv.custom_total_komisi_sales as number || 0;
       return {
         ...inv,
         credit_note_adjustment: creditNoteAdjustment,
         credit_notes: relatedCreditNotes,
-        net_commission: (inv.custom_total_komisi_sales || 0) - creditNoteAdjustment,
+        net_commission: invCommission - creditNoteAdjustment,
         has_commission_payment: commissionPaymentsForInvoice.length > 0,
         has_post_payment_credit_note: hasPostPaymentCreditNote,
         commission_payments: commissionPaymentsForInvoice
@@ -129,14 +134,14 @@ export async function GET(request: NextRequest) {
     });
 
     // Calculate totals
-    const totalSales = salesOrders.reduce((sum: number, so: any) => sum + so.base_grand_total, 0);
-    const totalPaid = invoices.reduce((sum: number, inv: any) => sum + inv.base_grand_total, 0);
+    const totalSales = (salesOrders as Record<string, unknown>[]).reduce((sum: number, so: Record<string, unknown>) => sum + (so.base_grand_total as number), 0);
+    const totalPaid = (invoices as Record<string, unknown>[]).reduce((sum: number, inv: Record<string, unknown>) => sum + (inv.base_grand_total as number), 0);
     const commissionRate = 0.05;
     const potentialCommission = totalSales * commissionRate;
     const earnedCommission = totalPaid * commissionRate;
     
     const totalCreditNoteAdjustments = paidInvoicesWithAdjustments.reduce(
-      (sum: number, inv: any) => sum + inv.credit_note_adjustment,
+      (sum: number, inv: Record<string, unknown>) => sum + (inv.credit_note_adjustment as number),
       0
     );
     

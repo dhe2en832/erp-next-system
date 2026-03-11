@@ -10,13 +10,13 @@ import { NextResponse } from 'next/server';
  * Extract user-friendly error message from ERPNext API response
  * This is used in API routes (server-side)
  */
-export function extractERPNextErrorMessage(data: any, defaultMessage: string = 'Operation failed'): string {
+export function extractERPNextErrorMessage(data: Record<string, unknown>, defaultMessage: string = 'Operation failed'): string {
   let errorMessage = defaultMessage;
   
   // console.log('Extracting error from data keys:', Object.keys(data));
   
   // Priority 1: Parse _server_messages (most user-friendly)
-  if (data._server_messages) {
+  if (data._server_messages && typeof data._server_messages === 'string') {
     try {
       const serverMessages = JSON.parse(data._server_messages);
       // console.log('Parsed serverMessages:', serverMessages);
@@ -39,7 +39,7 @@ export function extractERPNextErrorMessage(data: any, defaultMessage: string = '
   }
   
   // Priority 2: Parse exception message from exc
-  if (data.exc) {
+  if (data.exc && typeof data.exc === 'string') {
     try {
       const excArray = JSON.parse(data.exc);
       // console.log('Parsed exc array, length:', excArray.length);
@@ -65,13 +65,13 @@ export function extractERPNextErrorMessage(data: any, defaultMessage: string = '
   }
   
   // Priority 3: Use data.message if available
-  if (data.message) {
+  if (data.message && typeof data.message === 'string') {
     // console.log('Using data.message:', data.message);
     return data.message;
   }
   
   // Priority 4: Use exception field
-  if (data.exception) {
+  if (data.exception && typeof data.exception === 'string') {
     // console.log('Using data.exception:', data.exception);
     return data.exception;
   }
@@ -86,9 +86,9 @@ export function extractERPNextErrorMessage(data: any, defaultMessage: string = '
  */
 export function handleERPNextAPIError(
   response: Response,
-  data: any,
+  data: Record<string, unknown>,
   defaultMessage: string = 'Operation failed',
-  payload?: any
+  payload?: Record<string, unknown>
 ): NextResponse {
   const errorMessage = extractERPNextErrorMessage(data, defaultMessage);
   

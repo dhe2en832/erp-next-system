@@ -7,40 +7,13 @@ import {
   Pagination,
   BrowserStyleDatePicker,
   ErrorDialog,
-  SkeletonCard,
-  SkeletonTableRow,
   SkeletonList,
 } from '../../../components';
 import { formatDate, parseDate } from '../../../utils/format';
-
-// ─────────────────────────────────────────────────────────────
-// Types
-// ─────────────────────────────────────────────────────────────
-interface PaymentReference {
-  reference_doctype: string;
-  reference_name: string;
-  allocated_amount: number;
-}
-
-export interface PaymentEntry {
-  name: string;
-  payment_type: 'Pay' | 'Receive';
-  party: string;
-  party_name?: string;
-  party_type: 'Customer' | 'Supplier';
-  paid_amount: number;
-  received_amount: number;
-  status: string;
-  posting_date: string;
-  total_allocated_amount: number;
-  mode_of_payment?: string;
-  custom_notes_payment?: string;
-  clearance_date?: string;
-  references: PaymentReference[];
-}
+import { PaymentWithReferences } from '../../../types/payment-details';
 
 interface PaymentListProps {
-  onEdit: (payment: PaymentEntry) => void;
+  onEdit: (payment: PaymentWithReferences) => void;
   onCreate: () => void;
   selectedCompany: string;
 }
@@ -83,7 +56,7 @@ export default function PaymentList({ onEdit, onCreate, selectedCompany }: Payme
   // Dynamic pageSize: Mobile 10, Desktop 20
   const pageSize = isMobile ? 10 : 20;
 
-  const [payments, setPayments] = useState<PaymentEntry[]>([]);
+  const [payments, setPayments] = useState<PaymentWithReferences[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [submitError, setSubmitError] = useState('');
@@ -125,7 +98,6 @@ export default function PaymentList({ onEdit, onCreate, selectedCompany }: Payme
   // Debounced filters untuk mencegah fetch berlebihan
   // ─────────────────────────────────────────────────────────
   const debouncedSearch = useMemo(() => {
-    const timer = setTimeout(() => {}, 300);
     return { searchFilter, documentNumberFilter };
   }, [searchFilter, documentNumberFilter]);
 
@@ -153,7 +125,7 @@ export default function PaymentList({ onEdit, onCreate, selectedCompany }: Payme
       ]));
       
       // ✅ SORTING: Data terbaru paling atas
-      params.append('order_by', 'posting_date desc');
+      params.append('order_by', 'creation desc, posting_date desc');
       
       // ✅ BUILD FILTERS ARRAY UNTUK ERPNext (Format JSON)
       const filters: [string, string, string | number][] = [
@@ -285,7 +257,7 @@ export default function PaymentList({ onEdit, onCreate, selectedCompany }: Payme
     window.open(`/print/payment-entry?name=${encodeURIComponent(paymentName)}`, '_blank');
   };
 
-  const handleCardClick = (payment: PaymentEntry) => onEdit(payment);
+  const handleCardClick = (payment: PaymentWithReferences) => onEdit(payment);
 
   const handleResetFilters = () => {
     setDateFilter({
@@ -618,7 +590,7 @@ export default function PaymentList({ onEdit, onCreate, selectedCompany }: Payme
                           </div>
                           <div className="flex items-center justify-between pt-2 border-t border-gray-100">
                             <span className={`text-sm font-semibold ${payment.payment_type === 'Receive' ? 'text-green-600' : 'text-red-600'}`}>
-                              {formatCurrency(payment.payment_type === 'Receive' ? payment.received_amount : payment.paid_amount)}
+                              {formatCurrency(payment.payment_type === 'Receive' ? (payment.received_amount || 0) : (payment.paid_amount || 0))}
                             </span>
                             <div className="flex items-center gap-1">
                               <button onClick={(e) => handlePrint(payment.name, e)} className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Cetak">
@@ -684,7 +656,7 @@ export default function PaymentList({ onEdit, onCreate, selectedCompany }: Payme
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap text-right">
                             <p className={`text-sm font-semibold ${payment.payment_type === 'Receive' ? 'text-green-600' : 'text-red-600'}`}>
-                              {formatCurrency(payment.payment_type === 'Receive' ? payment.received_amount : payment.paid_amount)}
+                              {formatCurrency(payment.payment_type === 'Receive' ? (payment.received_amount || 0) : (payment.paid_amount || 0))}
                             </p>
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap text-center">

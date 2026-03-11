@@ -169,7 +169,7 @@ export default function PurchaseReturnList() {
       const params = new URLSearchParams();
       params.append('limit_page_length', pageSize.toString());
       params.append('start', ((currentPage - 1) * pageSize).toString());
-      params.append('order_by', 'posting_date desc');
+      params.append('order_by', 'creation desc, posting_date desc');
       params.append('company', companyToUse);
       
       // Filter status

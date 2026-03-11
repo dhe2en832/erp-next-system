@@ -44,7 +44,7 @@ export interface TransactionValidationParams {
 export async function validateTransactionAgainstClosedPeriod(
   params: TransactionValidationParams
 ): Promise<TransactionRestrictionResult> {
-  const { company, posting_date, doctype, docname, user, userRoles = [] } = params;
+  const { company, posting_date, user, userRoles = [] } = params;
 
   // Skip validation if no posting_date
   if (!posting_date) {
@@ -55,7 +55,7 @@ export async function validateTransactionAgainstClosedPeriod(
   }
 
   // Get all closed periods for the company that contain this posting_date
-  const filters = [
+  const filters: (string | number | boolean | null | string[])[][] = [
     ['company', '=', company],
     ['status', 'in', ['Closed', 'Permanently Closed']],
     ['start_date', '<=', posting_date],
@@ -63,7 +63,7 @@ export async function validateTransactionAgainstClosedPeriod(
   ];
 
   try {
-    const closedPeriods = await erpnextClient.getList('Accounting Period', {
+    const closedPeriods = await erpnextClient.getList<AccountingPeriod>('Accounting Period', {
       filters,
       fields: ['name', 'period_name', 'status', 'start_date', 'end_date'],
       limit_page_length: 1,
@@ -117,14 +117,15 @@ export async function validateTransactionAgainstClosedPeriod(
       reason: `Cannot modify transaction: Period ${period.period_name} is closed. Contact administrator to reopen the period.`,
       requiresLogging: false,
     };
-  } catch (error: any) {
-    console.error('Error validating transaction against closed period:', error);
+  } catch (error) {
+    const err = error as Error;
+    console.error('Error validating transaction against closed period:', err);
     // On error, allow transaction to avoid blocking operations
     // but log the error for investigation
     return {
       allowed: true,
       requiresLogging: false,
-      reason: `Validation error: ${error.message}`,
+      reason: `Validation error: ${err.message}`,
     };
   }
 }
@@ -142,7 +143,7 @@ export async function logAdministratorOverride(params: {
   user: string;
   action: 'create' | 'update' | 'delete';
   reason?: string;
-}): Promise<any> {
+}): Promise<Record<string, unknown>> {
   const { period, doctype, docname, user, action, reason } = params;
 
   return await createAuditLog({

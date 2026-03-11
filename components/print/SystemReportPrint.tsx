@@ -48,7 +48,7 @@ export interface SystemReportPrintProps {
   columns: ReportColumn[];
   
   /** Report data rows */
-  data: Record<string, any>[];
+  data: Record<string, unknown>[];
   
   /** Field to group by (optional) */
   groupBy?: string;
@@ -63,7 +63,7 @@ export interface SystemReportPrintProps {
   sumFields?: string[];
   
   /** Custom row formatter (optional) */
-  formatRow?: (row: Record<string, any>) => Record<string, any>;
+  formatRow?: (row: Record<string, unknown>) => Record<string, unknown>;
 }
 
 // ============================================================================
@@ -74,13 +74,13 @@ export interface SystemReportPrintProps {
  * Group data by a specific field
  */
 function groupData(
-  data: Record<string, any>[],
+  data: Record<string, unknown>[],
   groupBy: string
-): Map<string, Record<string, any>[]> {
-  const groups = new Map<string, Record<string, any>[]>();
+): Map<string, Record<string, unknown>[]> {
+  const groups = new Map<string, Record<string, unknown>[]>();
   
   data.forEach((row) => {
-    const groupValue = row[groupBy] || 'Lainnya';
+    const groupValue = (row[groupBy] as string) || 'Lainnya';
     if (!groups.has(groupValue)) {
       groups.set(groupValue, []);
     }
@@ -94,16 +94,13 @@ function groupData(
  * Calculate subtotal for a group
  */
 function calculateSubtotal(
-  rows: Record<string, any>[],
+  rows: Record<string, unknown>[],
   sumFields: string[]
-): Record<string, any> {
-  const subtotal: Record<string, any> = {};
+): Record<string, unknown> {
+  const subtotal: Record<string, unknown> = {};
   
   sumFields.forEach((field) => {
-    subtotal[field] = rows.reduce((sum, row) => {
-      const value = parseFloat(row[field]) || 0;
-      return sum + value;
-    }, 0);
+    subtotal[field] = rows.reduce((sum, row) => sum + (Number(row[field]) || 0), 0);
   });
   
   return subtotal;
@@ -113,9 +110,9 @@ function calculateSubtotal(
  * Calculate grand total for all data
  */
 function calculateGrandTotal(
-  data: Record<string, any>[],
+  data: Record<string, unknown>[],
   sumFields: string[]
-): Record<string, any> {
+): Record<string, unknown> {
   return calculateSubtotal(data, sumFields);
 }
 

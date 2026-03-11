@@ -54,16 +54,17 @@ export default function InvoiceSummary({
     const netTotal = subtotal - discount;
 
     // Calculate taxes
-    let runningTotal = netTotal;
+    let currentRunningTotal = netTotal;
     let totalTaxAmount = 0;
     
-    const calculatedTaxes = taxes.map(tax => {
+    const calculatedTaxes = [];
+    for (const tax of taxes) {
       let taxAmount = 0;
 
       if (tax.charge_type === 'On Net Total') {
         taxAmount = (tax.rate / 100) * netTotal;
       } else if (tax.charge_type === 'On Previous Row Total') {
-        taxAmount = (tax.rate / 100) * runningTotal;
+        taxAmount = (tax.rate / 100) * currentRunningTotal;
       } else if (tax.charge_type === 'Actual') {
         taxAmount = tax.tax_amount || 0;
       }
@@ -73,14 +74,14 @@ export default function InvoiceSummary({
         taxAmount = -Math.abs(taxAmount);
       }
 
-      runningTotal += taxAmount;
+      currentRunningTotal += taxAmount;
       totalTaxAmount += taxAmount;
 
-      return {
+      calculatedTaxes.push({
         ...tax,
         calculatedAmount: taxAmount
-      };
-    });
+      });
+    }
 
     // Calculate grand total
     const grandTotal = netTotal + totalTaxAmount;

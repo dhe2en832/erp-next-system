@@ -15,7 +15,7 @@ function fixTerbilang(raw: string): string {
     .trim();
 }
 
-interface CreditNotePrintProps {
+export interface CreditNotePrintProps {
   data: {
     name: string;
     posting_date: string;
@@ -51,11 +51,12 @@ export default function CreditNotePrint({
   data, 
   companyName,
 }: CreditNotePrintProps) {
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: unknown) => {
+    const numAmount = typeof amount === 'number' ? amount : Number(amount);
     return new Intl.NumberFormat('id-ID', {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
-    }).format(amount);
+    }).format(isNaN(numAmount) ? 0 : numAmount);
   };
 
   const formatDate = (dateStr: string) => {
@@ -88,7 +89,7 @@ export default function CreditNotePrint({
     columns: [
       { key: 'item_code', label: 'Kode', align: 'left', width: '15%' },
       { key: 'item_name', label: 'Nama Item', align: 'left', width: '40%' },
-      { key: 'qty', label: 'Qty', align: 'right', width: '10%', format: (v) => v.toString() },
+      { key: 'qty', label: 'Qty', align: 'right', width: '10%', format: (v) => String(v || 0) },
       { key: 'rate', label: 'Harga', align: 'right', width: '17%', format: formatCurrency },
       { key: 'amount', label: 'Jumlah', align: 'right', width: '18%', format: formatCurrency },
     ],

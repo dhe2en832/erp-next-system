@@ -7,7 +7,7 @@ export interface PrintColumn {
   label: string;
   width?: string;
   align?: 'left' | 'center' | 'right';
-  format?: (value: any) => string;
+  format?: (value: unknown) => string;
 }
 
 export interface PrintSignature {
@@ -27,7 +27,7 @@ interface PrintLayoutProps {
   companyName: string;
   partyLabel: string;
   partyName: string;
-  items: Record<string, any>[];
+  items: Record<string, unknown>[];
   columns: PrintColumn[];
   showPrice: boolean;
   subtotal?: number;
@@ -324,7 +324,7 @@ export default function PrintLayout({
                     key={col.key}
                     style={{ textAlign: col.align || 'left', width: col.width }}
                   >
-                    {col.format ? col.format(item[col.key]) : (item[col.key] ?? '')}
+                    {(col.format ? col.format(item[col.key]) : (item[col.key] ?? '')) as React.ReactNode}
                   </td>
                 ))}
               </tr>

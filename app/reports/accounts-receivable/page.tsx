@@ -5,7 +5,7 @@ import {
   Search, X, Eye, ArrowUp, ChevronLeft, ChevronRight,
   Printer, AlertCircle, Calendar, User, Users,
 } from 'lucide-react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import PrintPreviewModal from '../../../components/PrintPreviewModal';
 import SalesPersonDialog from '../../components/SalesPersonDialog';
 
@@ -123,12 +123,14 @@ interface DatePickerProps {
 }
 
 function BrowserStyleDatePicker({ value, onChange, label, placeholder = 'DD/MM/YYYY', className = '' }: DatePickerProps) {
-  const [display, setDisplay] = useState('');
+  const [display, setDisplay] = useState(value ? isoToDisplay(value) : '');
+  const [prevValue, setPrevValue] = useState(value);
   const nativeRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
+  if (value !== prevValue) {
+    setPrevValue(value);
     setDisplay(value ? isoToDisplay(value) : '');
-  }, [value]);
+  }
 
   const commit = (raw: string) => {
     if (/^\d{2}\/\d{2}\/\d{4}$/.test(raw)) {
@@ -393,7 +395,6 @@ function PaginationBar({ currentPage, totalPages, totalRecords, pageSize, onPage
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function AccountsReceivablePage() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const isMobile = useIsMobile();
   const pageSize = isMobile ? 10 : 20;
@@ -560,12 +561,6 @@ export default function AccountsReceivablePage() {
   const inputCls = 'w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none bg-gray-50 text-gray-700 placeholder:text-gray-400';
 
   const progressPct = totalPages > 0 ? Math.round((currentPage / totalPages) * 100) : 0;
-
-  // Print URL
-  const printParams = new URLSearchParams({ company: selectedCompany });
-  if (filters.from_date) printParams.set('from_date', filters.from_date);
-  if (filters.to_date) printParams.set('to_date', filters.to_date);
-  const printUrl = `/reports/accounts-receivable/print?${printParams.toString()}`;
 
   // ── Mobile Card ──────────────────────────────────────────────────────────
   const MobileCard = ({ entry }: { entry: AREntry }) => {
@@ -767,7 +762,7 @@ export default function AccountsReceivablePage() {
               )}
               {searchTerm && (
                 <span className="inline-flex items-center gap-1 text-xs bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-full">
-                  "{searchTerm}"
+                  &quot;{searchTerm}&quot;
                   <button onClick={() => setSearchTerm('')}><X className="w-3 h-3" /></button>
                 </span>
               )}

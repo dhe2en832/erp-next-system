@@ -54,7 +54,8 @@ export default function StockReconciliationList() {
         ...(warehouseFilter && { warehouse: warehouseFilter }),
         ...(statusFilter && { status: statusFilter }),
         ...(dateFilter.from_date && { from_date: dateFilter.from_date }),
-        ...(dateFilter.to_date && { to_date: dateFilter.to_date })
+        ...(dateFilter.to_date && { to_date: dateFilter.to_date }),
+        order_by: 'creation desc, posting_date desc, posting_time desc'
       });
       const response = await fetch(`/api/inventory/reconciliation?${params}`);
       const data = await response.json();

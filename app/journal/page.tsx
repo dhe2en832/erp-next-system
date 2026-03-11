@@ -120,7 +120,11 @@ export default function JournalPage() {
 
   // ── Fetch ──
   const fetchEntries = useCallback(async (reset = false) => {
-    reset ? setLoading(true) : setLoadingMore(true);
+    if (reset) {
+      setLoading(true);
+    } else {
+      setLoadingMore(true);
+    }
     if (reset) setError('');
 
     let company = selectedCompany;

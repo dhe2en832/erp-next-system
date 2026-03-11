@@ -8,11 +8,15 @@ import PrintDialog from '../../components/PrintDialog';
 import { formatDate, parseDate } from '../../../utils/format';
 import BrowserStyleDatePicker from '../../../components/BrowserStyleDatePicker';
 import DiscountInput from '../../../components/invoice/DiscountInput';
-import TaxTemplateSelect from '../../../components/invoice/TaxTemplateSelect';
-import InvoiceSummary from '../../../components/invoice/InvoiceSummary';
+import TaxTemplateSelect, { TaxTemplate } from '../../../components/invoice/TaxTemplateSelect';
+import InvoiceSummary, { InvoiceSummaryProps } from '../../../components/invoice/InvoiceSummary';
 import { handleERPNextError } from '../../../utils/erpnext-error-handler';
 import PrintPreviewModal from '../../../components/print/PrintPreviewModal';
 import SalesInvoicePrint from '../../../components/print/SalesInvoicePrint';
+
+import { 
+  TaxRow, 
+} from '../../../types/sales-invoice';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,11 +29,11 @@ interface InvoiceItem {
   income_account: string;
   cost_center: string;
   warehouse: string;
-  delivery_note?: string;
-  sales_order?: string;
-  so_detail?: string;
-  dn_detail?: string;
-  custom_komisi_sales?: number;
+  delivery_note: string;
+  sales_order: string;
+  so_detail: string;
+  dn_detail: string;
+  custom_komisi_sales: number;
 }
 
 interface CompleteInvoiceItem extends InvoiceItem {
@@ -47,16 +51,60 @@ interface SalesTeamMember {
   allocated_percentage: number;
 }
 
-interface TaxTemplate {
+interface DeliveryNoteSummary {
   name: string;
-  title: string;
-  company: string;
-  taxes: {
-    charge_type: string;
-    account_head: string;
-    description: string;
-    rate: number;
-  }[];
+  customer: string;
+  customer_name: string;
+  posting_date: string;
+  grand_total: number;
+  status: string;
+}
+
+interface CommissionPreviewItem {
+  item_code: string;
+  commission: number;
+}
+
+interface CommissionPreview {
+  preview_available: boolean;
+  items: CommissionPreviewItem[];
+  total_commission: number;
+}
+
+interface SalesInvoice {
+  name: string;
+  posting_date: string;
+  due_date: string;
+  docstatus: number;
+  status: string;
+  customer: string;
+  customer_name: string;
+  tax_id: string;
+  items: CompleteInvoiceItem[];
+  total: number;
+  total_taxes_and_charges: number;
+  grand_total: number;
+  in_words: string;
+  remarks: string;
+  custom_notes_si: string;
+  currency: string;
+  price_list_currency: string;
+  plc_conversion_rate: number;
+  selling_price_list: string;
+  territory: string;
+  customer_address: string;
+  shipping_address: string;
+  contact_person: string;
+  tax_category: string;
+  taxes_and_charges: string;
+  base_total: number;
+  base_net_total: number;
+  base_grand_total: number;
+  net_total: number;
+  outstanding_amount: number;
+  discount_amount: number;
+  additional_discount_percentage: number;
+  sales_team?: SalesTeamMember[];
 }
 
 export default function SalesInvoiceMain() {
@@ -67,7 +115,7 @@ export default function SalesInvoiceMain() {
   const [loading, setLoading] = useState(!!invoiceName);
   const [selectedCompany, setSelectedCompany] = useState('');
   const [editingInvoice, setEditingInvoice] = useState<string | null>(null);
-  const [editingInvoiceData, setEditingInvoiceData] = useState<any>(null);
+  const [editingInvoiceData, setEditingInvoiceData] = useState<SalesInvoice | null>(null);
   const [editingInvoiceStatus, setEditingInvoiceStatus] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [formLoading, setFormLoading] = useState(false);
@@ -80,7 +128,7 @@ export default function SalesInvoiceMain() {
 
   // Delivery Note Dialog
   const [showDeliveryNoteDialog, setShowDeliveryNoteDialog] = useState(false);
-  const [deliveryNotes, setDeliveryNotes] = useState<any[]>([]);
+  const [deliveryNotes, setDeliveryNotes] = useState<DeliveryNoteSummary[]>([]);
   const [deliveryNotesLoading, setDeliveryNotesLoading] = useState(false);
   const [deliveryNotesError, setDeliveryNotesError] = useState('');
   const [deliveryNoteSearch, setDeliveryNoteSearch] = useState('');
@@ -91,7 +139,6 @@ export default function SalesInvoiceMain() {
   const [discountPercentage, setDiscountPercentage] = useState(0);
   const [discountAmount, setDiscountAmount] = useState(0);
   const [selectedTaxTemplate, setSelectedTaxTemplate] = useState<TaxTemplate | null>(null);
-  const [taxes, setTaxes] = useState<any[]>([]);
 
   const [formData, setFormData] = useState({
     customer: '',
@@ -161,6 +208,7 @@ export default function SalesInvoiceMain() {
     if (invoiceName && selectedCompany) {
       handleEditInvoice(invoiceName);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [invoiceName, selectedCompany]);
 
   const handleEditInvoice = async (name: string) => {
@@ -174,8 +222,8 @@ export default function SalesInvoiceMain() {
       const data = await response.json();
 
       if (data.success) {
-        const invoice = data.data;
-        const invoiceItems = (invoice.items || []).map((item: CompleteInvoiceItem) => ({
+        const invoice = data.data as SalesInvoice;
+        const invoiceItems = (invoice.items || []).map((item) => ({
           item_code: item.item_code,
           item_name: item.item_name,
           qty: item.qty,
@@ -189,7 +237,7 @@ export default function SalesInvoiceMain() {
           dn_detail: item.dn_detail || '',
           delivery_note: item.delivery_note || '',
           custom_komisi_sales: item.custom_komisi_sales || 0,
-        }));
+        })) as CompleteInvoiceItem[];
 
         const totalKomisiSales = invoiceItems.reduce((sum: number, item: CompleteInvoiceItem) => sum + (item.custom_komisi_sales || 0), 0);
 
@@ -226,8 +274,8 @@ export default function SalesInvoiceMain() {
         });
         
         // Set discount state - use additional_discount_percentage from ERPNext
-        setDiscountAmount(invoice.discount_amount || 0);
-        setDiscountPercentage(invoice.additional_discount_percentage || 0);
+        setDiscountAmount((invoice.discount_amount as number) || 0);
+        setDiscountPercentage((invoice.additional_discount_percentage as number) || 0);
         
         // Set tax state if tax template exists
         if (invoice.taxes_and_charges) {
@@ -247,7 +295,7 @@ export default function SalesInvoiceMain() {
         
         setEditingInvoice(name);
         setEditingInvoiceData(invoice);
-        setEditingInvoiceStatus(invoice.docstatus === 1 ? 'Submitted' : invoice.status || 'Draft');
+        setEditingInvoiceStatus(invoice.docstatus === 1 ? 'Submitted' : (invoice.status as string) || 'Draft');
         setError('');
       } else {
         setError(data.message || 'Gagal memuat detail faktur');
@@ -277,22 +325,6 @@ export default function SalesInvoiceMain() {
     setFormData({ ...formData, items: newItems, custom_total_komisi_sales: totalKomisiSales });
   };
 
-  const handleItemChange = (index: number, field: string, value: string | number) => {
-    const newItems = [...formData.items];
-    newItems[index] = { ...newItems[index], [field]: value };
-    if (field === 'qty' || field === 'rate') {
-      newItems[index].amount = newItems[index].qty * newItems[index].rate;
-    }
-    const total = newItems.reduce((sum, item) => sum + (item.amount || 0), 0);
-    const totalKomisiSales = newItems.reduce((sum, item) => sum + (item.custom_komisi_sales || 0), 0);
-    setFormData({
-      ...formData, items: newItems,
-      total, net_total: total, grand_total: total,
-      base_total: total, base_net_total: total, base_grand_total: total,
-      outstanding_amount: total, custom_total_komisi_sales: totalKomisiSales
-    });
-  };
-
   const fetchAvailableDeliveryNotes = async () => {
     try {
       setDeliveryNotesLoading(true);
@@ -300,12 +332,12 @@ export default function SalesInvoiceMain() {
       const invoiceItemsResponse = await fetch(`/api/sales/invoices/items?company=${encodeURIComponent(selectedCompany)}`);
       const invoiceItemsData = await invoiceItemsResponse.json();
       if (invoiceItemsData.success) {
-        const allDNs = invoiceItemsData.data || [];
-        const usedDNs = invoiceItemsData.meta?.used_dn_list || [];
-        const availableDNs = allDNs.filter((dn: { name: string }) => !usedDNs.includes(dn.name));
+        const allDNs = (invoiceItemsData.data || []) as DeliveryNoteSummary[];
+        const usedDNs = (invoiceItemsData.meta?.used_dn_list || []) as string[];
+        const availableDNs = allDNs.filter((dn: DeliveryNoteSummary) => !usedDNs.includes(dn.name));
         setDeliveryNotes(availableDNs);
       } else {
-        setDeliveryNotesError(invoiceItemsData.error || 'Gagal memuat surat jalan');
+        setDeliveryNotesError((invoiceItemsData.error as string) || 'Gagal memuat surat jalan');
         setDeliveryNotes([]);
       }
     } catch {
@@ -352,7 +384,7 @@ export default function SalesInvoiceMain() {
   async function handleSelectDeliveryNote(dn: string) {
     try {
       // Step 1: Try to get commission preview
-      let commissionData: any = null;
+      let commissionData: CommissionPreview | null = null;
       try {
         const res = await fetch(`/api/setup/commission/preview?delivery_note=${encodeURIComponent(dn)}`);
         const data = await res.json();
@@ -374,7 +406,7 @@ export default function SalesInvoiceMain() {
         const invoiceItems = completeDnData.items.map((item: CompleteInvoiceItem) => {
           let commission = 0;
           if (commissionData && commissionData.items) {
-            const foundCommission = commissionData.items.find((p: any) => p.item_code === item.item_code);
+            const foundCommission = commissionData.items.find((p: CommissionPreviewItem) => p.item_code === item.item_code);
             commission = foundCommission?.commission || 0;
           }
           
@@ -409,7 +441,7 @@ export default function SalesInvoiceMain() {
 
         // Step 3: Calculate due date from SO payment terms
         const postingDate = new Date().toISOString().split('T')[0];
-        const firstSOName = invoiceItems.find((item: any) => item.sales_order)?.sales_order || '';
+        const firstSOName = invoiceItems.find((item: CompleteInvoiceItem) => item.sales_order)?.sales_order || '';
         
         // Fetch SO to get payment_terms_template (since DN doesn't store it)
         let paymentTermsTemplate = '';
@@ -425,50 +457,38 @@ export default function SalesInvoiceMain() {
         
         const dueDate = await calculateDueDate(postingDate, firstSOName);
 
-        // Debug logging
-        // console.log('[DEBUG] DN Data:', {
-        //   postingDate,
-        //   dueDate,
-        //   salesTeam: completeDnData.sales_team,
-        //   paymentTerms: paymentTermsTemplate,
-        //   firstSOName
-        // });
-
         setFormData({
-          customer: completeDnData.customer || '',
-          customer_name: completeDnData.customer_name || '',
+          customer: (completeDnData.customer as string) || '',
+          customer_name: (completeDnData.customer_name as string) || '',
           posting_date: postingDate,
           due_date: dueDate,
           items: invoiceItems,
           custom_total_komisi_sales: totalKomisiSales,
           company: selectedCompany,
-          currency: completeDnData.currency || 'IDR',
-          price_list_currency: completeDnData.price_list_currency || 'IDR',
-          plc_conversion_rate: completeDnData.plc_conversion_rate || 1,
-          selling_price_list: completeDnData.selling_price_list || 'Standard Selling',
-          territory: completeDnData.territory || 'All Territories',
-          tax_id: completeDnData.tax_id || '',
-          customer_address: completeDnData.customer_address || '',
-          shipping_address: completeDnData.shipping_address_name || '',
-          contact_person: completeDnData.contact_person || '',
-          tax_category: completeDnData.tax_category || 'On Net Total',
-          taxes_and_charges: completeDnData.taxes_and_charges || '',
+          currency: (completeDnData.currency as string) || 'IDR',
+          price_list_currency: (completeDnData.price_list_currency as string) || 'IDR',
+          plc_conversion_rate: (completeDnData.plc_conversion_rate as number) || 1,
+          selling_price_list: (completeDnData.selling_price_list as string) || 'Standard Selling',
+          territory: (completeDnData.territory as string) || 'All Territories',
+          tax_id: (completeDnData.tax_id as string) || '',
+          customer_address: (completeDnData.customer_address as string) || '',
+          shipping_address: (completeDnData.shipping_address_name as string) || '',
+          contact_person: (completeDnData.contact_person as string) || '',
+          tax_category: (completeDnData.tax_category as string) || 'On Net Total',
+          taxes_and_charges: (completeDnData.taxes_and_charges as string) || '',
           base_total: 0, base_net_total: 0, base_grand_total: 0,
           total: 0, net_total: 0, grand_total: 0, outstanding_amount: 0,
-          custom_notes_si: completeDnData.custom_notes_dn || '',
+          custom_notes_si: (completeDnData.custom_notes_dn as string) || '',
           payment_terms_template: paymentTermsTemplate,
-          discount_amount: completeDnData.discount_amount || 0,
-          discount_percentage: completeDnData.discount_percentage || 0,
+          discount_amount: (completeDnData.discount_amount as number) || 0,
+          discount_percentage: (completeDnData.discount_percentage as number) || 0,
         });
         
-        // console.log('[DEBUG] Setting formData dates:', { postingDate, dueDate });
-        
         // Copy sales_team from DN
-        const loadedSalesTeam = completeDnData.sales_team?.map((member: any) => ({
-          sales_person: member.sales_person || '',
-          allocated_percentage: member.allocated_percentage || 0
+        const loadedSalesTeam = (completeDnData.sales_team as Record<string, unknown>[])?.map((member: Record<string, unknown>) => ({
+          sales_person: (member.sales_person as string) || '',
+          allocated_percentage: (member.allocated_percentage as number) || 0
         })) || [];
-        // console.log('[DEBUG] Loaded sales_team:', loadedSalesTeam);
         setSalesTeam(loadedSalesTeam);
         setShowDeliveryNoteDialog(false);
         setError('');
@@ -517,7 +537,7 @@ export default function SalesInvoiceMain() {
       
       // Calculate taxes
       let totalTaxes = 0;
-      const taxesPayload: any[] = [];
+      const taxesPayload: TaxRow[] = [];
       
       if (selectedTaxTemplate && selectedTaxTemplate.taxes) {
         let runningTotal = netTotal;
@@ -536,12 +556,12 @@ export default function SalesInvoiceMain() {
           totalTaxes += taxAmount;
           
           taxesPayload.push({
-            charge_type: taxRow.charge_type,
+            charge_type: taxRow.charge_type as "On Net Total" | "Actual" | "On Previous Row Total",
             account_head: taxRow.account_head,
             description: taxRow.description,
             rate: rate,
             tax_amount: Math.round(taxAmount * 100) / 100,
-          });
+          } as TaxRow);
         }
       }
       
@@ -629,7 +649,7 @@ export default function SalesInvoiceMain() {
       const data = await response.json();
 
       if (data.success) {
-        const siName = isUpdate ? existingName! : (data.data?.name || '');
+        const siName = isUpdate ? existingName! : ((data.data as Record<string, unknown>)?.name as string || '');
         if (!editingInvoice) createdDocName.current = siName;
         setSavedDocName(siName);
         setShowPrintDialog(true);
@@ -639,13 +659,13 @@ export default function SalesInvoiceMain() {
 
         // Use error handler utility to show alert popup
         handleERPNextError(
-          data.message || `Gagal ${action} Faktur Penjualan (status ${response.status || 'unknown'})`,
+          (data.message as string) || `Gagal ${action} Faktur Penjualan (status ${response.status || 'unknown'})`,
           'Sales Invoice',
           formData.posting_date
         );
 
         // Also set error state for banner
-        setError(data.message || `Gagal ${action} Faktur Penjualan (status ${response.status || 'unknown'})`);
+        setError((data.message as string) || `Gagal ${action} Faktur Penjualan (status ${response.status || 'unknown'})`);
       }
     } catch (error) {
       console.error('Error creating invoice:', error);
@@ -927,7 +947,7 @@ export default function SalesInvoiceMain() {
                 items={formData.items}
                 discountAmount={discountAmount}
                 discountPercentage={discountPercentage}
-                taxes={selectedTaxTemplate?.taxes || []}
+                taxes={selectedTaxTemplate?.taxes as InvoiceSummaryProps['taxes']}
               />
             </div>
 

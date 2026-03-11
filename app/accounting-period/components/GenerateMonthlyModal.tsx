@@ -8,13 +8,35 @@ interface GenerateMonthlyModalProps {
   onSuccess: () => void;
 }
 
+interface Company {
+  name: string;
+  company_name?: string;
+}
+
+interface FiscalYear {
+  name: string;
+  year: string;
+  year_start_date: string;
+  year_end_date: string;
+}
+
+interface GenerateResult {
+  summary: {
+    total_created: number;
+    total_skipped: number;
+    total_errors: number;
+  };
+  created: Array<{ period_name: string }>;
+  skipped: Array<{ period_name: string; reason: string }>;
+}
+
 export default function GenerateMonthlyModal({ isOpen, onClose, onSuccess }: GenerateMonthlyModalProps) {
-  const [companies, setCompanies] = useState<any[]>([]);
-  const [fiscalYears, setFiscalYears] = useState<any[]>([]);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [fiscalYears, setFiscalYears] = useState<FiscalYear[]>([]);
   const [selectedCompany, setSelectedCompany] = useState('');
   const [selectedFiscalYear, setSelectedFiscalYear] = useState('');
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<GenerateResult | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -199,7 +221,7 @@ export default function GenerateMonthlyModal({ isOpen, onClose, onSuccess }: Gen
                   <h4 className="text-sm font-medium text-gray-900 mb-2">Periode yang Dibuat:</h4>
                   <div className="max-h-40 overflow-y-auto bg-gray-50 rounded p-3">
                     <ul className="text-sm text-gray-700 space-y-1">
-                      {result.created.map((period: any, idx: number) => (
+                      {result.created.map((period: { period_name: string }, idx: number) => (
                         <li key={idx}>• {period.period_name}</li>
                       ))}
                     </ul>
@@ -212,7 +234,7 @@ export default function GenerateMonthlyModal({ isOpen, onClose, onSuccess }: Gen
                   <h4 className="text-sm font-medium text-gray-900 mb-2">Periode yang Dilewati:</h4>
                   <div className="max-h-40 overflow-y-auto bg-gray-50 rounded p-3">
                     <ul className="text-sm text-gray-700 space-y-1">
-                      {result.skipped.map((item: any, idx: number) => (
+                      {result.skipped.map((item: { period_name: string; reason: string }, idx: number) => (
                         <li key={idx}>• {item.period_name} ({item.reason})</li>
                       ))}
                     </ul>

@@ -13,13 +13,6 @@ const convertToYYYYMMDD = (ddmmyyyy: string): string => {
   return `${year}-${month}-${day}`;
 };
 
-// Helper function to convert YYYY-MM-DD to DD/MM/YYYY
-const convertToDDMMYYYY = (yyyymmdd: string): string => {
-  if (!yyyymmdd || !/^\d{4}-\d{2}-\d{2}$/.test(yyyymmdd)) return '';
-  const [year, month, day] = yyyymmdd.split('-');
-  return `${day}/${month}/${year}`;
-};
-
 // Zod schema for client-side validation
 const createPeriodSchema = z.object({
   period_name: z.string().min(1, 'Nama periode wajib diisi'),

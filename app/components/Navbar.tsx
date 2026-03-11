@@ -178,7 +178,7 @@ export default function Navbar() {
         { name: 'Pesanan Penjualan', href: '/sales-order' },
         { name: 'Surat Jalan', href: '/delivery-note' },
         { name: 'Faktur Penjualan', href: '/invoice' },
-        { name: 'Retur Barang', href: '/sales-return' },
+        { name: 'Retur Barang Penjualan', href: '/sales-return' },
         { name: 'Retur Penjualan / Kredit Memo', href: '/credit-note' }
       ]
     },
@@ -189,8 +189,8 @@ export default function Navbar() {
         { name: 'Pesanan Pembelian', href: '/purchase-orders' },
         { name: 'Penerimaan Barang', href: '/purchase-receipts' },
         { name: 'Faktur Pembelian', href: '/purchase-invoice' },
-        { name: 'Retur Pembelian', href: '/purchase-return' },
-        { name: 'Debit Memo', href: '/debit-note' }
+        { name: 'Retur Barang Pembelian', href: '/purchase-return' },
+        { name: 'Retur Pembelian / Debit Memo', href: '/debit-note' }
       ]
     },
     {

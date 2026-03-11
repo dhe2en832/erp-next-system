@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import LoadingSpinner from '../../../../components/LoadingSpinner';
 import type { AccountingPeriod, ClosePeriodResponse } from '../../../../../types/accounting-period';
@@ -27,13 +27,7 @@ export default function ConfirmClosePage() {
   const [closingStep, setClosingStep] = useState('');
   const [closeResult, setCloseResult] = useState<ClosePeriodResponse | null>(null);
 
-  useEffect(() => {
-    if (periodName) {
-      fetchPreviewData();
-    }
-  }, [periodName]);
-
-  const fetchPreviewData = async () => {
+  const fetchPreviewData = useCallback(async () => {
     setLoading(true);
     setError('');
 
@@ -63,7 +57,13 @@ export default function ConfirmClosePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [periodName]);
+
+  useEffect(() => {
+    if (periodName) {
+      fetchPreviewData();
+    }
+  }, [periodName, fetchPreviewData]);
 
   const handleClosePeriod = async () => {
     if (!previewData) return;
@@ -477,7 +477,7 @@ export default function ConfirmClosePage() {
               </h3>
               <p className="text-sm text-gray-600 text-center mb-6">
                 Apakah Anda yakin ingin menutup periode <span className="font-semibold">{previewData?.period.period_name}</span>?
-                Tindakan ini akan membuat jurnal penutup dan mengubah status periode menjadi "Ditutup".
+                Tindakan ini akan membuat jurnal penutup dan mengubah status periode menjadi &quot;Ditutup&quot;.
               </p>
               <div className="flex gap-3">
                 <button

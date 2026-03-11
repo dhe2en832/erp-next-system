@@ -118,7 +118,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Build filters array
-    let filters: any[][] = [
+    const filters: any[][] = [
       ["company", "=", company]
     ];
     
@@ -161,7 +161,7 @@ export async function GET(request: NextRequest) {
     const data = await client.getList('Purchase Invoice', {
       fields: fields,
       filters: filters,
-      order_by: 'posting_date desc',
+      order_by: 'creation desc, posting_date desc',
       limit_page_length: parseInt(limit),
       start: parseInt(limitStart)
     });
@@ -176,10 +176,12 @@ export async function GET(request: NextRequest) {
       taxes: invoice.taxes || []
     }));
 
+    const totalRecords = await client.getCount('Purchase Invoice', { filters });
+
     return NextResponse.json({
       success: true,
       data: invoices,
-      total_records: invoices.length,
+      total_records: totalRecords,
     });
   } catch (error) {
     logSiteError(error, 'GET /api/purchase/invoices', siteId);

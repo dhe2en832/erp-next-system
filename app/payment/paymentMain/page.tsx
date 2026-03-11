@@ -11,12 +11,21 @@ function PaymentMainInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const typeParam = searchParams.get('type'); // 'receive' or 'pay'
-  const [selectedCompany, setSelectedCompany] = useState('');
+  const [selectedCompany] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('selected_company') || '';
+    }
+    return '';
+  });
 
   useEffect(() => {
-    const saved = localStorage.getItem('selected_company');
-    if (saved) setSelectedCompany(saved);
-  }, []);
+    if (!selectedCompany && typeof window !== 'undefined') {
+      const saved = localStorage.getItem('selected_company');
+      if (!saved) {
+        router.push('/select-company');
+      }
+    }
+  }, [router, selectedCompany]);
 
   if (!selectedCompany) return <LoadingSpinner message="Memuat..." />;
 

@@ -29,10 +29,10 @@ export class ERPNextClient {
   /**
    * Get a list of documents from a DocType
    */
-  async getList<T = any>(
+  async getList<T = unknown>(
     doctype: string,
     options?: {
-      filters?: any[][];
+      filters?: (string | number | boolean | null | string[])[][];
       fields?: string[];
       limit?: number;
       limit_page_length?: number;
@@ -60,10 +60,11 @@ export class ERPNextClient {
       params.append('order_by', options.order_by);
     }
 
+    const encodedDoctype = encodeURIComponent(doctype);
     const queryString = params.toString();
     const url = queryString 
-      ? `${this.baseUrl}/api/resource/${doctype}?${queryString}`
-      : `${this.baseUrl}/api/resource/${doctype}`;
+      ? `${this.baseUrl}/api/resource/${encodedDoctype}?${queryString}`
+      : `${this.baseUrl}/api/resource/${encodedDoctype}`;
 
     const res = await fetch(url, {
       method: 'GET',
@@ -80,11 +81,12 @@ export class ERPNextClient {
   /**
    * Get a single document by name
    */
-  async get<T = any>(doctype: string, name: string): Promise<T> {
+  async get<T = unknown>(doctype: string, name: string): Promise<T> {
+    const encodedDoctype = encodeURIComponent(doctype);
     // URL encode the name to handle special characters like %, +, (, )
     const encodedName = encodeURIComponent(name);
     
-    const res = await fetch(`${this.baseUrl}/api/resource/${doctype}/${encodedName}`, {
+    const res = await fetch(`${this.baseUrl}/api/resource/${encodedDoctype}/${encodedName}`, {
       method: 'GET',
       headers: this.getHeaders(),
     });
@@ -105,42 +107,36 @@ export class ERPNextClient {
   /**
    * Alias for get() - for backward compatibility
    */
-  async getDoc<T = any>(doctype: string, name: string): Promise<T> {
+  async getDoc<T = unknown>(doctype: string, name: string): Promise<T> {
     return this.get<T>(doctype, name);
   }
 
   /**
    * Get count of documents matching filters
    */
-  async getCount(doctype: string, options?: { filters?: any[][] }): Promise<number> {
-    const params = new URLSearchParams();
-    
-    if (options?.filters) {
-      params.append('filters', JSON.stringify(options.filters));
-    }
-
-    const queryString = params.toString();
-    const url = queryString 
-      ? `${this.baseUrl}/api/resource/${doctype}?${queryString}`
-      : `${this.baseUrl}/api/resource/${doctype}`;
-
-    const res = await fetch(url, {
-      method: 'GET',
+  async getCount(doctype: string, options?: { filters?: (string | number | boolean | null | string[])[][]; }): Promise<number> {
+    const res = await fetch(`${this.baseUrl}/api/method/frappe.client.get_count`, {
+      method: 'POST',
       headers: this.getHeaders(),
+      body: JSON.stringify({
+        doctype,
+        filters: options?.filters || [],
+      }),
     });
 
     const data = await res.json();
     if (!res.ok) {
       throw new Error(data?.message || data?.exc || `Failed to count ${doctype}`);
     }
-    return data.data?.length || 0;
+    return data.message || 0;
   }
 
   /**
    * Insert a new document
    */
-  async insert<T = any>(doctype: string, doc: any): Promise<T> {
-    const res = await fetch(`${this.baseUrl}/api/resource/${doctype}`, {
+  async insert<T = unknown>(doctype: string, doc: Record<string, unknown>): Promise<T> {
+    const encodedDoctype = encodeURIComponent(doctype);
+    const res = await fetch(`${this.baseUrl}/api/resource/${encodedDoctype}`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(doc),
@@ -156,8 +152,10 @@ export class ERPNextClient {
   /**
    * Update an existing document
    */
-  async update<T = any>(doctype: string, name: string, doc: any): Promise<T> {
-    const res = await fetch(`${this.baseUrl}/api/resource/${doctype}/${name}`, {
+  async update<T = unknown>(doctype: string, name: string, doc: Record<string, unknown>): Promise<T> {
+    const encodedDoctype = encodeURIComponent(doctype);
+    const encodedName = encodeURIComponent(name);
+    const res = await fetch(`${this.baseUrl}/api/resource/${encodedDoctype}/${encodedName}`, {
       method: 'PUT',
       headers: this.getHeaders(),
       body: JSON.stringify(doc),
@@ -174,7 +172,9 @@ export class ERPNextClient {
    * Delete a document
    */
   async delete(doctype: string, name: string): Promise<void> {
-    const res = await fetch(`${this.baseUrl}/api/resource/${doctype}/${name}`, {
+    const encodedDoctype = encodeURIComponent(doctype);
+    const encodedName = encodeURIComponent(name);
+    const res = await fetch(`${this.baseUrl}/api/resource/${encodedDoctype}/${encodedName}`, {
       method: 'DELETE',
       headers: this.getHeaders(),
     });
@@ -189,52 +189,97 @@ export class ERPNextClient {
    * Submit a document (change docstatus to 1)
    * Fetches latest document first to avoid timestamp mismatch
    */
-  async submit(doctype: string, name: string): Promise<any> {
-    // Fetch latest document to get current modified timestamp
-    const latestDoc = await this.get(doctype, name);
-    
-    const res = await fetch(`${this.baseUrl}/api/method/frappe.client.submit`, {
-      method: 'POST',
-      headers: this.getHeaders(),
-      body: JSON.stringify({
-        doc: latestDoc,
-      }),
-    });
+  async submit(doctype: string, name: string): Promise<unknown> {
+    // Try up to 3 times to handle TimestampMismatchError
+    let lastError: unknown;
+    for (let i = 0; i < 3; i++) {
+      try {
+        // Fetch latest document to get current modified timestamp
+        const latestDoc = await this.get<{ modified: string }>(doctype, name);
+        
+        const res = await fetch(`${this.baseUrl}/api/method/frappe.client.submit`, {
+          method: 'POST',
+          headers: this.getHeaders(),
+          body: JSON.stringify({
+            doc: latestDoc,
+          }),
+        });
 
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data?.message || data?.exc || `Failed to submit ${doctype} ${name}`);
+        const data = await res.json();
+        if (!res.ok) {
+          // If it's a timestamp mismatch, wait a bit and retry
+          const errorMsg = data?.message || data?.exc || '';
+          if (errorMsg.includes('TimestampMismatchError') || (data.exception && data.exception.includes('TimestampMismatchError'))) {
+            console.warn(`[ERPNext] TimestampMismatchError during submit for ${doctype} ${name}, retrying (${i + 1}/3)...`);
+            await new Promise(resolve => setTimeout(resolve, 500 * (i + 1))); // Incremental backoff
+            continue;
+          }
+          throw new Error(data?.message || data?.exc || `Failed to submit ${doctype} ${name}`);
+        }
+        return data.message || data.data;
+      } catch (error) {
+        lastError = error;
+        // If the error message contains the specific exception string, retry
+        if (error instanceof Error && error.message.includes('TimestampMismatchError')) {
+          console.warn(`[ERPNext] Caught TimestampMismatchError in catch block for ${doctype} ${name}, retrying (${i + 1}/3)...`);
+          await new Promise(resolve => setTimeout(resolve, 500 * (i + 1)));
+          continue;
+        }
+        throw error;
+      }
     }
-    return data.message || data.data;
+    throw lastError;
   }
 
   /**
    * Cancel a document (change docstatus to 2)
    * Fetches latest document first to avoid timestamp mismatch
    */
-  async cancel(doctype: string, name: string): Promise<any> {
-    // Fetch latest document to get current modified timestamp
-    const latestDoc = await this.get(doctype, name);
-    
-    const res = await fetch(`${this.baseUrl}/api/method/frappe.client.cancel`, {
-      method: 'POST',
-      headers: this.getHeaders(),
-      body: JSON.stringify({
-        doc: latestDoc,
-      }),
-    });
+  async cancel(doctype: string, name: string): Promise<unknown> {
+    // Try up to 3 times to handle TimestampMismatchError
+    let lastError: unknown;
+    for (let i = 0; i < 3; i++) {
+      try {
+        // Fetch latest document to get current modified timestamp
+        const latestDoc = await this.get<{ modified: string }>(doctype, name);
+        
+        const res = await fetch(`${this.baseUrl}/api/method/frappe.client.cancel`, {
+          method: 'POST',
+          headers: this.getHeaders(),
+          body: JSON.stringify({
+            doc: latestDoc,
+          }),
+        });
 
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data?.message || data?.exc || `Failed to cancel ${doctype} ${name}`);
+        const data = await res.json();
+        if (!res.ok) {
+          // If it's a timestamp mismatch, wait a bit and retry
+          const errorMsg = data?.message || data?.exc || '';
+          if (errorMsg.includes('TimestampMismatchError') || (data.exception && data.exception.includes('TimestampMismatchError'))) {
+            console.warn(`[ERPNext] TimestampMismatchError during cancel for ${doctype} ${name}, retrying (${i + 1}/3)...`);
+            await new Promise(resolve => setTimeout(resolve, 500 * (i + 1)));
+            continue;
+          }
+          throw new Error(data?.message || data?.exc || `Failed to cancel ${doctype} ${name}`);
+        }
+        return data.message || data.data;
+      } catch (error) {
+        lastError = error;
+        if (error instanceof Error && error.message.includes('TimestampMismatchError')) {
+          console.warn(`[ERPNext] Caught TimestampMismatchError in catch block for ${doctype} ${name}, retrying (${i + 1}/3)...`);
+          await new Promise(resolve => setTimeout(resolve, 500 * (i + 1)));
+          continue;
+        }
+        throw error;
+      }
     }
-    return data.message || data.data;
+    throw lastError;
   }
 
   /**
    * Call a custom API method
    */
-  async call<T = any>(method: string, params?: any): Promise<T> {
+  async call<T = unknown>(method: string, params?: Record<string, unknown>): Promise<T> {
     const res = await fetch(`${this.baseUrl}/api/method/${method}`, {
       method: 'POST',
       headers: this.getHeaders(),

@@ -1,13 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import SearchableSelectDialog from '../../components/SearchableSelectDialog';
 
 export const dynamic = 'force-dynamic';
-
-const ERPNEXT_API_URL = process.env.ERPNEXT_API_URL || 'http://localhost:8000';
 
 interface Item {
   item_code: string;
@@ -117,8 +115,8 @@ export default function ItemMain() {
           // console.log('Failed to load UOMs:', uomsData);
         }
         
-      } catch (error) {
-        // console.log('Error fetching dropdown data:', error);
+      } catch {
+        // console.log('Error fetching dropdown data');
         // Fallback data
         setBrands([
           { name: 'AURI' },
@@ -131,83 +129,9 @@ export default function ItemMain() {
       }
     };
     fetchDropdownData();
-  }, []);
-
-  // Load item details for edit mode
-  useEffect(() => {
-    if (itemCode) {
-      fetchItemDetails(itemCode);
-    }
   }, [itemCode]);
 
-  // Debug: Log formData changes
-  // useEffect(() => {
-  //   console.log('FormData updated - custom_financial_cost_percent:', formData.custom_financial_cost_percent);
-  // }, [formData.custom_financial_cost_percent]);
-
-  const fetchItemDetails = async (code: string) => {
-    setLoading(true);
-    try {
-      // console.log('Fetching item details for code:', code);
-      const response = await fetch(`/api/inventory/items/${encodeURIComponent(code)}`, { credentials: 'include' });
-      const data = await response.json();
-      // console.log('=== API Response START ===');
-      // console.log('Full API Response:', JSON.stringify(data, null, 2));
-      // console.log('=== API Response END ===');
-      
-      if (data.success && data.data) {
-        const item = data.data;
-        // console.log('Item object:', item);
-        // console.log('Item custom_financial_cost_percent from API:', item.custom_financial_cost_percent);
-        // console.log('Type of custom_financial_cost_percent:', typeof item.custom_financial_cost_percent);
-        setEditingItem(item);
-        
-        // Use nullish coalescing (??) instead of logical OR (||) to preserve 0 values
-        const financialCostPercent = item.custom_financial_cost_percent ?? 0;
-        // console.log('Setting custom_financial_cost_percent to:', financialCostPercent);
-        // console.log('Type after nullish coalescing:', typeof financialCostPercent);
-        
-        const initialFormData = {
-          item_code: item.item_code,
-          item_name: item.item_name,
-          description: item.description || '',
-          item_group: item.item_group || 'All Item Groups',
-          stock_uom: item.stock_uom || 'Nos',
-          opening_stock: item.opening_stock || 0,
-          valuation_rate: item.valuation_rate || 0,
-          standard_rate: item.standard_rate || 0,
-          last_purchase_rate: item.last_purchase_rate || 0,
-          brand: item.brand || '',
-          default_currency: 'IDR',
-          custom_financial_cost_percent: financialCostPercent,
-        };
-        
-        // console.log('Initial formData object:', initialFormData);
-        // console.log('Initial formData with custom_financial_cost_percent:', initialFormData.custom_financial_cost_percent);
-        setFormData(initialFormData);
-        
-        // Initialize price inputs with formatted values
-        setPriceInputs({
-          last_purchase_rate: item.last_purchase_rate ? item.last_purchase_rate.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00',
-          standard_rate: item.standard_rate ? item.standard_rate.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00'
-        });
-        
-        // Fetch valuation rate and bottom price for existing items
-        // Pass the financial cost percent to ensure it's preserved
-        fetchItemPricing(item.item_code, financialCostPercent);
-      } else {
-        console.error('API returned unsuccessful response:', data);
-        setError('Gagal memuat detail barang: ' + (data.message || 'Item tidak ditemukan'));
-      }
-    } catch (err) {
-      console.error('Error in fetchItemDetails:', err);
-      setError('Gagal memuat detail barang');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchItemPricing = async (itemCode: string, preserveFinancialCostPercent?: number) => {
+  const fetchItemPricing = useCallback(async (itemCode: string, preserveFinancialCostPercent?: number) => {
     setValuationRateLoading(true);
     try {
       // Fetch valuation rate from stock ledger
@@ -286,7 +210,60 @@ export default function ItemMain() {
       // Log final state after all pricing updates
       // console.log('fetchItemPricing completed');
     }
-  };
+  }, []);
+
+  const fetchItemDetails = useCallback(async (code: string) => {
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/inventory/items/${encodeURIComponent(code)}`, { credentials: 'include' });
+      const data = await response.json();
+      
+      if (data.success && data.data) {
+        const item = data.data;
+        setEditingItem(item);
+        
+        const financialCostPercent = item.custom_financial_cost_percent ?? 0;
+        
+        const initialFormData = {
+          item_code: item.item_code,
+          item_name: item.item_name,
+          description: item.description || '',
+          item_group: item.item_group || 'All Item Groups',
+          stock_uom: item.stock_uom || 'Nos',
+          opening_stock: item.opening_stock || 0,
+          valuation_rate: item.valuation_rate || 0,
+          last_purchase_rate: item.last_purchase_rate || 0,
+          standard_rate: item.standard_rate || 0,
+          brand: item.brand || '',
+          default_currency: 'IDR',
+          custom_financial_cost_percent: financialCostPercent,
+        };
+        
+        setFormData(initialFormData);
+        
+        setPriceInputs({
+          last_purchase_rate: item.last_purchase_rate ? item.last_purchase_rate.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00',
+          standard_rate: item.standard_rate ? item.standard_rate.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00'
+        });
+        
+        fetchItemPricing(item.item_code, financialCostPercent);
+      } else {
+        console.error('API returned unsuccessful response:', data);
+        setError('Gagal memuat detail barang: ' + (data.message || 'Item tidak ditemukan'));
+      }
+    } catch (err) {
+      console.error('Error in fetchItemDetails:', err);
+      setError('Gagal memuat detail barang');
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchItemPricing]);
+
+  useEffect(() => {
+    if (itemCode) {
+      fetchItemDetails(itemCode);
+    }
+  }, [itemCode, fetchItemDetails]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -563,14 +540,14 @@ export default function ItemMain() {
                   <div className="text-lg font-semibold text-blue-600">
                     {formData.last_purchase_rate ? `Rp ${formData.last_purchase_rate.toLocaleString('id-ID')}` : 'Rp 0'}
                   </div>
-                  <div className="text-xs text-gray-400 mt-1">Harga beli dari price list "Standar Pembelian"</div>
+                  <div className="text-xs text-gray-400 mt-1">Harga beli dari price list &quot;Standar Pembelian&quot;</div>
                 </div>
                 <div className="bg-white p-3 rounded border border-gray-200">
                   <div className="text-xs text-gray-500 mb-1">Harga Jual (Price List: Standard Jual)</div>
                   <div className="text-lg font-semibold text-green-600">
                     {formData.standard_rate ? `Rp ${formData.standard_rate.toLocaleString('id-ID')}` : 'Rp 0'}
                   </div>
-                  <div className="text-xs text-gray-400 mt-1">Harga jual dari price list "Standard Jual"</div>
+                  <div className="text-xs text-gray-400 mt-1">Harga jual dari price list &quot;Standard Jual&quot;</div>
                 </div>
               </div>
 

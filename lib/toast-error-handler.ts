@@ -30,7 +30,7 @@ interface ToastFunctions {
  * Display error as toast notification
  */
 export function showErrorToast(
-  error: any,
+  error: unknown,
   toast: ToastFunctions,
   customTitle?: string
 ): void {

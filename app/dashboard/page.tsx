@@ -16,20 +16,31 @@ const EMPTY_STATS: DashboardStats = {
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats>(EMPTY_STATS);
-  const [company, setCompany] = useState('');
-  const [roles, setRoles] = useState<string[]>([]);
+  const [company] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('selected_company') || '';
+    }
+    return '';
+  });
+  const [roles, setRoles] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const ld = JSON.parse(localStorage.getItem('loginData') || '{}');
+        return ld.roles || [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  });
   const [loading, setLoading] = useState(true);
   const [now] = useState(new Date());
 
   useEffect(() => {
-    const storedCompany = localStorage.getItem('selected_company');
-    if (!storedCompany) { window.location.href = '/select-company'; return; }
-    setCompany(storedCompany);
-
-    try {
-      const ld = JSON.parse(localStorage.getItem('loginData') || '{}');
-      if (ld.roles?.length) setRoles(ld.roles);
-    } catch { /* ignore */ }
+    if (!company && typeof window !== 'undefined') {
+      window.location.href = '/select-company';
+      return;
+    }
 
     // Fetch fresh roles from /me
     fetch('/api/setup/auth/me', { credentials: 'include' })
@@ -43,7 +54,7 @@ export default function DashboardPage() {
       .then(d => { if (d.success) setStats(d.data); })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [company]);
 
   const isAdmin = roles.includes('System Manager');
   const isSales = roles.some(r => ['Sales User','Sales Manager','Sales Master Manager'].includes(r));

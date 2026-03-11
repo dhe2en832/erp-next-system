@@ -151,7 +151,7 @@ export default function DeliveryNoteDialog({
               Pilih Surat Jalan
             </h3>
             <p className="mt-1 text-sm text-gray-500">
-              Hanya menampilkan surat jalan dengan status "To Bill" yang dapat diretur
+              Hanya menampilkan surat jalan dengan status &quot;To Bill&quot; yang dapat diretur
             </p>
           </div>
           <button

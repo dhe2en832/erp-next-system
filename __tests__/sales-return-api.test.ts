@@ -1148,7 +1148,7 @@ async function testProperty17_StatusTransitionOnCancel(): Promise<void> {
     );
     
     let fetchedData = await fetchResponse.json();
-    let fetchedReturn = fetchedData.data as SalesReturn;
+    const fetchedReturn = fetchedData.data as SalesReturn;
     
     if (fetchedReturn.status !== 'Submitted') {
       throw new Error(

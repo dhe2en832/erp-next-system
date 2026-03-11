@@ -78,17 +78,17 @@ export class SimpleCache<T> {
 // TTL values based on how frequently data changes
 
 // Tax templates rarely change - cache for 30 minutes
-export const taxTemplateCache = new SimpleCache<any>(30 * 60 * 1000);
+export const taxTemplateCache = new SimpleCache<unknown[]>(30 * 60 * 1000);
 
 // Payment terms rarely change - cache for 30 minutes
-export const paymentTermsCache = new SimpleCache<any>(30 * 60 * 1000);
+export const paymentTermsCache = new SimpleCache<unknown[]>(30 * 60 * 1000);
 
 // Warehouses rarely change - cache for 30 minutes
-export const warehouseCache = new SimpleCache<any>(30 * 60 * 1000);
+export const warehouseCache = new SimpleCache<unknown[]>(30 * 60 * 1000);
 
 // Items change occasionally - cache for 5 minutes
-export const itemCache = new SimpleCache<any>(5 * 60 * 1000);
+export const itemCache = new SimpleCache<unknown[]>(5 * 60 * 1000);
 
 // Customers/Suppliers change occasionally - cache for 10 minutes
-export const customerCache = new SimpleCache<any>(10 * 60 * 1000);
-export const supplierCache = new SimpleCache<any>(10 * 60 * 1000);
+export const customerCache = new SimpleCache<unknown[]>(10 * 60 * 1000);
+export const supplierCache = new SimpleCache<unknown[]>(10 * 60 * 1000);

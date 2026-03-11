@@ -10,7 +10,7 @@
 import PrintLayout from './PrintLayout';
 import type { PrintLayoutProps } from '@/types/print';
 
-interface DeliveryNotePrintProps {
+export interface DeliveryNotePrintProps {
   data: {
     name: string;
     posting_date: string;
@@ -69,7 +69,7 @@ export default function DeliveryNotePrint({ data, companyName, companyLogo }: De
     columns: [
       { key: 'item_code', label: 'Kode', align: 'left', width: '15%' },
       { key: 'item_name', label: 'Nama Item', align: 'left', width: '45%' },
-      { key: 'qty', label: 'Qty', align: 'right', width: '15%', format: (v) => v.toString() },
+      { key: 'qty', label: 'Qty', align: 'right', width: '15%', format: (v) => String(v || 0) },
       { key: 'warehouse', label: 'Gudang', align: 'left', width: '25%' },
     ],
     showPrice: false, // NO PRICING for Delivery Note

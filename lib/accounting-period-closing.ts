@@ -59,7 +59,13 @@ export async function getNominalAccountBalances(
   period: AccountingPeriod
 ): Promise<AccountBalance[]> {
   // Step 1: Fetch ALL Income/Expense accounts from Chart of Accounts first
-  const allNominalAccounts = await erpnextClient.getList('Account', {
+  const allNominalAccounts = await erpnextClient.getList<{
+    name: string;
+    account_name: string;
+    account_type: string;
+    root_type: 'Income' | 'Expense';
+    is_group: boolean;
+  }>('Account', {
     filters: [
       ['company', '=', period.company],
       ['root_type', 'in', ['Income', 'Expense']],
@@ -76,14 +82,18 @@ export async function getNominalAccountBalances(
   }
 
   // Step 3: Query GL entries for the period and augment the accountMap
-  const filters = [
+  const filters: (string | number | boolean | null)[][] = [
     ['company', '=', period.company],
     ['posting_date', '>=', period.start_date],
     ['posting_date', '<=', period.end_date],
     ['is_cancelled', '=', 0]
   ];
 
-  const glEntries = await erpnextClient.getList('GL Entry', {
+  const glEntries = await erpnextClient.getList<{
+    account: string;
+    debit: number;
+    credit: number;
+  }>('GL Entry', {
     filters,
     fields: ['account', 'debit', 'credit'],
     limit_page_length: 999999
@@ -149,7 +159,7 @@ export async function getNominalAccountBalances(
 export async function createClosingJournalEntry(
   period: AccountingPeriod,
   retainedEarningsAccount: string
-): Promise<any> {
+): Promise<ClosingJournalEntry & { name: string }> {
   // Step 1: Get all nominal accounts with non-zero balances
   const nominalAccounts = await getNominalAccountBalances(period);
   
@@ -220,7 +230,7 @@ export async function createClosingJournalEntry(
   }
   
   // Step 4: Create journal entry
-  const journalEntry = await erpnextClient.insert('Journal Entry', {
+  const journalEntry = await erpnextClient.insert<ClosingJournalEntry & { name: string }>('Journal Entry', {
     voucher_type: 'Closing Entry',
     posting_date: period.end_date,
     company: period.company,
@@ -269,13 +279,17 @@ export async function calculateAllAccountBalances(
   period: AccountingPeriod
 ): Promise<AccountBalance[]> {
   // Get all GL entries up to period end date
-  const filters = [
+  const filters: (string | number | boolean | null)[][] = [
     ['company', '=', period.company],
     ['posting_date', '<=', period.end_date],
     ['is_cancelled', '=', 0]
   ];
   
-  const glEntries = await erpnextClient.getList('GL Entry', {
+  const glEntries = await erpnextClient.getList<{
+    account: string;
+    debit: number;
+    credit: number;
+  }>('GL Entry', {
     filters,
     fields: ['account', 'debit', 'credit'],
     limit_page_length: 999999
@@ -298,7 +312,13 @@ export async function calculateAllAccountBalances(
     return [];
   }
   
-  const accounts = await erpnextClient.getList('Account', {
+  const accounts = await erpnextClient.getList<{
+    name: string;
+    account_name: string;
+    account_type: string;
+    root_type: 'Asset' | 'Liability' | 'Equity' | 'Income' | 'Expense';
+    is_group: boolean;
+  }>('Account', {
     filters: [
       ['name', 'in', accountNames],
       ['company', '=', period.company],
@@ -353,8 +373,8 @@ export async function createAuditLog(logData: {
   after_snapshot?: string;
   affected_transaction?: string;
   transaction_doctype?: string;
-}): Promise<any> {
-  return await erpnextClient.insert('Period Closing Log', {
+}): Promise<Record<string, unknown>> {
+  return await erpnextClient.insert<Record<string, unknown>>('Period Closing Log', {
     accounting_period: logData.accounting_period,
     action_type: logData.action_type,
     action_by: logData.action_by,
@@ -371,12 +391,12 @@ export async function createAuditLog(logData: {
  * Send notifications for period closing
  * Stub implementation - can be enhanced with actual email/notification service
  * 
- * @param period - The closed period
+ * @param _period - The closed period
  */
-export async function sendClosingNotifications(period: AccountingPeriod): Promise<void> {
+export async function sendClosingNotifications(_period: AccountingPeriod): Promise<void> {
   // TODO: Implement actual notification sending
   // For now, just log
-  // console.log(`Notification: Period ${period.period_name} has been closed`);
+  console.log(`Notification: Period ${_period.period_name} has been closed`);
   
   // In production, this would:
   // 1. Get users with 'Accounts Manager' role

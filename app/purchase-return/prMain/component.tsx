@@ -835,7 +835,7 @@ export default function PurchaseReturnMain() {
             {/* Conditional Notes Fields */}
             {formData.items.some(item => item.selected && item.return_reason === 'Other') && (
               <div className="mt-6 space-y-4">
-                <h3 className="text-sm font-medium text-gray-900">Catatan Tambahan untuk Alasan "Lainnya"</h3>
+                <h3 className="text-sm font-medium text-gray-900">Catatan Tambahan untuk Alasan &quot;Lainnya&quot;</h3>
                 {formData.items.map((item, index) => (
                   item.selected && item.return_reason === 'Other' && (
                     <div key={index} className="border border-gray-200 rounded-md p-4">

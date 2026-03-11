@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     const company = searchParams.get('company');
     const filtersParam = searchParams.get('filters');
     const fieldsParam = searchParams.get('fields');
-    const orderBy = searchParams.get('order_by') || 'posting_date desc';
+    const orderBy = searchParams.get('order_by') || 'creation desc, posting_date desc';
     const limit_page_length = searchParams.get('limit_page_length') || '20';
     const limit_start = searchParams.get('limit_start') || '0';
 

@@ -9,7 +9,6 @@ import PurchaseOrderPrint from '../../../components/print/PurchaseOrderPrint';
 // ✅ Import reusable hooks & components
 import { useIsMobile, useInfiniteScroll } from '@/hooks';
 import {
-  LoadingSpinner,
   Pagination,
   ErrorDialog,
   BrowserStyleDatePicker,
@@ -37,16 +36,27 @@ interface PurchaseOrder {
   company?: string;
 }
 
-// ─────────────────────────────────────────────────────────────
-// Helper: Format currency
-// ─────────────────────────────────────────────────────────────
-const formatCurrency = (amount: number, currency = 'IDR') => {
-  return new Intl.NumberFormat('id-ID', {
-    style: 'currency',
-    currency: currency,
-    minimumFractionDigits: 0,
-  }).format(amount);
-};
+interface PurchaseOrderItem {
+  item_code: string;
+  item_name: string;
+  qty: number;
+  rate: number;
+  amount: number;
+}
+
+interface PurchaseOrderPrintData extends PurchaseOrder {
+  docstatus: number;
+  items: PurchaseOrderItem[];
+  total: number;
+  total_taxes_and_charges?: number;
+  in_words?: string;
+  remarks?: string;
+  address_display?: string;
+  supplier_address?: string;
+  shipping_address?: string;
+  contact_display?: string;
+  set_warehouse?: string;
+}
 
 // ─────────────────────────────────────────────────────────────
 // Status Mapping: English (DB) → Indonesian (UI)
@@ -95,6 +105,7 @@ export default function PurchaseOrderList() {
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [submittingId, setSubmittingId] = useState<string | null>(null);
   const [dateFilter, setDateFilter] = useState({
     from_date: formatDate(new Date(Date.now() - 86400000)),
     to_date: formatDate(new Date()),
@@ -113,11 +124,9 @@ export default function PurchaseOrderList() {
 
   // Print preview states
   const [showPrintPreview, setShowPrintPreview] = useState(false);
-  const [printData, setPrintData] = useState<any>(null);
+  const [printData, setPrintData] = useState<PurchaseOrderPrintData | null>(null);
   const [loadingPrintData, setLoadingPrintData] = useState(false);
 
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
-  
   // Ref untuk tracking pagination source (prevent race conditions)
   const pageChangeSourceRef = useRef<'pagination' | 'filter' | 'init'>('init');
 
@@ -238,7 +247,7 @@ export default function PurchaseOrderList() {
         }
 
         // ✅ Secondary sort by creation date (fallback jika API tidak sorting)
-        ordersData.sort((a:any, b:any) => {
+        ordersData.sort((a: PurchaseOrder, b: PurchaseOrder) => {
           const dateA = new Date(a.creation || a.transaction_date || '1970-01-01');
           const dateB = new Date(b.creation || b.transaction_date || '1970-01-01');
           return dateB.getTime() - dateA.getTime();
@@ -339,6 +348,11 @@ export default function PurchaseOrderList() {
   // ─────────────────────────────────────────────────────────
   const handleSubmitPO = async (poName: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
+    if (submittingId) return;
+    
+    setSubmittingId(poName);
+    setSubmitError('');
+    
     try {
       const res = await fetch(`/api/purchase/orders/${poName}/submit`, {
         method: 'POST',
@@ -349,6 +363,8 @@ export default function PurchaseOrderList() {
       else setSubmitError(result.message || 'Gagal mengajukan PO');
     } catch {
       setSubmitError('Terjadi kesalahan saat mengajukan PO');
+    } finally {
+      setSubmittingId(null);
     }
   };
 
@@ -625,9 +641,21 @@ export default function PurchaseOrderList() {
                           {order.status === 'Draft' && (
                             <button 
                               onClick={(e) => handleSubmitPO(order.name, e)} 
-                              className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-green-600 rounded-lg hover:bg-green-700"
+                              disabled={!!submittingId}
+                              className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white rounded-lg transition-colors ${
+                                submittingId === order.name 
+                                  ? 'bg-green-400 cursor-not-allowed' 
+                                  : 'bg-green-600 hover:bg-green-700'
+                              }`}
                             >
-                              Ajukan
+                              {submittingId === order.name ? (
+                                <>
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                  Proses...
+                                </>
+                              ) : (
+                                'Ajukan'
+                              )}
                             </button>
                           )}
                           {order.status === 'Submitted' && (
@@ -686,10 +714,19 @@ export default function PurchaseOrderList() {
                           {order.status === 'Draft' && (
                             <button 
                               onClick={(e) => handleSubmitPO(order.name, e)} 
-                              className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg" 
-                              title="Ajukan"
+                              disabled={!!submittingId}
+                              className={`p-1.5 rounded-lg transition-colors ${
+                                submittingId === order.name 
+                                  ? 'text-green-400 cursor-not-allowed' 
+                                  : 'text-green-600 hover:bg-green-50'
+                              }`}
+                              title={submittingId === order.name ? 'Sedang mengajukan...' : 'Ajukan'}
                             >
-                              ✓
+                              {submittingId === order.name ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                '✓'
+                              )}
                             </button>
                           )}
                         </div>

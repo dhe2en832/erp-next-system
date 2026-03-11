@@ -5,6 +5,7 @@ import {
   buildSiteAwareErrorResponse,
   logSiteError 
 } from '@/lib/api-helpers';
+import { ERPNextClient } from '@/lib/erpnext';
 import type { AccountingPeriod, PeriodClosingConfig, AccountBalance } from '@/types/accounting-period';
 
 export async function POST(request: NextRequest) {
@@ -45,7 +46,7 @@ export async function POST(request: NextRequest) {
       const validationResult = await validationResponse.json();
       
       if (validationResult.success && !validationResult.all_passed) {
-        const failedValidations = validationResult.validations.filter((v: any) => !v.passed && v.severity === 'error');
+        const failedValidations = (validationResult.validations as { passed: boolean; severity: string }[]).filter((v) => !v.passed && v.severity === 'error');
         
         if (failedValidations.length > 0) {
           return NextResponse.json(
@@ -114,7 +115,7 @@ export async function POST(request: NextRequest) {
     const now = new Date();
     const erpnextDatetime = now.toISOString().slice(0, 19).replace('T', ' ');
     
-    const updateData: any = {
+    const updateData: Record<string, unknown> = {
       status: 'Closed',
       closed_by: currentUser,
       closed_on: erpnextDatetime,
@@ -128,13 +129,13 @@ export async function POST(request: NextRequest) {
     // CRITICAL: Set all closed_documents[].closed = 1 to block transactions
     // This is required because ERPNext checks both status AND closed_documents flags
     if (period.closed_documents && Array.isArray(period.closed_documents)) {
-      updateData.closed_documents = period.closed_documents.map((doc: any) => ({
+      updateData.closed_documents = period.closed_documents.map((doc: Record<string, unknown>) => ({
         ...doc,
         closed: 1
       }));
     }
     
-    const updatedPeriod = await client.update('Accounting Period', period_name, updateData);
+    const updatedPeriod = await client.update<AccountingPeriod>('Accounting Period', period_name, updateData);
 
     // Create audit log
     await client.insert('Period Closing Log', {
@@ -160,7 +161,7 @@ export async function POST(request: NextRequest) {
         account_balances: accountBalances,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     logSiteError(error, 'POST /api/accounting-period/close', siteId);
     const errorResponse = buildSiteAwareErrorResponse(error, siteId);
     return NextResponse.json(errorResponse, { status: 500 });
@@ -179,8 +180,8 @@ export async function POST(request: NextRequest) {
 async function createClosingJournalEntry(
   period: AccountingPeriod,
   config: PeriodClosingConfig,
-  client: any
-): Promise<any> {
+  client: ERPNextClient
+): Promise<{ name: string; message?: string }> {
   // Get all nominal accounts (Income and Expense) with non-zero balances
   const nominalAccounts = await getNominalAccountBalances(period, client);
 
@@ -199,7 +200,7 @@ async function createClosingJournalEntry(
   const netIncome = totalIncome - totalExpense;
 
   // Build journal entry accounts
-  const journalAccounts: any[] = [];
+  const journalAccounts: Record<string, unknown>[] = [];
 
   // Log accounts for debugging
   // console.log('=== Closing Journal Debug ===');
@@ -303,15 +304,15 @@ async function createClosingJournalEntry(
  * Requirements: 3.1
  * Note: Uses cumulative balance (from beginning to period end) for closing entries
  */
-async function getNominalAccountBalances(period: AccountingPeriod, client: any): Promise<AccountBalance[]> {
+async function getNominalAccountBalances(period: AccountingPeriod, client: ERPNextClient): Promise<AccountBalance[]> {
   // Get all GL entries UP TO period end (cumulative, not just period range)
   const filters = [
     ['company', '=', period.company],
     ['posting_date', '<=', period.end_date],
     ['is_cancelled', '=', 0],
-  ];
+  ] as (string | number | boolean | null)[][];
 
-  const glEntries = await client.getList('GL Entry', {
+  const glEntries = await client.getList<{ account: string; debit: number; credit: number }>('GL Entry', {
     filters,
     fields: ['account', 'debit', 'credit'],
     limit_page_length: 999999,
@@ -330,7 +331,7 @@ async function getNominalAccountBalances(period: AccountingPeriod, client: any):
 
   // Get account details for nominal accounts only
   // CRITICAL: Exclude stock accounts by checking both account_type and is_stock_account fields
-  const accounts = await client.getList('Account', {
+  const accounts = await client.getList<{ name: string; account_name: string; account_type: string; root_type: 'Income' | 'Expense'; account_number?: string }>('Account', {
     filters: [
       ['name', 'in', Array.from(accountMap.keys())],
       ['root_type', 'in', ['Income', 'Expense']],
@@ -343,7 +344,7 @@ async function getNominalAccountBalances(period: AccountingPeriod, client: any):
   // Additional filter: Exclude accounts that contain stock-related keywords
   // This is a safety measure to prevent stock accounts from being included
   const stockKeywords = ['stock', 'inventory', 'persediaan', 'barang'];
-  const filteredAccounts = accounts.filter((account: any) => {
+  const filteredAccounts = accounts.filter((account) => {
     const accountNameLower = account.account_name.toLowerCase();
     const accountNumberLower = (account.account_number || '').toLowerCase();
     
@@ -397,7 +398,7 @@ async function createCascadingJournalEntries(
   config: PeriodClosingConfig,
   netIncome: number,
   mainJournalName: string,
-  client: any
+  client: ERPNextClient
 ): Promise<void> {
   // console.log('=== Creating Cascading Journal Entries ===');
   // console.log('Net Income:', netIncome);
@@ -405,7 +406,7 @@ async function createCascadingJournalEntries(
 
   // Step 2: Transfer from Current Period Profit to Current Year Profit
   if (config.current_period_profit_account && config.current_year_profit_account) {
-    const step2Accounts: any[] = [];
+    const step2Accounts: Record<string, unknown>[] = [];
 
     if (netIncome > 0) {
       // Debit Current Period Profit (to zero it out)
@@ -439,7 +440,7 @@ async function createCascadingJournalEntries(
       });
     }
 
-    const step2Journal = await client.insert('Journal Entry', {
+    const step2Journal = await client.insert<{ name: string }>('Journal Entry', {
       voucher_type: 'Journal Entry',
       posting_date: period.end_date,
       company: period.company,
@@ -465,7 +466,7 @@ async function createCascadingJournalEntries(
     );
 
     if (yearProfitBalance !== 0) {
-      const step3Accounts: any[] = [];
+      const step3Accounts: Record<string, unknown>[] = [];
 
       if (yearProfitBalance > 0) {
         // Debit Current Year Profit (to zero it out)
@@ -499,7 +500,7 @@ async function createCascadingJournalEntries(
         });
       }
 
-      const step3Journal = await client.insert('Journal Entry', {
+      const step3Journal = await client.insert<{ name: string }>('Journal Entry', {
         voucher_type: 'Journal Entry',
         posting_date: period.end_date,
         company: period.company,
@@ -546,17 +547,17 @@ function isLastPeriodOfYear(period: AccountingPeriod): boolean {
 async function getCurrentAccountBalance(
   account: string,
   company: string,
-  asOfDate: string,
-  client: any
+  endDate: string,
+  client: ERPNextClient
 ): Promise<number> {
   const filters = [
     ['company', '=', company],
-    ['posting_date', '<=', asOfDate],
-    ['is_cancelled', '=', 0],
+    ['posting_date', '<=', endDate],
     ['account', '=', account],
-  ];
+    ['is_cancelled', '=', 0],
+  ] as (string | number | boolean | null)[][];
 
-  const glEntries = await client.getList('GL Entry', {
+  const glEntries = await client.getList<{ debit: number; credit: number }>('GL Entry', {
     filters,
     fields: ['debit', 'credit'],
     limit_page_length: 999999,
@@ -575,59 +576,62 @@ async function getCurrentAccountBalance(
 }
 
 /**
- * Calculate all account balances as of period end date
- * Requirements: 4.3
+ * Calculate all account balances for the period end and return as array
  */
-async function calculateAllAccountBalances(period: AccountingPeriod, client: any): Promise<AccountBalance[]> {
-  const filters = [
-    ['company', '=', period.company],
-    ['posting_date', '<=', period.end_date],
-    ['is_cancelled', '=', 0],
-  ];
-
-  const glEntries = await client.getList('GL Entry', {
-    filters,
+async function calculateAllAccountBalances(
+  period: AccountingPeriod,
+  client: ERPNextClient
+): Promise<AccountBalance[]> {
+  // console.log('Calculating all account balances for snapshot...');
+  
+  // 1. Get all GL entries up to period end
+  const glEntries = await client.getList<{ account: string; debit: number; credit: number }>('GL Entry', {
+    filters: [
+      ['company', '=', period.company],
+      ['posting_date', '<=', period.end_date],
+      ['is_cancelled', '=', 0],
+    ],
     fields: ['account', 'debit', 'credit'],
     limit_page_length: 999999,
   });
 
-  // Aggregate by account
-  const accountMap = new Map<string, { debit: number; credit: number }>();
-
+  // 2. Aggregate by account
+  const accountTotals = new Map<string, { debit: number; credit: number }>();
   for (const entry of glEntries) {
-    const existing = accountMap.get(entry.account) || { debit: 0, credit: 0 };
-    accountMap.set(entry.account, {
-      debit: existing.debit + (entry.debit || 0),
-      credit: existing.credit + (entry.credit || 0),
+    const totals = accountTotals.get(entry.account) || { debit: 0, credit: 0 };
+    accountTotals.set(entry.account, {
+      debit: totals.debit + (entry.debit || 0),
+      credit: totals.credit + (entry.credit || 0),
     });
   }
 
-  // Get account details
-  const accounts = await client.getList('Account', {
+  // 3. Get all active accounts
+  const accounts = await client.getList<{ name: string; account_name: string; account_type: string; root_type: 'Asset' | 'Liability' | 'Equity' | 'Income' | 'Expense'; is_group: number }>('Account', {
     filters: [
-      ['name', 'in', Array.from(accountMap.keys())],
       ['company', '=', period.company],
+      ['is_group', '=', 0],
+      ['name', 'in', Array.from(accountTotals.keys())],
     ],
     fields: ['name', 'account_name', 'account_type', 'root_type', 'is_group'],
     limit_page_length: 999999,
   });
 
-  const result: AccountBalance[] = [];
-
+  // 4. Build balance objects
+  const balances: AccountBalance[] = [];
   for (const account of accounts) {
-    const totals = accountMap.get(account.name);
+    const totals = accountTotals.get(account.name);
     if (!totals) continue;
 
     const balance = ['Asset', 'Expense'].includes(account.root_type)
       ? totals.debit - totals.credit
       : totals.credit - totals.debit;
 
-    result.push({
+    balances.push({
       account: account.name,
       account_name: account.account_name,
       account_type: account.account_type,
       root_type: account.root_type,
-      is_group: account.is_group,
+      is_group: account.is_group === 1,
       debit: totals.debit,
       credit: totals.credit,
       balance: balance,
@@ -635,5 +639,5 @@ async function calculateAllAccountBalances(period: AccountingPeriod, client: any
     });
   }
 
-  return result;
+  return balances;
 }

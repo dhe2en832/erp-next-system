@@ -23,19 +23,20 @@ export function SiteGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const { activeSite, isLoading } = useSite();
+  
+  const isPublicPath = PUBLIC_PATHS.some(path => pathname.startsWith(path));
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
   // Check authentication status
   useEffect(() => {
     // Skip check for public paths
-    if (PUBLIC_PATHS.some(path => pathname.startsWith(path))) {
-      setIsAuthenticated(true); // Allow access to public paths
+    if (isPublicPath) {
       return;
     }
 
     // Check if user has login data
     const checkAuth = () => {
-      const loginData = localStorage.getItem('loginData');
+      const loginData = typeof window !== 'undefined' ? localStorage.getItem('loginData') : null;
       if (!loginData) {
         console.log('[SiteGuard] No login data, redirecting to /login');
         setIsAuthenticated(false);
@@ -46,11 +47,11 @@ export function SiteGuard({ children }: { children: React.ReactNode }) {
     };
 
     checkAuth();
-  }, [pathname, router]);
+  }, [pathname, router, isPublicPath]); // Removed isAuthenticated to avoid direct sync loop
 
   useEffect(() => {
     // Skip check for public paths
-    if (PUBLIC_PATHS.some(path => pathname.startsWith(path))) {
+    if (isPublicPath) {
       return;
     }
 
@@ -64,10 +65,10 @@ export function SiteGuard({ children }: { children: React.ReactNode }) {
       console.log('[SiteGuard] No active site, redirecting to /select-site');
       router.replace('/select-site'); // Use replace to prevent back button
     }
-  }, [activeSite, isLoading, pathname, router]);
+  }, [activeSite, isLoading, isPublicPath, router]);
 
   // Show loading state while checking
-  if ((isLoading || isAuthenticated === null) && !PUBLIC_PATHS.some(path => pathname.startsWith(path))) {
+  if ((isLoading || isAuthenticated === null) && !isPublicPath) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">

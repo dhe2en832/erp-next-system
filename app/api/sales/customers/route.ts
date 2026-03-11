@@ -34,10 +34,12 @@ export async function GET(request: NextRequest) {
       start: parseInt(limitStart)
     });
 
+    const totalRecords = await client.getCount('Customer', { filters });
+
     return NextResponse.json({
       success: true,
       data: data || [],
-      total: data?.length || 0,
+      total: totalRecords,
     });
   } catch (error: unknown) {
     logSiteError(error, 'GET /api/sales/customers', siteId);

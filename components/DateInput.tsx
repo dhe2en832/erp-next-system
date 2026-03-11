@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { formatDate, parseDate } from '../utils/format';
+import { parseDate } from '../utils/format';
 import { Calendar } from 'lucide-react';
 
 interface DateInputProps {
@@ -13,7 +13,6 @@ interface DateInputProps {
 
 export default function DateInput({ value, onChange, placeholder = "DD/MM/YYYY", className = "" }: DateInputProps) {
   const [inputValue, setInputValue] = useState(value);
-  const [showPicker, setShowPicker] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const pickerRef = useRef<HTMLInputElement>(null);
 
@@ -42,7 +41,6 @@ export default function DateInput({ value, onChange, placeholder = "DD/MM/YYYY",
       setInputValue('');
       onChange('');
     }
-    setShowPicker(false);
   };
 
   const handleIconClick = () => {
