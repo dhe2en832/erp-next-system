@@ -80,7 +80,7 @@ interface Invoice {
   customer: string;
   customer_name: string;
   posting_date: string;
-  due_date: string;
+  due_date?: string;  // Optional - some invoices might not have due date
   grand_total: number;
   outstanding_amount: number;
   paid_amount: number;
@@ -92,6 +92,7 @@ interface Invoice {
   discount_amount?: number;
   total_taxes_and_charges?: number;
   is_return?: number;
+  customer_address?: string;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -230,7 +231,8 @@ export default function SalesInvoiceList() {
         'custom_notes_si',
         'discount_amount',
         'total_taxes_and_charges',
-        'is_return'
+        'is_return',
+        'customer_address'
       ]));
       
       // ✅ SORTING: Data terbaru paling atas
@@ -522,6 +524,28 @@ export default function SalesInvoiceList() {
     return Math.min((getPaidAmount(invoice) / invoice.grand_total) * 100, 100);
   };
 
+  // Helper: Hitung selisih hari jatuh tempo dari hari ini
+  const getDueInDays = (dueDate?: string): string | null => {
+    if (!dueDate) return null;
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const due = new Date(dueDate);
+    due.setHours(0, 0, 0, 0);
+    
+    const diffTime = due.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays < 0) {
+      return `${Math.abs(diffDays)} hari yang lalu`;
+    } else if (diffDays === 0) {
+      return 'Hari ini';
+    } else {
+      return `${diffDays} hari lagi`;
+    }
+  };
+
   // ─────────────────────────────────────────────────────────
   // Skeleton Loader Component (untuk infinite scroll)
   // ─────────────────────────────────────────────────────────
@@ -680,6 +704,7 @@ export default function SalesInvoiceList() {
                   <div className="col-span-1">Status</div>
                   <div className="col-span-2">Tanggal</div>
                   <div className="col-span-2">Jatuh Tempo</div>
+                  <div className="col-span-2">Tenggang</div>
                   <div className="col-span-2 text-right">Total</div>
                   <div className="col-span-2 text-right">Pembayaran</div>
                   <div className="col-span-2 text-right">Aksi</div>
@@ -711,8 +736,19 @@ export default function SalesInvoiceList() {
                       </div>
                       <div className="grid grid-cols-2 gap-2 text-xs text-gray-500">
                         <div>📅 {invoice.posting_date}</div>
-                        <div>⏰ {invoice.due_date}</div>
+                        <div>⏰ {invoice.due_date || '-'}</div>
                       </div>
+                      {getDueInDays(invoice.due_date) && (
+                        <div className={`text-xs font-medium ${
+                          getDueInDays(invoice.due_date)?.includes('yang lalu') 
+                            ? 'text-red-600' 
+                            : getDueInDays(invoice.due_date) === 'Hari ini'
+                            ? 'text-orange-600'
+                            : 'text-gray-700'
+                        }`}>
+                          ⏳ {getDueInDays(invoice.due_date)}
+                        </div>
+                      )}
                       <div className="pt-2 border-t border-gray-100">
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-sm font-semibold text-gray-900">{formatCurrency(invoice.grand_total)}</span>
@@ -782,10 +818,34 @@ export default function SalesInvoiceList() {
                         <p className="text-xs text-gray-500">Posting</p>
                       </div>
                       <div className="col-span-2">
-                        <p className={`text-sm ${new Date(invoice.due_date) < new Date() && invoice.outstanding_amount > 0 ? 'text-red-600 font-medium' : 'text-gray-900'}`}>
-                          {invoice.due_date}
-                        </p>
-                        <p className="text-xs text-gray-500">Jatuh Tempo</p>
+                        {invoice.due_date ? (
+                          <>
+                            <p className={`text-sm ${new Date(invoice.due_date) < new Date() && invoice.outstanding_amount > 0 ? 'text-red-600 font-medium' : 'text-gray-900'}`}>
+                              {invoice.due_date}
+                            </p>
+                            <p className="text-xs text-gray-500">Jatuh Tempo</p>
+                          </>
+                        ) : (
+                          <p className="text-sm text-gray-400">-</p>
+                        )}
+                      </div>
+                      <div className="col-span-2">
+                        {getDueInDays(invoice.due_date) ? (
+                          <>
+                            <p className={`text-sm font-medium ${
+                              getDueInDays(invoice.due_date)?.includes('yang lalu') 
+                                ? 'text-red-600' 
+                                : getDueInDays(invoice.due_date) === 'Hari ini'
+                                ? 'text-orange-600'
+                                : 'text-gray-700'
+                            }`}>
+                              {getDueInDays(invoice.due_date)}
+                            </p>
+                            <p className="text-xs text-gray-500">Tenggang</p>
+                          </>
+                        ) : (
+                          <p className="text-sm text-gray-400">-</p>
+                        )}
                       </div>
                       <div className="col-span-2 text-right">
                         <p className="text-sm font-semibold text-gray-900">{formatCurrency(invoice.grand_total)}</p>

@@ -14,11 +14,13 @@ import { handleERPNextError } from '../../../utils/erpnext-error-handler';
 import PrintPreviewModal from '../../../components/print/PrintPreviewModal';
 import SalesInvoicePrint from '../../../components/print/SalesInvoicePrint';
 
-import { 
-  TaxRow, 
+import {
+  TaxRow,
 } from '../../../types/sales-invoice';
 
 export const dynamic = 'force-dynamic';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface InvoiceItem {
   item_code: string;
@@ -107,6 +109,41 @@ interface SalesInvoice {
   sales_team?: SalesTeamMember[];
 }
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function StatusBadge({ status }: { status: string }) {
+  const colorMap: Record<string, string> = {
+    Draft: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300 border-yellow-300 dark:border-yellow-700',
+    Submitted: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 border-blue-300 dark:border-blue-700',
+    Paid: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300 border-green-300 dark:border-green-700',
+    Unpaid: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300 border-orange-300 dark:border-orange-700',
+    Overdue: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 border-red-300 dark:border-red-700',
+    Cancelled: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 border-red-300 dark:border-red-700',
+  };
+  const cls = colorMap[status] ?? 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600';
+  return (
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${cls}`}>
+      {status}
+    </span>
+  );
+}
+
+// ─── Shared class helpers ─────────────────────────────────────────────────────
+
+const inputBase =
+  'block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm py-2 px-3 text-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition';
+
+const inputReadOnly =
+  'bg-gray-100 dark:bg-gray-700 cursor-not-allowed text-gray-500 dark:text-gray-400';
+
+const inputSmBase =
+  'block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm py-1.5 px-2 text-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition';
+
+const sectionCard =
+  'bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm';
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
 export default function SalesInvoiceMain() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -119,6 +156,7 @@ export default function SalesInvoiceMain() {
   const [editingInvoiceStatus, setEditingInvoiceStatus] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [formLoading, setFormLoading] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
   const [showPrintDialog, setShowPrintDialog] = useState(false);
   const [savedDocName, setSavedDocName] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
@@ -186,7 +224,7 @@ export default function SalesInvoiceMain() {
     discount_percentage: 0,
   });
 
-  // Get company on mount
+  // ── Company detection ─────────────────────────────────────────────────────
   useEffect(() => {
     let savedCompany = localStorage.getItem('selected_company');
     if (!savedCompany) {
@@ -203,7 +241,7 @@ export default function SalesInvoiceMain() {
     }
   }, []);
 
-  // Fetch invoice details in edit/view mode
+  // ── Fetch invoice on edit/view ────────────────────────────────────────────
   useEffect(() => {
     if (invoiceName && selectedCompany) {
       handleEditInvoice(invoiceName);
@@ -272,27 +310,22 @@ export default function SalesInvoiceMain() {
           discount_amount: invoice.discount_amount || 0,
           discount_percentage: invoice.additional_discount_percentage || 0,
         });
-        
-        // Set discount state - use additional_discount_percentage from ERPNext
+
         setDiscountAmount((invoice.discount_amount as number) || 0);
         setDiscountPercentage((invoice.additional_discount_percentage as number) || 0);
-        
-        // Set tax state if tax template exists
+
         if (invoice.taxes_and_charges) {
-          // Fetch tax template details
           fetch(`/api/setup/tax-templates?type=Sales&company=${encodeURIComponent(selectedCompany)}`)
             .then(res => res.json())
-            .then(data => {
-              if (data.success) {
-                const template = data.data.find((t: TaxTemplate) => t.name === invoice.taxes_and_charges);
-                if (template) {
-                  setSelectedTaxTemplate(template);
-                }
+            .then(d => {
+              if (d.success) {
+                const template = d.data.find((t: TaxTemplate) => t.name === invoice.taxes_and_charges);
+                if (template) setSelectedTaxTemplate(template);
               }
             })
             .catch(err => console.error('Error fetching tax template:', err));
         }
-        
+
         setEditingInvoice(name);
         setEditingInvoiceData(invoice);
         setEditingInvoiceStatus(invoice.docstatus === 1 ? 'Submitted' : (invoice.status as string) || 'Draft');
@@ -306,17 +339,6 @@ export default function SalesInvoiceMain() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleAddItem = () => {
-    const newItems = [...formData.items, {
-      item_code: '', item_name: '', qty: 1, rate: 0, amount: 0,
-      income_account: '411000 - Penjualan - ST', cost_center: 'Main - ST',
-      warehouse: 'Finished Goods - ST', sales_order: '', so_detail: '',
-      dn_detail: '', delivery_note: '', custom_komisi_sales: 0,
-    }];
-    const totalKomisiSales = newItems.reduce((sum, item) => sum + (item.custom_komisi_sales || 0), 0);
-    setFormData({ ...formData, items: newItems, custom_total_komisi_sales: totalKomisiSales });
   };
 
   const handleRemoveItem = (index: number) => {
@@ -348,20 +370,13 @@ export default function SalesInvoiceMain() {
     }
   };
 
-  // Calculate due date from SO payment terms template
   const calculateDueDate = async (postingDate: string, salesOrderName: string): Promise<string> => {
     const defaultDays = 30;
     try {
       if (!salesOrderName) return addDays(postingDate, defaultDays);
-
-      // Fetch SO to get payment_terms_template
       const soRes = await fetch(`/api/sales/orders/${encodeURIComponent(salesOrderName)}`, { credentials: 'include' });
       const soData = await soRes.json();
-      if (!soData.success || !soData.data?.payment_terms_template) {
-        return addDays(postingDate, defaultDays);
-      }
-
-      // Fetch payment terms detail to get credit_days
+      if (!soData.success || !soData.data?.payment_terms_template) return addDays(postingDate, defaultDays);
       const ptRes = await fetch(`/api/setup/payment-terms/detail?name=${encodeURIComponent(soData.data.payment_terms_template)}`, { credentials: 'include' });
       const ptData = await ptRes.json();
       if (ptData.success && ptData.data?.terms && ptData.data.terms.length > 0) {
@@ -380,10 +395,8 @@ export default function SalesInvoiceMain() {
     return date.toISOString().split('T')[0];
   };
 
-  // Main function to handle delivery note selection with commission preview
   async function handleSelectDeliveryNote(dn: string) {
     try {
-      // Step 1: Try to get commission preview
       let commissionData: CommissionPreview | null = null;
       try {
         const res = await fetch(`/api/setup/commission/preview?delivery_note=${encodeURIComponent(dn)}`);
@@ -395,7 +408,6 @@ export default function SalesInvoiceMain() {
         // Continue with manual calculation as fallback
       }
 
-      // Step 2: Get complete DN data
       const dnResponse = await fetch(`/api/sales/delivery-notes/detail?name=${encodeURIComponent(dn)}`);
       if (!dnResponse.ok) throw new Error(`Gagal mengambil detail Surat Jalan: ${dnResponse.status}`);
 
@@ -409,19 +421,16 @@ export default function SalesInvoiceMain() {
             const foundCommission = commissionData.items.find((p: CommissionPreviewItem) => p.item_code === item.item_code);
             commission = foundCommission?.commission || 0;
           }
-          
-          // CRITICAL: Calculate billable qty = delivered qty - returned qty
           const deliveredQty = item.qty || 0;
           const returnedQty = item.returned_qty || 0;
           const billableQty = deliveredQty - returnedQty;
-          
           return {
             item_code: item.item_code,
             item_name: item.item_name || item.description,
             description: item.description || item.item_name,
-            qty: billableQty, // Use billable qty (delivered - returned)
+            qty: billableQty,
             rate: item.rate || 0,
-            amount: billableQty * (item.rate || 0), // Recalculate amount with billable qty
+            amount: billableQty * (item.rate || 0),
             delivery_note: completeDnData.name,
             dn_detail: item.name,
             sales_order: item.against_sales_order || item.sales_order || '',
@@ -435,15 +444,13 @@ export default function SalesInvoiceMain() {
           };
         });
 
-        const totalKomisiSales = commissionData && commissionData.preview_available ?
-          commissionData.total_commission :
-          invoiceItems.reduce((sum: number, item: CompleteInvoiceItem) => sum + (item.custom_komisi_sales || 0), 0);
+        const totalKomisiSales = commissionData && commissionData.preview_available
+          ? commissionData.total_commission
+          : invoiceItems.reduce((sum: number, item: CompleteInvoiceItem) => sum + (item.custom_komisi_sales || 0), 0);
 
-        // Step 3: Calculate due date from SO payment terms
         const postingDate = new Date().toISOString().split('T')[0];
         const firstSOName = invoiceItems.find((item: CompleteInvoiceItem) => item.sales_order)?.sales_order || '';
-        
-        // Fetch SO to get payment_terms_template (since DN doesn't store it)
+
         let paymentTermsTemplate = '';
         try {
           const soRes = await fetch(`/api/sales/orders/${encodeURIComponent(firstSOName)}`, { credentials: 'include' });
@@ -452,9 +459,9 @@ export default function SalesInvoiceMain() {
             paymentTermsTemplate = soData.data.payment_terms_template;
           }
         } catch {
-          // ignore error, will use empty string
+          // ignore
         }
-        
+
         const dueDate = await calculateDueDate(postingDate, firstSOName);
 
         setFormData({
@@ -483,11 +490,10 @@ export default function SalesInvoiceMain() {
           discount_amount: (completeDnData.discount_amount as number) || 0,
           discount_percentage: (completeDnData.discount_percentage as number) || 0,
         });
-        
-        // Copy sales_team from DN
+
         const loadedSalesTeam = (completeDnData.sales_team as Record<string, unknown>[])?.map((member: Record<string, unknown>) => ({
           sales_person: (member.sales_person as string) || '',
-          allocated_percentage: (member.allocated_percentage as number) || 0
+          allocated_percentage: (member.allocated_percentage as number) || 0,
         })) || [];
         setSalesTeam(loadedSalesTeam);
         setShowDeliveryNoteDialog(false);
@@ -508,70 +514,57 @@ export default function SalesInvoiceMain() {
     setError('');
 
     try {
-      // Validasi tanggal
       if (!formData.posting_date || formData.posting_date === 'Invalid Date') {
         setError('Tanggal Posting tidak valid');
         setFormLoading(false);
+        isSubmittingRef.current = false;
         return;
       }
       if (!formData.due_date || formData.due_date === 'Invalid Date') {
         setError('Tanggal Jatuh Tempo tidak valid');
         setFormLoading(false);
+        isSubmittingRef.current = false;
         return;
       }
-      
-      // Validasi due_date harus >= posting_date
       const postingDateObj = new Date(formData.posting_date);
       const dueDateObj = new Date(formData.due_date);
       if (dueDateObj < postingDateObj) {
         setError('Tanggal Jatuh Tempo tidak boleh lebih awal dari Tanggal Posting');
         setFormLoading(false);
+        isSubmittingRef.current = false;
         return;
       }
 
       const total = formData.items.reduce((sum, item) => sum + (item.amount || 0), 0);
-      
-      // Calculate net total and grand total with discount and taxes
       const finalDiscountAmount = discountAmount > 0 ? discountAmount : (discountPercentage / 100) * total;
       const netTotal = total - finalDiscountAmount;
-      
-      // Calculate taxes
+
       let totalTaxes = 0;
       const taxesPayload: TaxRow[] = [];
-      
+
       if (selectedTaxTemplate && selectedTaxTemplate.taxes) {
         let runningTotal = netTotal;
-        
         for (const taxRow of selectedTaxTemplate.taxes) {
           const rate = taxRow.rate || 0;
           let taxAmount = 0;
-          
           if (taxRow.charge_type === 'On Net Total') {
             taxAmount = (rate / 100) * netTotal;
           } else if (taxRow.charge_type === 'On Previous Row Total') {
             taxAmount = (rate / 100) * runningTotal;
           }
-          
           runningTotal += taxAmount;
           totalTaxes += taxAmount;
-          
           taxesPayload.push({
-            charge_type: taxRow.charge_type as "On Net Total" | "Actual" | "On Previous Row Total",
+            charge_type: taxRow.charge_type as 'On Net Total' | 'Actual' | 'On Previous Row Total',
             account_head: taxRow.account_head,
             description: taxRow.description,
-            rate: rate,
+            rate,
             tax_amount: Math.round(taxAmount * 100) / 100,
           } as TaxRow);
         }
       }
-      
-      const grandTotal = netTotal + totalTaxes;
 
-      // console.log('[DEBUG] Submitting SI with sales_team:', salesTeam);
-      // console.log('[DEBUG] FormData dates:', { posting: formData.posting_date, due: formData.due_date });
-      // console.log('[DEBUG] Discount:', { amount: finalDiscountAmount, percentage: discountPercentage });
-      // console.log('[DEBUG] Taxes:', taxesPayload);
-      // console.log('[DEBUG] Totals:', { total, netTotal, totalTaxes, grandTotal });
+      const grandTotal = netTotal + totalTaxes;
 
       const invoicePayload = {
         company: selectedCompany,
@@ -590,14 +583,16 @@ export default function SalesInvoiceMain() {
         remarks: formData.items.find(item => item.delivery_note)
           ? `Generated from Delivery Note: ${formData.items.find(item => item.delivery_note)?.delivery_note}`
           : 'Direct Sales Invoice',
-        sales_team: salesTeam.length > 0 ? salesTeam.map((m, idx) => ({ 
-          sales_person: m.sales_person, 
-          allocated_percentage: m.allocated_percentage,
-          idx: idx + 1,
-          doctype: 'Sales Team',
-          parentfield: 'sales_team',
-          parenttype: 'Sales Invoice'
-        })) : undefined,
+        sales_team: salesTeam.length > 0
+          ? salesTeam.map((m, idx) => ({
+            sales_person: m.sales_person,
+            allocated_percentage: m.allocated_percentage,
+            idx: idx + 1,
+            doctype: 'Sales Team',
+            parentfield: 'sales_team',
+            parenttype: 'Sales Invoice',
+          }))
+          : undefined,
         payment_terms_template: formData.payment_terms_template || undefined,
         items: formData.items.map(item => ({
           item_code: item.item_code,
@@ -615,14 +610,11 @@ export default function SalesInvoiceMain() {
         docstatus: 0,
         custom_total_komisi_sales: formData.custom_total_komisi_sales,
         custom_notes_si: formData.custom_notes_si || '',
-        // Discount fields - ERPNext uses additional_discount_percentage, not discount_percentage
         discount_amount: finalDiscountAmount,
         additional_discount_percentage: discountPercentage,
         apply_discount_on: 'Net Total',
-        // Tax fields
         taxes: taxesPayload,
-        // Totals
-        total: total,
+        total,
         net_total: netTotal,
         grand_total: grandTotal,
         base_total: total,
@@ -632,9 +624,6 @@ export default function SalesInvoiceMain() {
         total_taxes_and_charges: totalTaxes,
       };
 
-      // console.log('[DEBUG] SI Payload:', JSON.stringify(invoicePayload, null, 2));
-
-      // Use PUT if editing OR if doc was already created in this session (retry guard)
       const existingName = editingInvoice || createdDocName.current;
       const isUpdate = !!existingName;
       const url = isUpdate ? `/api/sales/invoices/${encodeURIComponent(existingName!)}` : '/api/sales/invoices';
@@ -652,29 +641,29 @@ export default function SalesInvoiceMain() {
         const siName = isUpdate ? existingName! : ((data.data as Record<string, unknown>)?.name as string || '');
         if (!editingInvoice) createdDocName.current = siName;
         setSavedDocName(siName);
+        setIsSaved(true);
         setShowPrintDialog(true);
         if (isUpdate) setSuccessMessage('Faktur Penjualan berhasil diperbarui');
       } else {
         const action = isUpdate ? 'memperbarui' : 'menyimpan';
-
-        // Use error handler utility to show alert popup
-        handleERPNextError(
-          (data.message as string) || `Gagal ${action} Faktur Penjualan (status ${response.status || 'unknown'})`,
+        const defaultMsg = `Gagal ${action} Faktur Penjualan (status ${response.status || 'unknown'})`;
+        const result = handleERPNextError(
+          data as Record<string, unknown>,
+          formData.posting_date,
           'Sales Invoice',
-          formData.posting_date
+          defaultMsg,
         );
-
-        // Also set error state for banner
-        setError((data.message as string) || `Gagal ${action} Faktur Penjualan (status ${response.status || 'unknown'})`);
+        setError(result.bannerMessage);
       }
-    } catch (error) {
-      console.error('Error creating invoice:', error);
+    } catch (e: unknown) {
+      console.error('Error creating invoice:', e);
       const errorMessage = 'Terjadi kesalahan. Silakan coba lagi.';
-      
-      // Show alert popup for unexpected errors
-      handleERPNextError(errorMessage, 'Sales Invoice', formData.posting_date);
-      
-      // Also set error state for banner
+      handleERPNextError(
+        { message: errorMessage } as Record<string, unknown>,
+        formData.posting_date,
+        'Sales Invoice',
+        errorMessage,
+      );
       setError(errorMessage);
     } finally {
       setFormLoading(false);
@@ -683,403 +672,645 @@ export default function SalesInvoiceMain() {
   };
 
   const isReadOnly = editingInvoiceStatus === 'Paid' || editingInvoiceStatus === 'Submitted';
+  const isFormDisabled = isReadOnly || isSaved;
 
-  if (loading) {
-    return <LoadingSpinner message="Memuat detail faktur..." />;
-  }
+  const subtotal = formData.items.reduce((sum, item) => sum + item.amount, 0);
+  const totalQty = formData.items.reduce((sum, item) => sum + item.qty, 0);
+
+  const pageTitle = editingInvoice
+    ? isReadOnly ? 'Lihat Faktur Penjualan' : 'Edit Faktur Penjualan'
+    : 'Buat Faktur Penjualan Baru';
+
+  const pageSubtitle = editingInvoice
+    ? isReadOnly ? 'Detail faktur penjualan (hanya baca)' : 'Perbarui faktur penjualan yang ada'
+    : 'Isi form di bawah untuk membuat faktur baru';
+
+  if (loading) return <LoadingSpinner message="Memuat detail faktur..." />;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 transition-colors">
+
+      {/* ── Header ──────────────────────────────────────────────────────────────── */}
+      <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">
-                {editingInvoice
-                  ? (isReadOnly ? 'Lihat Faktur Penjualan' : 'Edit Faktur Penjualan')
-                  : 'Buat Faktur Penjualan'}
-              </h1>
-              <p className="mt-1 text-sm text-gray-600">
-                {editingInvoice
-                  ? (isReadOnly ? 'Lihat detail faktur penjualan (hanya baca)' : 'Perbarui faktur penjualan yang ada')
-                  : 'Buat faktur penjualan baru'}
-              </p>
+          <div className="flex flex-wrap items-center justify-between gap-3 py-4">
+            <div className="flex items-center gap-3 min-w-0">
+              {/* back chevron on mobile */}
+              <button
+                type="button"
+                onClick={() => router.push('/invoice/siList')}
+                className="flex-shrink-0 p-1.5 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition lg:hidden"
+                aria-label="Kembali"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100 truncate">
+                    {pageTitle}
+                  </h1>
+                  {editingInvoice && editingInvoiceStatus && (
+                    <StatusBadge status={editingInvoiceStatus} />
+                  )}
+                </div>
+                <p className="mt-0.5 text-xs sm:text-sm text-gray-500 dark:text-gray-400 truncate">
+                  {pageSubtitle}
+                  {editingInvoice && (
+                    <span className="ml-1 font-medium text-indigo-600 dark:text-indigo-400">
+                      #{editingInvoice}
+                    </span>
+                  )}
+                </p>
+              </div>
             </div>
-            <div className="flex gap-2">
+
+            <div className="flex items-center gap-2 flex-shrink-0">
               {editingInvoice && (
                 <button
+                  type="button"
                   onClick={() => setShowPrintPreview(true)}
-                  className="bg-emerald-600 text-white px-4 py-2 rounded-md hover:bg-emerald-700 flex items-center gap-2"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-700 dark:hover:bg-emerald-600 text-white shadow-sm transition"
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                   </svg>
-                  Print
+                  <span className="hidden sm:inline">Print</span>
                 </button>
               )}
               {!editingInvoice && (
                 <button
                   type="button"
-                  onClick={() => {
-                    setShowDeliveryNoteDialog(true);
-                    fetchAvailableDeliveryNotes();
-                  }}
-                  className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
+                  onClick={() => { setShowDeliveryNoteDialog(true); fetchAvailableDeliveryNotes(); }}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white shadow-sm transition"
                 >
-                  Dari Surat Jalan
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
+                  <span className="hidden sm:inline">Dari Surat Jalan</span>
+                  <span className="sm:hidden">Dari SJ</span>
                 </button>
               )}
               <button
+                type="button"
                 onClick={() => router.push('/invoice/siList')}
-                className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700"
+                className="hidden lg:inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 shadow-sm transition"
               >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                </svg>
                 Kembali ke Daftar
               </button>
             </div>
           </div>
         </div>
-      </div>
+      </header>
 
-      {/* Success */}
+      {/* ── Success banner ────────────────────────────────────────────────────── */}
       {successMessage && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
-          <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">{successMessage}</div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
+          <div className="flex items-start gap-3 bg-green-50 dark:bg-green-900/20 border border-green-300 dark:border-green-700 text-green-700 dark:text-green-300 px-4 py-3 rounded-lg text-sm">
+            <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>{successMessage}</span>
+            <button
+              type="button"
+              onClick={() => setSuccessMessage('')}
+              className="ml-auto text-green-500 dark:text-green-400 hover:text-green-700 dark:hover:text-green-200 transition"
+              aria-label="Tutup"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
       )}
 
-      {/* Error */}
+      {/* ── Error banner ──────────────────────────────────────────────────────── */}
       {error && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">{error}</div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
+          <div className="flex items-start gap-3 bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 px-4 py-3 rounded-lg text-sm">
+            <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>{error}</span>
+            <button
+              type="button"
+              onClick={() => setError('')}
+              className="ml-auto text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-200 transition"
+              aria-label="Tutup"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
       )}
 
-      {/* Form */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
-        <div className="bg-white shadow rounded-lg">
-          <form onSubmit={handleSubmit} className="p-6">
-            <div className="grid grid-cols-2 gap-4 mb-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Pelanggan</label>
+      {/* ── Body ──────────────────────────────────────────────────────────────── */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-5 pb-24">
+        <form onSubmit={handleSubmit} noValidate>
+
+          {/* ── Section: Informasi Faktur ──────────────────────────────────── */}
+          <section className={`${sectionCard} p-5 mb-5`}>
+            <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">
+              Informasi Faktur
+            </h2>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+
+              {/* Pelanggan */}
+              <div className="sm:col-span-2 xl:col-span-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Pelanggan <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="text"
                   required
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  value={formData.customer_name}
-                  onChange={(e) => setFormData({ ...formData, customer_name: e.target.value })}
+                  readOnly
+                  className={`${inputBase} ${inputReadOnly}`}
+                  value={formData.customer_name || formData.customer}
+                  placeholder="Pilih dari Surat Jalan..."
                 />
               </div>
+
+              {/* Tanggal Posting */}
               <div>
-                <label className="block text-sm font-medium text-gray-700">Tanggal Posting</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Tanggal Posting <span className="text-red-500">*</span>
+                </label>
                 <BrowserStyleDatePicker
                   value={formData.posting_date}
                   onChange={(value: string) => setFormData({ ...formData, posting_date: value })}
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  className={`${inputBase} ${isFormDisabled ? inputReadOnly : ''}`}
                   placeholder="DD/MM/YYYY"
                 />
               </div>
+
+              {/* Jatuh Tempo */}
               <div>
-                <label className="block text-sm font-medium text-gray-700">Jatuh Tempo</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Jatuh Tempo <span className="text-red-500">*</span>
+                </label>
                 <BrowserStyleDatePicker
                   value={formData.due_date}
                   onChange={(value: string) => setFormData({ ...formData, due_date: value })}
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  className={`${inputBase} ${isFormDisabled ? inputReadOnly : ''}`}
                   placeholder="DD/MM/YYYY"
                 />
               </div>
+
+              {/* Total Komisi Sales */}
               <div>
-                <label className="block text-sm font-medium text-gray-700">Total Komisi Sales</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Total Komisi Sales
+                </label>
                 <input
                   type="text"
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-gray-50"
-                  value={formData.custom_total_komisi_sales ? formData.custom_total_komisi_sales.toLocaleString('id-ID') : '0'}
                   readOnly
+                  className={`${inputBase} ${inputReadOnly} text-right`}
+                  value={formData.custom_total_komisi_sales
+                    ? formData.custom_total_komisi_sales.toLocaleString('id-ID')
+                    : '0'}
                   placeholder="0"
                 />
               </div>
             </div>
+          </section>
 
-            <div className="mb-4">
-              <div className="flex justify-between items-center mb-2">
-                <h4 className="text-md font-medium text-gray-900">Barang</h4>
-                <button
-                  type="button"
-                  onClick={handleAddItem}
-                  className="hidden bg-green-600 text-white px-3 py-1 rounded-md text-sm hover:bg-green-700"
-                >
-                  Tambah Barang
-                </button>
-              </div>
+          {/* ── Section: Daftar Barang ─────────────────────────────────────── */}
+          <section className={`${sectionCard} p-5 mb-5`}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                Daftar Barang
+              </h2>
+              <span className="text-xs text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-full">
+                {formData.items.length} item
+              </span>
+            </div>
 
+            <div className="space-y-3">
               {formData.items.map((item, index) => (
-                <div key={index} className="border border-gray-200 rounded-md p-4 mb-2">
-                  <div className="grid grid-cols-6 gap-2">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700">Kode Barang</label>
-                      <input type="text" required className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm bg-gray-50" value={item.item_code} readOnly />
+                <div
+                  key={index}
+                  className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-900/40 transition hover:border-gray-300 dark:hover:border-gray-600"
+                >
+                  {/* Row header */}
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">
+                      Barang #{index + 1}
+                    </span>
+                    {formData.items.length > 1 && !isFormDisabled && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveItem(index)}
+                        className="inline-flex items-center gap-1 text-xs font-medium text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 transition"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                        Hapus
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Main fields — single row, horizontally scrollable on small screens */}
+                  <div className="flex flex-nowrap items-start gap-2 overflow-x-auto pb-0.5">
+
+                    {/* Kode Barang */}
+                    <div className="flex-shrink-0 w-36">
+                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1 whitespace-nowrap">
+                        Kode Barang
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        readOnly
+                        className={`${inputSmBase} ${inputReadOnly}`}
+                        value={item.item_code}
+                        placeholder="–"
+                      />
                     </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700">Nama Barang</label>
-                      <input type="text" required className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm bg-gray-50" value={item.item_name} readOnly />
+
+                    {/* Nama Barang */}
+                    <div className="flex-1 min-w-[140px]">
+                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1 whitespace-nowrap">
+                        Nama Barang
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        readOnly
+                        className={`${inputSmBase} ${inputReadOnly} min-w-0`}
+                        value={item.item_name}
+                        placeholder="–"
+                      />
                     </div>
-                    <div className="text-right">
-                      <label className="block text-xs font-medium text-gray-700">Kuantitas</label>
-                      <input type="text" required className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm bg-gray-50 text-right" value={item.qty.toLocaleString('id-ID')} readOnly />
+
+                    {/* Qty */}
+                    <div className="flex-shrink-0 w-16">
+                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1 whitespace-nowrap">
+                        Qty
+                      </label>
+                      <input
+                        type="text"
+                        readOnly
+                        className={`${inputSmBase} ${inputReadOnly} text-right`}
+                        value={item.qty ? item.qty.toLocaleString('id-ID') : '0'}
+                      />
                     </div>
-                    <div className="text-right">
-                      <label className="block text-xs font-medium text-gray-700">Harga</label>
-                      <input type="text" required className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm bg-gray-50 text-right" value={item.rate.toLocaleString('id-ID')} readOnly />
+
+                    {/* Harga */}
+                    <div className="flex-shrink-0 w-28">
+                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Harga</label>
+                      <input
+                        type="text"
+                        readOnly
+                        className={`${inputSmBase} ${inputReadOnly} text-right`}
+                        value={item.rate ? item.rate.toLocaleString('id-ID') : '0'}
+                      />
                     </div>
-                    <div className="text-right">
-                      <label className="block text-xs font-medium text-gray-700">Jumlah</label>
-                      <input type="text" readOnly className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm bg-gray-50 text-right font-semibold" value={item.amount.toLocaleString('id-ID')} />
+
+                    {/* Jumlah (Subtotal) */}
+                    <div className="flex-shrink-0 w-28">
+                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Jumlah</label>
+                      <input
+                        type="text"
+                        readOnly
+                        className={`${inputSmBase} ${inputReadOnly} text-right font-semibold`}
+                        value={item.amount ? item.amount.toLocaleString('id-ID') : '0'}
+                      />
                     </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700">Akun Pendapatan</label>
-                      <input type="text" required className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm bg-gray-50" value={item.income_account} readOnly />
+
+                    {/* Akun Pendapatan */}
+                    <div className="flex-shrink-0 w-44">
+                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1 whitespace-nowrap">
+                        Akun Pendapatan
+                      </label>
+                      <input
+                        type="text"
+                        readOnly
+                        className={`${inputSmBase} ${inputReadOnly}`}
+                        value={item.income_account}
+                      />
                     </div>
                   </div>
-                  {/* DN/SO Fields */}
-                  <div className="grid grid-cols-4 gap-2 mt-2">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700">Surat Jalan</label>
-                      <input type="text" className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm bg-gray-50" value={item.delivery_note || ''} readOnly placeholder="Pilih SJ di atas..." />
+
+                  {/* DN / SO detail fields */}
+                  <div className="flex flex-nowrap items-start gap-2 overflow-x-auto pb-0.5 mt-2">
+
+                    {/* Surat Jalan */}
+                    <div className="flex-shrink-0 w-36">
+                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1 whitespace-nowrap">
+                        Surat Jalan
+                      </label>
+                      <input
+                        type="text"
+                        readOnly
+                        className={`${inputSmBase} ${inputReadOnly}`}
+                        value={item.delivery_note || ''}
+                        placeholder="–"
+                      />
                     </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700">Pesanan Penjualan</label>
-                      <input type="text" className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm bg-gray-50" value={item.sales_order || ''} readOnly placeholder="Otomatis dari SJ..." />
+
+                    {/* Pesanan Penjualan */}
+                    <div className="flex-1 min-w-[120px]">
+                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1 whitespace-nowrap">
+                        Pesanan Penjualan
+                      </label>
+                      <input
+                        type="text"
+                        readOnly
+                        className={`${inputSmBase} ${inputReadOnly} min-w-0`}
+                        value={item.sales_order || ''}
+                        placeholder="–"
+                      />
                     </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700">Detail SO</label>
-                      <input type="text" className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm bg-gray-50" value={item.so_detail || ''} readOnly placeholder="Otomatis dari SJ..." />
+
+                    {/* Detail SO */}
+                    <div className="flex-shrink-0 w-36">
+                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1 whitespace-nowrap">
+                        Detail SO
+                      </label>
+                      <input
+                        type="text"
+                        readOnly
+                        className={`${inputSmBase} ${inputReadOnly}`}
+                        value={item.so_detail || ''}
+                        placeholder="–"
+                      />
                     </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700">Komisi Sales</label>
-                      <input type="text" className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm bg-gray-50 text-right" value={item.custom_komisi_sales ? item.custom_komisi_sales.toLocaleString('id-ID') : '0'} readOnly placeholder="0" />
+
+                    {/* Komisi Sales */}
+                    <div className="flex-shrink-0 w-28">
+                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1 whitespace-nowrap">
+                        Komisi Sales
+                      </label>
+                      <input
+                        type="text"
+                        readOnly
+                        className={`${inputSmBase} ${inputReadOnly} text-right`}
+                        value={item.custom_komisi_sales
+                          ? item.custom_komisi_sales.toLocaleString('id-ID')
+                          : '0'}
+                      />
                     </div>
                   </div>
-                  {formData.items.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveItem(index)}
-                      className="mt-2 text-red-600 text-sm hover:text-red-800 hidden"
-                    >
-                      Hapus
-                    </button>
-                  )}
                 </div>
               ))}
+            </div>
+          </section>
 
-              {/* Total Summary */}
-              <div className="border-t border-gray-200 pt-4">
-                <div className="flex justify-end">
-                  <div className="grid grid-cols-3 gap-8 text-sm">
-                    <div className="text-left">
-                      <div className="text-gray-600">Total Komisi Sales:</div>
-                      <div className="font-semibold text-gray-900">
-                        Rp {formData.items.reduce((sum, item) => sum + (item.custom_komisi_sales || 0), 0).toLocaleString('id-ID')}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-gray-600">Total Kuantitas:</div>
-                      <div className="font-semibold text-gray-900">
-                        {formData.items.reduce((sum, item) => sum + item.qty, 0).toLocaleString('id-ID')}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-gray-600">Subtotal:</div>
-                      <div className="font-semibold text-lg text-gray-900">
-                        Rp {formData.items.reduce((sum, item) => sum + item.amount, 0).toLocaleString('id-ID')}
-                      </div>
-                    </div>
-                  </div>
-                </div>
+          {/* ── Section: Totals ───────────────────────────────────────────────── */}
+          <section className={`${sectionCard} p-5 mb-5`}>
+            <div className="flex flex-wrap items-center justify-end gap-6 text-sm">
+              <div className="text-right">
+                <p className="text-gray-500 dark:text-gray-400">Total Komisi Sales</p>
+                <p className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                  Rp {formData.items.reduce((sum, item) => sum + (item.custom_komisi_sales || 0), 0).toLocaleString('id-ID')}
+                </p>
+              </div>
+              <div className="h-8 border-l border-gray-200 dark:border-gray-700" />
+              <div className="text-right">
+                <p className="text-gray-500 dark:text-gray-400">Total Kuantitas</p>
+                <p className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                  {totalQty.toLocaleString('id-ID')}
+                </p>
+              </div>
+              <div className="h-8 border-l border-gray-200 dark:border-gray-700" />
+              <div className="text-right">
+                <p className="text-gray-500 dark:text-gray-400">Subtotal</p>
+                <p className="text-xl font-bold text-indigo-600 dark:text-indigo-400">
+                  Rp {subtotal.toLocaleString('id-ID')}
+                </p>
               </div>
             </div>
+          </section>
 
-            {/* Discount Section */}
-            <div className="mb-4">
-              <h4 className="text-md font-medium text-gray-900 mb-3">Diskon</h4>
-              <DiscountInput
-                subtotal={formData.items.reduce((sum, item) => sum + item.amount, 0)}
-                discountPercentage={discountPercentage}
-                discountAmount={discountAmount}
-                onChange={(data) => {
-                  setDiscountPercentage(data.discountPercentage);
-                  setDiscountAmount(data.discountAmount);
-                }}
-                disabled={isReadOnly}
-              />
-            </div>
+          {/* ── Section: Diskon ───────────────────────────────────────────────── */}
+          <section className={`${sectionCard} p-5 mb-5`}>
+            <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">
+              Diskon
+            </h2>
+            <DiscountInput
+              subtotal={subtotal}
+              discountPercentage={discountPercentage}
+              discountAmount={discountAmount}
+              onChange={(data) => {
+                setDiscountPercentage(data.discountPercentage);
+                setDiscountAmount(data.discountAmount);
+              }}
+              disabled={isFormDisabled}
+            />
+          </section>
 
-            {/* Tax Section */}
-            <div className="mb-4">
-              <h4 className="text-md font-medium text-gray-900 mb-3">Pajak</h4>
-              <TaxTemplateSelect
-                company={selectedCompany}
-                type="Sales"
-                value={selectedTaxTemplate?.name || ''}
-                onChange={(template) => {
-                  // console.log('[DEBUG] Tax template selected:', template);
-                  setSelectedTaxTemplate(template);
-                  if (template) {
-                    setFormData({ ...formData, taxes_and_charges: template.name });
-                  } else {
-                    setFormData({ ...formData, taxes_and_charges: '' });
-                  }
-                }}
-                disabled={isReadOnly}
-              />
-              {selectedTaxTemplate && (
-                <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm">
-                  <p className="font-medium">Template terpilih: {selectedTaxTemplate.title}</p>
-                  <p className="text-xs text-gray-600">
-                    {selectedTaxTemplate.taxes.length} baris pajak
-                  </p>
-                </div>
-              )}
-            </div>
+          {/* ── Section: Pajak ────────────────────────────────────────────────── */}
+          <section className={`${sectionCard} p-5 mb-5`}>
+            <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">
+              Pajak
+            </h2>
+            <TaxTemplateSelect
+              company={selectedCompany}
+              type="Sales"
+              value={selectedTaxTemplate?.name || ''}
+              onChange={(template) => {
+                setSelectedTaxTemplate(template);
+                setFormData(prev => ({ ...prev, taxes_and_charges: template?.name || '' }));
+              }}
+              disabled={isFormDisabled}
+            />
+            {selectedTaxTemplate && (
+              <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg text-sm">
+                <p className="font-medium text-blue-800 dark:text-blue-300">
+                  Template: {selectedTaxTemplate.title}
+                </p>
+                <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">
+                  {selectedTaxTemplate.taxes.length} baris pajak
+                </p>
+              </div>
+            )}
+          </section>
 
-            {/* Invoice Summary */}
-            <div className="mb-4">
-              <InvoiceSummary
-                items={formData.items}
-                discountAmount={discountAmount}
-                discountPercentage={discountPercentage}
-                taxes={selectedTaxTemplate?.taxes as InvoiceSummaryProps['taxes']}
-              />
-            </div>
+          {/* ── Section: Ringkasan Invoice ────────────────────────────────────── */}
+          <section className={`${sectionCard} p-5 mb-5`}>
+            <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">
+              Ringkasan
+            </h2>
+            <InvoiceSummary
+              items={formData.items}
+              discountAmount={discountAmount}
+              discountPercentage={discountPercentage}
+              taxes={selectedTaxTemplate?.taxes as InvoiceSummaryProps['taxes']}
+            />
+          </section>
 
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Catatan</label>
-              <textarea
-                className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                rows={3}
-                value={formData.custom_notes_si || ''}
-                onChange={(e) => setFormData({ ...formData, custom_notes_si: e.target.value })}
-                placeholder="Tambahkan catatan untuk faktur penjualan ini..."
-                disabled={isReadOnly}
-              />
-            </div>
+          {/* ── Section: Catatan ──────────────────────────────────────────────── */}
+          <section className={`${sectionCard} p-5 mb-5`}>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Catatan</label>
+            <textarea
+              rows={3}
+              className={`${inputBase} resize-none ${isFormDisabled ? inputReadOnly : ''}`}
+              value={formData.custom_notes_si ?? ''}
+              onChange={(e) => setFormData({ ...formData, custom_notes_si: e.target.value })}
+              placeholder="Tambahkan catatan untuk faktur penjualan ini..."
+              disabled={isFormDisabled}
+            />
+          </section>
 
-            <div className="flex justify-end space-x-3 mt-6">
+          {/* ── Footer Actions ────────────────────────────────────────────────── */}
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => router.push('/invoice/siList')}
+              className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition shadow-sm"
+            >
+              Batal
+            </button>
+
+            {!isFormDisabled && (
+              <button
+                type="submit"
+                disabled={formLoading || isSaved}
+                className="inline-flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-700 dark:hover:bg-indigo-600 text-white shadow-sm transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {formLoading && (
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                )}
+                {formLoading
+                  ? 'Memproses...'
+                  : editingInvoice
+                    ? 'Perbarui Faktur'
+                    : 'Simpan Faktur'}
+              </button>
+            )}
+
+            {isReadOnly && (
+              <span className="inline-flex items-center gap-1.5 px-4 py-2 text-sm text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+                {editingInvoiceStatus} — Hanya Baca
+              </span>
+            )}
+          </div>
+
+        </form>
+      </main>
+
+      {/* ── Delivery Note Dialog ──────────────────────────────────────────────── */}
+      {showDeliveryNoteDialog && (
+        <div className="fixed inset-0 bg-black/50 dark:bg-black/70 overflow-y-auto flex items-start justify-center z-50 p-4">
+          <div className="relative mt-16 w-full max-w-4xl bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700">
+
+            {/* Dialog header */}
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Pilih Surat Jalan</h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                  Semua barang akan diganti dengan data dari Surat Jalan yang dipilih
+                </p>
+              </div>
               <button
                 type="button"
-                onClick={() => router.push('/invoice/siList')}
-                className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400"
+                onClick={() => setShowDeliveryNoteDialog(false)}
+                className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
               >
-                Batal
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
-              {!isReadOnly && (
-                <button
-                  type="submit"
-                  disabled={formLoading}
-                  className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2"
-                >
-                  {formLoading && <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>}
-                  {formLoading ? 'Memproses...' : editingInvoice ? 'Perbarui Faktur' : 'Simpan Faktur'}
-                </button>
-              )}
-              {isReadOnly && (
-                <span className="px-4 py-2 text-sm text-gray-500 bg-gray-100 rounded-md">
-                  {editingInvoiceStatus} - Hanya Baca
-                </span>
-              )}
             </div>
-          </form>
-        </div>
-      </div>
 
-      {/* Delivery Note Dialog */}
-      {showDeliveryNoteDialog && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-11/12 max-w-4xl shadow-lg rounded-md bg-white">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <div className="flex justify-between items-center">
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900">Pilih Surat Jalan</h3>
-                  <p className="text-sm text-gray-500 mt-1">Semua barang akan diganti dengan data dari Surat Jalan yang dipilih</p>
-                </div>
-                <button type="button" onClick={() => setShowDeliveryNoteDialog(false)} className="text-gray-400 hover:text-gray-600">
-                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            </div>
+            {/* Dialog body */}
             <div className="px-6 py-4">
               {deliveryNotesLoading ? (
-                <div className="text-center py-8">
-                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-                  <p className="mt-2 text-sm text-gray-500">Memuat surat jalan...</p>
+                <div className="text-center py-10">
+                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 dark:border-indigo-400" />
+                  <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">Memuat surat jalan...</p>
                 </div>
               ) : deliveryNotesError ? (
-                <div className="text-center py-8">
+                <div className="text-center py-10">
                   <svg className="mx-auto h-12 w-12 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <h3 className="mt-2 text-sm font-medium text-gray-900">Kesalahan</h3>
-                  <p className="mt-1 text-sm text-gray-500">{deliveryNotesError}</p>
+                  <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">Kesalahan</h3>
+                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{deliveryNotesError}</p>
                 </div>
               ) : deliveryNotes.length === 0 ? (
-                <div className="text-center py-8">
-                  <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <div className="text-center py-10">
+                  <svg className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
                   </svg>
-                  <h3 className="mt-2 text-sm font-medium text-gray-900">Tidak Ada Surat Jalan</h3>
-                  <p className="mt-1 text-sm text-gray-500">Tidak ada surat jalan yang tersedia untuk ditagih.</p>
+                  <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">Tidak Ada Surat Jalan</h3>
+                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Tidak ada surat jalan yang tersedia untuk ditagih.</p>
                 </div>
               ) : (
-                <div className="bg-white shadow overflow-hidden sm:rounded-md">
-                  <div className="p-4 border-b border-gray-200">
+                <>
+                  <div className="mb-3">
                     <input
                       type="text"
                       value={deliveryNoteSearch}
                       onChange={(e) => setDeliveryNoteSearch(e.target.value)}
                       placeholder="Cari nomor surat jalan atau pelanggan..."
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                      className={`${inputBase}`}
                     />
                   </div>
-                  <ul className="divide-y divide-gray-200 max-h-96 overflow-y-auto">
+                  <ul className="divide-y divide-gray-100 dark:divide-gray-700 max-h-96 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-700">
                     {deliveryNotes
-                      .filter((dn: { name: string; customer: string; customer_name?: string }) => {
+                      .filter((dn) => {
                         const term = deliveryNoteSearch.trim().toLowerCase();
                         if (!term) return true;
                         const customerLabel = (dn.customer_name || dn.customer || '').toLowerCase();
                         return dn.name.toLowerCase().includes(term) || customerLabel.includes(term);
                       })
-                      .map((dn: { name: string; customer: string; customer_name?: string; status: string; grand_total?: number; posting_date?: string }) => (
-                        <li key={dn.name} onClick={() => handleSelectDeliveryNote(dn.name)} className="cursor-pointer hover:bg-gray-50 transition-colors">
-                          <div className="px-4 py-4 sm:px-6">
+                      .map((dn) => (
+                        <li
+                          key={dn.name}
+                          onClick={() => handleSelectDeliveryNote(dn.name)}
+                          className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                        >
+                          <div className="px-4 py-3">
                             <div className="flex items-center justify-between">
-                              <div className="flex-1">
-                                <p className="text-sm font-medium text-indigo-600 truncate">{dn.name}</p>
-                                <p className="mt-1 text-sm text-gray-900">Pelanggan: {dn.customer_name || dn.customer}</p>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold text-indigo-600 dark:text-indigo-400 truncate">{dn.name}</p>
+                                <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{dn.customer_name || dn.customer}</p>
                               </div>
-                              <div className="ml-4 flex-shrink-0">
-                                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                  dn.status === 'To Bill' ? 'bg-green-100 text-green-800'
-                                  : dn.status === 'Submitted' ? 'bg-blue-100 text-blue-800'
-                                  : dn.status === 'Completed' ? 'bg-purple-100 text-purple-800'
-                                  : 'bg-gray-100 text-gray-800'
-                                }`}>
-                                  {dn.status}
-                                </span>
-                              </div>
+                              <span className={`ml-3 flex-shrink-0 inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${
+                                dn.status === 'To Bill'
+                                  ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300'
+                                  : dn.status === 'Submitted'
+                                    ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300'
+                                    : dn.status === 'Completed'
+                                      ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300'
+                                      : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+                              }`}>
+                                {dn.status}
+                              </span>
                             </div>
-                            <div className="mt-2 sm:flex sm:justify-between">
-                              <p className="flex items-center text-sm text-gray-500">Tanggal: {dn.posting_date}</p>
-                              <span className="font-medium text-sm text-gray-500">Total: Rp {dn.grand_total ? dn.grand_total.toLocaleString('id-ID') : '0'}</span>
+                            <div className="mt-1.5 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                              <span>{dn.posting_date}</span>
+                              <span className="font-medium">Rp {dn.grand_total ? dn.grand_total.toLocaleString('id-ID') : '0'}</span>
                             </div>
                           </div>
                         </li>
                       ))}
                   </ul>
-                </div>
+                </>
               )}
-              <div className="mt-6 flex justify-end">
-                <button type="button" onClick={() => setShowDeliveryNoteDialog(false)} className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400">
+
+              <div className="mt-4 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowDeliveryNoteDialog(false)}
+                  className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition"
+                >
                   Tutup
                 </button>
               </div>
@@ -1088,7 +1319,7 @@ export default function SalesInvoiceMain() {
         </div>
       )}
 
-      {/* Print Dialog after save */}
+      {/* ── Print Dialog ─────────────────────────────────────────────────────── */}
       <PrintDialog
         isOpen={showPrintDialog}
         onClose={() => { setShowPrintDialog(false); router.replace('/invoice/siList'); }}
@@ -1097,7 +1328,7 @@ export default function SalesInvoiceMain() {
         documentLabel="Faktur Penjualan"
       />
 
-      {/* Print Preview Modal */}
+      {/* ── Print Preview Modal ───────────────────────────────────────────────── */}
       {showPrintPreview && editingInvoiceData && (
         <PrintPreviewModal
           title={`Faktur Penjualan - ${editingInvoiceData.name}`}

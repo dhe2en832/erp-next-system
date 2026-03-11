@@ -65,6 +65,7 @@ export async function GET(request: NextRequest) {
         'customer',
         'customer_name',
         'posting_date',
+        'due_date',
         'grand_total',
         'status',
         'docstatus',
@@ -74,7 +75,9 @@ export async function GET(request: NextRequest) {
         'net_total',
         'taxes_and_charges',
         'total_taxes_and_charges',
-        'outstanding_amount'
+        'outstanding_amount',
+        'discount_amount',
+        'additional_discount_percentage'
       ],
       filters: filtersArray,
       limit_page_length: limit,

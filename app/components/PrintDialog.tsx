@@ -1,6 +1,5 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import PrintPreviewModal from '../../components/print/PrintPreviewModal';
 import SalesOrderPrint from '../../components/print/SalesOrderPrint';
@@ -19,11 +18,11 @@ interface PrintDialogProps {
 }
 
 export default function PrintDialog({ isOpen, onClose, documentType, documentName, documentLabel }: PrintDialogProps) {
-  const router = useRouter();
   const [showPreview, setShowPreview] = useState(false);
-  const [documentData, setDocumentData] = useState<any>(null);
+  const [documentData, setDocumentData] = useState<unknown>(null);
   const [companyName, setCompanyName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [navigating, setNavigating] = useState(false);
 
   useEffect(() => {
     const savedCompany = localStorage.getItem('selected_company');
@@ -84,47 +83,49 @@ export default function PrintDialog({ isOpen, onClose, documentType, documentNam
 
   const renderPrintComponent = () => {
     if (!documentData) return null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data = documentData as any;
 
     switch (documentType) {
       case 'Sales Order':
         return (
           <SalesOrderPrint
-            data={documentData}
+            data={data}
             companyName={companyName}
           />
         );
       case 'Delivery Note':
         return (
           <DeliveryNotePrint
-            data={documentData}
+            data={data}
             companyName={companyName}
           />
         );
       case 'Sales Invoice':
         return (
           <SalesInvoicePrint
-            data={documentData}
+            data={data}
             companyName={companyName}
           />
         );
       case 'Purchase Order':
         return (
           <PurchaseOrderPrint
-            data={documentData}
+            data={data}
             companyName={companyName}
           />
         );
       case 'Purchase Receipt':
         return (
           <PurchaseReceiptPrint
-            data={documentData}
+            data={data}
             companyName={companyName}
           />
         );
       case 'Purchase Invoice':
         return (
           <PurchaseInvoicePrint
-            data={documentData}
+            data={data}
             companyName={companyName}
           />
         );
@@ -155,14 +156,24 @@ export default function PrintDialog({ isOpen, onClose, documentType, documentNam
 
             <div className="flex justify-end space-x-3">
               <button
-                onClick={onClose}
-                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 text-sm"
+                onClick={() => {
+                  setNavigating(true);
+                  onClose();
+                }}
+                disabled={navigating || loading}
+                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 text-sm disabled:opacity-50 flex items-center gap-2"
               >
+                {navigating && (
+                  <svg className="animate-spin h-3.5 w-3.5 text-gray-500" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                  </svg>
+                )}
                 Tidak, Terima Kasih
               </button>
               <button
                 onClick={handlePrint}
-                disabled={loading}
+                disabled={loading || navigating}
                 className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm flex items-center gap-2 disabled:opacity-50"
               >
                 {loading ? (
