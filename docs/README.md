@@ -1,38 +1,124 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Dokumentasi Sistem ERP
 
-## Getting Started
+Dokumentasi ini telah diorganisir ke dalam folder-folder berdasarkan kategori untuk memudahkan navigasi dan pencarian.
 
-First, run the development server:
+## Struktur Folder
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+### 📊 accounting-period/
+Dokumentasi terkait periode akuntansi, penutupan periode, dan laporan keuangan.
+- **NET_INCOME_CALCULATION.md** - Perhitungan laba bersih yang benar, menangani expense negatif
+- **PERIOD_CLOSING_COMPLETE_GUIDE.md** - Panduan lengkap penutupan periode (English)
+- **PANDUAN_PENUTUPAN_PERIODE.md** - Panduan lengkap penutupan periode (Bahasa Indonesia)
+- Proses penutupan periode
+- Validasi periode akuntansi
+- Jurnal penutupan otomatis
+- Status implementasi fitur
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 🔌 api-routes/
+Dokumentasi tentang API routes dan endpoint backend.
+- Struktur API routes
+- Konvensi penamaan endpoint
+- Implementasi CRUD operations
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 🐛 bugs-fixes/
+Dokumentasi bug fixes dan solusi masalah yang telah diselesaikan.
+- Bank reconciliation fixes
+- Closed period error handling
+- Company total stock fixes
+- Dan bug fixes lainnya
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 📈 chart-of-accounts/
+Dokumentasi tentang Chart of Accounts (COA) dan struktur akun.
+- Analisis COA
+- Opening balance
+- Struktur akun keuangan
 
-## Learn More
+### 💳 credit-note/
+Dokumentasi tentang Credit Note dan pengembalian penjualan.
+- Implementasi credit note
+- Proses pengembalian
+- Integrasi dengan sistem
 
-To learn more about Next.js, take a look at the following resources:
+### 🚀 deployment/
+Dokumentasi deployment dan konfigurasi production.
+- Panduan deployment
+- Konfigurasi environment
+- Best practices production
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 👥 employee-management/
+Dokumentasi manajemen karyawan dan komisi.
+- Sistem komisi
+- Manajemen data karyawan
+- Perhitungan komisi
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### 🌐 multi-site/
+Dokumentasi untuk konfigurasi multi-site/multi-tenant.
+- Setup multi-site
+- Konfigurasi per-site
+- Manajemen tenant
 
-## Deploy on Vercel
+### 💰 payment-system/
+Dokumentasi sistem pembayaran.
+- Payment entry
+- Payment reconciliation
+- Integrasi pembayaran
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### 🔄 sales-return/
+Dokumentasi lengkap tentang Sales Return.
+- Implementasi sales return
+- Partial return guide
+- Migration guide
+- Frontend implementation
+- Hybrid summary
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-# ERP-SYSTEM
-# erp-next-system
+### 💵 tax-system/
+Dokumentasi sistem perpajakan.
+- Analisis diskon dan pajak
+- Konfigurasi tax templates
+- Validasi tax templates
+- Test plan tax calculation
+
+### 🎨 ui-ux/
+Dokumentasi tentang UI/UX dan frontend implementation.
+- UI standardization guide
+- Loading states implementation
+- Toast notifications
+- Print system
+- Form submission best practices
+- Frontend updates
+
+### 📚 general/
+Dokumentasi umum dan referensi sistem.
+- ERPNext CRUD operations guide
+- ERPNext submit implementation
+- Server scripts
+- SQL verification queries
+- Analisis kekurangan sistem
+- Dokumentasi sistem ERP
+- Proposal sistem
+- Task summaries
+
+## Cara Menggunakan
+
+1. Pilih kategori yang sesuai dengan topik yang ingin Anda pelajari
+2. Buka folder kategori tersebut
+3. Baca file .md yang relevan dengan kebutuhan Anda
+
+## Konvensi Penamaan
+
+- File dalam Bahasa Indonesia menggunakan format: `NAMA_FILE.md`
+- File dalam Bahasa Inggris menggunakan format: `file-name.md`
+- File dengan prefix `TASK_` berisi ringkasan task yang telah diselesaikan
+
+## Kontribusi
+
+Saat menambahkan dokumentasi baru:
+1. Tentukan kategori yang paling sesuai
+2. Gunakan nama file yang deskriptif
+3. Ikuti format markdown yang konsisten
+4. Tambahkan referensi ke file terkait jika diperlukan
+
+## Update Terakhir
+
+Struktur folder ini dibuat pada: 11 Maret 2026
+Tujuan: Mengorganisir 30+ file dokumentasi ke dalam 13 kategori untuk kemudahan navigasi.

@@ -34,17 +34,17 @@ function loadFromStorage(): SiteConfig[] {
   
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    console.log('[loadFromStorage] Storage key:', STORAGE_KEY);
-    console.log('[loadFromStorage] Raw stored data:', stored ? 'exists' : 'null');
+    // console.log('[loadFromStorage] Storage key:', STORAGE_KEY);
+    // console.log('[loadFromStorage] Raw stored data:', stored ? 'exists' : 'null');
     
     if (!stored) {
-      console.log('[loadFromStorage] No data in storage, returning empty array');
+      // console.log('[loadFromStorage] No data in storage, returning empty array');
       return [];
     }
     
     const data: SitesStorage = JSON.parse(stored);
-    console.log('[loadFromStorage] Parsed data version:', data.version);
-    console.log('[loadFromStorage] Sites count:', data.sites?.length || 0);
+    // console.log('[loadFromStorage] Parsed data version:', data.version);
+    // console.log('[loadFromStorage] Sites count:', data.sites?.length || 0);
     
     // Validate storage version
     if (data.version !== STORAGE_VERSION) {
@@ -53,7 +53,7 @@ function loadFromStorage(): SiteConfig[] {
       return [];
     }
     
-    console.log('[loadFromStorage] Returning', data.sites?.length || 0, 'sites');
+    // console.log('[loadFromStorage] Returning', data.sites?.length || 0, 'sites');
     return data.sites || [];
   } catch (error) {
     console.error('[loadFromStorage] Failed to load sites from storage:', error);
@@ -96,7 +96,7 @@ function saveToStorage(sites: SiteConfig[]): void {
  */
 export function getAllSites(): SiteConfig[] {
   if (sitesCache === null) {
-    console.log('[getAllSites] Cache is null, loading from storage');
+    // console.log('[getAllSites] Cache is null, loading from storage');
     sitesCache = loadFromStorage();
   } else {
     console.log('[getAllSites] Using cached sites:', sitesCache.length);
@@ -108,7 +108,7 @@ export function getAllSites(): SiteConfig[] {
  * Forces reload of sites from storage, bypassing cache
  */
 export function reloadSites(): SiteConfig[] {
-  console.log('[reloadSites] Forcing reload from storage, clearing cache');
+  // console.log('[reloadSites] Forcing reload from storage, clearing cache');
   sitesCache = null; // Clear cache
   return getAllSites(); // This will reload from storage
 }

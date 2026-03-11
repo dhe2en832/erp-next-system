@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
     };
 
     // Use client method to create Journal Entry
-    const jeData = await client.insert('Journal Entry', journalEntry);
+    const jeData = await client.insert('Journal Entry', journalEntry) as any;
     const journalEntryName = jeData?.name;
 
     // Step 1b: Submit the Journal Entry (docstatus = 1)

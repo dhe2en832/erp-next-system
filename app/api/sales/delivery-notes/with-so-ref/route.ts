@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     
     for (const dn of deliveryNotes) {
       try {
-        const dnDetail = await client.get('Delivery Note', dn.name);
+        const dnDetail = await client.get('Delivery Note', dn.name) as any;
         const dnSORefs = new Set();
         
         if (dnDetail.items && Array.isArray(dnDetail.items)) {

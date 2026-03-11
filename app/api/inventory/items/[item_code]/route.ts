@@ -32,7 +32,7 @@ export async function GET(
     const client = await getERPNextClientForRequest(request);
 
     // Get specific item by item_code
-    const item = await client.get('Item', item_code);
+    const item = await client.get('Item', item_code) as any;
 
     // console.log('Item detail API - Response:', JSON.stringify(item, null, 2));
 

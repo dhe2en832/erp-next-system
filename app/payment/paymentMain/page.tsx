@@ -2,7 +2,10 @@
 
 import { Suspense, useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import PaymentMain from './component';
+import PaymentMain from './component-original';
+// import PaymentMain from './component-optimized';
+// import PaymentMain from './CompactPaymentForm';
+
 import LoadingSpinner from '../../components/LoadingSpinner';
 
 export const dynamic = 'force-dynamic';

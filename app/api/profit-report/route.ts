@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
       company: effectiveCompany,
       mode: mode || 'valuation',
       include_hpp,
-    });
+    }) as any;
     
     const normalized = normalizeProfitReport(data);
 

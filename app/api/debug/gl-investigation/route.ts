@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get period details
-    const period = await client.get('Accounting Period', period_name);
+    const period = await client.get('Accounting Period', period_name) as any;
 
     // 1. Check Sales Invoice
     const salesInvoices = await client.getList('Sales Invoice', {

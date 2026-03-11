@@ -187,7 +187,7 @@ export async function POST(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Use client method instead of fetch
-    const data = await client.insert('Payment Entry', paymentPayload);
+    const data = await client.insert('Payment Entry', paymentPayload) as any;
 
     return NextResponse.json({
       success: true,

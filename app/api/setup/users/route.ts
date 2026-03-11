@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
     const usersWithRoles = await Promise.all(
       users.map(async (user: any) => {
         try {
-          const userDetail = await client.getDoc('User', user.name);
+          const userDetail = await client.getDoc('User', user.name) as any;
           const roles = (userDetail.roles || []).map((r: any) => r.role);
           return { ...user, roles };
         } catch {
@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
       userPayload.roles = roles.map((role: string) => ({ role }));
     }
 
-    const result = await client.insert('User', userPayload);
+    const result = await client.insert('User', userPayload) as any;
 
     return NextResponse.json({
       success: true,

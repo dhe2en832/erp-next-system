@@ -40,7 +40,7 @@ export async function GET(
       });
     } else {
       // Fallback: Try using resource API with fields parameter to include child tables
-      const deliveryNote = await client.get('Delivery Note', name);
+      const deliveryNote = await client.get('Delivery Note', name) as any;
       
       return NextResponse.json({
         success: true,

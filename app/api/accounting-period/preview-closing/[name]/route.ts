@@ -5,6 +5,7 @@ import {
   buildSiteAwareErrorResponse,
   logSiteError 
 } from '@/lib/api-helpers';
+import { calculateNetIncome } from '@/lib/calculate-net-income';
 import type { AccountingPeriod, PeriodClosingConfig, AccountBalance, ClosingJournalAccount } from '@/types/accounting-period';
 
 export async function GET(
@@ -27,19 +28,8 @@ export async function GET(
     // Get nominal account balances
     const nominalAccounts = await getNominalAccountBalances(client, period);
 
-    // Calculate net income/loss
-    let totalIncome = 0;
-    let totalExpense = 0;
-
-    for (const account of nominalAccounts) {
-      if (account.root_type === 'Income') {
-        totalIncome += account.balance;
-      } else if (account.root_type === 'Expense') {
-        totalExpense += account.balance;
-      }
-    }
-
-    const netIncome = totalIncome - totalExpense;
+    // Calculate net income using shared utility
+    const { totalIncome, totalExpense, netIncome } = calculateNetIncome(nominalAccounts);
 
     // Build journal entry preview
     const journalAccounts: ClosingJournalAccount[] = [];
@@ -113,11 +103,11 @@ export async function GET(
  * Get nominal account balances for the period
  */
 async function getNominalAccountBalances(client: any, period: AccountingPeriod): Promise<AccountBalance[]> {
-  // Get all GL entries for the period
+  // Get all GL entries for the period (EXCLUDE entries on the last day to avoid including closing journal entries)
   const filters = [
     ['company', '=', period.company],
     ['posting_date', '>=', period.start_date],
-    ['posting_date', '<=', period.end_date],
+    ['posting_date', '<', period.end_date], // Exclude entries on the last day
     ['is_cancelled', '=', 0],
   ];
 

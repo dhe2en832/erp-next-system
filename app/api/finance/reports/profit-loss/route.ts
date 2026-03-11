@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
 
     // Build lookup map: account name → master data
     const accountMasterMap = new Map<string, AccountMaster>();
-    accountsData.forEach((acc: AccountMaster) => {
+    (accountsData as any[]).forEach((acc: AccountMaster) => {
       accountMasterMap.set(acc.name, acc);
     });
 
@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
 
     // Aggregate GL entries by account
     const accountMap = new Map<string, { account: string; debit: number; credit: number }>();
-    glData.forEach((entry: GlEntry) => {
+    (glData as any[]).forEach((entry: GlEntry) => {
       if (!accountMap.has(entry.account)) {
         accountMap.set(entry.account, { account: entry.account, debit: 0, credit: 0 });
       }

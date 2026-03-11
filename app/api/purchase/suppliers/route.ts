@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
       body.naming_series = 'SUP-.#####';
     }
 
-    const data = await client.insert('Supplier', body);
+    const data = await client.insert('Supplier', body) as any;
 
     return NextResponse.json({ success: true, data });
   } catch (error: unknown) {

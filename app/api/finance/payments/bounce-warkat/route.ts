@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
       payment_entry,
       reason: reason || 'Warkat ditolak',
       payment_type
-    });
+    }) as any;
 
     return NextResponse.json({
       success: true,

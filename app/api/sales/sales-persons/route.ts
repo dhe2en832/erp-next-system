@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
       enabled: body.enabled !== undefined ? body.enabled : 1,
     };
 
-    const data = await client.insert('Sales Person', salesPersonData);
+    const data = await client.insert('Sales Person', salesPersonData) as any;
 
     return NextResponse.json({ success: true, data });
 

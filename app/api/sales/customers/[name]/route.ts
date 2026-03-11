@@ -20,7 +20,7 @@ export async function GET(
 
     // Try direct fetch by name
     try {
-      const data = await client.get('Customer', name);
+      const data = await client.get('Customer', name) as any;
       return NextResponse.json({ 
         success: true, 
         data, 
@@ -37,7 +37,7 @@ export async function GET(
         
         if (searchData && searchData.length > 0) {
           const actualName = searchData[0].name;
-          const data = await client.get('Customer', actualName);
+          const data = await client.get('Customer', actualName) as any;
           return NextResponse.json({ 
             success: true, 
             data, 

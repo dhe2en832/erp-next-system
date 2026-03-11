@@ -94,7 +94,7 @@ export async function GET(request: NextRequest) {
         try {
           console.log(`[Tax Templates] Fetching detail for: ${templateName.name}`);
           
-          const template = await client.get(docType, templateName.name);
+          const template = await client.get(docType, templateName.name) as any;
           
           console.log(`[Tax Templates] Fetched ${templateName.name} - Company: ${template.company}, Taxes: ${(template.taxes || []).length}`);
           

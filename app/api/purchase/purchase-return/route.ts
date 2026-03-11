@@ -165,7 +165,7 @@ export async function POST(request: NextRequest) {
 
     // Validate Purchase Receipt existence and status
     try {
-      const receipt = await client.get('Purchase Receipt', purchaseReturnData.return_against);
+      const receipt = await client.get('Purchase Receipt', purchaseReturnData.return_against) as any;
       
       if (receipt.docstatus !== 1) {
         return NextResponse.json(
@@ -238,7 +238,7 @@ export async function POST(request: NextRequest) {
       });
 
     // Save Purchase Return to ERPNext
-    const savedDoc = await client.insert('Purchase Receipt', returnTemplate);
+    const savedDoc = await client.insert('Purchase Receipt', returnTemplate) as any;
 
     // Refresh document to get all calculated fields
     if (savedDoc.name) {

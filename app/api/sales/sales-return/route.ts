@@ -173,7 +173,7 @@ export async function POST(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Create sales return using client
-    const result = await client.insert('Sales Return', salesReturnData);
+    const result = await client.insert('Sales Return', salesReturnData) as any;
 
     return NextResponse.json({
       success: true,

@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Get specific purchase invoice details
-    const data = await client.get('Purchase Invoice', invoiceName);
+    const data = await client.get('Purchase Invoice', invoiceName) as any;
 
     return NextResponse.json({
       success: true,

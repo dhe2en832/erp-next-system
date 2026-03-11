@@ -30,7 +30,7 @@ export async function POST(
     const client = await getERPNextClientForRequest(request);
 
     // First, verify document exists and is in Submitted status
-    const currentDoc = await client.get('Delivery Note', name);
+    const currentDoc = await client.get('Delivery Note', name) as any;
     
     if (!currentDoc.is_return) {
       return NextResponse.json(

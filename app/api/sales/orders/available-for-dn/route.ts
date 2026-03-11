@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
       const filteredByPerson: any[] = [];
       for (const so of salesOrders) {
         try {
-          const detailData = await client.get('Sales Order', so.name);
+          const detailData = await client.get('Sales Order', so.name) as any;
           const salesTeam = detailData.sales_team || [];
           if (salesTeam.some((m: any) => m.sales_person === salesPerson)) {
             filteredByPerson.push(so);
@@ -93,7 +93,7 @@ export async function GET(request: NextRequest) {
         // For each DN, get its items
         for (const dn of deliveryNotes) {
           try {
-            const dnDoc = await client.get('Delivery Note', dn.name);
+            const dnDoc = await client.get('Delivery Note', dn.name) as any;
             const items = dnDoc.items || [];
             items.forEach((item: any) => {
               if (item.against_sales_order) {

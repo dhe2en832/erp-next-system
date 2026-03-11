@@ -78,11 +78,11 @@ function markMigrationCompleted(migratedSiteId?: string, error?: string): void {
  * @returns MigrationResult with success status and migrated site
  */
 export function performMigration(): MigrationResult {
-  console.log('[Migration] Starting migration check...');
+  // console.log('[Migration] Starting migration check...');
   
   // Check if migration already completed
   if (hasMigrationCompleted()) {
-    console.log('[Migration] Migration already completed, skipping');
+    // console.log('[Migration] Migration already completed, skipping');
     return {
       success: true,
       migratedSite: null,
@@ -166,7 +166,7 @@ export function resetMigrationStatus(): void {
   
   try {
     localStorage.removeItem(MIGRATION_STATUS_KEY);
-    console.log('[Migration] Migration status reset');
+    // console.log('[Migration] Migration status reset');
   } catch (error) {
     console.error('Failed to reset migration status:', error);
   }

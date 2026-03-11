@@ -900,6 +900,14 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      {/* Version Indicator - ORIGINAL */}
+      <div className="mb-4 p-3 bg-gray-100 border-l-4 border-gray-400 rounded">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold text-gray-700 bg-gray-300 px-2 py-1 rounded">ORIGINAL</span>
+          <span className="text-xs text-gray-600">Spacing luas (mb-4, gap-4) - Preview selalu terbuka</span>
+        </div>
+      </div>
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
         <div className="flex items-center gap-3">
@@ -978,12 +986,12 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
 
       {/* Form */}
       <div className="bg-white shadow rounded-lg">
-        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-3">
 
           {/* Section 1: Informasi Dasar */}
           <div>
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Informasi Dasar</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <h3 className="text-base font-semibold text-gray-900 mb-3">Informasi Dasar</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Tipe Pembayaran</label>
                 {defaultPaymentType && !isEditMode ? (
@@ -1073,8 +1081,8 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
 
           {/* Section 2: Referensi */}
           <div>
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Referensi</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <h3 className="text-base font-semibold text-gray-900 mb-3">Referensi</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">No. Referensi</label>
                 <input
@@ -1099,7 +1107,7 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
 
           {/* Section 3: Akun */}
           <div>
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Pemilihan Akun</h3>
+            <h3 className="text-base font-semibold text-gray-900 mb-3">Pemilihan Akun</h3>
             {(() => {
               // console.log('Render - payment_type:', formData.payment_type, 'paid_from:', formData.paid_from, 'paid_to:', formData.paid_to);
               return null;

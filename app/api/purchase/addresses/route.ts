@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
       ],
     };
 
-    const data = await client.insert('Address', payload);
+    const data = await client.insert('Address', payload) as any;
     return NextResponse.json({ success: true, data });
   } catch (error: unknown) {
     logSiteError(error, 'POST /api/purchase/addresses', siteId);

@@ -155,7 +155,7 @@ export async function POST(request: NextRequest) {
     };
 
     // Use client method instead of fetch
-    const data = await client.insert('Stock Entry', entryData);
+    const data = await client.insert('Stock Entry', entryData) as any;
 
     return NextResponse.json({
       success: true,

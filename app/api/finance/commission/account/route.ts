@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
       [["account_type","=","Payable"],["company","=",company],["is_group","=",0],["parent_account","like","%2115%"]],
     ];
 
-    let commissionAccount = null;
+    let commissionAccount: any = null;
 
     for (const filters of searchPatterns) {
       const data = await client.getList('Account', {
@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
       success: true,
       data: {
         account: commissionAccount,
-        account_name: commissionAccount?.name || `2150.0001 - Hutang Komisi Sales - ${company.split(' ').map((w: string) => w[0]).join('').toUpperCase()}`,
+        account_name: (commissionAccount as any)?.name || `2150.0001 - Hutang Komisi Sales - ${company.split(' ').map((w: string) => w[0]).join('').toUpperCase()}`,
       }
     });
   } catch (error: unknown) {

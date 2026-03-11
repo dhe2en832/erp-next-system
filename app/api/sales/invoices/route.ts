@@ -284,7 +284,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create Sales Invoice using frappe.client.insert
-    const result = await client.call('frappe.client.insert', { doc: payload });
+    const result = await client.call('frappe.client.insert', { doc: payload }) as any;
 
     // CRITICAL FIX: Force ERPNext to recognize document as "saved"
     const resultData = result as Record<string, unknown>;

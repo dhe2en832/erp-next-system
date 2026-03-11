@@ -57,8 +57,8 @@ export async function GET(request: NextRequest) {
     const itemMap = new Map<string, { item_code: string; item_name: string; buy_total: number; buy_qty: number; sell_total: number; sell_qty: number }>();
 
     // Process purchase items
-    for (const pi of (piData || [])) {
-      const itemsData = await client.get('Purchase Invoice', pi.name);
+    for (const pi of (piData || []) as any[]) {
+      const itemsData = await client.get('Purchase Invoice', pi.name) as any;
       
       for (const item of (itemsData.items || [])) {
         if (!itemMap.has(item.item_code)) {
@@ -71,8 +71,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Process sales items
-    for (const si of (siData || [])) {
-      const itemsData = await client.get('Sales Invoice', si.name);
+    for (const si of (siData || []) as any[]) {
+      const itemsData = await client.get('Sales Invoice', si.name) as any;
       
       for (const item of (itemsData.items || [])) {
         if (!itemMap.has(item.item_code)) {

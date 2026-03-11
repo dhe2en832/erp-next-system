@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
         limit_page_length: 500
       });
 
-      returnsData.forEach((ret: any) => {
+      (returnsData as any[]).forEach((ret: any) => {
         const originalInvoice = ret.return_against || ret.name;
         const returnAmount = Math.abs(ret.grand_total || 0);
         returnsMap.set(originalInvoice, (returnsMap.get(originalInvoice) || 0) + returnAmount);

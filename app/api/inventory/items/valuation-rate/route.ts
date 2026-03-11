@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
         // console.log(`Fetching stock ledger for ${itemCode}`);
         
         if (ledgerEntries && ledgerEntries.length > 0) {
-          const latestEntry = ledgerEntries[0];
+          const latestEntry = ledgerEntries[0] as any;
           valuationRates[itemCode] = latestEntry.valuation_rate || 0;
           // console.log(`Valuation rate for ${itemCode}:`, latestEntry.valuation_rate);
         } else {

@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get period details
-    const period = await client.get('Accounting Period', period_name);
+    const period = await client.get('Accounting Period', period_name) as any;
 
     // Validate period status
     if (period.status === 'Open') {
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
         { 
           success: false, 
           error: 'VALIDATION_ERROR', 
-          message: `Cannot reopen period because next period "${nextPeriods[0].period_name}" is already closed` 
+          message: `Cannot reopen period because next period "${(nextPeriods[0] as any).period_name}" is already closed` 
         },
         { status: 422 }
       );
@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
     const currentUser = await client.getCurrentUser(sessionCookie);
 
     // CRITICAL: Handle closing journal entry cancellation/reversal
-    let journalCancellationResult = { success: false, method: 'none', journal_name: null as string | null };
+    let journalCancellationResult = { success: false, method: 'none' as 'cancel' | 'reversal' | 'none', original_journal: null as string | null, reversal_journal: null as string | null, details: { action: '', timestamp: '' } };
     
     if (period.closing_journal_entry && period.closing_journal_entry !== 'NO_CLOSING_JOURNAL') {
       journalCancellationResult = await handleClosingJournalCancellation(
@@ -173,12 +173,7 @@ async function handleClosingJournalCancellation(
   try {
     // Step 1: Try to cancel the journal entry
     try {
-      await client.call('Journal Entry', journalName, 'amend');
-      
-      // If amend succeeds, cancel it
-      await client.update('Journal Entry', journalName, {
-        docstatus: 2, // 2 = Cancelled
-      });
+      await client.cancel('Journal Entry', journalName);
 
       return {
         success: true,
@@ -240,7 +235,7 @@ async function createReversalJournal(
 
   try {
     // Get original journal entry details
-    const originalJournal = await client.get('Journal Entry', originalJournalName);
+    const originalJournal = await client.get('Journal Entry', originalJournalName) as any;
 
     if (!originalJournal.accounts || originalJournal.accounts.length === 0) {
       throw new Error(`No accounts found in original journal ${originalJournalName}`);
@@ -262,7 +257,7 @@ async function createReversalJournal(
       accounts: reversalAccounts,
       user_remark: `Reversal of closing entry ${originalJournalName} - Period reopened`,
       accounting_period: period.name,
-    });
+    }) as any;
 
     // Submit the reversal journal
     await client.submit('Journal Entry', reversalJournal.name);

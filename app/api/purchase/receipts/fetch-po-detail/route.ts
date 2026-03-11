@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Call custom ERPNext method
-    const data = await client.call('fetch_po_detail_for_pr', { po });
+    const data = await client.call('fetch_po_detail_for_pr', { po }) as any;
     
     return NextResponse.json(data);
   } catch (error: unknown) {

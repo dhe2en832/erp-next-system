@@ -167,7 +167,7 @@ export async function POST(request: NextRequest) {
     // Get site-aware client
     const client = await getERPNextClientForRequest(request);
 
-    const result = await client.insert('Item', validCreateData);
+    const result = await client.insert('Item', validCreateData) as any;
     
     // console.log('Create Item Response:', {
     //   createData: validCreateData,
@@ -340,7 +340,7 @@ export async function PUT(request: NextRequest) {
 
         if (existingPrices && existingPrices.length > 0) {
           // Update existing Item Price
-          const existingPrice = existingPrices[0];
+          const existingPrice = existingPrices[0] as any;
           const updatePricePayload: any = {
             price_list_rate: priceUpdate.price_list_rate
           };

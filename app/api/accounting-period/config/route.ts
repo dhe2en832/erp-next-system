@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Get the singleton Period Closing Config document
-    const config = await client.getDoc('Period Closing Config', 'Period Closing Config');
+    const config = await client.getDoc('Period Closing Config', 'Period Closing Config') as any;
 
     const response: GetConfigResponse = {
       success: true,
@@ -70,7 +70,7 @@ export async function PUT(request: NextRequest) {
 
     // Validate retained_earnings_account if provided
     if (body.retained_earnings_account) {
-      const account = await client.getDoc('Account', body.retained_earnings_account);
+      const account = await client.getDoc('Account', body.retained_earnings_account) as any;
       
       if (account.root_type !== 'Equity') {
         return NextResponse.json(
@@ -147,7 +147,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Update config
-    const updatedConfig = await client.update('Period Closing Config', 'Period Closing Config', body);
+    const updatedConfig = await client.update('Period Closing Config', 'Period Closing Config', body as Record<string, unknown>);
 
     // Create audit log entry
     try {

@@ -166,7 +166,7 @@ export async function POST(request: NextRequest) {
 
     // console.log('Creating warehouse:', warehouseData);
 
-    const result = await client.insert('Warehouse', warehouseData);
+    const result = await client.insert('Warehouse', warehouseData) as any;
     
     // Invalidate cache after create
     warehouseCache.clear(); // Clear all warehouse cache since it affects multiple companies

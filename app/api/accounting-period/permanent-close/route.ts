@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get period details
-    const period = await client.get('Accounting Period', period_name);
+    const period = await client.get('Accounting Period', period_name) as any;
 
     // Validate period status
     if (period.status !== 'Closed') {

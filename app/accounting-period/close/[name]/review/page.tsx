@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import LoadingSpinner from '../../../../components/LoadingSpinner';
+import { calculateNetIncome } from '@/lib/calculate-net-income';
 import type { AccountingPeriod, AccountBalance } from '../../../../../types/accounting-period';
 
 interface BalancesData {
@@ -91,16 +92,8 @@ export default function ReviewBalancesPage() {
   const nominalAccounts = accountBalances.filter(ab => ab.is_nominal);
   const realAccounts = accountBalances.filter(ab => !ab.is_nominal);
 
-  // Calculate net income/loss
-  const totalIncome = nominalAccounts
-    .filter(ab => ab.root_type === 'Income')
-    .reduce((sum, ab) => sum + ab.balance, 0);
-  
-  const totalExpense = nominalAccounts
-    .filter(ab => ab.root_type === 'Expense')
-    .reduce((sum, ab) => sum + ab.balance, 0);
-  
-  const netIncome = totalIncome - totalExpense;
+  // Calculate net income using shared utility
+  const { totalIncome, totalExpense, netIncome } = calculateNetIncome(nominalAccounts);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('id-ID', {

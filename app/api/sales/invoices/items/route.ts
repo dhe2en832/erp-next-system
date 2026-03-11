@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
     console.log('[Sales Invoice Items] Extracting DNs from invoices...');
     for (const invoice of invoices) {
       try {
-        const invoiceData = await client.get('Sales Invoice', invoice.name);
+        const invoiceData = await client.get('Sales Invoice', invoice.name) as any;
         const items = invoiceData.items || [];
         
         const dnInItems = items

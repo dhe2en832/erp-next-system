@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Step 3: Get the generated API keys from user document
-    const userData = await client.get('User', usr);
+    const userData = await client.get('User', usr) as any;
     
     const apiCredentials = {
       api_key: userData.api_key,

@@ -29,14 +29,14 @@ export async function GET(
 
     // Try ERPNext custom method first
     try {
-      const data = await client.call('fetch_pr_detail_for_pi', { pr });
+      const data = await client.call('fetch_pr_detail_for_pi', { pr }) as any;
       return NextResponse.json(data);
     } catch (customMethodError) {
       // Fallback to standard ERPNext API
     }
 
     // Get Purchase Receipt with items
-    const prData = await client.get('Purchase Receipt', pr);
+    const prData = await client.get('Purchase Receipt', pr) as any;
     
     // Transform to expected format
     const transformedData = {

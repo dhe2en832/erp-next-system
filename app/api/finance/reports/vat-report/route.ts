@@ -122,7 +122,7 @@ export async function GET(request: NextRequest) {
         let taxRate = 0.11; // Default to 11%
         
         try {
-          const invoiceResponse = await client.get('Sales Invoice', invoiceNo);
+          const invoiceResponse = await client.get('Sales Invoice', invoiceNo) as any;
           const taxes = invoiceResponse.data?.taxes || [];
           if (taxes.length > 0 && taxes[0].rate) {
             taxRate = taxes[0].rate / 100; // Convert percentage to decimal
@@ -180,7 +180,7 @@ export async function GET(request: NextRequest) {
         let taxRate = 0.11; // Default to 11%
         
         try {
-          const invoiceResponse = await client.get('Purchase Invoice', invoiceNo);
+          const invoiceResponse = await client.get('Purchase Invoice', invoiceNo) as any;
           const taxes = invoiceResponse.data?.taxes || [];
           if (taxes.length > 0 && taxes[0].rate) {
             taxRate = taxes[0].rate / 100; // Convert percentage to decimal

@@ -25,7 +25,7 @@ export async function GET(
     const client = await getERPNextClientForRequest(request);
 
     // Use getDoc method for complete data with child tables
-    const doc = await client.getDoc('Delivery Note', name);
+    const doc = await client.getDoc('Delivery Note', name) as any;
     
     // Verify this is a return document
     if (!doc.is_return) {
@@ -74,7 +74,7 @@ export async function PUT(
     const client = await getERPNextClientForRequest(request);
 
     // First, get current document to check status
-    const currentDoc = await client.get('Delivery Note', name);
+    const currentDoc = await client.get('Delivery Note', name) as any;
     
     if (currentDoc.docstatus !== 0) {
       return NextResponse.json(

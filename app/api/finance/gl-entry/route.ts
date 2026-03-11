@@ -150,7 +150,7 @@ export async function POST(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
     
     // Use client method instead of fetch
-    const result = await client.insert('GL Entry', glEntryData);
+    const result = await client.insert('GL Entry', glEntryData) as any;
 
     return NextResponse.json({
       success: true,

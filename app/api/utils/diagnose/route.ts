@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     // 1. Check Delivery Note doctype
     // console.log('1. Checking Delivery Note doctype...');
     try {
-      const dnDoctype = await client.get('DocType', 'Delivery Note');
+      const dnDoctype = await client.get('DocType', 'Delivery Note') as any;
       diagnostics.delivery_note_doctype = {
         status: 'found',
         name: dnDoctype.name,
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
     // 2. Check Delivery Note Item doctype
     // console.log('2. Checking Delivery Note Item doctype...');
     try {
-      const dnItemDoctype = await client.get('DocType', 'Delivery Note Item');
+      const dnItemDoctype = await client.get('DocType', 'Delivery Note Item') as any;
       diagnostics.delivery_note_item_doctype = {
         status: 'found',
         name: dnItemDoctype.name,
@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
       const siteConfig = (client as any).getSiteConfig?.() || { apiKey: process.env.ERP_API_KEY };
       const userEmail = siteConfig.apiKey || process.env.ERP_API_KEY;
       
-      const userData = await client.get('User', userEmail);
+      const userData = await client.get('User', userEmail) as any;
       diagnostics.user_permissions = {
         status: 'found',
         email: userData.email,
@@ -134,7 +134,7 @@ export async function GET(request: NextRequest) {
         warehouse: "Stores - E1D"
       };
       
-      const testItemData = await client.insert('Delivery Note Item', testItemPayload);
+      const testItemData = await client.insert('Delivery Note Item', testItemPayload) as any;
       
       diagnostics.direct_item_creation_test = {
         status: 'success',

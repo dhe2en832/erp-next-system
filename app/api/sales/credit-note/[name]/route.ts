@@ -67,7 +67,7 @@ export async function GET(
       });
     } else {
       // Fallback: Try using getDoc method
-      const creditNote = await client.getDoc('Sales Invoice', name);
+      const creditNote = await client.getDoc('Sales Invoice', name) as any;
       
       // Verify this is a Credit Note
       if (creditNote.is_return !== 1) {

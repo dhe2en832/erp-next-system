@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
     // Get site-aware client
     const client = await getERPNextClientForRequest(request);
 
-    const result = await client.insert('Journal Entry', journalPayload);
+    const result = await client.insert('Journal Entry', journalPayload) as any;
 
     return NextResponse.json({
       success: true,

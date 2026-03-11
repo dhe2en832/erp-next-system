@@ -265,7 +265,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Save the customized return document
-    const saveData = await client.insert('Delivery Note', returnTemplate);
+    const saveData = await client.insert('Delivery Note', returnTemplate) as any;
     const savedDocName = saveData?.name;
     
     // Update company_total_stock for each item after save
@@ -301,7 +301,7 @@ export async function POST(request: NextRequest) {
     // Refresh document to get all calculated fields
     if (savedDocName) {
       try {
-        const refreshedDoc = await client.getDoc('Delivery Note', savedDocName);
+        const refreshedDoc = await client.getDoc('Delivery Note', savedDocName) as any;
         if (refreshedDoc) {
           return NextResponse.json({
             success: true,

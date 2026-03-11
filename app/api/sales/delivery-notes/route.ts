@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
     
     // Create delivery note using client method
-    const result = await client.insert('Delivery Note', body);
+    const result = await client.insert('Delivery Note', body) as any;
     
     const deliveryNote = result.data || result;
 

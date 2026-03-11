@@ -165,7 +165,7 @@ export async function POST(request: NextRequest) {
 
     // Validate Purchase Invoice existence and status
     try {
-      const invoice = await client.get('Purchase Invoice', debitNoteData.return_against);
+      const invoice = await client.get('Purchase Invoice', debitNoteData.return_against) as any;
       
       if (invoice.docstatus !== 1) {
         return NextResponse.json(
@@ -235,7 +235,7 @@ export async function POST(request: NextRequest) {
       });
 
     // Save Debit Note to ERPNext
-    const savedDoc = await client.insert('Purchase Invoice', returnTemplate);
+    const savedDoc = await client.insert('Purchase Invoice', returnTemplate) as any;
 
     // Refresh document to get all calculated fields
     if (savedDoc.name) {

@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
     // Fetch details including sales person for each payment
     const detailPromises = payments.map(async (payment: any) => {
       try {
-        const detailData = await client.get('Payment Entry', payment.name);
+        const detailData = await client.get('Payment Entry', payment.name) as any;
         
         // Get sales person from first referenced Sales Invoice
         let salesPerson = '';
@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
         for (const ref of references) {
           if (ref.reference_doctype === 'Sales Invoice' && ref.reference_name) {
             try {
-              const invoiceData = await client.get('Sales Invoice', ref.reference_name);
+              const invoiceData = await client.get('Sales Invoice', ref.reference_name) as any;
               salesPerson = invoiceData.data?.sales_team?.[0]?.sales_person || '';
               if (salesPerson) break;
             } catch (error) {

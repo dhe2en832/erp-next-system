@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get fiscal year details
-    const fiscalYearDoc = await client.get('Fiscal Year', fiscal_year);
+    const fiscalYearDoc = await client.get('Fiscal Year', fiscal_year) as any;
     const yearStartDate = new Date(fiscalYearDoc.year_start_date);
     const yearEndDate = new Date(fiscalYearDoc.year_end_date);
 
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
           skippedPeriods.push({
             period_name: periodName,
             reason: 'Period already exists',
-            existing_name: existing[0].name,
+            existing_name: (existing[0] as any).name,
           });
         } else {
           // Create period

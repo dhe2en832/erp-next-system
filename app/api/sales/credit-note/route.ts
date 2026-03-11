@@ -242,7 +242,7 @@ export async function POST(request: NextRequest) {
 
     // Validate Sales Invoice existence and status (Requirement 11.7)
     try {
-      const invoice = await client.get('Sales Invoice', creditNoteData.return_against);
+      const invoice = await client.get('Sales Invoice', creditNoteData.return_against) as any;
       
       if (invoice.status !== 'Paid') {
         return NextResponse.json(
@@ -362,7 +362,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Save Credit Note to ERPNext (Requirement 1.14)
-    const savedDoc = await client.insert('Sales Invoice', returnTemplate);
+    const savedDoc = await client.insert('Sales Invoice', returnTemplate) as any;
 
     // Refresh document using frappe.desk.form.load.getdoc to get all calculated fields
     if (savedDoc.name) {

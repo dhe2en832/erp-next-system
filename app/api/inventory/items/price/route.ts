@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Return the first matching price
-    const itemPrice = result[0];
+    const itemPrice = result[0] as any;
     const responseData = {
       item_code: itemPrice.item_code,
       price_list_rate: itemPrice.price_list_rate,

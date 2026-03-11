@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Fetch company default accounts from ERPNext
-    const companyData = await client.get('Company', company);
+    const companyData = await client.get('Company', company) as any;
 
     if (companyData) {
       // Fetch available accounts for dropdowns

@@ -26,7 +26,7 @@ export async function GET(
     const client = await getERPNextClientForRequest(request);
 
     // Fetch journal entry detail with accounts
-    const data = await client.get('Journal Entry', name);
+    const data = await client.get('Journal Entry', name) as any;
 
     return NextResponse.json({
       success: true,

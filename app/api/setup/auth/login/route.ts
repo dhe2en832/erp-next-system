@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
     }
     
     try {
-      const userData = await client.get('User', actualUserId);
+      const userData = await client.get('User', actualUserId) as any;
       roles = (userData.roles || []).map((r: any) => r.role);
     } catch (err) {
       console.error('Failed to fetch roles during login', err);

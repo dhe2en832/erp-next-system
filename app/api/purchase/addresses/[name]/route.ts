@@ -27,7 +27,7 @@ export async function GET(request: NextRequest, { params }: ParamsInput) {
 
     // Try direct fetch by name
     try {
-      const data = await client.get('Address', name);
+      const data = await client.get('Address', name) as any;
       return NextResponse.json({ success: true, data });
     } catch (err) {
       console.error('Address GET direct error:', err);
@@ -42,8 +42,8 @@ export async function GET(request: NextRequest, { params }: ParamsInput) {
       });
       
       if (Array.isArray(searchResults) && searchResults.length > 0) {
-        const actualName = searchResults[0].name;
-        const data = await client.get('Address', actualName);
+        const actualName = (searchResults[0] as any).name;
+        const data = await client.get('Address', actualName) as any;
         return NextResponse.json({ success: true, data });
       }
     } catch (err) {

@@ -410,7 +410,11 @@ export default function ClosingWizardPage() {
                       <h3 className="text-sm font-medium text-gray-900">
                         {validation.check_name}
                       </h3>
-                      {!validation.passed && (
+                      {validation.passed ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border bg-green-100 text-green-800 border-green-200">
+                          ✓ PASSED
+                        </span>
+                      ) : (
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getSeverityBadge(validation.severity)}`}>
                           {validation.severity.toUpperCase()}
                         </span>
@@ -423,7 +427,11 @@ export default function ClosingWizardPage() {
                     </p>
                     
                     {/* Explanation for each validation */}
-                    <div className="mt-2 text-sm text-gray-600 bg-gray-50 rounded p-3">
+                    <div className={`mt-2 text-sm rounded p-3 ${
+                      validation.passed 
+                        ? 'bg-green-50 text-green-700 border border-green-200' 
+                        : 'bg-gray-50 text-gray-600 border border-gray-200'
+                    }`}>
                       {getValidationExplanation(validation.check_name, validation.passed, validation.severity)}
                     </div>
                     

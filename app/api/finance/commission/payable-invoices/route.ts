@@ -76,7 +76,7 @@ export async function GET(request: NextRequest) {
         const invoicesWithSalesTeam = await Promise.all(
           invoices.map(async (inv: any) => {
             try {
-              const detailData = await client.get('Sales Invoice', inv.name);
+              const detailData = await client.get('Sales Invoice', inv.name) as any;
               if (detailData) {
                 return { ...inv, sales_team: detailData.sales_team || [] };
               }
@@ -126,7 +126,7 @@ export async function GET(request: NextRequest) {
           const invoicesWithSalesTeam = await Promise.all(
             invoices.map(async (inv: any) => {
               try {
-                const detailData = await client.get('Sales Invoice', inv.name);
+                const detailData = await client.get('Sales Invoice', inv.name) as any;
                 if (detailData) {
                   return { ...inv, sales_team: detailData.sales_team || [] };
                 }

@@ -99,29 +99,48 @@ export async function GET(request: NextRequest) {
 
     // Build lookup map: account name (full) → master data
     const accountMasterMap = new Map<string, AccountMaster>();
-    accountsData.forEach((acc: AccountMaster) => {
+    (accountsData as any[]).forEach((acc: AccountMaster) => {
       accountMasterMap.set(acc.name, acc);
     });
 
-    // Fetch GL Entries
-    const glFilters: any[] = [['company', '=', company]];
+    // Fetch GL Entries (exclude cancelled entries and closing entries)
+    const glFilters: any[] = [
+      ['company', '=', company],
+      ['is_cancelled', '=', 0], // Exclude cancelled entries
+      ['voucher_type', '!=', 'Closing Entry'] // Exclude closing journal entries
+    ];
     if (fromDate) {
       glFilters.push(['posting_date', '>=', fromDate]);
     }
     if (toDate) {
       glFilters.push(['posting_date', '<=', toDate]);
     }
+    
+    // Also exclude Journal Entries that contain "Laba Periode Berjalan" account
+    // These are manual closing entries that should not be included in P&L calculation
 
     const glData = await client.getList('GL Entry', {
-      fields: ['account', 'debit', 'credit', 'posting_date'],
+      fields: ['account', 'debit', 'credit', 'posting_date', 'voucher_no', 'voucher_type'],
       filters: glFilters,
       order_by: 'account',
       limit_page_length: 5000
     });
+    
+    // Filter out manual closing entries (Journal Entries that involve "Laba Periode Berjalan" account)
+    // First, find all voucher_no that have "Laba Periode Berjalan" account
+    const closingVouchers = new Set<string>();
+    (glData as any[]).forEach((entry: any) => {
+      if (entry.account && entry.account.includes('Laba Periode Berjalan')) {
+        closingVouchers.add(entry.voucher_no);
+      }
+    });
+    
+    // Filter out all entries from those vouchers
+    const filteredGlData = glData.filter((entry: any) => !closingVouchers.has(entry.voucher_no));
 
     // Aggregate GL entries by account
     const accountMap = new Map<string, { account: string; debit: number; credit: number }>();
-    glData.forEach((entry: GlEntry) => {
+    (filteredGlData as any[]).forEach((entry: GlEntry) => {
       if (!accountMap.has(entry.account)) {
         accountMap.set(entry.account, { account: entry.account, debit: 0, credit: 0 });
       }
@@ -153,28 +172,39 @@ export async function GET(request: NextRequest) {
         })
         .sort((a, b) => a.account.localeCompare(b.account));
     } else if (report === 'balance-sheet') {
-      // Bug #1 Fix: Calculate Net P/L from Income and Expense accounts
-      let netProfitLoss = 0;
+      // Calculate Net P/L from Income and Expense accounts
+      // Expense sum can be negative (e.g., from stock opname adjustments)
+      let totalIncome = 0;
+      let expenseSum = 0;
+      
       Array.from(accountMap.values()).forEach(row => {
         const master = accountMasterMap.get(row.account);
         const rootType = master?.root_type || '';
         if (rootType === 'Income') {
           // Income: credit normal balance
-          netProfitLoss += (row.credit - row.debit);
+          totalIncome += (row.credit - row.debit);
         } else if (rootType === 'Expense') {
-          // Expense: debit normal balance (subtract from net P/L)
-          netProfitLoss -= (row.debit - row.credit);
+          // Expense: debit normal balance (can be negative if credit > debit)
+          expenseSum += (row.debit - row.credit);
         }
       });
+      
+      // Net P/L: Income - Expense (don't use Math.abs on expenseSum)
+      // If expenseSum is negative, it increases profit
+      const netProfitLoss = totalIncome - expenseSum;
 
       // Process Balance Sheet accounts
       const balanceSheetAccounts = Array.from(accountMap.values())
         .map(row => {
           const master = accountMasterMap.get(row.account);
           const rootType = master?.root_type || '';
+          
+          // Only include Balance Sheet root types
           if (!BALANCE_SHEET_ROOT_TYPES.includes(rootType)) return null;
+          
           const balance = row.debit - row.credit;
           if (balance === 0) return null;
+          
           const accountType = master?.account_type || '';
           const subCategory = ACCOUNT_TYPE_LABEL[accountType] || accountType || ROOT_TYPE_LABEL[rootType] || rootType;
           return {
@@ -213,7 +243,7 @@ export async function GET(request: NextRequest) {
           const rootType = master?.root_type || '';
           if (!PL_ROOT_TYPES.includes(rootType)) return null;
           // Income: credit normal balance → amount = credit - debit (positive = income)
-          // Expense: debit normal balance → amount = debit - credit (positive = expense)
+          // Expense: debit normal balance → amount = debit - credit (can be negative if credit > debit)
           const amount = rootType === 'Income'
             ? (row.credit - row.debit)
             : (row.debit - row.credit);

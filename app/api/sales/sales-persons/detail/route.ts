@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     // Get site-aware client
     const client = await getERPNextClientForRequest(request);
 
-    const data = await client.get('Sales Person', name);
+    const data = await client.get('Sales Person', name) as any;
 
     return NextResponse.json({ success: true, data });
 

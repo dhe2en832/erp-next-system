@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Fetch company details
-    const data = await client.get('Company', company);
+    const data = await client.get('Company', company) as any;
 
     if (data) {
       return NextResponse.json({

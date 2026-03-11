@@ -31,7 +31,7 @@ export async function GET(
     const client = await getERPNextClientForRequest(request);
 
     // Use client method instead of fetch
-    const entryData = await client.get('Stock Entry', entryName);
+    const entryData = await client.get('Stock Entry', entryName) as any;
     
     // console.log('Get Stock Entry Response:', {
     //   entryName,

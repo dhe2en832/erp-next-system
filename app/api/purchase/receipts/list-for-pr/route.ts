@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
         params.supplier = supplier;
       }
       
-      const data = await client.call('fetch_po_list_for_pr', params);
+      const data = await client.call('fetch_po_list_for_pr', params) as any;
       
       // Add debug info to response
       const debuggedData = {

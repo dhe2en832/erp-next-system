@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
 
     // Try ERPNext custom method first
     try {
-      const data = await client.call('fetch_pr_list_for_pi', { company });
+      const data = await client.call('fetch_pr_list_for_pi', { company }) as any;
       
       // client.call() already returns normalized {success, data} structure
       // Just pass it through

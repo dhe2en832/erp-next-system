@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
 
     // Get GL Entry for each Stock Entry to see journal impact
     const entries = [];
-    for (const se of (data || [])) {
+    for (const se of (data || []) as any[]) {
       const glFilters: any[][] = [['voucher_type', '=', 'Stock Entry'], ['voucher_no', '=', se.name]];
       const glData = await client.getList('GL Entry', {
         fields: ['account', 'debit', 'credit'],

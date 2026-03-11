@@ -155,24 +155,28 @@ export default function FinancialReportsPage() {
   const bsData = filterData(balanceSheet);
   const bsGrouped = groupByRootType(bsData);
   const bsAssets = (bsGrouped['Asset'] || []).reduce((s, e) => s + e.balance, 0);
-  const bsLiab = (bsGrouped['Liability'] || []).reduce((s, e) => s + Math.abs(e.balance), 0);
-  // For Equity: Net P/L is displayed as absolute value but subtracted from equity total
-  // Loss reduces equity, profit increases equity
-  const bsEquity = (bsGrouped['Equity'] || []).reduce((s, e) => {
-    if (e.account === '__net_profit_loss__') {
-      // For Net P/L: if negative (loss), subtract from equity; if positive (profit), add to equity
-      return s + e.balance; // This handles both: loss is negative, profit is positive
-    }
-    return s + Math.abs(e.balance);
-  }, 0);
+  // For Liability and Equity: sum with original sign
+  // For balance equation: Asset = -Liability + Equity (Liability is negated for the equation)
+  const bsLiabRaw = (bsGrouped['Liability'] || []).reduce((s, e) => s + e.balance, 0);
+  const bsEquity = (bsGrouped['Equity'] || []).reduce((s, e) => s + e.balance, 0);
+  // Negate liability for balance equation (ERPNext convention)
+  const bsLiab = -bsLiabRaw;
 
   const plData = filterData(profitLoss);
   const plGrouped = groupByRootType(plData);
   const plIncome = (plGrouped['Income'] || []).reduce((s, e) => s + e.amount, 0);
   const plHPP = (plGrouped['Expense'] || []).filter(e => e.account_type === 'Cost of Goods Sold').reduce((s, e) => s + e.amount, 0);
-  const plGross = plIncome - plHPP;
   const plOpex = (plGrouped['Expense'] || []).filter(e => e.account_type !== 'Cost of Goods Sold').reduce((s, e) => s + e.amount, 0);
-  const plNet = plGross - plOpex;
+  
+  // Calculate totals - expense sum can be negative (e.g., from stock opname adjustments)
+  // Negative expense means expense reduction, which increases profit
+  const expenseSum = plHPP + plOpex;
+  
+  // For display in summary box: show sum of absolute values of each expense category
+  const totalExpenseDisplay = Math.abs(plHPP) + Math.abs(plOpex);
+  
+  const plGross = plIncome - plHPP;
+  const plNet = plIncome - expenseSum; // Don't use Math.abs here!
 
   const renderPrint = () => {
     const period = `${dateFilter.from_date} s/d ${dateFilter.to_date}`;
@@ -216,12 +220,14 @@ export default function FinancialReportsPage() {
       const liab = bsGrouped['Liability'] || [];
       const equity = bsGrouped['Equity'] || [];
       const totAsset = assets.reduce((s, e) => s + e.balance, 0);
-      const totLiab = liab.reduce((s, e) => s + Math.abs(e.balance), 0);
-      const totEquity = equity.reduce((s, e) => e.account === '__net_profit_loss__' ? s + e.balance : s + Math.abs(e.balance), 0);
+      // Negate liability for balance equation (same as display section)
+      const totLiabRaw = liab.reduce((s, e) => s + e.balance, 0);
+      const totLiab = -totLiabRaw;
+      const totEquity = equity.reduce((s, e) => s + e.balance, 0);
 
       const renderBSSection = (entries: BalanceSheetEntry[], isCredit: boolean) =>
         Object.entries(groupBySubCat(entries)).map(([cat, rows]) => {
-          const sub = rows.reduce((s, e) => e.account === '__net_profit_loss__' ? s + e.balance : s + Math.abs(e.balance), 0);
+          const sub = rows.reduce((s, e) => s + e.balance, 0);
           return (
             <div key={cat}>
               <div className="section-sub">{cat}</div>
@@ -230,7 +236,7 @@ export default function FinancialReportsPage() {
                   // For Net P/L: display as absolute value in parentheses if loss
                   const isNetPL = e.account === '__net_profit_loss__';
                   const isLoss = isNetPL && e.balance < 0;
-                  const displayValue = isNetPL ? Math.abs(e.balance) : (isCredit ? Math.abs(e.balance) : e.balance);
+                  const displayValue = Math.abs(e.balance);
                   
                   return (
                     <tr key={e.account}>
@@ -244,7 +250,9 @@ export default function FinancialReportsPage() {
               </tbody><tfoot>
                 <tr className="subtotal-row">
                   <td>Jumlah {cat}</td>
-                  <td className="right">{fmtCurPrint(sub)}</td>
+                  <td className="right">
+                    {sub < 0 ? '-' : ''}{fmtCurPrint(Math.abs(sub))}
+                  </td>
                 </tr>
               </tfoot></table>
             </div>
@@ -320,10 +328,18 @@ export default function FinancialReportsPage() {
           {hppEntries.length > 0 && <>
             <div className="section-header" style={{marginTop:'8px'}}>HARGA POKOK PENJUALAN</div>
             <table>
-              <tbody>{hppEntries.map(e => (
-                <tr key={e.account}><td style={{paddingLeft:'16px'}}>{e.account_name}</td><td className="right" style={{ width: '36%' }}>{fmtCurPrint(e.amount)}</td></tr>
-              ))}</tbody>
-              <tfoot><tr className="subtotal-row"><td><strong>Jumlah HPP</strong></td><td className="right"><strong>{fmtCurPrint(totHPP)}</strong></td></tr></tfoot>
+              <tbody>{hppEntries.map(e => {
+                const isNegative = e.amount < 0;
+                const displayAmount = Math.abs(e.amount);
+                const label = isNegative ? ' Cr' : ' Dr';
+                return (
+                  <tr key={e.account}>
+                    <td style={{paddingLeft:'16px'}}>{e.account_name}</td>
+                    <td className="right" style={{ width: '36%' }}>{fmtCurPrint(displayAmount)}{label}</td>
+                  </tr>
+                );
+              })}</tbody>
+              <tfoot><tr className="subtotal-row"><td><strong>Jumlah HPP</strong></td><td className="right"><strong>{fmtCurPrint(Math.abs(totHPP))}</strong></td></tr></tfoot>
             </table>
           </>}
           <table style={{marginTop:'4px'}}><tbody>
@@ -332,10 +348,18 @@ export default function FinancialReportsPage() {
           {opexEntries.length > 0 && <>
             <div className="section-header" style={{marginTop:'8px'}}>BEBAN OPERASIONAL</div>
             <table>
-              <tbody>{opexEntries.map(e => (
-                <tr key={e.account}><td style={{paddingLeft:'16px'}}>{e.account_name}</td><td className="right" style={{ width: '36%' }}>{fmtCurPrint(e.amount)}</td></tr>
-              ))}</tbody>
-              <tfoot><tr className="subtotal-row"><td><strong>Jumlah Beban Operasional</strong></td><td className="right"><strong>{fmtCurPrint(totOpex)}</strong></td></tr></tfoot>
+              <tbody>{opexEntries.map(e => {
+                const isNegative = e.amount < 0;
+                const displayAmount = Math.abs(e.amount);
+                const label = isNegative ? ' Cr' : ' Dr';
+                return (
+                  <tr key={e.account}>
+                    <td style={{paddingLeft:'16px'}}>{e.account_name}</td>
+                    <td className="right" style={{ width: '36%' }}>{fmtCurPrint(displayAmount)}{label}</td>
+                  </tr>
+                );
+              })}</tbody>
+              <tfoot><tr className="subtotal-row"><td><strong>Jumlah Beban Operasional</strong></td><td className="right"><strong>{fmtCurPrint(Math.abs(totOpex))}</strong></td></tr></tfoot>
             </table>
           </>}
           <table style={{marginTop:'8px'}}><tbody>
@@ -363,7 +387,7 @@ export default function FinancialReportsPage() {
         </button>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 mb-6">
+      {/* <div className="grid gap-4 md:grid-cols-2 mb-6">
         <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
           <div className="flex items-center gap-2 mb-2">
             <div className="w-8 h-8 flex items-center justify-center rounded-full bg-indigo-100 text-indigo-700 text-sm font-semibold">A4</div>
@@ -389,7 +413,7 @@ export default function FinancialReportsPage() {
             <li>Retur jual/beli harus mengurangi HPP dengan benar.</li>
           </ol>
         </div>
-      </div>
+      </div> */}
 
       {showPrint && (
         <PrintPreviewModal 
@@ -401,11 +425,15 @@ export default function FinancialReportsPage() {
             <style>{`
               .fin-print table { table-layout: auto !important; width: 100%; border-collapse: collapse; margin-bottom: 8px; }
               .fin-print th, .fin-print td { padding: 4px 6px; vertical-align: top; }
-              .fin-print .doc-header { margin-bottom: 12px; }
+              .fin-print .doc-header { margin-bottom: 12px; text-align: center; }
+              .fin-print .doc-company { font-size: 14px; font-weight: 700; color: #0f172a; }
+              .fin-print .doc-title { font-size: 16px; font-weight: 800; letter-spacing: 0.3px; color: #111827; }
+              .fin-print .doc-meta { font-size: 11px; font-weight: 700; color: #0f172a; margin-top: 2px; }
               .fin-print .section-header { margin-top: 10px; margin-bottom: 4px; }
               .fin-print .section-sub { font-weight: 700; color: #1e293b; }
               .fin-print .subtotal-row td { font-weight: 700; }
               .fin-print .total-row td { font-weight: 800; }
+              .fin-print .right { text-align: right; font-family: 'Courier New', monospace; }
             `}</style>
             {renderPrint()}
             <div style={{marginTop:'20px',borderTop:'1px solid #d1d5db',paddingTop:'4px',fontSize:'8px',color:'#9ca3af',textAlign:'center'}}>
@@ -543,11 +571,15 @@ export default function FinancialReportsPage() {
                 </div>
                 <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
                   <p className="text-xs text-orange-600 font-semibold uppercase">Total Kewajiban</p>
-                  <p className="text-base font-bold text-orange-900">{fmtCur(bsLiab)}</p>
+                  <p className="text-base font-bold text-orange-900">
+                    {bsLiab < 0 ? '-' : ''}{fmtCur(Math.abs(bsLiab))}
+                  </p>
                 </div>
                 <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
                   <p className="text-xs text-purple-600 font-semibold uppercase">Total Ekuitas</p>
-                  <p className="text-base font-bold text-purple-900">{fmtCur(bsEquity)}</p>
+                  <p className="text-base font-bold text-purple-900">
+                    {bsEquity < 0 ? '-' : ''}{fmtCur(Math.abs(bsEquity))}
+                  </p>
                 </div>
               </div>
 
@@ -595,34 +627,39 @@ export default function FinancialReportsPage() {
                   <div>
                     <div className="bg-orange-700 text-white px-4 py-2 rounded-t-lg text-sm font-bold uppercase tracking-wider">KEWAJIBAN</div>
                     <div className="border border-orange-200 rounded-b-lg overflow-hidden">
-                      {Object.entries(groupBySubCat(bsGrouped['Liability'] || [])).map(([cat, rows]) => (
-                        <div key={cat}>
-                          <div className="bg-orange-50 px-4 py-1.5 text-xs font-semibold text-orange-700 uppercase border-b border-orange-100">{cat}</div>
-                          <table className="min-w-full">
-                            <tbody className="divide-y divide-gray-100">
-                              {rows.map(e => (
-                                <tr key={e.account} className="hover:bg-gray-50">
-                                  <td className="px-6 py-2 text-sm text-gray-800">{e.account_name}</td>
-                                  <td className="px-4 py-2 text-sm text-right tabular-nums text-gray-900 w-44">
-                                    {fmtBalanceWithDrCr(e.balance, e.root_type)}
+                      {Object.entries(groupBySubCat(bsGrouped['Liability'] || [])).map(([cat, rows]) => {
+                        const catTotal = rows.reduce((s, e) => s + e.balance, 0);
+                        return (
+                          <div key={cat}>
+                            <div className="bg-orange-50 px-4 py-1.5 text-xs font-semibold text-orange-700 uppercase border-b border-orange-100">{cat}</div>
+                            <table className="min-w-full">
+                              <tbody className="divide-y divide-gray-100">
+                                {rows.map(e => (
+                                  <tr key={e.account} className="hover:bg-gray-50">
+                                    <td className="px-6 py-2 text-sm text-gray-800">{e.account_name}</td>
+                                    <td className="px-4 py-2 text-sm text-right tabular-nums text-gray-900 w-44">
+                                      {fmtBalanceWithDrCr(e.balance, e.root_type)}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                              <tfoot className="bg-gray-50 border-t border-gray-200">
+                                <tr>
+                                  <td className="px-6 py-2 text-xs font-semibold text-gray-600">Jumlah {cat}</td>
+                                  <td className="px-4 py-2 text-sm font-semibold text-right tabular-nums text-gray-900 w-44">
+                                    {catTotal < 0 ? '-' : ''}{fmtCur(Math.abs(catTotal))}
                                   </td>
                                 </tr>
-                              ))}
-                            </tbody>
-                            <tfoot className="bg-gray-50 border-t border-gray-200">
-                              <tr>
-                                <td className="px-6 py-2 text-xs font-semibold text-gray-600">Jumlah {cat}</td>
-                                <td className="px-4 py-2 text-sm font-semibold text-right tabular-nums text-gray-900 w-44">
-                                  {fmtCur(rows.reduce((s, e) => s + Math.abs(e.balance), 0))}
-                                </td>
-                              </tr>
-                            </tfoot>
-                          </table>
-                        </div>
-                      ))}
+                              </tfoot>
+                            </table>
+                          </div>
+                        );
+                      })}
                       <div className="bg-orange-100 px-4 py-2 flex justify-between text-sm font-bold text-orange-900 border-t border-orange-200">
                         <span>JUMLAH KEWAJIBAN</span>
-                        <span className="tabular-nums">{fmtCur(bsLiab)}</span>
+                        <span className="tabular-nums">
+                          {bsLiab < 0 ? '-' : ''}{fmtCur(Math.abs(bsLiab))}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -631,34 +668,39 @@ export default function FinancialReportsPage() {
                   <div>
                     <div className="bg-purple-700 text-white px-4 py-2 rounded-t-lg text-sm font-bold uppercase tracking-wider">EKUITAS</div>
                     <div className="border border-purple-200 rounded-b-lg overflow-hidden">
-                      {Object.entries(groupBySubCat(bsGrouped['Equity'] || [])).map(([cat, rows]) => (
-                        <div key={cat}>
-                          <div className="bg-purple-50 px-4 py-1.5 text-xs font-semibold text-purple-700 uppercase border-b border-purple-100">{cat}</div>
-                          <table className="min-w-full">
-                            <tbody className="divide-y divide-gray-100">
-                              {rows.map(e => (
-                                <tr key={e.account} className="hover:bg-gray-50">
-                                  <td className="px-6 py-2 text-sm text-gray-800">{e.account_name}</td>
-                                  <td className="px-4 py-2 text-sm text-right tabular-nums text-gray-900 w-44">
-                                    {fmtBalanceWithDrCr(e.balance, e.root_type)}
+                      {Object.entries(groupBySubCat(bsGrouped['Equity'] || [])).map(([cat, rows]) => {
+                        const catTotal = rows.reduce((s, e) => s + e.balance, 0);
+                        return (
+                          <div key={cat}>
+                            <div className="bg-purple-50 px-4 py-1.5 text-xs font-semibold text-purple-700 uppercase border-b border-purple-100">{cat}</div>
+                            <table className="min-w-full">
+                              <tbody className="divide-y divide-gray-100">
+                                {rows.map(e => (
+                                  <tr key={e.account} className="hover:bg-gray-50">
+                                    <td className="px-6 py-2 text-sm text-gray-800">{e.account_name}</td>
+                                    <td className="px-4 py-2 text-sm text-right tabular-nums text-gray-900 w-44">
+                                      {fmtBalanceWithDrCr(e.balance, e.root_type)}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                              <tfoot className="bg-gray-50 border-t border-gray-200">
+                                <tr>
+                                  <td className="px-6 py-2 text-xs font-semibold text-gray-600">Jumlah {cat}</td>
+                                  <td className="px-4 py-2 text-sm font-semibold text-right tabular-nums text-gray-900 w-44">
+                                    {catTotal < 0 ? '-' : ''}{fmtCur(Math.abs(catTotal))}
                                   </td>
                                 </tr>
-                              ))}
-                            </tbody>
-                            <tfoot className="bg-gray-50 border-t border-gray-200">
-                              <tr>
-                                <td className="px-6 py-2 text-xs font-semibold text-gray-600">Jumlah {cat}</td>
-                                <td className="px-4 py-2 text-sm font-semibold text-right tabular-nums text-gray-900 w-44">
-                                  {fmtCur(rows.reduce((s, e) => e.account === '__net_profit_loss__' ? s + e.balance : s + Math.abs(e.balance), 0))}
-                                </td>
-                              </tr>
-                            </tfoot>
-                          </table>
-                        </div>
-                      ))}
+                              </tfoot>
+                            </table>
+                          </div>
+                        );
+                      })}
                       <div className="bg-purple-100 px-4 py-2 flex justify-between text-sm font-bold text-purple-900 border-t border-purple-200">
                         <span>JUMLAH EKUITAS</span>
-                        <span className="tabular-nums">{fmtCur(bsEquity)}</span>
+                        <span className="tabular-nums">
+                          {bsEquity < 0 ? '-' : ''}{fmtCur(Math.abs(bsEquity))}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -666,7 +708,9 @@ export default function FinancialReportsPage() {
                   {/* TOTAL KEWAJIBAN + EKUITAS */}
                   <div className={`flex justify-between px-4 py-3 rounded-lg text-sm font-bold ${Math.abs(bsAssets - (bsLiab + bsEquity)) < 2 ? 'bg-green-700 text-white' : 'bg-red-600 text-white'}`}>
                     <span>JUMLAH KEWAJIBAN &amp; EKUITAS</span>
-                    <span className="tabular-nums">{fmtCur(bsLiab + bsEquity)}</span>
+                    <span className="tabular-nums">
+                      {(bsLiab + bsEquity) < 0 ? '-' : ''}{fmtCur(Math.abs(bsLiab + bsEquity))}
+                    </span>
                   </div>
                   {Math.abs(bsAssets - (bsLiab + bsEquity)) > 1 && (
                     <div className="text-red-600 text-xs text-center">
@@ -692,7 +736,13 @@ export default function FinancialReportsPage() {
                 </div>
                 <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
                   <p className="text-xs text-orange-600 font-semibold uppercase">Total Beban</p>
-                  <p className="text-base font-bold text-orange-900">{fmtCur(plHPP + plOpex)}</p>
+                  <p className="text-base font-bold text-orange-900">{fmtCur(totalExpenseDisplay)}</p>
+                  {expenseSum < 0 && (
+                    <p className="text-xs text-orange-600 mt-1">
+                      <span className="inline-block w-1.5 h-1.5 bg-green-500 rounded-full mr-1"></span>
+                      Netto: ({fmtCur(Math.abs(expenseSum))}) Cr
+                    </p>
+                  )}
                 </div>
                 <div className={`border rounded-lg p-4 ${plNet >= 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
                   <p className={`text-xs font-semibold uppercase ${plNet >= 0 ? 'text-green-600' : 'text-red-600'}`}>Laba/Rugi Bersih</p>
@@ -745,20 +795,36 @@ export default function FinancialReportsPage() {
                           <div key={cat}>
                             <table className="min-w-full">
                               <tbody className="divide-y divide-gray-100">
-                                {rows.map(e => (
-                                  <tr key={e.account} className="hover:bg-gray-50">
-                                    <td className="px-6 py-2 text-sm text-gray-800">{e.account_name}</td>
-                                    <td className="px-4 py-2 text-sm text-right tabular-nums text-gray-900 w-44">{fmtCur(e.amount)}</td>
-                                  </tr>
-                                ))}
+                                {rows.map(e => {
+                                  const isNegative = e.amount < 0;
+                                  const displayAmount = Math.abs(e.amount);
+                                  return (
+                                    <tr key={e.account} className="hover:bg-gray-50">
+                                      <td className="px-6 py-2 text-sm text-gray-800">{e.account_name}</td>
+                                      <td className="px-4 py-2 text-sm text-right tabular-nums w-44">
+                                        <span className={isNegative ? 'text-green-700' : 'text-gray-900'}>
+                                          {fmtCur(displayAmount)} {isNegative ? 'Cr' : 'Dr'}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
                               </tbody>
                             </table>
                           </div>
                         ))}
-                        <div className="bg-yellow-100 px-4 py-2 flex justify-between text-sm font-bold text-yellow-900 border-t border-yellow-200">
+                        <div className={`px-4 py-2 flex justify-between text-sm font-bold border-t ${plHPP < 0 ? 'bg-green-100 text-green-900 border-green-200' : 'bg-yellow-100 text-yellow-900 border-yellow-200'}`}>
                           <span>JUMLAH HPP</span>
-                          <span className="tabular-nums">{fmtCur(plHPP)}</span>
+                          <span className="tabular-nums">
+                            {plHPP < 0 ? '(' : ''}{fmtCur(Math.abs(plHPP))}{plHPP < 0 ? ')' : ''}
+                            {' '}{plHPP < 0 ? 'Cr' : 'Dr'}
+                          </span>
                         </div>
+                        {plHPP < 0 && (
+                          <div className="bg-green-50 border-t border-green-200 px-4 py-2 text-xs text-green-800">
+                            <span className="font-semibold">ℹ️ Pengurangan HPP:</span> Terdapat penyesuaian stock opname yang mengurangi HPP periode ini.
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
@@ -781,20 +847,36 @@ export default function FinancialReportsPage() {
                             <div className="bg-red-50 px-4 py-1.5 text-xs font-semibold text-red-700 uppercase border-b border-red-100">{cat}</div>
                             <table className="min-w-full">
                               <tbody className="divide-y divide-gray-100">
-                                {rows.map(e => (
-                                  <tr key={e.account} className="hover:bg-gray-50">
-                                    <td className="px-6 py-2 text-sm text-gray-800">{e.account_name}</td>
-                                    <td className="px-4 py-2 text-sm text-right tabular-nums text-gray-900 w-44">{fmtCur(e.amount)}</td>
-                                  </tr>
-                                ))}
+                                {rows.map(e => {
+                                  const isNegative = e.amount < 0;
+                                  const displayAmount = Math.abs(e.amount);
+                                  return (
+                                    <tr key={e.account} className="hover:bg-gray-50">
+                                      <td className="px-6 py-2 text-sm text-gray-800">{e.account_name}</td>
+                                      <td className="px-4 py-2 text-sm text-right tabular-nums w-44">
+                                        <span className={isNegative ? 'text-green-700' : 'text-gray-900'}>
+                                          {fmtCur(displayAmount)} {isNegative ? 'Cr' : 'Dr'}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
                               </tbody>
                             </table>
                           </div>
                         ))}
-                        <div className="bg-red-100 px-4 py-2 flex justify-between text-sm font-bold text-red-900 border-t border-red-200">
+                        <div className={`px-4 py-2 flex justify-between text-sm font-bold border-t ${plOpex < 0 ? 'bg-green-100 text-green-900 border-green-200' : 'bg-red-100 text-red-900 border-red-200'}`}>
                           <span>JUMLAH BEBAN OPERASIONAL</span>
-                          <span className="tabular-nums">{fmtCur(plOpex)}</span>
+                          <span className="tabular-nums">
+                            {plOpex < 0 ? '(' : ''}{fmtCur(Math.abs(plOpex))}{plOpex < 0 ? ')' : ''}
+                            {' '}{plOpex < 0 ? 'Cr' : 'Dr'}
+                          </span>
                         </div>
+                        {plOpex < 0 && (
+                          <div className="bg-green-50 border-t border-green-200 px-4 py-2 text-xs text-green-800">
+                            <span className="font-semibold">ℹ️ Pengurangan Beban:</span> Terdapat penyesuaian stock opname yang mengurangi beban operasional periode ini.
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
@@ -828,6 +910,39 @@ export default function FinancialReportsPage() {
                       </div>
                     </div>
                   </div>
+
+                  {/* INFO BOX - Penjelasan Beban Negatif */}
+                  {expenseSum < 0 && (
+                    <div className="mt-4 p-4 rounded-lg border-2 bg-blue-50 border-blue-300">
+                      <div className="flex items-start gap-3">
+                        <div className="text-2xl text-blue-600">ℹ️</div>
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold text-blue-800 mb-2">
+                            Penjelasan: Beban Netto Negatif
+                          </p>
+                          <div className="text-xs text-blue-700 space-y-1">
+                            <p>
+                              Total beban periode ini adalah <span className="font-semibold">({fmtCur(Math.abs(expenseSum))}) Cr</span> (negatif).
+                              Ini terjadi karena ada penyesuaian stock opname yang mengurangi beban.
+                            </p>
+                            <p className="mt-2">
+                              <span className="font-semibold">Perhitungan:</span>
+                            </p>
+                            <ul className="list-disc list-inside ml-2 space-y-0.5">
+                              <li>Total Pendapatan: {fmtCur(plIncome)}</li>
+                              <li>HPP: {fmtCur(Math.abs(plHPP))} {plHPP < 0 ? 'Cr (pengurangan)' : 'Dr'}</li>
+                              <li>Beban Operasional: {fmtCur(Math.abs(plOpex))} {plOpex < 0 ? 'Cr (pengurangan)' : 'Dr'}</li>
+                              <li>Beban Netto: ({fmtCur(Math.abs(expenseSum))}) Cr</li>
+                              <li className="font-semibold text-blue-800">Laba Bersih: {fmtCur(plIncome)} - ({fmtCur(Math.abs(expenseSum))}) = {fmtCur(Math.abs(plNet))}</li>
+                            </ul>
+                            <p className="mt-2 text-blue-600 italic">
+                              💡 Beban negatif berarti ada pengurangan beban yang meningkatkan laba periode ini.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

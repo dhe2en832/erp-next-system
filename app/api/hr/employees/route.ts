@@ -149,7 +149,7 @@ export async function POST(request: NextRequest) {
     // Simply insert the employee - let ERPNext handle naming series
     // If naming series counter is out of sync, this will fail with duplicate entry error
     // User must fix the naming series counter on the server using fix_employee_naming_series.py
-    const newEmployee = await client.insert('Employee', body);
+    const newEmployee = await client.insert('Employee', body) as any;
 
     return NextResponse.json({ success: true, data: newEmployee });
   } catch (error) {

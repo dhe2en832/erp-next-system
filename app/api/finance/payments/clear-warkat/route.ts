@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
       bank_account,
       payment_type,
       clearance_date
-    });
+    }) as any;
 
     return NextResponse.json({
       success: true,

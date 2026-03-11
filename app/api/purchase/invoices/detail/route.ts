@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Call ERPNext custom method to fetch Purchase Invoice detail
-    const data = await client.call('fetch_pi_detail', { pi });
+    const data = await client.call('fetch_pi_detail', { pi }) as any;
 
     // Return the data as-is (already in correct format)
     return NextResponse.json(data);

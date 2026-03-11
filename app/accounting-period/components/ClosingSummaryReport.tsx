@@ -51,7 +51,7 @@ export default function ClosingSummaryReport({
       currency: 'IDR',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
-    }).format(amount);
+    }).format(Math.abs(amount));
   };
 
   const formatBalance = (balance: number, rootType: string) => {
@@ -63,14 +63,23 @@ export default function ClosingSummaryReport({
       maximumFractionDigits: 0
     }).format(absBalance);
 
-    // Determine position based on root type and balance sign
-    // Income & Liability & Equity = normal credit (negative balance)
-    // Asset & Expense = normal debit (positive balance)
+    // Determine position based on root type (normal balance convention)
+    // Income accounts: always Credit (Cr)
+    // Expense accounts: always Debit (Dr)
+    // Asset accounts: always Debit (Dr)
+    // Liability accounts: always Credit (Cr)
+    // Equity accounts: always Credit (Cr)
     let position = '';
-    if (rootType === 'Income' || rootType === 'Liability' || rootType === 'Equity') {
-      position = balance < 0 ? '(Cr)' : '(Dr)';
-    } else if (rootType === 'Asset' || rootType === 'Expense') {
-      position = balance > 0 ? '(Dr)' : '(Cr)';
+    if (rootType === 'Income') {
+      position = '(Cr)';
+    } else if (rootType === 'Expense') {
+      position = '(Dr)';
+    } else if (rootType === 'Asset') {
+      position = '(Dr)';
+    } else if (rootType === 'Liability') {
+      position = '(Cr)';
+    } else if (rootType === 'Equity') {
+      position = '(Cr)';
     }
 
     return `${formatted} ${position}`;
@@ -187,24 +196,42 @@ export default function ClosingSummaryReport({
       <div className="p-8 bg-gray-50 border-b border-gray-200">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Ringkasan Laba Rugi</h3>
         <div className="grid grid-cols-3 gap-6">
-          <div className="bg-white p-4 rounded-lg shadow-sm">
-            <p className="text-sm text-gray-600 mb-1">Total Pendapatan</p>
-            <p className="text-xl font-bold text-green-600">
-              {formatBalance(nominal_accounts.filter(a => a.root_type === 'Income').reduce((sum, a) => sum + a.balance, 0), 'Income')}
-            </p>
-          </div>
-          <div className="bg-white p-4 rounded-lg shadow-sm">
-            <p className="text-sm text-gray-600 mb-1">Total Beban</p>
-            <p className="text-xl font-bold text-red-600">
-              {formatBalance(nominal_accounts.filter(a => a.root_type === 'Expense').reduce((sum, a) => sum + a.balance, 0), 'Expense')}
-            </p>
-          </div>
-          <div className="bg-white p-4 rounded-lg shadow-sm">
-            <p className="text-sm text-gray-600 mb-1">Laba (Rugi) Bersih</p>
-            <p className={`text-xl font-bold ${net_income >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {net_income >= 0 ? formatCurrency(net_income) : `${formatCurrency(Math.abs(net_income))} (Rugi)`}
-            </p>
-          </div>
+          {(() => {
+            // Calculate totals from nominal_accounts for consistency
+            const totalIncome = nominal_accounts.filter(a => a.root_type === 'Income').reduce((sum, a) => sum + a.balance, 0);
+            
+            // Calculate total expense - expense sum can be negative (e.g., stock opname adjustments)
+            // Negative expense means expense reduction, which increases profit
+            const expenseSum = nominal_accounts.filter(a => a.root_type === 'Expense').reduce((sum, a) => sum + a.balance, 0);
+            const totalExpense = Math.abs(expenseSum); // For display only
+            
+            // Net income calculation: don't use Math.abs on expenseSum
+            // If expenseSum is negative, it increases profit
+            const calculatedNetIncome = totalIncome - expenseSum;
+            
+            return (
+              <>
+                <div className="bg-white p-4 rounded-lg shadow-sm">
+                  <p className="text-sm text-gray-600 mb-1">Total Pendapatan</p>
+                  <p className="text-xl font-bold text-green-600">
+                    {formatCurrency(totalIncome)}
+                  </p>
+                </div>
+                <div className="bg-white p-4 rounded-lg shadow-sm">
+                  <p className="text-sm text-gray-600 mb-1">Total Beban</p>
+                  <p className="text-xl font-bold text-red-600">
+                    {formatCurrency(totalExpense)}
+                  </p>
+                </div>
+                <div className="bg-white p-4 rounded-lg shadow-sm">
+                  <p className="text-sm text-gray-600 mb-1">Laba (Rugi) Bersih</p>
+                  <p className={`text-xl font-bold ${calculatedNetIncome >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {calculatedNetIncome >= 0 ? formatCurrency(calculatedNetIncome) : `${formatCurrency(calculatedNetIncome)} (Rugi)`}
+                  </p>
+                </div>
+              </>
+            );
+          })()}
         </div>
       </div>
 

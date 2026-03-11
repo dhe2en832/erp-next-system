@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import PaymentList from './paymentList/component';
-import PaymentMain from './paymentMain/component';
+import PaymentMain from './paymentMain/component-optimized';
+// import PaymentMain from './paymentMain/CompactPaymentForm';
+
 import { PaymentWithReferences } from '../../types/payment-details';
 
 export default function PaymentPage() {

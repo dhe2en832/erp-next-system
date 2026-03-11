@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
     const ordersWithSales = await Promise.all(
       salesOrders.map(async (order: any) => {
         try {
-          const salesTeamData = await client.get('Sales Order', order.name);
+          const salesTeamData = await client.get('Sales Order', order.name) as any;
           
           // Get first sales person from sales_team child table
           const salesPerson = salesTeamData.data?.sales_team?.[0]?.sales_person || '';

@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
     // Fetch details for each invoice in parallel
     const detailPromises = invoices.map(async (invoice: any) => {
       try {
-        const detailData = await client.get('Purchase Invoice', invoice.name);
+        const detailData = await client.get('Purchase Invoice', invoice.name) as any;
 
         return {
           name: detailData.data.name,

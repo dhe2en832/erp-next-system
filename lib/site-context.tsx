@@ -126,16 +126,16 @@ export function SiteProvider({ children }: SiteProviderProps): React.ReactElemen
    */
   const refreshSites = useCallback((): void => {
     try {
-      console.log('[SiteContext] Refreshing sites from storage...');
+      // console.log('[SiteContext] Refreshing sites from storage...');
       // Import reloadSites to force reload from localStorage
       import('./site-config').then(({ reloadSites }) => {
         const loadedSites = reloadSites(); // Force reload, bypass cache
-        console.log('[SiteContext] Reloaded sites:', loadedSites.length);
+        // console.log('[SiteContext] Reloaded sites:', loadedSites.length);
         setSites(loadedSites);
         
         // If active site no longer exists, clear it
         if (activeSite && !loadedSites.find(s => s.id === activeSite.id)) {
-          console.log('[SiteContext] Active site no longer exists, clearing');
+          // console.log('[SiteContext] Active site no longer exists, clearing');
           setActiveSiteState(null);
           persistActiveSite(null);
         }
@@ -151,7 +151,7 @@ export function SiteProvider({ children }: SiteProviderProps): React.ReactElemen
    */
   const setActiveSite = useCallback((siteId: string): void => {
     try {
-      console.log('[SiteContext] setActiveSite called with:', siteId);
+      // console.log('[SiteContext] setActiveSite called with:', siteId);
       const site = getSite(siteId);
       
       if (!site) {
@@ -160,7 +160,7 @@ export function SiteProvider({ children }: SiteProviderProps): React.ReactElemen
         return;
       }
       
-      console.log('[SiteContext] Setting active site to:', site.displayName, '(', site.id, ')');
+      // console.log('[SiteContext] Setting active site to:', site.displayName, '(', site.id, ')');
       
       // Clear cache when switching sites
       clearCache();
@@ -172,10 +172,10 @@ export function SiteProvider({ children }: SiteProviderProps): React.ReactElemen
       // Set active_site cookie for API routes
       if (typeof document !== 'undefined') {
         document.cookie = `active_site=${siteId}; path=/; max-age=2592000`; // 30 days
-        console.log('[SiteContext] Cookie set for:', siteId);
+        // console.log('[SiteContext] Cookie set for:', siteId);
       }
       
-      console.log('[SiteContext] Active site successfully set to:', site.displayName);
+      // console.log('[SiteContext] Active site successfully set to:', site.displayName);
       setError(null);
     } catch (error) {
       console.error('[SiteContext] Failed to set active site:', error);
@@ -191,13 +191,13 @@ export function SiteProvider({ children }: SiteProviderProps): React.ReactElemen
       try {
         setIsLoading(true);
         
-        console.log('[SiteProvider] Initializing sites...');
+        // console.log('[SiteProvider] Initializing sites...');
         
         // Step 1: Run migration check on first load
         // This will detect legacy environment variables and migrate them
         const migrationResult = performMigration();
         if (migrationResult.success && migrationResult.migratedSite) {
-          console.log('[SiteProvider] Migration completed successfully:', migrationResult.migratedSite.id);
+          // console.log('[SiteProvider] Migration completed successfully:', migrationResult.migratedSite.id);
         } else if (migrationResult.hadLegacyConfig && !migrationResult.success) {
           console.error('[SiteProvider] Migration failed:', migrationResult.error);
           setError(`Migration failed: ${migrationResult.error}`);
@@ -206,15 +206,15 @@ export function SiteProvider({ children }: SiteProviderProps): React.ReactElemen
         // Step 2: Get all configured sites (force reload from storage)
         const { reloadSites } = await import('./site-config');
         let loadedSites = reloadSites(); // Force reload, bypass cache
-        console.log('[SiteProvider] Sites reloaded from storage:', loadedSites.length);
+        // console.log('[SiteProvider] Sites reloaded from storage:', loadedSites.length);
         
         // Step 3: If no sites configured, load from environment variables
         if (loadedSites.length === 0) {
-          console.log('[SiteProvider] No sites configured, loading from environment...');
+          // console.log('[SiteProvider] No sites configured, loading from environment...');
           const envSites = loadSitesFromEnvironment();
           
           if (envSites.length > 0) {
-            console.log('[SiteProvider] Loaded sites from environment:', envSites.length);
+            // console.log('[SiteProvider] Loaded sites from environment:', envSites.length);
             // Sites are automatically persisted by loadFromEnvironment
             loadFromEnvironment();
             loadedSites = getAllSites();
@@ -228,7 +228,7 @@ export function SiteProvider({ children }: SiteProviderProps): React.ReactElemen
         // Remove old demo site if exists
         const hasOldDemoSite = loadedSites.some(s => s.id === oldDemoSiteId);
         if (hasOldDemoSite) {
-          console.log('[SiteProvider] Removing old demo site with incorrect ID');
+          // console.log('[SiteProvider] Removing old demo site with incorrect ID');
           const { removeSite } = await import('./site-config');
           try {
             removeSite(oldDemoSiteId);
@@ -241,7 +241,7 @@ export function SiteProvider({ children }: SiteProviderProps): React.ReactElemen
         const hasDemoSite = loadedSites.some(s => s.id === demoSiteId);
         
         if (!hasDemoSite) {
-          console.log('[SiteProvider] Adding default demo site to storage');
+          // console.log('[SiteProvider] Adding default demo site to storage');
           const { addSite } = await import('./site-config');
           
           try {
@@ -274,17 +274,17 @@ export function SiteProvider({ children }: SiteProviderProps): React.ReactElemen
         }
         
         setSites(loadedSites);
-        console.log('[SiteProvider] Sites loaded:', loadedSites.length);
+        // console.log('[SiteProvider] Sites loaded:', loadedSites.length);
         
         // Step 4: Try to restore last selected site
         const lastSiteId = loadLastSelectedSite();
-        console.log('[SiteProvider] Last selected site from localStorage:', lastSiteId);
+        // console.log('[SiteProvider] Last selected site from localStorage:', lastSiteId);
         let siteToActivate: SiteConfig | null = null;
         
         if (lastSiteId) {
           siteToActivate = loadedSites.find(s => s.id === lastSiteId) || null;
           if (siteToActivate) {
-            console.log('[SiteProvider] Restored last selected site:', siteToActivate.displayName, '(', siteToActivate.id, ')');
+            // console.log('[SiteProvider] Restored last selected site:', siteToActivate.displayName, '(', siteToActivate.id, ')');
           } else {
             console.warn('[SiteProvider] Last selected site not found in loaded sites:', lastSiteId);
           }
@@ -294,7 +294,7 @@ export function SiteProvider({ children }: SiteProviderProps): React.ReactElemen
         if (!siteToActivate) {
           siteToActivate = getDefaultSite(loadedSites);
           if (siteToActivate) {
-            console.log('[SiteProvider] Using default site:', siteToActivate.displayName, '(', siteToActivate.id, ')');
+            // console.log('[SiteProvider] Using default site:', siteToActivate.displayName, '(', siteToActivate.id, ')');
           }
         }
         
@@ -302,13 +302,13 @@ export function SiteProvider({ children }: SiteProviderProps): React.ReactElemen
         if (siteToActivate) {
           setActiveSiteState(siteToActivate);
           persistActiveSite(siteToActivate.id);
-          console.log('[SiteProvider] Active site set to:', siteToActivate.displayName, '(', siteToActivate.id, ')');
+          // console.log('[SiteProvider] Active site set to:', siteToActivate.displayName, '(', siteToActivate.id, ')');
         } else {
           console.warn('[SiteProvider] No site could be activated');
         }
         
         setIsLoading(false);
-        console.log('[SiteProvider] Initialization complete');
+        // console.log('[SiteProvider] Initialization complete');
       } catch (error) {
         console.error('[SiteProvider] Failed to initialize sites:', error);
         setError('Failed to initialize site configurations');

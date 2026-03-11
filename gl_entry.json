@@ -1,0 +1,1632 @@
+{
+  "success": true,
+  "period": {
+    "name": "202603 - C",
+    "period_name": "202603 - C",
+    "start_date": "2026-03-01",
+    "end_date": "2026-03-31"
+  },
+  "total_gl_entries": 91,
+  "account_balances": {
+    "1141.000 - Persediaan Barang - C": {
+      "account": "1141.000 - Persediaan Barang - C",
+      "account_name": "Persediaan Barang",
+      "root_type": "Asset",
+      "debit": 866791271,
+      "credit": 1557742,
+      "entries": [
+        {
+          "voucher_type": "Stock Reconciliation",
+          "voucher_no": "MAT-RECO-2026-00005",
+          "posting_date": "2026-03-08",
+          "debit": 864522271,
+          "credit": 0
+        },
+        {
+          "voucher_type": "Delivery Note",
+          "voucher_no": "DN-2026-00026",
+          "posting_date": "2026-03-08",
+          "debit": 0,
+          "credit": 1480000
+        },
+        {
+          "voucher_type": "Delivery Note",
+          "voucher_no": "MAT-DN-2026-00011",
+          "posting_date": "2026-03-08",
+          "debit": 740000,
+          "credit": 0
+        },
+        {
+          "voucher_type": "Purchase Receipt",
+          "voucher_no": "MAT-PRE-2026-00014",
+          "posting_date": "2026-03-08",
+          "debit": 200000,
+          "credit": 0
+        },
+        {
+          "voucher_type": "Delivery Note",
+          "voucher_no": "DN-2026-00027",
+          "posting_date": "2026-03-08",
+          "debit": 0,
+          "credit": 35052
+        },
+        {
+          "voucher_type": "Stock Entry",
+          "voucher_no": "MAT-STE-2026-00011",
+          "posting_date": "2026-03-08",
+          "debit": 400000,
+          "credit": 0
+        },
+        {
+          "voucher_type": "Stock Entry",
+          "voucher_no": "MAT-STE-2026-00012",
+          "posting_date": "2026-03-08",
+          "debit": 869000,
+          "credit": 0
+        },
+        {
+          "voucher_type": "Purchase Receipt",
+          "voucher_no": "MAT-PRE-2026-00015",
+          "posting_date": "2026-03-08",
+          "debit": 40000,
+          "credit": 0
+        },
+        {
+          "voucher_type": "Delivery Note",
+          "voucher_no": "DN-2026-00028",
+          "posting_date": "2026-03-08",
+          "debit": 0,
+          "credit": 20000
+        },
+        {
+          "voucher_type": "Purchase Receipt",
+          "voucher_no": "MAT-PRE-2026-00016",
+          "posting_date": "2026-03-09",
+          "debit": 0,
+          "credit": 10000
+        },
+        {
+          "voucher_type": "Delivery Note",
+          "voucher_no": "DN-2026-00029",
+          "posting_date": "2026-03-10",
+          "debit": 0,
+          "credit": 8690
+        },
+        {
+          "voucher_type": "Purchase Receipt",
+          "voucher_no": "MAT-PRE-2026-00017",
+          "posting_date": "2026-03-10",
+          "debit": 20000,
+          "credit": 0
+        },
+        {
+          "voucher_type": "Delivery Note",
+          "voucher_no": "DN-2026-00030",
+          "posting_date": "2026-03-11",
+          "debit": 0,
+          "credit": 4000
+        }
+      ]
+    },
+    "1170.001 - Pembukaan sementara - C": {
+      "account": "1170.001 - Pembukaan sementara - C",
+      "account_name": "Pembukaan sementara",
+      "root_type": "Asset",
+      "debit": 0,
+      "credit": 864522271,
+      "entries": [
+        {
+          "voucher_type": "Stock Reconciliation",
+          "voucher_no": "MAT-RECO-2026-00005",
+          "posting_date": "2026-03-08",
+          "debit": 0,
+          "credit": 864522271
+        }
+      ]
+    },
+    "5140.001 - HPP Barang Dagang - C": {
+      "account": "5140.001 - HPP Barang Dagang - C",
+      "account_name": "HPP Barang Dagang",
+      "root_type": "Expense",
+      "debit": 1547742,
+      "credit": 740000,
+      "entries": [
+        {
+          "voucher_type": "Delivery Note",
+          "voucher_no": "DN-2026-00026",
+          "posting_date": "2026-03-08",
+          "debit": 1480000,
+          "credit": 0
+        },
+        {
+          "voucher_type": "Delivery Note",
+          "voucher_no": "MAT-DN-2026-00011",
+          "posting_date": "2026-03-08",
+          "debit": 0,
+          "credit": 740000
+        },
+        {
+          "voucher_type": "Delivery Note",
+          "voucher_no": "DN-2026-00027",
+          "posting_date": "2026-03-08",
+          "debit": 35052,
+          "credit": 0
+        },
+        {
+          "voucher_type": "Delivery Note",
+          "voucher_no": "DN-2026-00028",
+          "posting_date": "2026-03-08",
+          "debit": 20000,
+          "credit": 0
+        },
+        {
+          "voucher_type": "Delivery Note",
+          "voucher_no": "DN-2026-00029",
+          "posting_date": "2026-03-10",
+          "debit": 8690,
+          "credit": 0
+        },
+        {
+          "voucher_type": "Delivery Note",
+          "voucher_no": "DN-2026-00030",
+          "posting_date": "2026-03-11",
+          "debit": 4000,
+          "credit": 0
+        }
+      ]
+    },
+    "1131.0010 - Piutang Dagang - C": {
+      "account": "1131.0010 - Piutang Dagang - C",
+      "account_name": "Piutang Dagang",
+      "root_type": "Asset",
+      "debit": 2019000,
+      "credit": 3719000,
+      "entries": [
+        {
+          "voucher_type": "Sales Invoice",
+          "voucher_no": "ACC-SINV-2026-00023",
+          "posting_date": "2026-03-08",
+          "debit": 1000000,
+          "credit": 0
+        },
+        {
+          "voucher_type": "Payment Entry",
+          "voucher_no": "ACC-PAY-2026-00028",
+          "posting_date": "2026-03-07",
+          "debit": 0,
+          "credit": 1000000
+        },
+        {
+          "voucher_type": "Journal Entry",
+          "voucher_no": "ACC-JV-2026-00063",
+          "posting_date": "2026-03-08",
+          "debit": 0,
+          "credit": 1000000
+        },
+        {
+          "voucher_type": "Payment Entry",
+          "voucher_no": "ACC-PAY-2026-00028",
+          "posting_date": "2026-03-07",
+          "debit": 1000000,
+          "credit": 0
+        },
+        {
+          "voucher_type": "Payment Entry",
+          "voucher_no": "ACC-PAY-2026-00029",
+          "posting_date": "2026-03-07",
+          "debit": 0,
+          "credit": 500000
+        },
+        {
+          "voucher_type": "Journal Entry",
+          "voucher_no": "ACC-JV-2026-00064",
+          "posting_date": "2026-03-08",
+          "debit": 0,
+          "credit": 500000
+        },
+        {
+          "voucher_type": "Payment Entry",
+          "voucher_no": "ACC-PAY-2026-00030",
+          "posting_date": "2026-03-07",
+          "debit": 0,
+          "credit": 500000
+        },
+        {
+          "voucher_type": "Sales Invoice",
+          "voucher_no": "ACC-SINV-2026-00024",
+          "posting_date": "2026-03-08",
+          "debit": 0,
+          "credit": 200000
+        },
+        {
+          "voucher_type": "Sales Invoice",
+          "voucher_no": "ACC-SINV-2026-00025",
+          "posting_date": "2026-03-08",
+          "debit": 3000,
+          "credit": 0
+        },
+        {
+          "voucher_type": "Sales Invoice",
+          "voucher_no": "ACC-SINV-2026-00026",
+          "posting_date": "2026-03-10",
+          "debit": 10000,
+          "credit": 0
+        },
+        {
+          "voucher_type": "Payment Entry",
+          "voucher_no": "ACC-PAY-2026-00033",
+          "posting_date": "2026-03-10",
+          "debit": 0,
+          "credit": 3000
+        },
+        {
+          "voucher_type": "Payment Entry",
+          "voucher_no": "ACC-PAY-2026-00033",
+          "posting_date": "2026-03-10",
+          "debit": 0,
+          "credit": 10000
+        },
+        {
+          "voucher_type": "Sales Invoice",
+          "voucher_no": "ACC-SINV-2026-00027",
+          "posting_date": "2026-03-11",
+          "debit": 6000,
+          "credit": 0
+        },
+        {
+          "voucher_type": "Payment Entry",
+          "voucher_no": "ACC-PAY-2026-00035",
+          "posting_date": "2026-03-11",
+          "debit": 0,
+          "credit": 6000
+        }
+      ]
+    },
+    "4110.000 - Penjualan - C": {
+      "account": "4110.000 - Penjualan - C",
+      "account_name": "Penjualan",
+      "root_type": "Income",
+      "debit": 1003000,
+      "credit": 1822000,
+      "entries": [
+        {
+          "voucher_type": "Sales Invoice",
+          "voucher_no": "ACC-SINV-2026-00023",
+          "posting_date": "2026-03-08",
+          "debit": 0,
+          "credit": 1000000
+        },
+        {
+          "voucher_type": "Sales Invoice",
+          "voucher_no": "ACC-SINV-2026-00024",
+          "posting_date": "2026-03-08",
+          "debit": 200000,
+          "credit": 0
+        },
+        {
+          "voucher_type": "Sales Invoice",
+          "voucher_no": "ACC-SINV-2026-00025",
+          "posting_date": "2026-03-08",
+          "debit": 0,
+          "credit": 3000
+        },
+        {
+          "voucher_type": "Journal Entry",
+          "voucher_no": "ACC-JV-2026-00070",
+          "posting_date": "2026-03-31",
+          "debit": 803000,
+          "credit": 0
+        },
+        {
+          "voucher_type": "Sales Invoice",
+          "voucher_no": "ACC-SINV-2026-00026",
+          "posting_date": "2026-03-10",
+          "debit": 0,
+          "credit": 10000
+        },
+        {
+          "voucher_type": "Sales Invoice",
+          "voucher_no": "ACC-SINV-2026-00027",
+          "posting_date": "2026-03-11",
+          "debit": 0,
+          "credit": 6000
+        },
+        {
+          "voucher_type": "Journal Entry",
+          "voucher_no": "ACC-JV-2026-00070",
+          "posting_date": "2026-03-31",
+          "debit": 0,
+          "credit": 803000
+        }
+      ]
+    },
+    "5110.022 - Beban Komisi Penjualan - C": {
+      "account": "5110.022 - Beban Komisi Penjualan - C",
+      "account_name": "Beban Komisi Penjualan",
+      "root_type": "Expense",
+      "debit": 375200,
+      "credit": 208000,
+      "entries": [
+        {
+          "voucher_type": "Journal Entry",
+          "voucher_no": "ACC-JV-2026-00062",
+          "posting_date": "2026-03-08",
+          "debit": 208000,
+          "credit": 0
+        },
+        {
+          "voucher_type": "Journal Entry",
+          "voucher_no": "ACC-JV-2026-00066",
+          "posting_date": "2026-03-08",
+          "debit": 0,
+          "credit": 41600
+        },
+        {
+          "voucher_type": "Journal Entry",
+          "voucher_no": "ACC-JV-2026-00070",
+          "posting_date": "2026-03-31",
+          "debit": 0,
+          "credit": 166400
+        },
+        {
+          "voucher_type": "Journal Entry",
+          "voucher_no": "ACC-JV-2026-00071",
+          "posting_date": "2026-03-11",
+          "debit": 800,
+          "credit": 0
+        },
+        {
+          "voucher_type": "Journal Entry",
+          "voucher_no": "ACC-JV-2026-00070",
+          "posting_date": "2026-03-31",
+          "debit": 166400,
+          "credit": 0
+        }
+      ]
+    },
+    "2150.0001 - Hutang Komisi Sales - C": {
+      "account": "2150.0001 - Hutang Komisi Sales - C",
+      "account_name": "Hutang Komisi Sales",
+      "root_type": "Liability",
+      "debit": 249600,
+      "credit": 208800,
+      "entries": [
+        {
+          "voucher_type": "Journal Entry",
+          "voucher_no": "ACC-JV-2026-00062",
+          "posting_date": "2026-03-08",
+          "debit": 0,
+          "credit": 208000
+        },
+        {
+          "voucher_type": "Journal Entry",
+          "voucher_no": "ACC-JV-2026-00065",
+          "posting_date": "2026-03-08",
+          "debit": 208000,
+          "credit": 0
+        },
+        {
+          "voucher_type": "Journal Entry",
+          "voucher_no": "ACC-JV-2026-00066",
+          "posting_date": "2026-03-08",
+          "debit": 41600,
+          "credit": 0
+        },
+        {
+          "voucher_type": "Journal Entry",
+          "voucher_no": "ACC-JV-2026-00071",
+          "posting_date": "2026-03-11",
+          "debit": 0,
+          "credit": 800
+        }
+      ]
+    },
+    "1190.001 - Warkat Masuk - C": {
+      "account": "1190.001 - Warkat Masuk - C",
+      "account_name": "Warkat Masuk",
+      "root_type": "Asset",
+      "debit": 2500000,
+      "credit": 1000000,
+      "entries": [
+        {
+          "voucher_type": "Payment Entry",
+          "voucher_no": "ACC-PAY-2026-00028",
+          "posting_date": "2026-03-07",
+          "debit": 1000000,
+          "credit": 0
+        },
+        {
+          "voucher_type": "Journal Entry",
+          "voucher_no": "ACC-JV-2026-00063",
+          "posting_date": "2026-03-08",
+          "debit": 1000000,
+          "credit": 0
+        },
+        {
+          "voucher_type": "Payment Entry",
+          "voucher_no": "ACC-PAY-2026-00028",
+          "posting_date": "2026-03-07",
+          "debit": 0,
+          "credit": 1000000
+        },
+        {
+          "voucher_type": "Payment Entry",
+          "voucher_no": "ACC-PAY-2026-00029",
+          "posting_date": "2026-03-07",
+          "debit": 500000,
+          "credit": 0
+        }
+      ]
+    },
+    "1121.001 - BCA No. Rek. 123456 - C": {
+      "account": "1121.001 - BCA No. Rek. 123456 - C",
+      "account_name": "BCA No. Rek. 123456",
+      "root_type": "Asset",
+      "debit": 1000000,
+      "credit": 250000,
+      "entries": [
+        {
+          "voucher_type": "Journal Entry",
+          "voucher_no": "ACC-JV-2026-00064",
+          "posting_date": "2026-03-08",
+          "debit": 500000,
+          "credit": 0
+        },
+        {
+          "voucher_type": "Journal Entry",
+          "voucher_no": "ACC-JV-2026-00068",
+          "posting_date": "2026-03-08",
+          "debit": 500000,
+          "credit": 0
+        },
+        {
+          "voucher_type": "Journal Entry",
+          "voucher_no": "ACC-JV-2026-00069",
+          "posting_date": "2026-03-08",
+          "debit": 0,
+          "credit": 250000
+        }
+      ]
+    },
+    "1111.002 - Kas Besar - C": {
+      "account": "1111.002 - Kas Besar - C",
+      "account_name": "Kas Besar",
+      "root_type": "Asset",
+      "debit": 513000,
+      "credit": 208000,
+      "entries": [
+        {
+          "voucher_type": "Payment Entry",
+          "voucher_no": "ACC-PAY-2026-00030",
+          "posting_date": "2026-03-07",
+          "debit": 500000,
+          "credit": 0
+        },
+        {
+          "voucher_type": "Journal Entry",
+          "voucher_no": "ACC-JV-2026-00065",
+          "posting_date": "2026-03-08",
+          "debit": 0,
+          "credit": 208000
+        },
+        {
+          "voucher_type": "Payment Entry",
+          "voucher_no": "ACC-PAY-2026-00033",
+          "posting_date": "2026-03-10",
+          "debit": 13000,
+          "credit": 0
+        }
+      ]
+    },
+    "2115.000 - Stock Diterima Tapi Tidak Ditagih - C": {
+      "account": "2115.000 - Stock Diterima Tapi Tidak Ditagih - C",
+      "account_name": "Stock Diterima Tapi Tidak Ditagih",
+      "root_type": "Liability",
+      "debit": 230000,
+      "credit": 280000,
+      "entries": [
+        {
+          "voucher_type": "Purchase Receipt",
+          "voucher_no": "MAT-PRE-2026-00014",
+          "posting_date": "2026-03-08",
+          "debit": 0,
+          "credit": 200000
+        },
+        {
+          "voucher_type": "Purchase Invoice",
+          "voucher_no": "ACC-PINV-2026-00010",
+          "posting_date": "2026-03-08",
+          "debit": 200000,
+          "credit": 0
+        },
+        {
+          "voucher_type": "Purchase Receipt",
+          "voucher_no": "MAT-PRE-2026-00015",
+          "posting_date": "2026-03-08",
+          "debit": 0,
+          "credit": 40000
+        },
+        {
+          "voucher_type": "Purchase Receipt",
+          "voucher_no": "MAT-PRE-2026-00016",
+          "posting_date": "2026-03-09",
+          "debit": 10000,
+          "credit": 0
+        },
+        {
+          "voucher_type": "Purchase Invoice",
+          "voucher_no": "ACC-PINV-2026-00011",
+          "posting_date": "2026-03-09",
+          "debit": 0,
+          "credit": 20000
+        },
+        {
+          "voucher_type": "Purchase Receipt",
+          "voucher_no": "MAT-PRE-2026-00017",
+          "posting_date": "2026-03-10",
+          "debit": 0,
+          "credit": 20000
+        },
+        {
+          "voucher_type": "Purchase Invoice",
+          "voucher_no": "ACC-PINV-2026-00012",
+          "posting_date": "2026-03-10",
+          "debit": 20000,
+          "credit": 0
+        }
+      ]
+    },
+    "2111.001 - Hutang Dagang Dalam Negeri - C": {
+      "account": "2111.001 - Hutang Dagang Dalam Negeri - C",
+      "account_name": "Hutang Dagang Dalam Negeri",
+      "root_type": "Liability",
+      "debit": 250000,
+      "credit": 240000,
+      "entries": [
+        {
+          "voucher_type": "Purchase Invoice",
+          "voucher_no": "ACC-PINV-2026-00010",
+          "posting_date": "2026-03-08",
+          "debit": 0,
+          "credit": 200000
+        },
+        {
+          "voucher_type": "Payment Entry",
+          "voucher_no": "ACC-PAY-2026-00031",
+          "posting_date": "2026-03-07",
+          "debit": 10000,
+          "credit": 0
+        },
+        {
+          "voucher_type": "Journal Entry",
+          "voucher_no": "ACC-JV-2026-00067",
+          "posting_date": "2026-03-08",
+          "debit": 0,
+          "credit": 10000
+        },
+        {
+          "voucher_type": "Payment Entry",
+          "voucher_no": "ACC-PAY-2026-00031",
+          "posting_date": "2026-03-07",
+          "debit": 0,
+          "credit": 10000
+        },
+        {
+          "voucher_type": "Payment Entry",
+          "voucher_no": "ACC-PAY-2026-00032",
+          "posting_date": "2026-03-09",
+          "debit": 200000,
+          "credit": 0
+        },
+        {
+          "voucher_type": "Purchase Invoice",
+          "voucher_no": "ACC-PINV-2026-00011",
+          "posting_date": "2026-03-09",
+          "debit": 20000,
+          "credit": 0
+        },
+        {
+          "voucher_type": "Purchase Invoice",
+          "voucher_no": "ACC-PINV-2026-00012",
+          "posting_date": "2026-03-10",
+          "debit": 0,
+          "credit": 20000
+        },
+        {
+          "voucher_type": "Payment Entry",
+          "voucher_no": "ACC-PAY-2026-00034",
+          "posting_date": "2026-03-10",
+          "debit": 20000,
+          "credit": 0
+        }
+      ]
+    },
+    "1190.002 - Warkat Keluar - C": {
+      "account": "1190.002 - Warkat Keluar - C",
+      "account_name": "Warkat Keluar",
+      "root_type": "Asset",
+      "debit": 20000,
+      "credit": 10000,
+      "entries": [
+        {
+          "voucher_type": "Payment Entry",
+          "voucher_no": "ACC-PAY-2026-00031",
+          "posting_date": "2026-03-07",
+          "debit": 0,
+          "credit": 10000
+        },
+        {
+          "voucher_type": "Journal Entry",
+          "voucher_no": "ACC-JV-2026-00067",
+          "posting_date": "2026-03-08",
+          "debit": 10000,
+          "credit": 0
+        },
+        {
+          "voucher_type": "Payment Entry",
+          "voucher_no": "ACC-PAY-2026-00031",
+          "posting_date": "2026-03-07",
+          "debit": 10000,
+          "credit": 0
+        }
+      ]
+    },
+    "4480.000 - Pendapatan Lain lain - C": {
+      "account": "4480.000 - Pendapatan Lain lain - C",
+      "account_name": "Pendapatan Lain lain",
+      "root_type": "Income",
+      "debit": 500000,
+      "credit": 1000000,
+      "entries": [
+        {
+          "voucher_type": "Journal Entry",
+          "voucher_no": "ACC-JV-2026-00068",
+          "posting_date": "2026-03-08",
+          "debit": 0,
+          "credit": 500000
+        },
+        {
+          "voucher_type": "Journal Entry",
+          "voucher_no": "ACC-JV-2026-00070",
+          "posting_date": "2026-03-31",
+          "debit": 500000,
+          "credit": 0
+        },
+        {
+          "voucher_type": "Journal Entry",
+          "voucher_no": "ACC-JV-2026-00070",
+          "posting_date": "2026-03-31",
+          "debit": 0,
+          "credit": 500000
+        }
+      ]
+    },
+    "5230.001 - Biaya PLN Kantor - C": {
+      "account": "5230.001 - Biaya PLN Kantor - C",
+      "account_name": "Biaya PLN Kantor",
+      "root_type": "Expense",
+      "debit": 500000,
+      "credit": 250000,
+      "entries": [
+        {
+          "voucher_type": "Journal Entry",
+          "voucher_no": "ACC-JV-2026-00069",
+          "posting_date": "2026-03-08",
+          "debit": 250000,
+          "credit": 0
+        },
+        {
+          "voucher_type": "Journal Entry",
+          "voucher_no": "ACC-JV-2026-00070",
+          "posting_date": "2026-03-31",
+          "debit": 0,
+          "credit": 250000
+        },
+        {
+          "voucher_type": "Journal Entry",
+          "voucher_no": "ACC-JV-2026-00070",
+          "posting_date": "2026-03-31",
+          "debit": 250000,
+          "credit": 0
+        }
+      ]
+    },
+    "3230.000 - Laba Periode Berjalan - C": {
+      "account": "3230.000 - Laba Periode Berjalan - C",
+      "account_name": "Laba Periode Berjalan",
+      "root_type": "Equity",
+      "debit": 886600,
+      "credit": 886600,
+      "entries": [
+        {
+          "voucher_type": "Journal Entry",
+          "voucher_no": "ACC-JV-2026-00070",
+          "posting_date": "2026-03-31",
+          "debit": 0,
+          "credit": 886600
+        },
+        {
+          "voucher_type": "Journal Entry",
+          "voucher_no": "ACC-JV-2026-00070",
+          "posting_date": "2026-03-31",
+          "debit": 886600,
+          "credit": 0
+        }
+      ]
+    },
+    "5110.020 - Penyesuaian Stock - C": {
+      "account": "5110.020 - Penyesuaian Stock - C",
+      "account_name": "Penyesuaian Stock",
+      "root_type": "Expense",
+      "debit": 0,
+      "credit": 1269000,
+      "entries": [
+        {
+          "voucher_type": "Stock Entry",
+          "voucher_no": "MAT-STE-2026-00011",
+          "posting_date": "2026-03-08",
+          "debit": 0,
+          "credit": 400000
+        },
+        {
+          "voucher_type": "Stock Entry",
+          "voucher_no": "MAT-STE-2026-00012",
+          "posting_date": "2026-03-08",
+          "debit": 0,
+          "credit": 869000
+        }
+      ]
+    },
+    "1111.001 - Kas Kecil - C": {
+      "account": "1111.001 - Kas Kecil - C",
+      "account_name": "Kas Kecil",
+      "root_type": "Asset",
+      "debit": 6000,
+      "credit": 220000,
+      "entries": [
+        {
+          "voucher_type": "Payment Entry",
+          "voucher_no": "ACC-PAY-2026-00032",
+          "posting_date": "2026-03-09",
+          "debit": 0,
+          "credit": 200000
+        },
+        {
+          "voucher_type": "Payment Entry",
+          "voucher_no": "ACC-PAY-2026-00034",
+          "posting_date": "2026-03-10",
+          "debit": 0,
+          "credit": 20000
+        },
+        {
+          "voucher_type": "Payment Entry",
+          "voucher_no": "ACC-PAY-2026-00035",
+          "posting_date": "2026-03-11",
+          "debit": 6000,
+          "credit": 0
+        }
+      ]
+    }
+  },
+  "gl_entries": [
+    {
+      "account": "1141.000 - Persediaan Barang - C",
+      "debit": 864522271,
+      "credit": 0,
+      "posting_date": "2026-03-08",
+      "voucher_type": "Stock Reconciliation",
+      "voucher_no": "MAT-RECO-2026-00005",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "1170.001 - Pembukaan sementara - C",
+      "debit": 0,
+      "credit": 864522271,
+      "posting_date": "2026-03-08",
+      "voucher_type": "Stock Reconciliation",
+      "voucher_no": "MAT-RECO-2026-00005",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "1141.000 - Persediaan Barang - C",
+      "debit": 0,
+      "credit": 1480000,
+      "posting_date": "2026-03-08",
+      "voucher_type": "Delivery Note",
+      "voucher_no": "DN-2026-00026",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "5140.001 - HPP Barang Dagang - C",
+      "debit": 1480000,
+      "credit": 0,
+      "posting_date": "2026-03-08",
+      "voucher_type": "Delivery Note",
+      "voucher_no": "DN-2026-00026",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "1141.000 - Persediaan Barang - C",
+      "debit": 740000,
+      "credit": 0,
+      "posting_date": "2026-03-08",
+      "voucher_type": "Delivery Note",
+      "voucher_no": "MAT-DN-2026-00011",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "5140.001 - HPP Barang Dagang - C",
+      "debit": 0,
+      "credit": 740000,
+      "posting_date": "2026-03-08",
+      "voucher_type": "Delivery Note",
+      "voucher_no": "MAT-DN-2026-00011",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "1131.0010 - Piutang Dagang - C",
+      "debit": 1000000,
+      "credit": 0,
+      "posting_date": "2026-03-08",
+      "voucher_type": "Sales Invoice",
+      "voucher_no": "ACC-SINV-2026-00023",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "4110.000 - Penjualan - C",
+      "debit": 0,
+      "credit": 1000000,
+      "posting_date": "2026-03-08",
+      "voucher_type": "Sales Invoice",
+      "voucher_no": "ACC-SINV-2026-00023",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "5110.022 - Beban Komisi Penjualan - C",
+      "debit": 208000,
+      "credit": 0,
+      "posting_date": "2026-03-08",
+      "voucher_type": "Journal Entry",
+      "voucher_no": "ACC-JV-2026-00062",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "2150.0001 - Hutang Komisi Sales - C",
+      "debit": 0,
+      "credit": 208000,
+      "posting_date": "2026-03-08",
+      "voucher_type": "Journal Entry",
+      "voucher_no": "ACC-JV-2026-00062",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "1131.0010 - Piutang Dagang - C",
+      "debit": 0,
+      "credit": 1000000,
+      "posting_date": "2026-03-07",
+      "voucher_type": "Payment Entry",
+      "voucher_no": "ACC-PAY-2026-00028",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "1190.001 - Warkat Masuk - C",
+      "debit": 1000000,
+      "credit": 0,
+      "posting_date": "2026-03-07",
+      "voucher_type": "Payment Entry",
+      "voucher_no": "ACC-PAY-2026-00028",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "1190.001 - Warkat Masuk - C",
+      "debit": 1000000,
+      "credit": 0,
+      "posting_date": "2026-03-08",
+      "voucher_type": "Journal Entry",
+      "voucher_no": "ACC-JV-2026-00063",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "1131.0010 - Piutang Dagang - C",
+      "debit": 0,
+      "credit": 1000000,
+      "posting_date": "2026-03-08",
+      "voucher_type": "Journal Entry",
+      "voucher_no": "ACC-JV-2026-00063",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "1131.0010 - Piutang Dagang - C",
+      "debit": 1000000,
+      "credit": 0,
+      "posting_date": "2026-03-07",
+      "voucher_type": "Payment Entry",
+      "voucher_no": "ACC-PAY-2026-00028",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "1190.001 - Warkat Masuk - C",
+      "debit": 0,
+      "credit": 1000000,
+      "posting_date": "2026-03-07",
+      "voucher_type": "Payment Entry",
+      "voucher_no": "ACC-PAY-2026-00028",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "1131.0010 - Piutang Dagang - C",
+      "debit": 0,
+      "credit": 500000,
+      "posting_date": "2026-03-07",
+      "voucher_type": "Payment Entry",
+      "voucher_no": "ACC-PAY-2026-00029",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "1190.001 - Warkat Masuk - C",
+      "debit": 500000,
+      "credit": 0,
+      "posting_date": "2026-03-07",
+      "voucher_type": "Payment Entry",
+      "voucher_no": "ACC-PAY-2026-00029",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "1121.001 - BCA No. Rek. 123456 - C",
+      "debit": 500000,
+      "credit": 0,
+      "posting_date": "2026-03-08",
+      "voucher_type": "Journal Entry",
+      "voucher_no": "ACC-JV-2026-00064",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "1131.0010 - Piutang Dagang - C",
+      "debit": 0,
+      "credit": 500000,
+      "posting_date": "2026-03-08",
+      "voucher_type": "Journal Entry",
+      "voucher_no": "ACC-JV-2026-00064",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "1131.0010 - Piutang Dagang - C",
+      "debit": 0,
+      "credit": 500000,
+      "posting_date": "2026-03-07",
+      "voucher_type": "Payment Entry",
+      "voucher_no": "ACC-PAY-2026-00030",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "1111.002 - Kas Besar - C",
+      "debit": 500000,
+      "credit": 0,
+      "posting_date": "2026-03-07",
+      "voucher_type": "Payment Entry",
+      "voucher_no": "ACC-PAY-2026-00030",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "2150.0001 - Hutang Komisi Sales - C",
+      "debit": 208000,
+      "credit": 0,
+      "posting_date": "2026-03-08",
+      "voucher_type": "Journal Entry",
+      "voucher_no": "ACC-JV-2026-00065",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "1111.002 - Kas Besar - C",
+      "debit": 0,
+      "credit": 208000,
+      "posting_date": "2026-03-08",
+      "voucher_type": "Journal Entry",
+      "voucher_no": "ACC-JV-2026-00065",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "1141.000 - Persediaan Barang - C",
+      "debit": 200000,
+      "credit": 0,
+      "posting_date": "2026-03-08",
+      "voucher_type": "Purchase Receipt",
+      "voucher_no": "MAT-PRE-2026-00014",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "2115.000 - Stock Diterima Tapi Tidak Ditagih - C",
+      "debit": 0,
+      "credit": 200000,
+      "posting_date": "2026-03-08",
+      "voucher_type": "Purchase Receipt",
+      "voucher_no": "MAT-PRE-2026-00014",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "1131.0010 - Piutang Dagang - C",
+      "debit": 0,
+      "credit": 200000,
+      "posting_date": "2026-03-08",
+      "voucher_type": "Sales Invoice",
+      "voucher_no": "ACC-SINV-2026-00024",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "4110.000 - Penjualan - C",
+      "debit": 200000,
+      "credit": 0,
+      "posting_date": "2026-03-08",
+      "voucher_type": "Sales Invoice",
+      "voucher_no": "ACC-SINV-2026-00024",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "2150.0001 - Hutang Komisi Sales - C",
+      "debit": 41600,
+      "credit": 0,
+      "posting_date": "2026-03-08",
+      "voucher_type": "Journal Entry",
+      "voucher_no": "ACC-JV-2026-00066",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "5110.022 - Beban Komisi Penjualan - C",
+      "debit": 0,
+      "credit": 41600,
+      "posting_date": "2026-03-08",
+      "voucher_type": "Journal Entry",
+      "voucher_no": "ACC-JV-2026-00066",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "2111.001 - Hutang Dagang Dalam Negeri - C",
+      "debit": 0,
+      "credit": 200000,
+      "posting_date": "2026-03-08",
+      "voucher_type": "Purchase Invoice",
+      "voucher_no": "ACC-PINV-2026-00010",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "2115.000 - Stock Diterima Tapi Tidak Ditagih - C",
+      "debit": 200000,
+      "credit": 0,
+      "posting_date": "2026-03-08",
+      "voucher_type": "Purchase Invoice",
+      "voucher_no": "ACC-PINV-2026-00010",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "2111.001 - Hutang Dagang Dalam Negeri - C",
+      "debit": 10000,
+      "credit": 0,
+      "posting_date": "2026-03-07",
+      "voucher_type": "Payment Entry",
+      "voucher_no": "ACC-PAY-2026-00031",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "1190.002 - Warkat Keluar - C",
+      "debit": 0,
+      "credit": 10000,
+      "posting_date": "2026-03-07",
+      "voucher_type": "Payment Entry",
+      "voucher_no": "ACC-PAY-2026-00031",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "1190.002 - Warkat Keluar - C",
+      "debit": 10000,
+      "credit": 0,
+      "posting_date": "2026-03-08",
+      "voucher_type": "Journal Entry",
+      "voucher_no": "ACC-JV-2026-00067",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "2111.001 - Hutang Dagang Dalam Negeri - C",
+      "debit": 0,
+      "credit": 10000,
+      "posting_date": "2026-03-08",
+      "voucher_type": "Journal Entry",
+      "voucher_no": "ACC-JV-2026-00067",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "2111.001 - Hutang Dagang Dalam Negeri - C",
+      "debit": 0,
+      "credit": 10000,
+      "posting_date": "2026-03-07",
+      "voucher_type": "Payment Entry",
+      "voucher_no": "ACC-PAY-2026-00031",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "1190.002 - Warkat Keluar - C",
+      "debit": 10000,
+      "credit": 0,
+      "posting_date": "2026-03-07",
+      "voucher_type": "Payment Entry",
+      "voucher_no": "ACC-PAY-2026-00031",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "1141.000 - Persediaan Barang - C",
+      "debit": 0,
+      "credit": 35052,
+      "posting_date": "2026-03-08",
+      "voucher_type": "Delivery Note",
+      "voucher_no": "DN-2026-00027",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "5140.001 - HPP Barang Dagang - C",
+      "debit": 35052,
+      "credit": 0,
+      "posting_date": "2026-03-08",
+      "voucher_type": "Delivery Note",
+      "voucher_no": "DN-2026-00027",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "1121.001 - BCA No. Rek. 123456 - C",
+      "debit": 500000,
+      "credit": 0,
+      "posting_date": "2026-03-08",
+      "voucher_type": "Journal Entry",
+      "voucher_no": "ACC-JV-2026-00068",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "4480.000 - Pendapatan Lain lain - C",
+      "debit": 0,
+      "credit": 500000,
+      "posting_date": "2026-03-08",
+      "voucher_type": "Journal Entry",
+      "voucher_no": "ACC-JV-2026-00068",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "5230.001 - Biaya PLN Kantor - C",
+      "debit": 250000,
+      "credit": 0,
+      "posting_date": "2026-03-08",
+      "voucher_type": "Journal Entry",
+      "voucher_no": "ACC-JV-2026-00069",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "1121.001 - BCA No. Rek. 123456 - C",
+      "debit": 0,
+      "credit": 250000,
+      "posting_date": "2026-03-08",
+      "voucher_type": "Journal Entry",
+      "voucher_no": "ACC-JV-2026-00069",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "1131.0010 - Piutang Dagang - C",
+      "debit": 3000,
+      "credit": 0,
+      "posting_date": "2026-03-08",
+      "voucher_type": "Sales Invoice",
+      "voucher_no": "ACC-SINV-2026-00025",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "4110.000 - Penjualan - C",
+      "debit": 0,
+      "credit": 3000,
+      "posting_date": "2026-03-08",
+      "voucher_type": "Sales Invoice",
+      "voucher_no": "ACC-SINV-2026-00025",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "4110.000 - Penjualan - C",
+      "debit": 803000,
+      "credit": 0,
+      "posting_date": "2026-03-31",
+      "voucher_type": "Journal Entry",
+      "voucher_no": "ACC-JV-2026-00070",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "4480.000 - Pendapatan Lain lain - C",
+      "debit": 500000,
+      "credit": 0,
+      "posting_date": "2026-03-31",
+      "voucher_type": "Journal Entry",
+      "voucher_no": "ACC-JV-2026-00070",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "5110.022 - Beban Komisi Penjualan - C",
+      "debit": 0,
+      "credit": 166400,
+      "posting_date": "2026-03-31",
+      "voucher_type": "Journal Entry",
+      "voucher_no": "ACC-JV-2026-00070",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "5230.001 - Biaya PLN Kantor - C",
+      "debit": 0,
+      "credit": 250000,
+      "posting_date": "2026-03-31",
+      "voucher_type": "Journal Entry",
+      "voucher_no": "ACC-JV-2026-00070",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "3230.000 - Laba Periode Berjalan - C",
+      "debit": 0,
+      "credit": 886600,
+      "posting_date": "2026-03-31",
+      "voucher_type": "Journal Entry",
+      "voucher_no": "ACC-JV-2026-00070",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "1141.000 - Persediaan Barang - C",
+      "debit": 400000,
+      "credit": 0,
+      "posting_date": "2026-03-08",
+      "voucher_type": "Stock Entry",
+      "voucher_no": "MAT-STE-2026-00011",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "5110.020 - Penyesuaian Stock - C",
+      "debit": 0,
+      "credit": 400000,
+      "posting_date": "2026-03-08",
+      "voucher_type": "Stock Entry",
+      "voucher_no": "MAT-STE-2026-00011",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "1141.000 - Persediaan Barang - C",
+      "debit": 869000,
+      "credit": 0,
+      "posting_date": "2026-03-08",
+      "voucher_type": "Stock Entry",
+      "voucher_no": "MAT-STE-2026-00012",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "5110.020 - Penyesuaian Stock - C",
+      "debit": 0,
+      "credit": 869000,
+      "posting_date": "2026-03-08",
+      "voucher_type": "Stock Entry",
+      "voucher_no": "MAT-STE-2026-00012",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "1141.000 - Persediaan Barang - C",
+      "debit": 40000,
+      "credit": 0,
+      "posting_date": "2026-03-08",
+      "voucher_type": "Purchase Receipt",
+      "voucher_no": "MAT-PRE-2026-00015",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "2115.000 - Stock Diterima Tapi Tidak Ditagih - C",
+      "debit": 0,
+      "credit": 40000,
+      "posting_date": "2026-03-08",
+      "voucher_type": "Purchase Receipt",
+      "voucher_no": "MAT-PRE-2026-00015",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "1141.000 - Persediaan Barang - C",
+      "debit": 0,
+      "credit": 20000,
+      "posting_date": "2026-03-08",
+      "voucher_type": "Delivery Note",
+      "voucher_no": "DN-2026-00028",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "5140.001 - HPP Barang Dagang - C",
+      "debit": 20000,
+      "credit": 0,
+      "posting_date": "2026-03-08",
+      "voucher_type": "Delivery Note",
+      "voucher_no": "DN-2026-00028",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "2111.001 - Hutang Dagang Dalam Negeri - C",
+      "debit": 200000,
+      "credit": 0,
+      "posting_date": "2026-03-09",
+      "voucher_type": "Payment Entry",
+      "voucher_no": "ACC-PAY-2026-00032",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "1111.001 - Kas Kecil - C",
+      "debit": 0,
+      "credit": 200000,
+      "posting_date": "2026-03-09",
+      "voucher_type": "Payment Entry",
+      "voucher_no": "ACC-PAY-2026-00032",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "1141.000 - Persediaan Barang - C",
+      "debit": 0,
+      "credit": 10000,
+      "posting_date": "2026-03-09",
+      "voucher_type": "Purchase Receipt",
+      "voucher_no": "MAT-PRE-2026-00016",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "2115.000 - Stock Diterima Tapi Tidak Ditagih - C",
+      "debit": 10000,
+      "credit": 0,
+      "posting_date": "2026-03-09",
+      "voucher_type": "Purchase Receipt",
+      "voucher_no": "MAT-PRE-2026-00016",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "2111.001 - Hutang Dagang Dalam Negeri - C",
+      "debit": 20000,
+      "credit": 0,
+      "posting_date": "2026-03-09",
+      "voucher_type": "Purchase Invoice",
+      "voucher_no": "ACC-PINV-2026-00011",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "2115.000 - Stock Diterima Tapi Tidak Ditagih - C",
+      "debit": 0,
+      "credit": 20000,
+      "posting_date": "2026-03-09",
+      "voucher_type": "Purchase Invoice",
+      "voucher_no": "ACC-PINV-2026-00011",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "1141.000 - Persediaan Barang - C",
+      "debit": 0,
+      "credit": 8690,
+      "posting_date": "2026-03-10",
+      "voucher_type": "Delivery Note",
+      "voucher_no": "DN-2026-00029",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "5140.001 - HPP Barang Dagang - C",
+      "debit": 8690,
+      "credit": 0,
+      "posting_date": "2026-03-10",
+      "voucher_type": "Delivery Note",
+      "voucher_no": "DN-2026-00029",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "1131.0010 - Piutang Dagang - C",
+      "debit": 10000,
+      "credit": 0,
+      "posting_date": "2026-03-10",
+      "voucher_type": "Sales Invoice",
+      "voucher_no": "ACC-SINV-2026-00026",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "4110.000 - Penjualan - C",
+      "debit": 0,
+      "credit": 10000,
+      "posting_date": "2026-03-10",
+      "voucher_type": "Sales Invoice",
+      "voucher_no": "ACC-SINV-2026-00026",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "1141.000 - Persediaan Barang - C",
+      "debit": 20000,
+      "credit": 0,
+      "posting_date": "2026-03-10",
+      "voucher_type": "Purchase Receipt",
+      "voucher_no": "MAT-PRE-2026-00017",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "2115.000 - Stock Diterima Tapi Tidak Ditagih - C",
+      "debit": 0,
+      "credit": 20000,
+      "posting_date": "2026-03-10",
+      "voucher_type": "Purchase Receipt",
+      "voucher_no": "MAT-PRE-2026-00017",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "2111.001 - Hutang Dagang Dalam Negeri - C",
+      "debit": 0,
+      "credit": 20000,
+      "posting_date": "2026-03-10",
+      "voucher_type": "Purchase Invoice",
+      "voucher_no": "ACC-PINV-2026-00012",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "2115.000 - Stock Diterima Tapi Tidak Ditagih - C",
+      "debit": 20000,
+      "credit": 0,
+      "posting_date": "2026-03-10",
+      "voucher_type": "Purchase Invoice",
+      "voucher_no": "ACC-PINV-2026-00012",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "1131.0010 - Piutang Dagang - C",
+      "debit": 0,
+      "credit": 3000,
+      "posting_date": "2026-03-10",
+      "voucher_type": "Payment Entry",
+      "voucher_no": "ACC-PAY-2026-00033",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "1131.0010 - Piutang Dagang - C",
+      "debit": 0,
+      "credit": 10000,
+      "posting_date": "2026-03-10",
+      "voucher_type": "Payment Entry",
+      "voucher_no": "ACC-PAY-2026-00033",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "1111.002 - Kas Besar - C",
+      "debit": 13000,
+      "credit": 0,
+      "posting_date": "2026-03-10",
+      "voucher_type": "Payment Entry",
+      "voucher_no": "ACC-PAY-2026-00033",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "2111.001 - Hutang Dagang Dalam Negeri - C",
+      "debit": 20000,
+      "credit": 0,
+      "posting_date": "2026-03-10",
+      "voucher_type": "Payment Entry",
+      "voucher_no": "ACC-PAY-2026-00034",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "1111.001 - Kas Kecil - C",
+      "debit": 0,
+      "credit": 20000,
+      "posting_date": "2026-03-10",
+      "voucher_type": "Payment Entry",
+      "voucher_no": "ACC-PAY-2026-00034",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "1141.000 - Persediaan Barang - C",
+      "debit": 0,
+      "credit": 4000,
+      "posting_date": "2026-03-11",
+      "voucher_type": "Delivery Note",
+      "voucher_no": "DN-2026-00030",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "5140.001 - HPP Barang Dagang - C",
+      "debit": 4000,
+      "credit": 0,
+      "posting_date": "2026-03-11",
+      "voucher_type": "Delivery Note",
+      "voucher_no": "DN-2026-00030",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "1131.0010 - Piutang Dagang - C",
+      "debit": 6000,
+      "credit": 0,
+      "posting_date": "2026-03-11",
+      "voucher_type": "Sales Invoice",
+      "voucher_no": "ACC-SINV-2026-00027",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "4110.000 - Penjualan - C",
+      "debit": 0,
+      "credit": 6000,
+      "posting_date": "2026-03-11",
+      "voucher_type": "Sales Invoice",
+      "voucher_no": "ACC-SINV-2026-00027",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "5110.022 - Beban Komisi Penjualan - C",
+      "debit": 800,
+      "credit": 0,
+      "posting_date": "2026-03-11",
+      "voucher_type": "Journal Entry",
+      "voucher_no": "ACC-JV-2026-00071",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "2150.0001 - Hutang Komisi Sales - C",
+      "debit": 0,
+      "credit": 800,
+      "posting_date": "2026-03-11",
+      "voucher_type": "Journal Entry",
+      "voucher_no": "ACC-JV-2026-00071",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "1131.0010 - Piutang Dagang - C",
+      "debit": 0,
+      "credit": 6000,
+      "posting_date": "2026-03-11",
+      "voucher_type": "Payment Entry",
+      "voucher_no": "ACC-PAY-2026-00035",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "1111.001 - Kas Kecil - C",
+      "debit": 6000,
+      "credit": 0,
+      "posting_date": "2026-03-11",
+      "voucher_type": "Payment Entry",
+      "voucher_no": "ACC-PAY-2026-00035",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "4110.000 - Penjualan - C",
+      "debit": 0,
+      "credit": 803000,
+      "posting_date": "2026-03-31",
+      "voucher_type": "Journal Entry",
+      "voucher_no": "ACC-JV-2026-00070",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "4480.000 - Pendapatan Lain lain - C",
+      "debit": 0,
+      "credit": 500000,
+      "posting_date": "2026-03-31",
+      "voucher_type": "Journal Entry",
+      "voucher_no": "ACC-JV-2026-00070",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "5110.022 - Beban Komisi Penjualan - C",
+      "debit": 166400,
+      "credit": 0,
+      "posting_date": "2026-03-31",
+      "voucher_type": "Journal Entry",
+      "voucher_no": "ACC-JV-2026-00070",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "5230.001 - Biaya PLN Kantor - C",
+      "debit": 250000,
+      "credit": 0,
+      "posting_date": "2026-03-31",
+      "voucher_type": "Journal Entry",
+      "voucher_no": "ACC-JV-2026-00070",
+      "account_currency": "IDR"
+    },
+    {
+      "account": "3230.000 - Laba Periode Berjalan - C",
+      "debit": 886600,
+      "credit": 0,
+      "posting_date": "2026-03-31",
+      "voucher_type": "Journal Entry",
+      "voucher_no": "ACC-JV-2026-00070",
+      "account_currency": "IDR"
+    }
+  ]
+}

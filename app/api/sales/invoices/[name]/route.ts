@@ -32,7 +32,7 @@ export async function GET(
     const client = await getERPNextClientForRequest(request);
 
     // Fetch invoice with all fields
-    const invoice = await client.get('Sales Invoice', invoiceName);
+    const invoice = await client.get('Sales Invoice', invoiceName) as any;
 
     return NextResponse.json({
       success: true,

@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
       }
 
       // Fetch single Purchase Invoice with all fields
-      const invoice = await client.getDoc('Purchase Invoice', id);
+      const invoice = await client.getDoc('Purchase Invoice', id) as any;
 
       // Verify company matches
       if (invoice.company !== company) {
@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
       let supplierAddressDisplay = '';
       if (invoice.supplier) {
         try {
-          const supplierData = await client.getDoc('Supplier', invoice.supplier);
+          const supplierData = await client.getDoc('Supplier', invoice.supplier) as any;
           supplierAddressDisplay = supplierData.address_display || '';
         } catch (error) {
           console.warn('Failed to fetch supplier details:', error);
@@ -285,7 +285,7 @@ export async function POST(request: NextRequest) {
     // Fetch default buying price list from company
     let buyingPriceList = 'Standar Pembelian';
     try {
-      const companyData = await client.getDoc('Company', invoiceData.company);
+      const companyData = await client.getDoc('Company', invoiceData.company) as any;
       buyingPriceList = companyData.default_buying_price_list || 'Standar Pembelian';
     } catch (error) {
       console.warn('Failed to fetch company default price list, using Standar Pembelian');
@@ -325,7 +325,7 @@ export async function POST(request: NextRequest) {
     if (invoiceData.taxes_and_charges) {
       try {
         // Fetch tax template to validate it exists and is active
-        const taxTemplateData = await client.getDoc('Purchase Taxes and Charges Template', invoiceData.taxes_and_charges);
+        const taxTemplateData = await client.getDoc('Purchase Taxes and Charges Template', invoiceData.taxes_and_charges) as any;
         
         // Check if template is disabled
         if (taxTemplateData.disabled === 1) {
@@ -413,7 +413,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create Purchase Invoice using client method
-    const newInvoice = await client.insert('Purchase Invoice', payload);
+    const newInvoice = await client.insert('Purchase Invoice', payload) as any;
 
     return NextResponse.json({
       success: true,

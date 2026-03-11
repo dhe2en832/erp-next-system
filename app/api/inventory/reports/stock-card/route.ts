@@ -345,7 +345,7 @@ async function calculateSummary(
   // Only fetch item details if specific item is selected
   if (item_code) {
     try {
-      const itemData = await client.get('Item', item_code);
+      const itemData = await client.get('Item', item_code) as any;
       item_name = itemData.item_name || item_code;
       uom = itemData.stock_uom || '';
     } catch (error) {
@@ -615,13 +615,13 @@ export async function GET(request: NextRequest) {
     
     // Apply customer/supplier filters after enrichment (since they're not direct fields)
     if (customer) {
-      stockLedgerEntries = stockLedgerEntries.filter((entry: StockLedgerEntry) => 
+      stockLedgerEntries = (stockLedgerEntries as any[]).filter((entry: StockLedgerEntry) => 
         entry.party_type === 'Customer' && entry.party_name === customer
       );
     }
     
     if (supplier) {
-      stockLedgerEntries = stockLedgerEntries.filter((entry: StockLedgerEntry) => 
+      stockLedgerEntries = (stockLedgerEntries as any[]).filter((entry: StockLedgerEntry) => 
         entry.party_type === 'Supplier' && entry.party_name === supplier
       );
     }
@@ -630,7 +630,7 @@ export async function GET(request: NextRequest) {
     let summary;
     try {
       summary = await calculateSummary(
-        stockLedgerEntries,
+        stockLedgerEntries as StockLedgerEntry[],
         company,
         item_code,
         from_date,
@@ -641,7 +641,7 @@ export async function GET(request: NextRequest) {
       console.error('Stock Card API: Error calculating summary', summaryError);
       summary = {
         opening_balance: 0,
-        closing_balance: stockLedgerEntries.length > 0 ? stockLedgerEntries[stockLedgerEntries.length - 1].qty_after_transaction : 0,
+        closing_balance: stockLedgerEntries.length > 0 ? (stockLedgerEntries[stockLedgerEntries.length - 1] as any).qty_after_transaction : 0,
         total_in: 0,
         total_out: 0,
         transaction_count: stockLedgerEntries.length,

@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Create payment terms template using client method
-    const result = await client.insert('Payment Terms Template', body);
+    const result = await client.insert('Payment Terms Template', body) as any;
 
     // Invalidate cache after create
     paymentTermsCache.invalidate(siteId || 'default');

@@ -77,7 +77,7 @@ export async function GET(
       console.error('Items fetch failed, trying alternative approach:', error);
       // Fallback: get full PO document and extract items
       try {
-        const poDoc = await client.get('Purchase Order', name);
+        const poDoc = await client.get('Purchase Order', name) as any;
         items = poDoc.items || [];
       } catch (altError) {
         console.error('Alternative approach failed:', altError);

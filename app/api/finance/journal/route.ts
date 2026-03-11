@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
         
         try {
           // Fetch full document to get accounts child table
-          const detailData = await client.get('Journal Entry', entry.name);
+          const detailData = await client.get('Journal Entry', entry.name) as any;
           const accounts = detailData?.accounts || [];
           
           accounts.forEach((acc: any) => {
@@ -140,7 +140,7 @@ export async function POST(request: NextRequest) {
     // Get site-aware client (handles dual authentication: API Key → session cookie fallback)
     const client = await getERPNextClientForRequest(request);
 
-    const result = await client.insert('Journal Entry', journalData);
+    const result = await client.insert('Journal Entry', journalData) as any;
 
     return NextResponse.json({
       success: true,

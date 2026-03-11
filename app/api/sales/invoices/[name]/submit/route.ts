@@ -36,7 +36,7 @@ export async function POST(
 
     // Get current invoice data to verify custom fields before submit
     try {
-      const currentData = await client.get('Sales Invoice', invoiceName);
+      const currentData = await client.get('Sales Invoice', invoiceName) as any;
 
       // Auto-fill employee for sales team if missing
       const salesTeam = currentData.sales_team || [];

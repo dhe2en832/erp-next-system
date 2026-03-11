@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
       delete body.sales_person;
     }
 
-    const data = await client.insert('Customer', body);
+    const data = await client.insert('Customer', body) as any;
 
     return NextResponse.json({ success: true, data });
   } catch (error: unknown) {
