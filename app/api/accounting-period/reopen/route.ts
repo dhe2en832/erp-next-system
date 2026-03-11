@@ -5,6 +5,8 @@ import {
   buildSiteAwareErrorResponse,
   logSiteError 
 } from '@/lib/api-helpers';
+import { ERPNextClient } from '@/lib/erpnext';
+import type { AccountingPeriod } from '@/types/accounting-period';
 
 export async function POST(request: NextRequest) {
   const siteId = await getSiteIdFromRequest(request);
@@ -67,6 +69,18 @@ export async function POST(request: NextRequest) {
     const sessionCookie = request.cookies.get('sid')?.value;
     const currentUser = await client.getCurrentUser(sessionCookie);
 
+    // CRITICAL: Handle closing journal entry cancellation/reversal
+    let journalCancellationResult = { success: false, method: 'none', journal_name: null as string | null };
+    
+    if (period.closing_journal_entry && period.closing_journal_entry !== 'NO_CLOSING_JOURNAL') {
+      journalCancellationResult = await handleClosingJournalCancellation(
+        period.closing_journal_entry,
+        period,
+        client,
+        currentUser
+      );
+    }
+
     // Update period status to Open
     const now = new Date();
     const erpnextDatetime = now.toISOString().slice(0, 19).replace('T', ' ');
@@ -117,10 +131,163 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: 'Period reopened successfully',
+      journal_cancellation: journalCancellationResult,
     });
   } catch (error: unknown) {
     logSiteError(error, 'POST /api/accounting-period/reopen', siteId);
     const errorResponse = buildSiteAwareErrorResponse(error, siteId);
     return NextResponse.json(errorResponse, { status: 500 });
+  }
+}
+
+/**
+ * Handle closing journal entry cancellation or reversal
+ * 
+ * Strategy:
+ * 1. Try to CANCEL the journal entry (primary method - safest)
+ * 2. If cancel fails, create REVERSAL journal entry (fallback)
+ * 
+ * Returns: { 
+ *   success: boolean, 
+ *   method: 'cancel' | 'reversal' | 'none', 
+ *   original_journal: string | null,
+ *   reversal_journal: string | null,
+ *   details: { action: string, timestamp: string }
+ * }
+ */
+async function handleClosingJournalCancellation(
+  journalName: string,
+  period: AccountingPeriod,
+  client: ERPNextClient,
+  currentUser: string
+): Promise<{ 
+  success: boolean; 
+  method: 'cancel' | 'reversal' | 'none'; 
+  original_journal: string | null;
+  reversal_journal: string | null;
+  details: { action: string; timestamp: string };
+}> {
+  const now = new Date();
+  const timestamp = now.toISOString().slice(0, 19).replace('T', ' ');
+
+  try {
+    // Step 1: Try to cancel the journal entry
+    try {
+      await client.call('Journal Entry', journalName, 'amend');
+      
+      // If amend succeeds, cancel it
+      await client.update('Journal Entry', journalName, {
+        docstatus: 2, // 2 = Cancelled
+      });
+
+      return {
+        success: true,
+        method: 'cancel',
+        original_journal: journalName,
+        reversal_journal: null,
+        details: {
+          action: `Closing journal ${journalName} cancelled successfully`,
+          timestamp,
+        },
+      };
+    } catch (cancelError) {
+      // If cancel fails, proceed to reversal
+      console.log(`Cancel failed for ${journalName}, attempting reversal...`, cancelError);
+    }
+
+    // Step 2: If cancel failed, create reversal journal entry
+    const reversalResult = await createReversalJournal(journalName, period, client, currentUser);
+    
+    return reversalResult;
+  } catch (error) {
+    console.error('Error handling closing journal cancellation:', error);
+    return {
+      success: false,
+      method: 'none',
+      original_journal: null,
+      reversal_journal: null,
+      details: {
+        action: `Error handling journal cancellation: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        timestamp,
+      },
+    };
+  }
+}
+
+/**
+ * Create reversal journal entry (balik jurnal)
+ * 
+ * Reversal logic:
+ * - For each debit entry in original journal → create credit entry in reversal
+ * - For each credit entry in original journal → create debit entry in reversal
+ * - Posting date = today (or period end date)
+ * - Remark: "Reversal of [original journal name]"
+ */
+async function createReversalJournal(
+  originalJournalName: string,
+  period: AccountingPeriod,
+  client: ERPNextClient,
+  currentUser: string
+): Promise<{ 
+  success: boolean; 
+  method: 'reversal'; 
+  original_journal: string | null;
+  reversal_journal: string | null;
+  details: { action: string; timestamp: string };
+}> {
+  const now = new Date();
+  const timestamp = now.toISOString().slice(0, 19).replace('T', ' ');
+
+  try {
+    // Get original journal entry details
+    const originalJournal = await client.get('Journal Entry', originalJournalName);
+
+    if (!originalJournal.accounts || originalJournal.accounts.length === 0) {
+      throw new Error(`No accounts found in original journal ${originalJournalName}`);
+    }
+
+    // Build reversal accounts (flip debit/credit)
+    const reversalAccounts = originalJournal.accounts.map((acc: any) => ({
+      account: acc.account,
+      debit_in_account_currency: acc.credit_in_account_currency || 0,
+      credit_in_account_currency: acc.debit_in_account_currency || 0,
+      user_remark: `Reversal: ${acc.user_remark || acc.account}`,
+    }));
+
+    // Create reversal journal entry
+    const reversalJournal = await client.insert('Journal Entry', {
+      voucher_type: 'Journal Entry',
+      posting_date: period.end_date,
+      company: period.company,
+      accounts: reversalAccounts,
+      user_remark: `Reversal of closing entry ${originalJournalName} - Period reopened`,
+      accounting_period: period.name,
+    });
+
+    // Submit the reversal journal
+    await client.submit('Journal Entry', reversalJournal.name);
+
+    return {
+      success: true,
+      method: 'reversal',
+      original_journal: originalJournalName,
+      reversal_journal: reversalJournal.name,
+      details: {
+        action: `Reversal journal ${reversalJournal.name} created for original journal ${originalJournalName}`,
+        timestamp,
+      },
+    };
+  } catch (error) {
+    console.error('Error creating reversal journal:', error);
+    return {
+      success: false,
+      method: 'reversal',
+      original_journal: originalJournalName,
+      reversal_journal: null,
+      details: {
+        action: `Error creating reversal journal: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        timestamp,
+      },
+    };
   }
 }

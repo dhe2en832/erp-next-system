@@ -126,14 +126,14 @@ export default function StockEntryMain() {
         
         // Auto-fill based on purpose
         if (prev.purpose === 'Material Receipt') {
-          updated.to_warehouse = newEntry.selected_warehouse;
+          updated.to_warehouse = prev.selected_warehouse;
           updated.from_warehouse = '';
         } else if (prev.purpose === 'Material Issue') {
-          updated.from_warehouse = newEntry.selected_warehouse;
+          updated.from_warehouse = prev.selected_warehouse;
           updated.to_warehouse = '';
         } else if (prev.purpose === 'Material Transfer') {
-          updated.from_warehouse = newEntry.selected_warehouse;
-          // to_warehouse remains as is or empty
+          updated.from_warehouse = prev.selected_warehouse;
+          updated.to_warehouse = '';
         }
         
         return updated;
@@ -181,10 +181,22 @@ export default function StockEntryMain() {
       return;
     }
 
+    // Validate to_warehouse for Material Transfer
+    if (newEntry.purpose === 'Material Transfer' && !newEntry.to_warehouse) {
+      setError('Gudang tujuan harus diisi untuk Transfer Material');
+      return;
+    }
+
     // Validate items
     const hasValidItems = newEntry.items.some(item => item.item_code && item.qty > 0);
     if (!hasValidItems) {
       setError('Setidaknya satu barang harus dipilih dengan quantity > 0');
+      return;
+    }
+
+    // Prevent submission if already submitted
+    if (newEntry.docstatus === 1) {
+      setError('Entri stok ini sudah disubmit dan tidak dapat diubah');
       return;
     }
 
@@ -306,11 +318,25 @@ export default function StockEntryMain() {
       {/* Form */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
         <div className="bg-white shadow rounded-lg p-6">
+            {newEntry.docstatus === 1 && (
+              <div className="mb-4 bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded flex items-center gap-2">
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                <span>Entri stok ini sudah disubmit dan tidak dapat diubah</span>
+              </div>
+            )}
             <div className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Tujuan *</label>
-                  <select className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" value={newEntry.purpose} onChange={(e) => setNewEntry(prev => ({ ...prev, purpose: e.target.value }))} required>
+                  <select 
+                    className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm disabled:bg-gray-100 disabled:cursor-not-allowed" 
+                    value={newEntry.purpose} 
+                    onChange={(e) => setNewEntry(prev => ({ ...prev, purpose: e.target.value }))} 
+                    disabled={newEntry.docstatus === 1}
+                    required
+                  >
                     <option value="Material Receipt">Penerimaan Material</option>
                     <option value="Material Issue">Pengeluaran Material</option>
                     <option value="Material Transfer">Transfer Material</option>
@@ -320,19 +346,25 @@ export default function StockEntryMain() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal Posting</label>
-                  <BrowserStyleDatePicker
-                    value={newEntry.posting_date}
-                    onChange={(value: string) => setNewEntry(prev => ({ ...prev, posting_date: value }))}
-                    className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                    placeholder="DD/MM/YYYY"
-                  />
+                  <div className={newEntry.docstatus === 1 ? 'opacity-50 pointer-events-none' : ''}>
+                    <BrowserStyleDatePicker
+                      value={newEntry.posting_date}
+                      onChange={(value: string) => {
+                        if (newEntry.docstatus !== 1) {
+                          setNewEntry(prev => ({ ...prev, posting_date: value }));
+                        }
+                      }}
+                      className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      placeholder="DD/MM/YYYY"
+                    />
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     {newEntry.purpose === 'Material Receipt' ? 'Ke Gudang *' : 'Dari Gudang *'}
                   </label>
                   <select 
-                    className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" 
+                    className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm disabled:bg-gray-100 disabled:cursor-not-allowed" 
                     value={newEntry.purpose === 'Material Receipt' ? newEntry.to_warehouse : newEntry.from_warehouse} 
                     onChange={(e) => {
                       if (newEntry.purpose === 'Material Receipt') {
@@ -341,6 +373,7 @@ export default function StockEntryMain() {
                         setNewEntry(prev => ({ ...prev, from_warehouse: e.target.value }));
                       }
                     }} 
+                    disabled={newEntry.docstatus === 1}
                     required
                   >
                     <option value="">Pilih Gudang</option>
@@ -353,9 +386,10 @@ export default function StockEntryMain() {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Ke Gudang *</label>
                     <select 
-                      className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" 
+                      className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm disabled:bg-gray-100 disabled:cursor-not-allowed" 
                       value={newEntry.to_warehouse} 
                       onChange={(e) => setNewEntry(prev => ({ ...prev, to_warehouse: e.target.value }))}
+                      disabled={newEntry.docstatus === 1}
                       required
                     >
                       <option value="">Pilih Gudang</option>
@@ -370,7 +404,14 @@ export default function StockEntryMain() {
               <div>
                 <div className="flex justify-between items-center mb-2">
                   <label className="block text-sm font-medium text-gray-700">Barang</label>
-                  <button type="button" onClick={addItemRow} className="text-indigo-600 hover:text-indigo-800 text-sm">+ Tambah Barang</button>
+                  <button 
+                    type="button" 
+                    onClick={addItemRow} 
+                    disabled={newEntry.docstatus === 1}
+                    className="text-indigo-600 hover:text-indigo-800 text-sm disabled:text-gray-400 disabled:cursor-not-allowed"
+                  >
+                    + Tambah Barang
+                  </button>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200">
@@ -389,16 +430,23 @@ export default function StockEntryMain() {
                             <div className="flex gap-1">
                               <input
                                 type="text"
-                                className="block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm bg-gray-50 cursor-pointer"
+                                className="block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm bg-gray-50 cursor-pointer disabled:bg-gray-100 disabled:cursor-not-allowed"
                                 value={item.item_code || ''}
                                 readOnly
                                 placeholder="Klik untuk pilih barang..."
-                                onClick={() => { setCurrentItemIndex(index); setShowItemDialog(true); }}
+                                onClick={() => { 
+                                  if (newEntry.docstatus !== 1) {
+                                    setCurrentItemIndex(index); 
+                                    setShowItemDialog(true); 
+                                  }
+                                }}
+                                disabled={newEntry.docstatus === 1}
                               />
                               <button
                                 type="button"
                                 onClick={() => { setCurrentItemIndex(index); setShowItemDialog(true); }}
-                                className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-xs hover:bg-indigo-200 whitespace-nowrap"
+                                className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-xs hover:bg-indigo-200 whitespace-nowrap disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
+                                disabled={newEntry.docstatus === 1}
                               >
                                 Pilih
                               </button>
@@ -407,32 +455,37 @@ export default function StockEntryMain() {
                           <td className="px-4 py-2">
                             <input
                               type="text"
-                              className="block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm"
+                              className="block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
                               value={item.item_name || ''}
                               onChange={(e) => updateItemRow(index, 'item_name', e.target.value)}
                               placeholder="Nama barang..."
+                              disabled={newEntry.docstatus === 1}
                             />
                           </td>
                           <td className="px-4 py-2">
                             <input 
-                              type="text" 
-                              className="block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm text-right" 
-                              value={item.qty.toLocaleString('id-ID')} 
+                              type="number" 
+                              className="block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm text-right disabled:bg-gray-100 disabled:cursor-not-allowed" 
+                              value={item.qty} 
                               onChange={(e) => {
-                                const rawValue = e.target.value.replace(/\./g, '');
-                                const numValue = parseFloat(rawValue) || 0;
-                                updateItemRow(index, 'qty', numValue);
+                                const numValue = parseFloat(e.target.value) || 0;
+                                if (numValue >= 0) {
+                                  updateItemRow(index, 'qty', numValue);
+                                }
                               }}
-                              onFocus={(e) => e.target.select()}
                               onBlur={(e) => {
-                                const rawValue = e.target.value.replace(/\./g, '');
-                                const numValue = parseFloat(rawValue) || 1;
-                                updateItemRow(index, 'qty', numValue);
+                                const numValue = parseFloat(e.target.value) || 1;
+                                if (numValue < 1) {
+                                  updateItemRow(index, 'qty', 1);
+                                }
                               }}
+                              min="0"
+                              step="0.01"
+                              disabled={newEntry.docstatus === 1}
                             />
                           </td>
                           <td className="px-4 py-2">
-                            {newEntry.items.length > 1 && (
+                            {newEntry.items.length > 1 && newEntry.docstatus !== 1 && (
                               <button type="button" onClick={() => removeItemRow(index)} className="text-red-600 hover:text-red-800 text-sm">Hapus</button>
                             )}
                           </td>

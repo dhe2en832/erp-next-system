@@ -57,14 +57,14 @@ export async function GET(
       }
     }
 
-    // Close expense accounts (credit expense to zero out debit balance)
+    // Close expense accounts (debit expense to zero out debit balance)
     for (const account of nominalAccounts) {
       if (account.root_type === 'Expense' && account.balance !== 0) {
         journalAccounts.push({
           account: account.account,
           account_name: account.account_name,
-          debit_in_account_currency: 0,
-          credit_in_account_currency: Math.abs(account.balance),
+          debit_in_account_currency: Math.abs(account.balance),
+          credit_in_account_currency: 0,
           user_remark: `Closing ${account.account_name} for period ${period.period_name}`,
         });
       }

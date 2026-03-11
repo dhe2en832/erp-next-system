@@ -29,6 +29,7 @@ from .gl_entry_sales import post_sales_invoice_gl_entry, validate_sales_invoice_
 from .gl_entry_purchase import post_purchase_invoice_gl_entry, validate_purchase_invoice_for_gl_posting
 from .invoice_cancellation import cancel_invoice_with_gl_reversal
 from .credit_note_commission import on_credit_note_submit, on_credit_note_cancel
+from .stock_adjustment_gl_fix import fix_stock_adjustment_gl_entries
 
 
 def on_sales_invoice_submit(doc: Any, method: str = None) -> None:
@@ -299,5 +300,11 @@ DOC_EVENTS = {
     "Purchase Invoice": {
         "on_submit": "erpnext_custom.hooks.on_purchase_invoice_submit",
         "on_cancel": "erpnext_custom.hooks.on_purchase_invoice_cancel"
+    },
+    "Stock Entry": {
+        "on_submit": "erpnext_custom.stock_adjustment_gl_fix.fix_stock_adjustment_gl_entries"
+    },
+    "Stock Reconciliation": {
+        "on_submit": "erpnext_custom.stock_adjustment_gl_fix.fix_stock_adjustment_gl_entries"
     }
 }

@@ -9,13 +9,15 @@ interface BrowserStyleDatePickerProps {
   onChange: (value: string) => void;
   placeholder?: string;
   className?: string;
+  disabled?: boolean;
 }
 
 export default function BrowserStyleDatePicker({ 
   value, 
   onChange, 
   placeholder = "DD/MM/YYYY", 
-  className = "" 
+  className = "",
+  disabled = false
 }: BrowserStyleDatePickerProps) {
   const dateInputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -84,6 +86,7 @@ export default function BrowserStyleDatePicker({
         type="date"
         value={internalValue}
         onChange={handleDateChange}
+        disabled={disabled}
         className="absolute inset-0 opacity-0 cursor-pointer"
         style={{ zIndex: 10 }}
       />
@@ -94,9 +97,11 @@ export default function BrowserStyleDatePicker({
           type="text"
           value={getDisplayValue()}
           placeholder={placeholder}
-          className={`${className} pr-16`}
+          className={`${className} pr-16 ${disabled ? 'bg-gray-100 cursor-not-allowed' : ''}`}
           readOnly={false}
+          disabled={disabled}
           onChange={(e) => {
+            if (disabled) return;
             const newValue = e.target.value;
             // Only allow numbers and slashes, and basic DD/MM/YYYY format
             if (newValue === '' || /^\d{0,2}\/?\d{0,2}\/?\d{0,4}$/.test(newValue)) {
@@ -106,7 +111,7 @@ export default function BrowserStyleDatePicker({
               }
             }
           }}
-          onClick={handleIconClick}
+          onClick={() => !disabled && handleIconClick()}
         />
         
         {/* Clear button */}
@@ -114,7 +119,8 @@ export default function BrowserStyleDatePicker({
           <button
             type="button"
             onClick={handleClearClick}
-            className="absolute right-8 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 z-20"
+            disabled={disabled}
+            className="absolute right-8 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 z-20 disabled:cursor-not-allowed"
             title="Clear date"
           >
             <X className="w-4 h-4" />
@@ -125,7 +131,8 @@ export default function BrowserStyleDatePicker({
         <button
           type="button"
           onClick={handleIconClick}
-          className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 z-20"
+          disabled={disabled}
+          className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 z-20 disabled:cursor-not-allowed"
           title="Select date"
         >
           <Calendar className="w-4 h-4" />
