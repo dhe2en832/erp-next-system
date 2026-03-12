@@ -65,7 +65,21 @@ export default function StockReconciliationMain() {
     try {
       setLoading(true);
       const response = await fetch(`/api/inventory/reconciliation/${encodeURIComponent(entryName)}`);
-      const data = await response.json();
+      interface ReconciliationDoc {
+        company?: string;
+        docstatus?: number;
+        warehouse?: string;
+        posting_date?: string;
+        posting_time?: string;
+        purpose?: string;
+        items?: ReconciliationItem[];
+      }
+      interface ApiResponse {
+        success: boolean;
+        data?: ReconciliationDoc;
+        message?: string;
+      }
+      const data: ApiResponse = await response.json();
       if (data.success && data.data) {
         const rec = data.data;
         setSelectedCompany(rec.company || selectedCompany);
@@ -75,7 +89,7 @@ export default function StockReconciliationMain() {
           posting_date: rec.posting_date || new Date().toISOString().split('T')[0],
           posting_time: (rec.posting_time || new Date().toTimeString().split(' ')[0]).substring(0, 5),
           purpose: rec.purpose || 'Stock Reconciliation',
-          items: (rec.items || []).map((it: any) => ({
+          items: (rec.items || []).map((it: ReconciliationItem) => ({
             item_code: it.item_code || '',
             qty: it.qty || 0,
             valuation_rate: it.valuation_rate || 0,
@@ -111,7 +125,11 @@ export default function StockReconciliationMain() {
     if (!selectedCompany) return;
     try {
       const response = await fetch(`/api/inventory/warehouses?company=${selectedCompany}`);
-      const data = await response.json();
+      interface WarehouseResponse {
+        success: boolean;
+        data?: Warehouse[];
+      }
+      const data: WarehouseResponse = await response.json();
       if (data.success) setWarehouses(data.data || []);
     } catch (err) {
       console.error('Gagal memuat gudang:', err);
@@ -122,7 +140,11 @@ export default function StockReconciliationMain() {
     if (!selectedCompany) return;
     try {
       const response = await fetch(`/api/inventory/items?company=${selectedCompany}`);
-      const data = await response.json();
+      interface ItemsResponse {
+        success: boolean;
+        data?: Item[];
+      }
+      const data: ItemsResponse = await response.json();
       if (data.success) setItems(data.data || []);
     } catch (err) {
       console.error('Gagal memuat barang:', err);
@@ -192,7 +214,12 @@ export default function StockReconciliationMain() {
         body: JSON.stringify(payload),
       });
       
-      const data = await response.json();
+      interface SaveResponse {
+        success: boolean;
+        data?: { name?: string };
+        message?: string;
+      }
+      const data: SaveResponse = await response.json();
       
       if (data.success) {
         const name = data.data?.name || entryName || '';
