@@ -219,38 +219,25 @@ export function removeSite(id: string): void {
 }
 
 /**
- * Fetches company name from ERPNext site
+ * Fetches company name for a site configuration
  */
 export async function fetchCompanyName(config: SiteConfig): Promise<string | null> {
   try {
-    // Validate URL format first
-    if (!isValidUrl(config.apiUrl)) {
-      return null;
-    }
-    
-    // Construct company list endpoint
-    const url = `${config.apiUrl}/api/resource/Company?fields=["name","company_name"]&limit_page_length=1`;
-    
-    // Make request with timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
-    
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Authorization': `token ${config.apiKey}:${config.apiSecret}`,
-        'Content-Type': 'application/json',
-      },
-      signal: controller.signal,
+    // Use server-side proxy to avoid CORS issues
+    const response = await fetch('/api/sites/company', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        siteId: config.id,
+        apiUrl: config.apiUrl,
+        apiKey: config.apiKey,
+        apiSecret: config.apiSecret,
+      }),
     });
-    
-    clearTimeout(timeoutId);
-    
+
     if (response.ok) {
       const data = await response.json();
-      if (data.data && data.data.length > 0) {
-        return data.data[0].company_name || data.data[0].name;
-      }
+      return data.companyName || null;
     }
     
     return null;
@@ -270,25 +257,23 @@ export async function validateSiteConnection(config: SiteConfig): Promise<boolea
       return false;
     }
     
-    // Construct ping endpoint
-    const url = `${config.apiUrl}/api/method/ping`;
-    
-    // Make request with timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
-    
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Authorization': `token ${config.apiKey}:${config.apiSecret}`,
-        'Content-Type': 'application/json',
-      },
-      signal: controller.signal,
+    // Use server-side proxy to avoid CORS issues
+    const response = await fetch('/api/sites/validate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        apiUrl: config.apiUrl,
+        apiKey: config.apiKey,
+        apiSecret: config.apiSecret,
+      }),
     });
     
-    clearTimeout(timeoutId);
+    if (response.ok) {
+      const data = await response.json();
+      return data.valid === true;
+    }
     
-    return response.ok;
+    return false;
   } catch (error) {
     console.error('Site connection validation failed:', error);
     return false;

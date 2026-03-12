@@ -32,39 +32,68 @@ export default function SelectSitePage() {
   // Fetch company name for a site
   const fetchCompanyForSite = useCallback(async (site: SiteConfig) => {
     const siteId = site.id;
-    if (!siteId || companyNames.has(siteId) || fetchingCompanies.has(siteId)) {
-      return; // Already fetched or fetching
-    }
+    if (!siteId) return;
 
     // Use cached company name if available
     if (site.companyName) {
-      setCompanyNames(prev => new Map(prev).set(siteId, site.companyName as string));
+      setCompanyNames(prev => {
+        if (prev.has(siteId)) return prev;
+        return new Map(prev).set(siteId, site.companyName as string);
+      });
       return;
     }
 
-    setFetchingCompanies(prev => new Set(prev).add(siteId));
+    // Check if already fetching or fetched in functional updates to avoid dependency
+    let alreadyFetching = false;
+    setFetchingCompanies(prev => {
+      if (prev.has(siteId)) {
+        alreadyFetching = true;
+        return prev;
+      }
+      const next = new Set(prev);
+      next.add(siteId);
+      return next;
+    });
+
+    if (alreadyFetching) return;
+
+    // Also check if already have the name
+    let alreadyHaveName = false;
+    setCompanyNames(prev => {
+      if (prev.has(siteId)) {
+        alreadyHaveName = true;
+      }
+      return prev;
+    });
+
+    if (alreadyHaveName) {
+      setFetchingCompanies(prev => {
+        const next = new Set(prev);
+        next.delete(siteId);
+        return next;
+      });
+      return;
+    }
 
     try {
-      const url = `${site.apiUrl}/api/resource/Company?fields=["name","company_name"]&limit_page_length=1`;
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-      const response = await fetch(url, {
-        method: 'GET',
+      // Use server-side API to avoid CORS issues
+      const response = await fetch('/api/sites/company', {
+        method: 'POST',
         headers: {
-          'Authorization': `token ${site.apiKey}:${site.apiSecret}`,
           'Content-Type': 'application/json',
         },
-        signal: controller.signal,
+        body: JSON.stringify({
+          siteId: site.id,
+          apiUrl: site.apiUrl,
+          apiKey: site.apiKey,
+          apiSecret: site.apiSecret,
+        }),
       });
-
-      clearTimeout(timeoutId);
 
       if (response.ok) {
         const data = await response.json();
-        if (data.data && data.data.length > 0) {
-          const companyName = data.data[0].company_name || data.data[0].name;
-          setCompanyNames(prev => new Map(prev).set(siteId, companyName));
+        if (data.companyName) {
+          setCompanyNames(prev => new Map(prev).set(siteId, data.companyName));
         }
       }
     } catch {
@@ -77,7 +106,7 @@ export default function SelectSitePage() {
         return next;
       });
     }
-  }, [companyNames, fetchingCompanies]);
+  }, []); // Removed dependencies to keep the function stable
 
   // Fetch company names for all sites on mount
   useEffect(() => {
@@ -206,7 +235,7 @@ export default function SelectSitePage() {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            siteUrl: apiUrl,
+            apiUrl: apiUrl,
             apiKey: apiKey,
             apiSecret: apiSecret,
           }),
