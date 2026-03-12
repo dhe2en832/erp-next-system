@@ -23,9 +23,10 @@ export async function GET(request: NextRequest) {
     // Get site-aware client
     const client = await getERPNextClientForRequest(request);
 
-    // Fetch UOMs from ERPNext
+    // Fetch only enabled UOMs from ERPNext
     const uoms = await client.getList<{ name: string }>('UOM', {
-      fields: ['name']
+      fields: ['name'],
+      filters: [['enabled', '=', 1]]
     });
     
     // console.log('UOMs API Response:', uoms);

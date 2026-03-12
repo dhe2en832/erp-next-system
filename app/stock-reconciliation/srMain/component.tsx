@@ -48,6 +48,9 @@ export default function StockReconciliationMain() {
   const [selectedCompany, setSelectedCompany] = useState<string>('');
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [csvMessage, setCsvMessage] = useState('');
+  const [redirectCountdown, setRedirectCountdown] = useState(0);
+  const [savedDocName, setSavedDocName] = useState('');
   const [loading, setLoading] = useState(false);
   const [docstatus, setDocstatus] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState(1);
@@ -197,7 +200,7 @@ export default function StockReconciliationMain() {
 
   const fetchUoms = useCallback(async () => {
     try {
-      const response = await fetch('/api/inventory/dropdowns/uoms?filters=[["enabled","=",1]]', { credentials: 'include' });
+      const response = await fetch('/api/inventory/dropdowns/uoms', { credentials: 'include' });
       const data = await response.json();
       if (data.success) {
         // Sort UOMs alphabetically for easier selection
@@ -339,8 +342,8 @@ export default function StockReconciliationMain() {
               items: updatedItems
             };
           });
-          setSuccessMessage(`${newItems.length} item berhasil diimpor dari CSV`);
-          setTimeout(() => setSuccessMessage(''), 3000);
+          setCsvMessage(`${newItems.length} item berhasil diimpor dari CSV`);
+          setTimeout(() => setCsvMessage(''), 3000);
         }
       } catch (err) {
         console.error('CSV Parsing Error:', err);
@@ -404,8 +407,17 @@ export default function StockReconciliationMain() {
       
       if (data.success) {
         const name = data.data?.name || entryName || '';
+        setSavedDocName(name);
         setSuccessMessage(`Rekonsiliasi Stok ${name} berhasil ${isEditMode ? 'diperbarui' : 'dibuat'}!`);
-        setTimeout(() => router.push('/stock-reconciliation'), 2000);
+        setRedirectCountdown(3);
+        const timer = setInterval(() => {
+          setRedirectCountdown((prev) => prev - 1);
+        }, 1000);
+        setTimeout(() => {
+          clearInterval(timer);
+          router.push('/stock-reconciliation');
+        }, 3000);
+        return;
       } else {
         setError(data.message || `Gagal ${isEditMode ? 'memperbarui' : 'membuat'} rekonsiliasi stok`);
       }
@@ -421,6 +433,7 @@ export default function StockReconciliationMain() {
   }
 
   return (
+    <>
     <div className="min-h-screen bg-gray-50">
       <div className="bg-white shadow">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -479,10 +492,10 @@ export default function StockReconciliationMain() {
         </div>
       </div>
 
-      {successMessage && (
+      {csvMessage && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
           <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
-            {successMessage}
+            {csvMessage}
           </div>
         </div>
       )}
@@ -606,8 +619,9 @@ export default function StockReconciliationMain() {
                           <input type="checkbox" className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" disabled />
                         </th>
                         <th className="w-16 px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">No.</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[200px]">Item Code <span className="text-red-500">*</span></th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[200px]">Warehouse <span className="text-red-500">*</span></th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[160px]">Item Code <span className="text-red-500">*</span></th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[200px]">Item Name</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[180px]">Warehouse <span className="text-red-500">*</span></th>
                         <th className="w-32 px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Quantity</th>
                         <th className="w-32 px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Stock UOM</th>
                         <th className="w-16 px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">
@@ -644,6 +658,15 @@ export default function StockReconciliationMain() {
                                       <span className="text-gray-400">Pilih barang...</span>
                                     )}
                                   </div>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className={`py-1.5 px-3 text-sm min-h-[38px] flex items-center ${isReadOnly ? 'text-gray-500' : 'text-gray-700'}`}>
+                                  {item.item_name ? (
+                                    <span>{item.item_name}</span>
+                                  ) : (
+                                    <span className="text-gray-400 italic">-</span>
+                                  )}
                                 </div>
                               </td>
                               <td className="px-4 py-3">
@@ -731,7 +754,7 @@ export default function StockReconciliationMain() {
                         })
                       ) : (
                         <tr>
-                          <td colSpan={7} className="px-4 py-12 text-center text-gray-500 italic">
+                          <td colSpan={8} className="px-4 py-12 text-center text-gray-500 italic">
                             {searchTerm ? 'Tidak ada barang yang cocok dengan pencarian' : 'Belum ada barang ditambahkan'}
                           </td>
                         </tr>
@@ -794,5 +817,57 @@ export default function StockReconciliationMain() {
         </div>
       </div>
     </div>
+
+      {/* Success Dialog */}
+      {successMessage && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100]">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+            <div className="flex items-center mb-4">
+              <div className="flex-shrink-0">
+                <svg
+                  className="h-6 w-6 text-green-400"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-lg font-medium text-gray-900">Berhasil!</h3>
+              </div>
+            </div>
+            <div className="mb-4">
+              <p className="text-sm text-gray-600">
+                Rekonsiliasi Stok <span className="font-semibold text-gray-800">{savedDocName}</span> berhasil {isEditMode ? 'diperbarui' : 'dibuat'} dan akan segera dialihkan ke daftar.
+              </p>
+              {redirectCountdown > 0 && (
+                <div className="mt-3">
+                  <div className="text-sm text-gray-600">
+                    Mengalihkan dalam{' '}
+                    <span className="font-bold text-green-600">{redirectCountdown}</span>{' '}detik...
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end">
+              <button
+                onClick={() => {
+                  setSuccessMessage('');
+                  router.push('/stock-reconciliation');
+                }}
+                className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+              >
+                Ke Daftar Rekonsiliasi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
