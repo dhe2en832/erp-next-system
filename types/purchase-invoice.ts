@@ -54,6 +54,10 @@ export interface CreatePurchaseInvoiceRequest {
   // Bill details
   bill_no?: string;
   bill_date?: string;
+  
+  // Custom notes and remarks
+  remarks?: string;
+  custom_notes_pi?: string;
 }
 
 /**

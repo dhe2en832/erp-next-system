@@ -26,12 +26,19 @@ export async function GET(request: NextRequest) {
 
     // Try ERPNext custom method first
     try {
-      const params: any = { company };
+      const params: Record<string, unknown> = { company };
       if (supplier) {
         params.supplier = supplier;
       }
       
-      const data = await client.call('fetch_po_list_for_pr', params) as any;
+      interface CustomResponse {
+        message?: {
+          data?: Record<string, unknown>[];
+          [key: string]: unknown;
+        };
+        [key: string]: unknown;
+      }
+      const data = await client.call<CustomResponse>('fetch_po_list_for_pr', params);
       
       // Add debug info to response
       const debuggedData = {
@@ -45,12 +52,12 @@ export async function GET(request: NextRequest) {
       };
       
       return NextResponse.json(debuggedData);
-    } catch (customMethodError) {
+    } catch {
       // Fallback to standard ERPNext API
     }
 
     // Build filters array
-    const filters: any[][] = [
+    const filters: (string | number | boolean | null | string[])[][] = [
       ["company", "=", company],
       ["docstatus", "=", 1], // Submitted
       ["status", "in", ["Submitted", "Partially Delivered"]] // Not fully delivered
@@ -61,7 +68,18 @@ export async function GET(request: NextRequest) {
       filters.push(["supplier", "=", supplier]);
     }
     
-    const orders = await client.getList('Purchase Order', {
+    interface POData {
+      name: string;
+      supplier: string;
+      supplier_name: string;
+      transaction_date: string;
+      company: string;
+      grand_total: number;
+      status: string;
+      per_received: number;
+      [key: string]: unknown;
+    }
+    const orders = await client.getList<POData>('Purchase Order', {
       fields: ['name', 'supplier', 'supplier_name', 'transaction_date', 'company', 'grand_total', 'status', 'per_received'],
       filters,
       order_by: 'transaction_date desc',
@@ -69,7 +87,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Filter out POs that are already fully received (per_received >= 100)
-    const filteredPOs = orders.filter((po: any) => {
+    const filteredPOs = orders.filter((po: POData) => {
       const perReceived = po.per_received || 0;
       return perReceived < 100;
     });
@@ -78,7 +96,7 @@ export async function GET(request: NextRequest) {
     const transformedData = {
       message: {
         success: true,
-        data: filteredPOs.map((po: any) => ({
+        data: filteredPOs.map((po: POData) => ({
           name: po.name,
           supplier: po.supplier,
           supplier_name: po.supplier_name,

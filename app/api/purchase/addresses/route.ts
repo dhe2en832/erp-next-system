@@ -40,7 +40,11 @@ export async function POST(request: NextRequest) {
       ],
     };
 
-    const data = await client.insert('Address', payload) as any;
+    interface Address {
+      name: string;
+    }
+
+    const data = await client.insert<Address>('Address', payload);
     return NextResponse.json({ success: true, data });
   } catch (error: unknown) {
     logSiteError(error, 'POST /api/purchase/addresses', siteId);

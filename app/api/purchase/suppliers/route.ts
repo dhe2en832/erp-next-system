@@ -11,7 +11,6 @@ export async function GET(request: NextRequest) {
   
   try {
     const { searchParams } = new URL(request.url);
-    const company = searchParams.get('company');
     const search = searchParams.get('search');
     const limitPageLength = searchParams.get('limit_page_length') || '20';
     const limitStart = searchParams.get('limit_start') || '0';
@@ -19,8 +18,7 @@ export async function GET(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Build filters with simple structure
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const filters: any[] = [];
+    const filters: (string | number | boolean | null | string[])[][] = [];
     
     // Always filter by supplier_type first
     filters.push(["supplier_type", "=", "Company"]);
@@ -35,7 +33,12 @@ export async function GET(request: NextRequest) {
       filters.push(["name", "like", `%${searchTrim}%`]);
     }
 
-    const data = await client.getList('Supplier', {
+    interface SupplierSummary {
+      name: string;
+      supplier_name: string;
+      [key: string]: unknown;
+    }
+    const data = await client.getList<SupplierSummary>('Supplier', {
       fields: ['name', 'supplier_name'],
       filters,
       order_by: 'supplier_name',
@@ -49,12 +52,12 @@ export async function GET(request: NextRequest) {
     if (search && search.trim()) {
       try {
         // Second API call to search by supplier_name
-        const supplierNameFilters = [
+        const supplierNameFilters: (string | number | boolean | null | string[])[][] = [
           ["supplier_type", "=", "Company"],
           ["supplier_name", "like", `%${search.trim()}%`]
         ];
         
-        const supplierNameResults = await client.getList('Supplier', {
+        const supplierNameResults = await client.getList<SupplierSummary>('Supplier', {
           fields: ['name', 'supplier_name'],
           filters: supplierNameFilters,
           order_by: 'supplier_name',
@@ -66,8 +69,8 @@ export async function GET(request: NextRequest) {
         const combinedResults = [...finalData, ...supplierNameResults];
         
         // Remove duplicates based on name field
-        const uniqueResults = combinedResults.filter((item: any, index: number, self: any[]) =>
-          index === self.findIndex((t: any) => t.name === item.name)
+        const uniqueResults = combinedResults.filter((item: SupplierSummary, index: number, self: SupplierSummary[]) =>
+          index === self.findIndex((t: SupplierSummary) => t.name === item.name)
         );
         
         finalData = uniqueResults;
@@ -105,7 +108,7 @@ export async function POST(request: NextRequest) {
       body.naming_series = 'SUP-.#####';
     }
 
-    const data = await client.insert('Supplier', body) as any;
+    const data = await client.insert<Record<string, unknown>>('Supplier', body);
 
     return NextResponse.json({ success: true, data });
   } catch (error: unknown) {

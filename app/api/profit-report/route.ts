@@ -27,13 +27,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, message: 'from_date dan to_date wajib diisi' }, { status: 400 });
     }
 
-    const data = await client.call('get_profit_commission_report_dual', {
+    interface RawProfitReport {
+      by_invoice: Record<string, unknown>;
+      by_customer: Record<string, unknown>;
+      by_sales: Record<string, unknown>;
+      by_item: Record<string, unknown>[] | Record<string, unknown>;
+      summary: Record<string, unknown>;
+      params: Record<string, unknown>;
+      [key: string]: unknown;
+    }
+
+    const data = await client.call<RawProfitReport>('get_profit_commission_report_dual', {
       from_date,
       to_date,
       company: effectiveCompany,
       mode: mode || 'valuation',
       include_hpp,
-    }) as any;
+    });
     
     const normalized = normalizeProfitReport(data);
 

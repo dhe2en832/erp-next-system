@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Build filters array - use provided filters or build from params
-    let filters: any[][];
+    let filters: (string | number | boolean | null | string[])[][];
     
     if (filtersParam) {
       // Use filters from query param (for dialog usage)
@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
     
     // Use client method instead of direct fetch
-    const newReceipt = await client.insert('Purchase Receipt', purchaseReceiptData) as any;
+    const newReceipt = await client.insert<Record<string, unknown>>('Purchase Receipt', purchaseReceiptData);
 
     return NextResponse.json({
       success: true,
@@ -125,11 +125,11 @@ export async function POST(request: NextRequest) {
     let errorMessage = 'Failed to create purchase receipt';
     
     if (error && typeof error === 'object' && 'message' in error) {
-      const errorObj = error as any;
+      const errorObj = error as Record<string, unknown>;
       
       if (errorObj.exc) {
         try {
-          const excData = JSON.parse(errorObj.exc);
+          const excData = JSON.parse(errorObj.exc as string);
           
           if (excData.exc_type === 'MandatoryError') {
             errorMessage = `Missing required field: ${excData.message}`;
@@ -142,11 +142,11 @@ export async function POST(request: NextRequest) {
           } else {
             errorMessage = `${excData.exc_type}: ${excData.message}`;
           }
-        } catch (_e) {
-          errorMessage = errorObj.message || errorObj.exc || 'Failed to create purchase receipt';
+        } catch {
+          errorMessage = (errorObj.message as string) || (errorObj.exc as string) || 'Failed to create purchase receipt';
         }
       } else if (errorObj.message) {
-        errorMessage = errorObj.message;
+        errorMessage = errorObj.message as string;
       }
     } else if (error instanceof Error) {
       errorMessage = error.message;

@@ -30,8 +30,15 @@ export async function POST(
     // Get site-aware client
     const client = await getERPNextClientForRequest(request);
     
+    interface SubmitResult {
+      docs?: Record<string, unknown>[];
+      doc?: Record<string, unknown>;
+      data?: Record<string, unknown>;
+      [key: string]: unknown;
+    }
+
     // Submit the Purchase Return using client method
-    const result = await client.submit('Purchase Receipt', name) as any;
+    const result = await client.submit<SubmitResult>('Purchase Receipt', name);
     
     const returnData = result.docs?.[0] || result.doc || result.data || result;
     return NextResponse.json({ 

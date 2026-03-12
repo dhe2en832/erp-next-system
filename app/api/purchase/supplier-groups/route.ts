@@ -17,12 +17,12 @@ export async function GET(request: NextRequest) {
     // Get site-aware client (handles authentication automatically)
     const client = await getERPNextClientForRequest(request);
 
-    const data = await client.getList('Supplier Group', {
+    const data = await client.getList<{ name: string }>('Supplier Group', {
       fields: fields,
       limit_page_length: 500
     });
 
-    const groups = data.map((g: any) => g.name).filter(Boolean);
+    const groups = data.map((g: { name: string }) => g.name).filter(Boolean);
     return NextResponse.json({ success: true, data: groups });
   } catch (error: unknown) {
     logSiteError(error, 'GET /api/purchase/supplier-groups', siteId);

@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Build filters array
-    const filters: any[][] = [
+    const filters: [string, string, string | number][] = [
       ["company", "=", company]
     ];
 
@@ -90,14 +90,14 @@ export async function GET(request: NextRequest) {
     });
 
     // Transform data to match frontend interface
-    const transformedData = (data || []).map((po: any) => ({
-      name: po.name,
-      supplier: po.supplier,
-      supplier_name: po.supplier_name,
-      transaction_date: po.transaction_date,
-      status: po.status,
-      grand_total: po.grand_total || 0,
-      currency: po.currency || 'IDR'
+    const transformedData = ((data as Record<string, unknown>[]) || []).map((po: Record<string, unknown>) => ({
+      name: po.name as string,
+      supplier: po.supplier as string,
+      supplier_name: po.supplier_name as string,
+      transaction_date: po.transaction_date as string,
+      status: po.status as string,
+      grand_total: (po.grand_total as number) || 0,
+      currency: (po.currency as string) || 'IDR'
     }));
 
     const totalRecords = await client.getCount('Purchase Order', { filters: filters });
@@ -126,7 +126,7 @@ export async function POST(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
     
     // Use client method instead of direct fetch
-    const newOrder = await client.insert('Purchase Order', purchaseOrderData) as any;
+    const newOrder = await client.insert<Record<string, unknown>>('Purchase Order', purchaseOrderData);
 
     return NextResponse.json({
       success: true,
@@ -139,12 +139,12 @@ export async function POST(request: NextRequest) {
     let errorMessage = 'Failed to create purchase order';
     
     if (error && typeof error === 'object' && 'message' in error) {
-      const errorObj = error as any;
+      const errorObj = error as Record<string, unknown>;
       
       if (errorObj.exc) {
         // Parse ERPNext exception
         try {
-          const excData = JSON.parse(errorObj.exc);
+          const excData = JSON.parse(errorObj.exc as string);
           
           if (excData.exc_type === 'MandatoryError') {
             errorMessage = `Missing required field: ${excData.message}`;
@@ -157,20 +157,20 @@ export async function POST(request: NextRequest) {
           } else {
             errorMessage = `${excData.exc_type}: ${excData.message}`;
           }
-        } catch (_e) {
-          errorMessage = errorObj.message || errorObj.exc || 'Failed to create purchase order';
+        } catch {
+          errorMessage = (errorObj.message as string) || (errorObj.exc as string) || 'Failed to create purchase order';
         }
       } else if (errorObj.message) {
-        errorMessage = errorObj.message;
+        errorMessage = errorObj.message as string;
       } else if (errorObj._server_messages) {
         try {
-          const serverMessages = JSON.parse(errorObj._server_messages);
+          const serverMessages = JSON.parse(errorObj._server_messages as string);
           errorMessage = serverMessages[0]?.message || serverMessages[0] || errorMessage;
-        } catch (_e) {
-          errorMessage = errorObj._server_messages;
+        } catch {
+          errorMessage = errorObj._server_messages as string;
         }
       } else if (errorObj.exc_type && errorObj.exc_message) {
-        errorMessage = `${errorObj.exc_type}: ${errorObj.exc_message}`;
+        errorMessage = `${errorObj.exc_type as string}: ${errorObj.exc_message as string}`;
       }
     } else if (error instanceof Error) {
       errorMessage = error.message;

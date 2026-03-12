@@ -42,7 +42,16 @@ export async function GET(
     const client = await getERPNextClientForRequest(request);
 
     // First get PO details
-    const poList = await client.getList('Purchase Order', {
+    interface POList {
+      name: string;
+      supplier: string;
+      supplier_name: string;
+      transaction_date: string;
+      status: string;
+      warehouse: string;
+      custom_notes_po: string;
+    }
+    const poList = await client.getList<POList>('Purchase Order', {
       fields: ['name', 'supplier', 'supplier_name', 'transaction_date', 'status', 'warehouse', 'custom_notes_po'],
       filters: [
         ["name", "=", name],
@@ -51,7 +60,7 @@ export async function GET(
       ]
     });
 
-    const po = Array.isArray(poList) ? poList[0] : poList;
+    const po = (Array.isArray(poList) ? poList[0] : poList) as POList | undefined;
 
     if (!po) {
       return NextResponse.json(
@@ -61,9 +70,13 @@ export async function GET(
     }
 
     // Then get PO items - use frappe.client.get_list to bypass permission check
-    let items = [];
+    let items: ERPNextPOItem[] = [];
     try {
-      const itemsResult = await client.call('frappe.client.get_list', {
+      interface ItemsResult {
+        data: ERPNextPOItem[];
+        [key: string]: unknown;
+      }
+      const itemsResult = await client.call<ItemsResult>('frappe.client.get_list', {
         doctype: 'Purchase Order Item',
         fields: ['name', 'item_code', 'item_name', 'description', 'qty', 'uom', 'rate', 'amount', 'warehouse', 'received_qty', 'parent', 'parentfield', 'parenttype'],
         filters: [
@@ -71,13 +84,16 @@ export async function GET(
           ["parenttype", "=", "Purchase Order"]
         ],
         order_by: 'idx asc'
-      }) as any;
-      items = itemsResult?.data || itemsResult || [];
+      });
+      items = (itemsResult?.data || itemsResult || []) as ERPNextPOItem[];
     } catch (error) {
       console.error('Items fetch failed, trying alternative approach:', error);
       // Fallback: get full PO document and extract items
       try {
-        const poDoc = await client.get('Purchase Order', name) as any;
+        interface PODoc {
+          items: ERPNextPOItem[];
+        }
+        const poDoc = await client.get<PODoc>('Purchase Order', name);
         items = poDoc.items || [];
       } catch (altError) {
         console.error('Alternative approach failed:', altError);
@@ -107,12 +123,12 @@ export async function GET(
       success: true,
       data: {
         purchase_order: {
-          name: (po as any).name,
-          supplier: (po as any).supplier,
-          supplier_name: (po as any).supplier_name,
-          transaction_date: (po as any).transaction_date,
-          status: (po as any).status,
-          warehouse: (po as any).warehouse
+          name: po.name,
+          supplier: po.supplier,
+          supplier_name: po.supplier_name,
+          transaction_date: po.transaction_date,
+          status: po.status,
+          warehouse: po.warehouse
         },
         items: processedItems
       }

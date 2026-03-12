@@ -32,10 +32,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Build filters array for Purchase Invoice with is_return=1
-    const filters: any[][] = [
+    // Build filters array
+    const filters: (string | number | boolean | null | string[])[][] = [
       ["company", "=", company],
-      ["is_return", "=", 1]
+      ["docstatus", "=", 1], // Submitted
+      ["is_return", "=", 1]  // Debit Note
     ];
     
     if (search) {
@@ -165,7 +166,12 @@ export async function POST(request: NextRequest) {
 
     // Validate Purchase Invoice existence and status
     try {
-      const invoice = await client.get('Purchase Invoice', debitNoteData.return_against) as any;
+      interface Invoice {
+        docstatus: number;
+        status: string;
+        supplier: string;
+      }
+      const invoice = await client.get<Invoice>('Purchase Invoice', debitNoteData.return_against);
       
       if (invoice.docstatus !== 1) {
         return NextResponse.json(
@@ -186,7 +192,7 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
-    } catch (invoiceError) {
+    } catch {
       return NextResponse.json(
         { 
           success: false, 
@@ -196,10 +202,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    interface ReturnTemplate {
+      posting_date: string;
+      custom_return_notes: string;
+      company: string;
+      items: Record<string, unknown>[];
+      [key: string]: unknown;
+    }
+
     // Use ERPNext's make_debit_note method to generate return template
-    const returnTemplate = await client.call('erpnext.accounts.doctype.purchase_invoice.purchase_invoice.make_debit_note', {
+    const returnTemplate = await client.call<ReturnTemplate>('erpnext.accounts.doctype.purchase_invoice.purchase_invoice.make_debit_note', {
       source_name: debitNoteData.return_against,
-    }) as any;
+    });
 
     // Customize template with user data
     returnTemplate.posting_date = debitNoteData.posting_date;
@@ -211,39 +225,47 @@ export async function POST(request: NextRequest) {
     }
     
     // Build map of user items for quick lookup
-    const userItemsMap = new Map();
-    debitNoteData.items.forEach((item: any) => {
-      userItemsMap.set(item.item_code, item);
+    const userItemsMap = new Map<string, Record<string, unknown>>();
+    debitNoteData.items.forEach((item: Record<string, unknown>) => {
+      userItemsMap.set(item.item_code as string, item);
     });
 
     // Filter and update items based on user selection
     returnTemplate.items = returnTemplate.items
-      .filter((item: any) => userItemsMap.has(item.item_code))
-      .map((item: any) => {
-        const userItem = userItemsMap.get(item.item_code);
-        const returnQty = -Math.abs(userItem.qty); // Negative for return
+      .filter((item: Record<string, unknown>) => userItemsMap.has(item.item_code as string))
+      .map((item: Record<string, unknown>) => {
+        const userItem = userItemsMap.get(item.item_code as string) || {};
+        const returnQty = -Math.abs(userItem.qty as number || 0); // Negative for return
         
         return {
           ...item,
           qty: returnQty,
-          rate: item.rate || userItem.rate || 0,
-          amount: returnQty * (item.rate || userItem.rate || 0),
+          rate: (item.rate as number) || (userItem.rate as number) || 0,
+          amount: returnQty * ((item.rate as number) || (userItem.rate as number) || 0),
           warehouse: userItem.warehouse || item.warehouse,
           custom_return_reason: userItem.custom_return_reason,
           custom_return_item_notes: userItem.custom_return_item_notes || '',
         };
       });
 
+    interface SavedDoc {
+      name: string;
+    }
+
     // Save Debit Note to ERPNext
-    const savedDoc = await client.insert('Purchase Invoice', returnTemplate) as any;
+    const savedDoc = await client.insert<SavedDoc>('Purchase Invoice', returnTemplate as unknown as Record<string, unknown>);
 
     // Refresh document to get all calculated fields
     if (savedDoc.name) {
       try {
-        const refreshedDoc = await client.call('frappe.desk.form.load.getdoc', {
+        interface RefreshedDoc {
+          docs?: Record<string, unknown>[];
+          [key: string]: unknown;
+        }
+        const refreshedDoc = await client.call<RefreshedDoc>('frappe.desk.form.load.getdoc', {
           doctype: 'Purchase Invoice',
           name: savedDoc.name
-        }) as any;
+        });
         
         // getdoc returns data in docs[0]
         if (refreshedDoc?.docs?.[0]) {
@@ -253,7 +275,7 @@ export async function POST(request: NextRequest) {
             message: 'Debit Memo berhasil dibuat',
           });
         }
-      } catch (refreshError) {
+      } catch {
         // Fallback to saved data if refresh fails
       }
     }

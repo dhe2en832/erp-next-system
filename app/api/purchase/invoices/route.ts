@@ -33,7 +33,22 @@ export async function GET(request: NextRequest) {
       }
 
       // Fetch single Purchase Invoice with all fields
-      const invoice = await client.getDoc('Purchase Invoice', id) as any;
+      interface Invoice {
+        company: string;
+        items: Record<string, unknown>[];
+        supplier: string;
+        name: string;
+        supplier_name: string;
+        posting_date: string;
+        due_date: string;
+        currency: string;
+        status: string;
+        grand_total: number;
+        outstanding_amount: number;
+        remarks: string;
+        [key: string]: unknown;
+      }
+      const invoice = await client.getDoc<Invoice>('Purchase Invoice', id);
 
       // Verify company matches
       if (invoice.company !== company) {
@@ -45,19 +60,22 @@ export async function GET(request: NextRequest) {
 
       // Fetch items separately to get complete item details
       // Use frappe.client.get_list to bypass permission check
-      let items = [];
+      let items: Record<string, unknown>[] = [];
       try {
-        const itemsResult = await client.call('frappe.client.get_list', {
+        interface ItemsResult {
+          data: Record<string, unknown>[];
+        }
+        const itemsResult = await client.call<ItemsResult>('frappe.client.get_list', {
           doctype: 'Purchase Invoice Item',
           fields: ['*'],
           filters: [['parent', '=', id]],
           order_by: 'idx asc'
-        }) as any;
-        items = itemsResult?.data || itemsResult || [];
+        });
+        items = (itemsResult?.data || itemsResult || []) as Record<string, unknown>[];
       } catch (error) {
         console.error('Items fetch failed, using items from invoice doc:', error);
         // Fallback: items already in invoice document
-        items = invoice.items || [];
+        items = (invoice.items || []) as Record<string, unknown>[];
       }
 
       invoice.items = items;
@@ -66,7 +84,11 @@ export async function GET(request: NextRequest) {
       let supplierAddressDisplay = '';
       if (invoice.supplier) {
         try {
-          const supplierData = await client.getDoc('Supplier', invoice.supplier) as any;
+          interface SupplierData {
+            address_display: string;
+            [key: string]: unknown;
+          }
+          const supplierData = await client.getDoc<SupplierData>('Supplier', invoice.supplier);
           supplierAddressDisplay = supplierData.address_display || '';
         } catch (error) {
           console.warn('Failed to fetch supplier details:', error);
@@ -87,7 +109,7 @@ export async function GET(request: NextRequest) {
         grand_total: invoice.grand_total,
         outstanding_amount: invoice.outstanding_amount,
         custom_note_pi: invoice.remarks, // Map remarks to custom_note_pi for frontend
-        items: invoice.items.map((item: any) => ({
+        items: (invoice.items || []).map((item: Record<string, unknown>) => ({
           item_code: item.item_code,
           item_name: item.item_name,
           description: item.description,
@@ -118,7 +140,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Build filters array
-    const filters: any[][] = [
+    const filters: [string, string, string | number][] = [
       ["company", "=", company]
     ];
     
@@ -168,7 +190,7 @@ export async function GET(request: NextRequest) {
 
     // Add backward compatibility - Requirements 3.8, 14.2, 14.5
     // For old invoices without discount/tax, ensure default values
-    const invoices = (data || []).map((invoice: any) => ({
+    const invoices = ((data as Record<string, unknown>[]) || []).map((invoice: Record<string, unknown>) => ({
       ...invoice,
       discount_amount: invoice.discount_amount || 0,
       discount_percentage: invoice.discount_percentage || 0,
@@ -214,7 +236,7 @@ export async function PUT(request: NextRequest) {
       currency,
       remarks,
       custom_notes_pi
-    } = body;
+    } = body as CreatePurchaseInvoiceRequest;
 
     if (!supplier || !company) {
       return NextResponse.json(
@@ -232,7 +254,7 @@ export async function PUT(request: NextRequest) {
       currency: currency || 'IDR',
       remarks,
       custom_notes_pi,
-      items: items.map((item: any) => ({
+      items: items.map((item) => ({
         item_code: item.item_code,
         item_name: item.item_name,
         description: item.item_name,
@@ -285,9 +307,9 @@ export async function POST(request: NextRequest) {
     // Fetch default buying price list from company
     let buyingPriceList = 'Standar Pembelian';
     try {
-      const companyData = await client.getDoc('Company', invoiceData.company) as any;
-      buyingPriceList = companyData.default_buying_price_list || 'Standar Pembelian';
-    } catch (error) {
+      const companyData = await client.getDoc<Record<string, unknown>>('Company', invoiceData.company);
+      buyingPriceList = (companyData.default_buying_price_list as string) || 'Standar Pembelian';
+    } catch {
       console.warn('Failed to fetch company default price list, using Standar Pembelian');
     }
 
@@ -325,7 +347,12 @@ export async function POST(request: NextRequest) {
     if (invoiceData.taxes_and_charges) {
       try {
         // Fetch tax template to validate it exists and is active
-        const taxTemplateData = await client.getDoc('Purchase Taxes and Charges Template', invoiceData.taxes_and_charges) as any;
+        interface TaxTemplateData {
+          disabled?: number;
+          taxes?: { account_head?: string }[];
+          [key: string]: unknown;
+        }
+        const taxTemplateData = await client.getDoc<TaxTemplateData>('Purchase Taxes and Charges Template', invoiceData.taxes_and_charges);
         
         // Check if template is disabled
         if (taxTemplateData.disabled === 1) {
@@ -341,7 +368,7 @@ export async function POST(request: NextRequest) {
             if (taxRow.account_head) {
               try {
                 await client.getDoc('Account', taxRow.account_head);
-              } catch (error) {
+              } catch {
                 return NextResponse.json({
                   success: false,
                   message: `Account '${taxRow.account_head}' not found in Chart of Accounts`
@@ -350,7 +377,7 @@ export async function POST(request: NextRequest) {
             }
           }
         }
-      } catch (error: any) {
+      } catch {
         return NextResponse.json({
           success: false,
           message: `Tax template '${invoiceData.taxes_and_charges}' not found`
@@ -359,7 +386,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Prepare invoice data for ERPNext with discount and tax support
-    const payload: any = {
+    const payload: Record<string, unknown> = {
       doctype: 'Purchase Invoice',
       company: invoiceData.company,
       supplier: invoiceData.supplier,
@@ -413,7 +440,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create Purchase Invoice using client method
-    const newInvoice = await client.insert('Purchase Invoice', payload) as any;
+    const newInvoice = await client.insert<Record<string, unknown>>('Purchase Invoice', payload);
 
     return NextResponse.json({
       success: true,
@@ -421,18 +448,9 @@ export async function POST(request: NextRequest) {
       data: newInvoice
     });
 
-  } catch (error: any) {
+  } catch (error) {
     logSiteError(error, 'POST /api/purchase/invoices', siteId);
-    
-    let errorMessage = 'Failed to create purchase invoice';
-    if (error && typeof error === 'object' && 'message' in error) {
-      errorMessage = error.message;
-    }
-    
-    return NextResponse.json({
-      success: false,
-      message: errorMessage,
-      error: error.toString()
-    }, { status: 500 });
+    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

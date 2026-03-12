@@ -47,8 +47,14 @@ export async function GET(
     // Get site-aware client
     const client = await getERPNextClientForRequest(request);
     
+    interface DebitNote {
+      docs?: Record<string, unknown>[];
+      doc?: Record<string, unknown>;
+      [key: string]: unknown;
+    }
+
     // Get Debit Note details
-    const result = await client.get('Purchase Invoice', name.trim()) as any;
+    const result = await client.get<DebitNote>('Purchase Invoice', name.trim());
     
     // Validate if it's actually a debit note (return)
     const debitNote = result.docs?.[0] || result.doc || result;

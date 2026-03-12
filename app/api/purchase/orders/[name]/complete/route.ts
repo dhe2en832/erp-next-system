@@ -19,10 +19,16 @@ export async function POST(
     const client = await getERPNextClientForRequest(request);
 
     // Complete the purchase order by updating docstatus and action
-    const data = await client.update('Purchase Order', name, {
+    interface UpdateResult {
+      docs?: Record<string, unknown>[];
+      doc?: Record<string, unknown>;
+      data?: Record<string, unknown>;
+      [key: string]: unknown;
+    }
+    const data = await client.update<UpdateResult>('Purchase Order', name, {
       docstatus: 1, // Submit document
       action: 'complete',
-    }) as any;
+    });
 
     const orderData = data.docs?.[0] || data.doc || data.data || data;
     

@@ -8,8 +8,16 @@ import {
 
 type ParamsInput = { params: { name: string } | Promise<{ name: string }> };
 
+interface Address {
+  name: string;
+  address_title: string;
+  address_line1: string;
+  city: string;
+  [key: string]: unknown;
+}
+
 async function resolveName(params: ParamsInput['params']): Promise<string> {
-  if (params && typeof (params as any).then === 'function') {
+  if (params && typeof (params as unknown as Promise<{ name: string }>).then === 'function') {
     const resolved = await (params as Promise<{ name: string }>);
     return resolved.name;
   }
@@ -27,7 +35,7 @@ export async function GET(request: NextRequest, { params }: ParamsInput) {
 
     // Try direct fetch by name
     try {
-      const data = await client.get('Address', name) as any;
+      const data = await client.get<Address>('Address', name);
       return NextResponse.json({ success: true, data });
     } catch (err) {
       console.error('Address GET direct error:', err);
@@ -35,15 +43,18 @@ export async function GET(request: NextRequest, { params }: ParamsInput) {
 
     // Fallback: search by address_title
     try {
-      const searchResults = await client.getList('Address', {
+      interface AddressSearchResult {
+        name: string;
+      }
+      const searchResults = await client.getList<AddressSearchResult>('Address', {
         fields: ['name', 'address_title', 'address_line1', 'city'],
         filters: [["address_title", "=", name]],
         limit_page_length: 1
       });
       
       if (Array.isArray(searchResults) && searchResults.length > 0) {
-        const actualName = (searchResults[0] as any).name;
-        const data = await client.get('Address', actualName) as any;
+        const actualName = searchResults[0].name;
+        const data = await client.get<Address>('Address', actualName);
         return NextResponse.json({ success: true, data });
       }
     } catch (err) {

@@ -33,11 +33,17 @@ export async function GET(
     // Get site-aware client
     const client = await getERPNextClientForRequest(request);
     
+    interface InvoiceData {
+      docs?: Record<string, unknown>[];
+      doc?: Record<string, unknown>;
+      [key: string]: unknown;
+    }
+
     // Use ERPNext's form.load.getdoc method to get full document with child tables
-    const invoiceData = await client.call('frappe.desk.form.load.getdoc', {
+    const invoiceData = await client.call<InvoiceData>('frappe.desk.form.load.getdoc', {
       doctype: 'Purchase Invoice',
       name: name.trim()
-    }) as any;
+    });
 
     // form.load.getdoc returns data in different structure
     const invoice = invoiceData.docs?.[0] || invoiceData.doc || invoiceData;

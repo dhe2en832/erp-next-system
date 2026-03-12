@@ -189,7 +189,7 @@ export class ERPNextClient {
    * Submit a document (change docstatus to 1)
    * Fetches latest document first to avoid timestamp mismatch
    */
-  async submit(doctype: string, name: string): Promise<unknown> {
+  async submit<T = unknown>(doctype: string, name: string): Promise<T> {
     // Try up to 3 times to handle TimestampMismatchError
     let lastError: unknown;
     for (let i = 0; i < 3; i++) {
@@ -216,7 +216,7 @@ export class ERPNextClient {
           }
           throw new Error(data?.message || data?.exc || `Failed to submit ${doctype} ${name}`);
         }
-        return data.message || data.data;
+        return (data.message || data.data) as T;
       } catch (error) {
         lastError = error;
         // If the error message contains the specific exception string, retry
@@ -228,14 +228,14 @@ export class ERPNextClient {
         throw error;
       }
     }
-    throw lastError;
+    throw lastError as Error;
   }
 
   /**
    * Cancel a document (change docstatus to 2)
    * Fetches latest document first to avoid timestamp mismatch
    */
-  async cancel(doctype: string, name: string): Promise<unknown> {
+  async cancel<T = unknown>(doctype: string, name: string): Promise<T> {
     // Try up to 3 times to handle TimestampMismatchError
     let lastError: unknown;
     for (let i = 0; i < 3; i++) {
@@ -262,7 +262,7 @@ export class ERPNextClient {
           }
           throw new Error(data?.message || data?.exc || `Failed to cancel ${doctype} ${name}`);
         }
-        return data.message || data.data;
+        return (data.message || data.data) as T;
       } catch (error) {
         lastError = error;
         if (error instanceof Error && error.message.includes('TimestampMismatchError')) {
@@ -273,7 +273,7 @@ export class ERPNextClient {
         throw error;
       }
     }
-    throw lastError;
+    throw lastError as Error;
   }
 
   /**

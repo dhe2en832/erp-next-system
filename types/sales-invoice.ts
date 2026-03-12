@@ -18,6 +18,11 @@ export interface InvoiceItem {
   description?: string;
   delivery_note?: string;
   dn_detail?: string;
+  // Purchase Invoice specific fields
+  purchase_receipt?: string;
+  purchase_receipt_item?: string;
+  purchase_order?: string;
+  purchase_order_item?: string;
 }
 
 /**

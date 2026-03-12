@@ -33,8 +33,12 @@ export async function GET(request: NextRequest) {
 
     const client = await getERPNextClientForRequest(request);
 
+    interface PurchaseInvoice {
+      [key: string]: unknown;
+    }
+
     // Get specific purchase invoice details
-    const data = await client.get('Purchase Invoice', invoiceName) as any;
+    const data = await client.get<PurchaseInvoice>('Purchase Invoice', invoiceName);
 
     return NextResponse.json({
       success: true,

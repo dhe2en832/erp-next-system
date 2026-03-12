@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Build filters array for Purchase Receipt with is_return=1
-    const filters: any[][] = [
+    const filters: (string | number | boolean | null | string[])[][] = [
       ["company", "=", company],
       ["is_return", "=", 1]
     ];
@@ -165,7 +165,13 @@ export async function POST(request: NextRequest) {
 
     // Validate Purchase Receipt existence and status
     try {
-      const receipt = await client.get('Purchase Receipt', purchaseReturnData.return_against) as any;
+      interface ReceiptData {
+        docstatus: number;
+        status: string;
+        supplier: string;
+        [key: string]: unknown;
+      }
+      const receipt = await client.get<ReceiptData>('Purchase Receipt', purchaseReturnData.return_against);
       
       if (receipt.docstatus !== 1) {
         return NextResponse.json(
@@ -186,7 +192,7 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
-    } catch (receiptError) {
+    } catch {
       return NextResponse.json(
         { 
           success: false, 
@@ -197,9 +203,16 @@ export async function POST(request: NextRequest) {
     }
 
     // Use ERPNext's make_purchase_return method to generate return template
-    const returnTemplate = await client.call('erpnext.stock.doctype.purchase_receipt.purchase_receipt.make_purchase_return', {
+    interface ReturnTemplate {
+      posting_date: string;
+      custom_return_notes: string;
+      company: string;
+      items: Record<string, unknown>[];
+      [key: string]: unknown;
+    }
+    const returnTemplate = await client.call<ReturnTemplate>('erpnext.stock.doctype.purchase_receipt.purchase_receipt.make_purchase_return', {
       source_name: purchaseReturnData.return_against,
-    }) as any;
+    });
 
     // Customize template with user data
     returnTemplate.posting_date = purchaseReturnData.posting_date;
@@ -211,17 +224,17 @@ export async function POST(request: NextRequest) {
     }
     
     // Build map of user items for quick lookup
-    const userItemsMap = new Map();
-    purchaseReturnData.items.forEach((item: any) => {
-      userItemsMap.set(item.item_code, item);
+    const userItemsMap = new Map<string, Record<string, unknown>>();
+    purchaseReturnData.items.forEach((item: Record<string, unknown>) => {
+      userItemsMap.set(item.item_code as string, item);
     });
 
     // Filter and update items based on user selection
     returnTemplate.items = returnTemplate.items
-      .filter((item: any) => userItemsMap.has(item.item_code))
-      .map((item: any) => {
-        const userItem = userItemsMap.get(item.item_code);
-        const returnQty = -Math.abs(userItem.qty); // Negative for return
+      .filter((item: Record<string, unknown>) => userItemsMap.has(item.item_code as string))
+      .map((item: Record<string, unknown>) => {
+        const userItem = userItemsMap.get(item.item_code as string) || {};
+        const returnQty = -Math.abs(userItem.qty as number || 0); // Negative for return
         
         return {
           ...item,
@@ -229,24 +242,32 @@ export async function POST(request: NextRequest) {
           received_qty: returnQty, // Must be negative for returns
           accepted_qty: returnQty, // Must be negative for returns
           rejected_qty: 0, // No rejected qty for returns
-          rate: item.rate || userItem.rate || 0,
-          amount: returnQty * (item.rate || userItem.rate || 0),
+          rate: (item.rate as number) || (userItem.rate as number) || 0,
+          amount: returnQty * ((item.rate as number) || (userItem.rate as number) || 0),
           warehouse: userItem.warehouse || item.warehouse,
           custom_return_reason: userItem.custom_return_reason,
           custom_return_item_notes: userItem.custom_return_item_notes || '',
         };
       });
 
+    interface SavedDoc {
+      name: string;
+    }
+
     // Save Purchase Return to ERPNext
-    const savedDoc = await client.insert('Purchase Receipt', returnTemplate) as any;
+    const savedDoc = await client.insert<SavedDoc>('Purchase Receipt', returnTemplate as unknown as Record<string, unknown>);
 
     // Refresh document to get all calculated fields
     if (savedDoc.name) {
       try {
-        const refreshedDoc = await client.call('frappe.desk.form.load.getdoc', {
+        interface RefreshedDoc {
+          docs?: Record<string, unknown>[];
+          [key: string]: unknown;
+        }
+        const refreshedDoc = await client.call<RefreshedDoc>('frappe.desk.form.load.getdoc', {
           doctype: 'Purchase Receipt',
           name: savedDoc.name
-        }) as any;
+        });
         
         // getdoc returns data in docs[0]
         if (refreshedDoc?.docs?.[0]) {
@@ -256,7 +277,7 @@ export async function POST(request: NextRequest) {
             message: 'Retur Pembelian berhasil dibuat',
           });
         }
-      } catch (refreshError) {
+      } catch {
         // Fallback to saved data if refresh fails
       }
     }

@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Build filters for outstanding purchase invoices
-    const filters: any[] = [
+    const filters: [string, string, string | number][] = [
       ["docstatus", "=", 1], // Submitted documents
       ["status", "!=", "Paid"], // Not fully paid
       ["outstanding_amount", ">", 0], // Has outstanding amount

@@ -9,7 +9,7 @@ import {
 type ParamsInput = { params: { name: string } | Promise<{ name: string }> };
 
 async function resolveName(params: ParamsInput['params']): Promise<string> {
-  if (params && typeof (params as any).then === 'function') {
+  if (params && typeof (params as unknown as Promise<{ name: string }>).then === 'function') {
     const resolved = await (params as Promise<{ name: string }>);
     return resolved.name;
   }
@@ -35,7 +35,7 @@ async function handleSupplier(request: NextRequest, name: string, method: 'GET' 
     if (method === 'GET') {
       // Try direct fetch by name
       try {
-        const data = await client.get('Supplier', name) as any;
+        const data = await client.get<Record<string, unknown>>('Supplier', name);
         return NextResponse.json({ 
           success: true, 
           data, 
@@ -47,15 +47,15 @@ async function handleSupplier(request: NextRequest, name: string, method: 'GET' 
 
       // Fallback: search by supplier_name
       try {
-        const searchResults = await client.getList('Supplier', {
+        const searchResults = await client.getList<Record<string, unknown>>('Supplier', {
           fields: ['name', 'supplier_name'],
           filters: [["supplier_name", "=", name]],
           limit_page_length: 1
         });
         
         if (Array.isArray(searchResults) && searchResults.length > 0) {
-          const actualName = (searchResults as any[])[0].name;
-          const data = await client.get('Supplier', actualName) as any;
+          const actualName = (searchResults as Record<string, unknown>[])[0].name as string;
+          const data = await client.get<Record<string, unknown>>('Supplier', actualName);
           return NextResponse.json({ 
             success: true, 
             data, 

@@ -29,42 +29,42 @@ export async function GET(
 
     // Try ERPNext custom method first
     try {
-      const data = await client.call('fetch_pr_detail_for_pi', { pr }) as any;
+      const data = await client.call<Record<string, unknown>>('fetch_pr_detail_for_pi', { pr });
       return NextResponse.json(data);
-    } catch (customMethodError) {
+    } catch {
       // Fallback to standard ERPNext API
     }
 
     // Get Purchase Receipt with items
-    const prData = await client.get('Purchase Receipt', pr) as any;
+    const prData = await client.get<Record<string, unknown>>('Purchase Receipt', pr);
     
     // Transform to expected format
     const transformedData = {
       success: true,
       data: {
-        name: prData.name,
-        supplier: prData.supplier,
-        supplier_name: prData.supplier_name,
-        posting_date: prData.posting_date,
-        company: prData.company,
-        currency: prData.currency || 'IDR',
+        name: prData.name as string,
+        supplier: prData.supplier as string,
+        supplier_name: prData.supplier_name as string,
+        posting_date: prData.posting_date as string,
+        company: prData.company as string,
+        currency: (prData.currency as string) || 'IDR',
         custom_notes_pr: '', // Not available in standard API
-        items: (prData.items || []).map((item: any) => ({
-          item_code: item.item_code,
-          item_name: item.item_name,
-          qty: item.qty, // Original PR qty
-          received_qty: item.received_qty || item.qty, // Actual received quantity
-          rejected_qty: item.rejected_qty || 0, // Actual rejected quantity
-          accepted_qty: (item.received_qty || item.qty) - (item.rejected_qty || 0), // Calculated accepted
-          billed_qty: item.billed_qty || 0, // Already billed quantity
-          outstanding_qty: (item.received_qty || item.qty) - (item.rejected_qty || 0) - (item.billed_qty || 0), // Available for billing
-          uom: item.uom || 'Nos',
-          rate: item.rate,
-          warehouse: item.warehouse || 'Stores - EN',
-          purchase_receipt: prData.name,
-          purchase_receipt_item: item.name, // This should be the PR item name
-          purchase_order: item.purchase_order || '',
-          purchase_order_item: item.purchase_order_item || ''
+        items: ((prData.items as Record<string, unknown>[]) || []).map((item: Record<string, unknown>) => ({
+          item_code: item.item_code as string,
+          item_name: item.item_name as string,
+          qty: item.qty as number, // Original PR qty
+          received_qty: (item.received_qty as number) || (item.qty as number), // Actual received quantity
+          rejected_qty: (item.rejected_qty as number) || 0, // Actual rejected quantity
+          accepted_qty: ((item.received_qty as number) || (item.qty as number)) - ((item.rejected_qty as number) || 0), // Calculated accepted
+          billed_qty: (item.billed_qty as number) || 0, // Already billed quantity
+          outstanding_qty: ((item.received_qty as number) || (item.qty as number)) - ((item.rejected_qty as number) || 0) - ((item.billed_qty as number) || 0), // Available for billing
+          uom: (item.uom as string) || 'Nos',
+          rate: item.rate as number,
+          warehouse: (item.warehouse as string) || 'Stores - EN',
+          purchase_receipt: prData.name as string,
+          purchase_receipt_item: item.name as string, // This should be the PR item name
+          purchase_order: (item.purchase_order as string) || '',
+          purchase_order_item: (item.purchase_order_item as string) || ''
         }))
       }
     };
