@@ -31,10 +31,10 @@ export async function POST(
     const client = await getERPNextClientForRequest(request);
     
     // Cancel the Debit Note using client method
-    const result = await client.cancel('Purchase Invoice', name) as Record<string, unknown>;
+    const result = await client.cancel('Purchase Invoice', name) as any;
     
     const debitNoteData = (result && typeof result === 'object') 
-      ? ((result.docs as unknown[])?.[0] || result.doc || result.data || result)
+      ? (result.docs?.[0] || result.doc || result.data || result)
       : result;
     return NextResponse.json({ 
       success: true, 

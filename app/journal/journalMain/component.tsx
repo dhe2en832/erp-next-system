@@ -19,6 +19,7 @@ interface JournalFormData {
   voucher_type: string;
   user_remark: string;
   company: string;
+  docstatus?: number;
 }
 
 interface AccountEntry {
@@ -52,6 +53,7 @@ export default function JournalMain({ onBack, selectedCompany, journalName }: Jo
     voucher_type: 'Journal Entry',
     user_remark: '',
     company: selectedCompany,
+    docstatus: 0,
   });
 
   // Set default date on mount
@@ -99,6 +101,7 @@ export default function JournalMain({ onBack, selectedCompany, journalName }: Jo
           voucher_type: data.data.voucher_type || 'Journal Entry',
           user_remark: data.data.user_remark || '',
           company: data.data.company || selectedCompany,
+          docstatus: data.data.docstatus || 0,
         });
         
         // Load accounts
@@ -219,6 +222,7 @@ export default function JournalMain({ onBack, selectedCompany, journalName }: Jo
   const totalDebit = accounts.reduce((sum, acc) => sum + Number(acc.debit_in_account_currency || 0), 0);
   const totalCredit = accounts.reduce((sum, acc) => sum + Number(acc.credit_in_account_currency || 0), 0);
   const isBalanced = Math.abs(totalDebit - totalCredit) < 0.01;
+  const isSubmitted = formData.docstatus === 1;
 
   if (loading) {
     return <LoadingSpinner message="Memuat data journal..." />;
@@ -262,6 +266,14 @@ export default function JournalMain({ onBack, selectedCompany, journalName }: Jo
         )}
 
         <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-6">
+          {/* Warning for submitted journal */}
+          {isSubmitted && (
+            <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-lg text-sm">
+              <p className="font-medium">⚠️ Journal ini sudah di-submit</p>
+              <p className="mt-1">Journal yang sudah di-submit tidak dapat diedit. Silakan batalkan (cancel) terlebih dahulu jika ingin mengubah.</p>
+            </div>
+          )}
+
           {/* Basic Info */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -273,6 +285,7 @@ export default function JournalMain({ onBack, selectedCompany, journalName }: Jo
                 onChange={(value: string) => setFormData({ ...formData, posting_date: value })}
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 placeholder="DD/MM/YYYY"
+                disabled={isSubmitted}
               />
             </div>
 
@@ -285,6 +298,7 @@ export default function JournalMain({ onBack, selectedCompany, journalName }: Jo
                 value={formData.voucher_type}
                 onChange={(e) => setFormData({ ...formData, voucher_type: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                disabled={isSubmitted}
               >
                 <option value="Journal Entry">Journal Entry</option>
                 <option value="Opening Entry">Opening Entry</option>
@@ -324,6 +338,7 @@ export default function JournalMain({ onBack, selectedCompany, journalName }: Jo
               onChange={(e) => setFormData({ ...formData, user_remark: e.target.value })}
               placeholder="Tambahkan catatan untuk journal entry ini..."
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              disabled={isSubmitted}
             />
           </div>
 
@@ -334,7 +349,8 @@ export default function JournalMain({ onBack, selectedCompany, journalName }: Jo
               <button
                 type="button"
                 onClick={addAccountRow}
-                className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800 text-sm font-medium"
+                className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isSubmitted}
               >
                 <Plus className="w-4 h-4" />
                 Tambah Baris
@@ -370,7 +386,8 @@ export default function JournalMain({ onBack, selectedCompany, journalName }: Jo
                             <button
                               type="button"
                               onClick={() => handleOpenAccountDialog(index)}
-                              className="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-md hover:bg-indigo-700 whitespace-nowrap"
+                              className="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-md hover:bg-indigo-700 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                              disabled={isSubmitted}
                             >
                               Pilih
                             </button>
@@ -383,6 +400,7 @@ export default function JournalMain({ onBack, selectedCompany, journalName }: Jo
                             value={acc.user_remark}
                             onChange={(e) => updateAccountRow(index, 'user_remark', e.target.value)}
                             placeholder="Keterangan..."
+                            disabled={isSubmitted}
                           />
                         </td>
                         <td className="px-4 py-2">
@@ -395,6 +413,7 @@ export default function JournalMain({ onBack, selectedCompany, journalName }: Jo
                               updateAccountRow(index, 'debit_in_account_currency', parseFloat(rawValue) || 0);
                             }}
                             placeholder="0"
+                            disabled={isSubmitted}
                           />
                         </td>
                         <td className="px-4 py-2">
@@ -407,6 +426,7 @@ export default function JournalMain({ onBack, selectedCompany, journalName }: Jo
                               updateAccountRow(index, 'credit_in_account_currency', parseFloat(rawValue) || 0);
                             }}
                             placeholder="0"
+                            disabled={isSubmitted}
                           />
                         </td>
                         <td className="px-4 py-2">
@@ -414,7 +434,8 @@ export default function JournalMain({ onBack, selectedCompany, journalName }: Jo
                             <button
                               type="button"
                               onClick={() => removeAccountRow(index)}
-                              className="text-red-600 hover:text-red-800"
+                              className="text-red-600 hover:text-red-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                              disabled={isSubmitted}
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -530,7 +551,7 @@ export default function JournalMain({ onBack, selectedCompany, journalName }: Jo
             </button>
             <button
               type="submit"
-              disabled={saving || !isBalanced}
+              disabled={saving || !isBalanced || isSubmitted}
               className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {saving ? (
