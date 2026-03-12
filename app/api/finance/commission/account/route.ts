@@ -23,9 +23,16 @@ export async function GET(request: NextRequest) {
     // Get site-aware client
     const client = await getERPNextClientForRequest(request);
 
+    interface AccountInfo {
+      name: string;
+      account_name?: string;
+      account_number?: string;
+      parent_account?: string;
+    }
+
     // Search for Hutang Komisi Sales account (Payable type, not group)
     // Try multiple search patterns
-    const searchPatterns = [
+    const searchPatterns: [string, string, string | number][][] = [
       // Pattern 1: Account name containing "Komisi" and account_type = Payable
       [["account_type","=","Payable"],["company","=",company],["is_group","=",0],["name","like","%Komisi%"]],
       // Pattern 2: Account name containing "Hutang Komisi"
@@ -34,10 +41,10 @@ export async function GET(request: NextRequest) {
       [["account_type","=","Payable"],["company","=",company],["is_group","=",0],["parent_account","like","%2115%"]],
     ];
 
-    let commissionAccount: any = null;
+    let commissionAccount: AccountInfo | null = null;
 
     for (const filters of searchPatterns) {
-      const data = await client.getList('Account', {
+      const data = await client.getList<AccountInfo>('Account', {
         fields: ['name', 'account_name', 'account_number', 'parent_account'],
         filters,
         limit_page_length: 5
@@ -45,7 +52,7 @@ export async function GET(request: NextRequest) {
       
       if (data && data.length > 0) {
         // Find account with "Komisi" in name
-        commissionAccount = data.find((a: any) => 
+        commissionAccount = data.find((a) => 
           a.name.toLowerCase().includes('komisi') || 
           a.account_name?.toLowerCase().includes('komisi')
         ) || data[0];
@@ -55,23 +62,23 @@ export async function GET(request: NextRequest) {
 
     // If still not found, try all Payable accounts and look for commission-related
     if (!commissionAccount) {
-      const data = await client.getList('Account', {
+      const data = await client.getList<AccountInfo>('Account', {
         fields: ['name', 'account_name', 'account_number', 'parent_account'],
         filters: [["account_type","=","Payable"],["company","=",company],["is_group","=",0]],
         limit_page_length: 20
       });
       
-      commissionAccount = data?.find((a: any) => 
+      commissionAccount = data?.find((a) => 
         a.name.toLowerCase().includes('komisi') || 
         a.account_name?.toLowerCase().includes('komisi')
-      );
+      ) || null;
     }
 
     return NextResponse.json({
       success: true,
       data: {
         account: commissionAccount,
-        account_name: (commissionAccount as any)?.name || `2150.0001 - Hutang Komisi Sales - ${company.split(' ').map((w: string) => w[0]).join('').toUpperCase()}`,
+        account_name: commissionAccount?.name || `2150.0001 - Hutang Komisi Sales - ${company.split(' ').map((w: string) => w[0]).join('').toUpperCase()}`,
       }
     });
   } catch (error: unknown) {

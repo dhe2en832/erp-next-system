@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Build filters
-    let filtersArray: any[] = [];
+    let filtersArray: [string, string, string | number][] = [];
     
     // Parse existing filters if provided
     if (filters) {
@@ -187,7 +187,7 @@ export async function POST(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Use client method instead of fetch
-    const data = await client.insert('Payment Entry', paymentPayload) as any;
+    const data = await client.insert<{ name: string }>('Payment Entry', paymentPayload);
 
     return NextResponse.json({
       success: true,

@@ -66,8 +66,8 @@ export async function GET(request: NextRequest) {
         const combinedResults = [...finalData, ...supplierNameResults];
         
         // Remove duplicates based on name field
-        const uniqueResults = combinedResults.filter((item, index, self) =>
-          index === self.findIndex((t) => t.name === item.name)
+        const uniqueResults = combinedResults.filter((item: any, index: number, self: any[]) =>
+          index === self.findIndex((t: any) => t.name === item.name)
         );
         
         finalData = uniqueResults;

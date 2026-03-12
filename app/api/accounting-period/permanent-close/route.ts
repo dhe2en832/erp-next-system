@@ -5,6 +5,7 @@ import {
   buildSiteAwareErrorResponse,
   logSiteError 
 } from '@/lib/api-helpers';
+import type { AccountingPeriod } from '@/types/accounting-period';
 
 export async function POST(request: NextRequest) {
   const siteId = await getSiteIdFromRequest(request);
@@ -29,7 +30,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get period details
-    const period = await client.get('Accounting Period', period_name) as any;
+    const period = await client.get<AccountingPeriod>('Accounting Period', period_name);
 
     // Validate period status
     if (period.status !== 'Closed') {

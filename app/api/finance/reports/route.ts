@@ -6,13 +6,6 @@ import {
   logSiteError
 } from '@/lib/api-helpers';
 
-interface GlEntry {
-  account: string;
-  debit?: number;
-  credit?: number;
-  posting_date?: string;
-}
-
 interface AccountMaster {
   name: string;
   account_name: string;
@@ -91,7 +84,7 @@ export async function GET(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Fetch Account master for this company to get root_type and account_type
-    const accountsData = await client.getList('Account', {
+    const accountsData = await client.getList<AccountMaster>('Account', {
       fields: ['name', 'account_name', 'account_type', 'root_type', 'parent_account', 'is_group', 'account_number'],
       filters: [['company', '=', company], ['is_group', '=', 0]],
       limit_page_length: 2000
@@ -99,12 +92,12 @@ export async function GET(request: NextRequest) {
 
     // Build lookup map: account name (full) → master data
     const accountMasterMap = new Map<string, AccountMaster>();
-    (accountsData as any[]).forEach((acc: AccountMaster) => {
+    accountsData.forEach((acc) => {
       accountMasterMap.set(acc.name, acc);
     });
 
     // Fetch GL Entries (exclude cancelled entries and closing entries)
-    const glFilters: any[] = [
+    const glFilters: [string, string, string | number][] = [
       ['company', '=', company],
       ['is_cancelled', '=', 0], // Exclude cancelled entries
       ['voucher_type', '!=', 'Closing Entry'] // Exclude closing journal entries
@@ -119,7 +112,16 @@ export async function GET(request: NextRequest) {
     // Also exclude Journal Entries that contain "Laba Periode Berjalan" account
     // These are manual closing entries that should not be included in P&L calculation
 
-    const glData = await client.getList('GL Entry', {
+    interface ReportGLEntry {
+      account: string;
+      debit: number;
+      credit: number;
+      posting_date: string;
+      voucher_no: string;
+      voucher_type: string;
+    }
+
+    const glData = await client.getList<ReportGLEntry>('GL Entry', {
       fields: ['account', 'debit', 'credit', 'posting_date', 'voucher_no', 'voucher_type'],
       filters: glFilters,
       order_by: 'account',
@@ -129,18 +131,18 @@ export async function GET(request: NextRequest) {
     // Filter out manual closing entries (Journal Entries that involve "Laba Periode Berjalan" account)
     // First, find all voucher_no that have "Laba Periode Berjalan" account
     const closingVouchers = new Set<string>();
-    (glData as any[]).forEach((entry: any) => {
+    glData.forEach((entry) => {
       if (entry.account && entry.account.includes('Laba Periode Berjalan')) {
         closingVouchers.add(entry.voucher_no);
       }
     });
     
     // Filter out all entries from those vouchers
-    const filteredGlData = glData.filter((entry: any) => !closingVouchers.has(entry.voucher_no));
+    const filteredGlData = glData.filter((entry) => !closingVouchers.has(entry.voucher_no));
 
     // Aggregate GL entries by account
     const accountMap = new Map<string, { account: string; debit: number; credit: number }>();
-    (filteredGlData as any[]).forEach((entry: GlEntry) => {
+    filteredGlData.forEach((entry) => {
       if (!accountMap.has(entry.account)) {
         accountMap.set(entry.account, { account: entry.account, debit: 0, credit: 0 });
       }
@@ -235,7 +237,10 @@ export async function GET(request: NextRequest) {
         });
       }
 
-      processedData = balanceSheetAccounts.sort((a: any, b: any) => a.account.localeCompare(b.account));
+      processedData = balanceSheetAccounts.sort((a, b) => {
+        if (!a || !b) return 0;
+        return a.account.localeCompare(b.account);
+      });
     } else if (report === 'profit-loss') {
       processedData = Array.from(accountMap.values())
         .map(row => {
@@ -262,7 +267,10 @@ export async function GET(request: NextRequest) {
           };
         })
         .filter(Boolean)
-        .sort((a: any, b: any) => a.account.localeCompare(b.account));
+        .sort((a, b) => {
+          if (!a || !b) return 0;
+          return a.account.localeCompare(b.account);
+        });
     }
 
     return NextResponse.json({ success: true, data: processedData });

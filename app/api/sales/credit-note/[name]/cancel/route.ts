@@ -60,7 +60,7 @@ export async function POST(
       });
 
       if (periods && periods.length > 0) {
-        const period = periods[0];
+        const period = periods[0] as any;
         if (period.status === 'Closed' || period.status === 'Permanently Closed') {
           return NextResponse.json(
             { 
@@ -77,7 +77,7 @@ export async function POST(
     }
 
     // Cancel the document using ERPNext's cancel method
-    const cancelledDoc = await client.cancel('Sales Invoice', name);
+    const cancelledDoc = await client.cancel('Sales Invoice', name) as any;
     
     // Transform response to match frontend expectations
     return NextResponse.json({

@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
           fields: ['*'],
           filters: [['parent', '=', id]],
           order_by: 'idx asc'
-        });
+        }) as any;
         items = itemsResult?.data || itemsResult || [];
       } catch (error) {
         console.error('Items fetch failed, using items from invoice doc:', error);

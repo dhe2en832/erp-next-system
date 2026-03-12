@@ -21,8 +21,7 @@ export default function ClosingSummaryReport({
     period, 
     closing_journal, 
     nominal_accounts = [], 
-    real_accounts = [], 
-    net_income = 0 
+    real_accounts = [] 
   } = data || {};
 
   if (!period) return null;

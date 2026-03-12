@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
 
     const client = await getERPNextClientForRequest(request);
 
-    const filters: any[][] = [
+    const filters: [string, string, string | number][] = [
       ['docstatus', '=', '1'],
       ['company', '=', company],
     ];
@@ -39,7 +39,16 @@ export async function GET(request: NextRequest) {
     if (fromDate) filters.push(['transaction_date', '>=', fromDate]);
     if (toDate) filters.push(['transaction_date', '<=', toDate]);
 
-    const data = await client.getList('Purchase Order', {
+    interface PurchaseOrder {
+      name: string;
+      supplier: string;
+      supplier_name: string;
+      transaction_date: string;
+      grand_total: number;
+      status: string;
+    }
+
+    const data = await client.getList<PurchaseOrder>('Purchase Order', {
       fields: ['name', 'supplier', 'supplier_name', 'transaction_date', 'grand_total', 'status'],
       filters,
       order_by: 'transaction_date desc',

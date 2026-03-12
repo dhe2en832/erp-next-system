@@ -27,9 +27,20 @@ export async function GET(request: NextRequest) {
 
     // Get period details - use getList with minimal fields to reduce server script impact
     // console.log('[DEBUG] Fetching period:', period_name);
-    let period: any = null;
+    interface PeriodSummary {
+      name: string;
+      period_name: string;
+      company: string;
+      start_date: string;
+      end_date: string;
+      status: string;
+      closed_by: string | null;
+      closed_on: string | null;
+      closing_journal_entry: string | null;
+    }
+    let period: PeriodSummary | null = null;
     try {
-      const periodList = await client.getList('Accounting Period', {
+      const periodList = await client.getList<PeriodSummary>('Accounting Period', {
         filters: [['name', '=', period_name]],
         fields: ['name', 'period_name', 'company', 'start_date', 'end_date', 'status', 'closed_by', 'closed_on', 'closing_journal_entry'],
         limit: 1,
@@ -46,20 +57,20 @@ export async function GET(request: NextRequest) {
       
       period = periodList[0];
       // console.log('[DEBUG] Period data:', JSON.stringify(period, null, 2));
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[DEBUG] Error fetching period:', err);
       // If error contains "net_income", it's from a server script - log and continue
-      if (err.message && err.message.includes('net_income')) {
+      if (err instanceof Error && err.message && err.message.includes('net_income')) {
         console.error('[DEBUG] Server script error detected, attempting workaround...');
         // Try to get just the basic fields
         try {
-          const basicPeriod = await client.getList('Accounting Period', {
+          const basicPeriod = await client.getList<{ name: string; company: string; start_date: string; end_date: string }>('Accounting Period', {
             filters: [['name', '=', period_name]],
             fields: ['name', 'company', 'start_date', 'end_date'],
             limit: 1,
           });
           if (basicPeriod && basicPeriod.length > 0) {
-            const basicData = basicPeriod[0] as any;
+            const basicData = basicPeriod[0];
             period = {
               name: basicData.name,
               company: basicData.company,
@@ -75,7 +86,7 @@ export async function GET(request: NextRequest) {
           } else {
             throw err;
           }
-        } catch (retryErr) {
+        } catch {
           throw err; // throw original error
         }
       } else {
@@ -87,7 +98,7 @@ export async function GET(request: NextRequest) {
     // Closing journal entries should NOT be included in P/L calculation
     
     // First, get all cancelled Journal Entries in this period
-    const cancelledJournals = await client.getList('Journal Entry', {
+    const cancelledJournals = await client.getList<{ name: string }>('Journal Entry', {
       filters: [
         ['company', '=', company],
         ['posting_date', '>=', period.start_date],
@@ -98,10 +109,10 @@ export async function GET(request: NextRequest) {
       limit: 10000,
     });
     
-    const cancelledVoucherNos = cancelledJournals.map((j: any) => j.name);
+    const cancelledVoucherNos = cancelledJournals.map((j) => j.name);
     // console.log('[DEBUG] Cancelled journals:', cancelledVoucherNos);
     
-    const filters: any[] = [
+    const filters: [string, string, string | number][] = [
       ['company', '=', company],
       ['posting_date', '>=', period.start_date],
       ['posting_date', '<=', period.end_date],
@@ -128,7 +139,15 @@ export async function GET(request: NextRequest) {
     
     // console.log('[DEBUG] GL Entry filters:', JSON.stringify(filters, null, 2));
     
-    const glEntries = await client.getList('GL Entry', {
+    interface GLEntryRecord {
+      account: string;
+      debit: number;
+      credit: number;
+      posting_date: string;
+      voucher_type: string;
+      voucher_no: string;
+    }
+    const glEntries = await client.getList<GLEntryRecord>('GL Entry', {
       filters,
       fields: ['account', 'debit', 'credit', 'posting_date', 'voucher_type', 'voucher_no'],
       limit: 10000,
@@ -143,13 +162,20 @@ export async function GET(request: NextRequest) {
     // })));
 
     // Get account details to determine root_type
-    const accounts = await client.getList('Account', {
+    interface AccountDetail {
+      name: string;
+      account_name: string;
+      root_type: string;
+      account_type: string;
+      is_group: number;
+    }
+    const accounts = await client.getList<AccountDetail>('Account', {
       filters: [['company', '=', company]],
       fields: ['name', 'account_name', 'root_type', 'account_type', 'is_group'],
       limit: 10000,
     });
 
-    const accountMap = new Map(accounts.map((acc: any) => [acc.name, acc]));
+    const accountMap = new Map<string, AccountDetail>(accounts.map((acc) => [acc.name, acc]));
 
     // Aggregate by account
     const accountBalances: Record<string, { 
@@ -164,7 +190,7 @@ export async function GET(request: NextRequest) {
       is_nominal: boolean;
     }> = {};
     
-    glEntries.forEach((entry: any) => {
+    glEntries.forEach((entry) => {
       const accountInfo = accountMap.get(entry.account);
       const rootType = accountInfo?.root_type || 'Asset';
       const isNominal = rootType === 'Income' || rootType === 'Expense';
@@ -175,7 +201,7 @@ export async function GET(request: NextRequest) {
           account_name: accountInfo?.account_name || entry.account,
           root_type: rootType as 'Asset' | 'Liability' | 'Equity' | 'Income' | 'Expense',
           account_type: accountInfo?.account_type || 'Unknown',
-          is_group: accountInfo?.is_group || false,
+          is_group: accountInfo?.is_group === 1,
           debit: 0, 
           credit: 0, 
           balance: 0,
@@ -203,7 +229,7 @@ export async function GET(request: NextRequest) {
     const real_accounts = allAccounts.filter(a => a.root_type === 'Asset' || a.root_type === 'Liability' || a.root_type === 'Equity');
     
     // Calculate net income using shared utility
-    const { totalIncome, totalExpense, netIncome } = calculateNetIncome(nominal_accounts);
+    const { netIncome } = calculateNetIncome(nominal_accounts);
 
     const summary = {
       period: {

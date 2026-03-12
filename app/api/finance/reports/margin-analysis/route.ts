@@ -32,22 +32,27 @@ export async function GET(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Fetch purchase invoice items for avg buy price
-    const piFilters: any[][] = [['company', '=', company], ['docstatus', '=', 1]];
+    const piFilters: [string, string, string | number][] = [['company', '=', company], ['docstatus', '=', 1]];
     if (from_date) piFilters.push(['posting_date', '>=', from_date]);
     if (to_date) piFilters.push(['posting_date', '<=', to_date]);
 
-    const piData = await client.getList('Purchase Invoice', {
+    interface InvoiceReference {
+      name: string;
+      posting_date: string;
+    }
+
+    const piData = await client.getList<InvoiceReference>('Purchase Invoice', {
       fields: ['name', 'posting_date'],
       filters: piFilters,
       limit_page_length: 500
     });
 
     // Fetch sales invoice items for avg sell price
-    const siFilters: any[][] = [['company', '=', company], ['docstatus', '=', 1]];
+    const siFilters: [string, string, string | number][] = [['company', '=', company], ['docstatus', '=', 1]];
     if (from_date) siFilters.push(['posting_date', '>=', from_date]);
     if (to_date) siFilters.push(['posting_date', '<=', to_date]);
 
-    const siData = await client.getList('Sales Invoice', {
+    const siData = await client.getList<InvoiceReference>('Sales Invoice', {
       fields: ['name', 'posting_date'],
       filters: siFilters,
       limit_page_length: 500
@@ -57,8 +62,17 @@ export async function GET(request: NextRequest) {
     const itemMap = new Map<string, { item_code: string; item_name: string; buy_total: number; buy_qty: number; sell_total: number; sell_qty: number }>();
 
     // Process purchase items
-    for (const pi of (piData || []) as any[]) {
-      const itemsData = await client.get('Purchase Invoice', pi.name) as any;
+    for (const pi of piData || []) {
+      interface InvoiceItem {
+        item_code: string;
+        item_name?: string;
+        amount: number;
+        qty: number;
+      }
+      interface InvoiceDetail {
+        items: InvoiceItem[];
+      }
+      const itemsData = await client.get<InvoiceDetail>('Purchase Invoice', pi.name);
       
       for (const item of (itemsData.items || [])) {
         if (!itemMap.has(item.item_code)) {
@@ -71,8 +85,17 @@ export async function GET(request: NextRequest) {
     }
 
     // Process sales items
-    for (const si of (siData || []) as any[]) {
-      const itemsData = await client.get('Sales Invoice', si.name) as any;
+    for (const si of siData || []) {
+      interface InvoiceItem {
+        item_code: string;
+        item_name?: string;
+        amount: number;
+        qty: number;
+      }
+      interface InvoiceDetail {
+        items: InvoiceItem[];
+      }
+      const itemsData = await client.get<InvoiceDetail>('Sales Invoice', si.name);
       
       for (const item of (itemsData.items || [])) {
         if (!itemMap.has(item.item_code)) {

@@ -31,7 +31,7 @@ export async function POST(
     const client = await getERPNextClientForRequest(request);
     
     // Submit the Purchase Return using client method
-    const result = await client.submit('Purchase Receipt', name);
+    const result = await client.submit('Purchase Receipt', name) as any;
     
     const returnData = result.docs?.[0] || result.doc || result.data || result;
     return NextResponse.json({ 

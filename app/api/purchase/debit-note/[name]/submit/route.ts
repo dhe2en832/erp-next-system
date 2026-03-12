@@ -31,7 +31,7 @@ export async function POST(
     const client = await getERPNextClientForRequest(request);
     
     // Submit the Debit Note using client method
-    const result = await client.submit('Purchase Invoice', name);
+    const result = await client.submit('Purchase Invoice', name) as any;
     
     const debitNoteData = result.docs?.[0] || result.doc || result.data || result;
     return NextResponse.json({ 

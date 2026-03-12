@@ -40,7 +40,7 @@ export function formatNumber(num: number): string {
 /**
  * Calculate invoice summary totals
  */
-export function calculateInvoiceSummary(invoices: Record<string, unknown>[]) {
+export function calculateInvoiceSummary(invoices: any[]) {
   const count = invoices.length;
   const total = invoices.reduce((sum, inv) => sum + (Number(inv.grand_total) || 0), 0);
   const average = count > 0 ? total / count : 0;
@@ -55,7 +55,7 @@ export function calculateInvoiceSummary(invoices: Record<string, unknown>[]) {
 /**
  * Calculate payment summary totals
  */
-export function calculatePaymentSummary(payments: Record<string, unknown>[]) {
+export function calculatePaymentSummary(payments: any[]) {
   const count = payments.length;
   const totalReceived = payments
     .filter(p => p.payment_type === 'Receive')

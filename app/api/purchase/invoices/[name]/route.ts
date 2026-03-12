@@ -37,7 +37,7 @@ export async function GET(
     const invoiceData = await client.call('frappe.desk.form.load.getdoc', {
       doctype: 'Purchase Invoice',
       name: name.trim()
-    });
+    }) as any;
 
     // form.load.getdoc returns data in different structure
     const invoice = invoiceData.docs?.[0] || invoiceData.doc || invoiceData;

@@ -5,6 +5,7 @@ import {
   buildSiteAwareErrorResponse,
   logSiteError 
 } from '@/lib/api-helpers';
+import { ERPNextClient } from '@/lib/erpnext';
 import type { AccountingPeriod, AccountBalance } from '@/types/accounting-period';
 
 export async function GET(
@@ -46,14 +47,21 @@ export async function GET(
  * @param periodOnly - If true, only include transactions within the period (start_date to end_date)
  *                     If false, include all transactions up to end_date (cumulative)
  */
-async function calculateAllAccountBalances(client: any, period: AccountingPeriod, periodOnly: boolean = false): Promise<AccountBalance[]> {
+async function calculateAllAccountBalances(client: ERPNextClient, period: AccountingPeriod, periodOnly: boolean = false): Promise<AccountBalance[]> {
   // console.log('=== Calculate Account Balances ===');
   // console.log('Period:', period.name, period.start_date, '-', period.end_date);
   // console.log('Company:', period.company);
   // console.log('Mode:', periodOnly ? 'Period Only' : 'Cumulative');
   
   // Step 1: Fetch ALL non-group accounts from Chart of Accounts first
-  const allAccounts = await client.getList('Account', {
+  interface AccountListItem {
+    name: string;
+    account_name: string;
+    account_type: string;
+    root_type: 'Asset' | 'Liability' | 'Equity' | 'Income' | 'Expense';
+    is_group: number;
+  }
+  const allAccounts = await client.getList<AccountListItem>('Account', {
     filters: [
       ['company', '=', period.company],
       ['is_group', '=', 0],
@@ -73,7 +81,7 @@ async function calculateAllAccountBalances(client: any, period: AccountingPeriod
   }
 
   // Step 3: Query GL entries and augment the accountMap
-  const glFilters: any[] = [
+  const glFilters: [string, string, string | number][] = [
     ['company', '=', period.company],
     ['posting_date', '<=', period.end_date],
     ['is_cancelled', '=', 0],
@@ -86,7 +94,15 @@ async function calculateAllAccountBalances(client: any, period: AccountingPeriod
   
   // console.log('GL Entry filters:', JSON.stringify(glFilters));
 
-  const glEntries = await client.getList('GL Entry', {
+  interface GLEntryListItem {
+    account: string;
+    debit: number;
+    credit: number;
+    posting_date: string;
+    voucher_type: string;
+    voucher_no: string;
+  }
+  const glEntries = await client.getList<GLEntryListItem>('GL Entry', {
     filters: glFilters,
     fields: ['account', 'debit', 'credit', 'posting_date', 'voucher_type', 'voucher_no'],
     limit_page_length: 999999,
@@ -100,10 +116,6 @@ async function calculateAllAccountBalances(client: any, period: AccountingPeriod
   // }
   
   // Log sample GL entries for Income/Expense accounts
-  const incomeExpenseEntries = glEntries.filter((e: any) => {
-    const account = allAccounts.find((a: any) => a.name === e.account);
-    return account && ['Income', 'Expense'].includes(account.root_type);
-  });
   // console.log('GL entries for Income/Expense accounts:', incomeExpenseEntries.length);
   // if (incomeExpenseEntries.length > 0) {
   //   console.log('Sample entries:', incomeExpenseEntries.slice(0, 5));
@@ -140,7 +152,7 @@ async function calculateAllAccountBalances(client: any, period: AccountingPeriod
         account_name: account.account_name,
         account_type: account.account_type,
         root_type: account.root_type,
-        is_group: account.is_group,
+        is_group: account.is_group === 1,
         debit: totals.debit,
         credit: totals.credit,
         balance: balance,

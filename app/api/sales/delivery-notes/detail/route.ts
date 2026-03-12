@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     const data = await client.call('frappe.desk.form.load.getdoc', {
       doctype: 'Delivery Note',
       name: name
-    });
+    }) as any;
 
     // form.load.getdoc returns data in different structure
     const dnData = data.docs?.[0] || data.doc || data.data || data;

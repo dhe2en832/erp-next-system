@@ -82,10 +82,10 @@ export async function GET(request: NextRequest) {
       const templateNames = await client.getList(docType, { 
         filters,
         fields: ['name']
-      });
+      }) as any[];
 
       console.log(`[Tax Templates] Found ${templateNames.length} templates from getList`);
-      console.log(`[Tax Templates] Template names:`, templateNames.map(t => t.name));
+      console.log(`[Tax Templates] Template names:`, templateNames.map((t: any) => t.name));
 
       // Fetch full details for each template to get child table data
       const fetchedTemplates = [];

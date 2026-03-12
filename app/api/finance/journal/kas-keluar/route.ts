@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { 
   getERPNextClientForRequest, 
   getSiteIdFromRequest,
-  buildSiteAwareErrorResponse,
   logSiteError 
 } from '@/lib/api-helpers';
 
@@ -30,7 +29,17 @@ export async function POST(request: NextRequest) {
   
   try {
     const body = await request.json();
-    const { posting_date, cash_account, company, items } = body;
+    interface KasKeluarItem {
+      keterangan: string;
+      nominal: number;
+      kategori: string;
+    }
+    const { posting_date, cash_account, company, items } = body as {
+      posting_date: string;
+      cash_account: string;
+      company: string;
+      items: KasKeluarItem[];
+    };
 
     if (!posting_date || !cash_account || !company || !items || items.length === 0) {
       return NextResponse.json(
@@ -55,10 +64,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const totalNominal = items.reduce((sum: number, item: any) => sum + Number(item.nominal), 0);
+    const totalNominal = items.reduce((sum: number, item) => sum + Number(item.nominal), 0);
 
     // Build Journal Entry accounts
-    const accounts: any[] = [];
+    interface JournalEntryAccount {
+      account: string;
+      debit_in_account_currency: number;
+      credit_in_account_currency: number;
+      user_remark: string;
+    }
+    const accounts: JournalEntryAccount[] = [];
 
     // Debit entries: each expense category
     for (const item of items) {
@@ -75,7 +90,7 @@ export async function POST(request: NextRequest) {
       account: cash_account,
       debit_in_account_currency: 0,
       credit_in_account_currency: totalNominal,
-      user_remark: `Kas Keluar - ${items.map((i: any) => i.keterangan).join(', ')}`,
+      user_remark: `Kas Keluar - ${items.map((i) => i.keterangan).join(', ')}`,
     });
 
     const journalPayload = {
@@ -84,7 +99,7 @@ export async function POST(request: NextRequest) {
       posting_date,
       company,
       accounts,
-      user_remark: `Kas Keluar: ${items.map((i: any) => `${i.keterangan} (Rp ${Number(i.nominal).toLocaleString('id-ID')})`).join('; ')}`,
+      user_remark: `Kas Keluar: ${items.map((i) => `${i.keterangan} (Rp ${Number(i.nominal).toLocaleString('id-ID')})`).join('; ')}`,
       total_debit: totalNominal,
       total_credit: totalNominal,
     };
@@ -92,7 +107,7 @@ export async function POST(request: NextRequest) {
     // Get site-aware client
     const client = await getERPNextClientForRequest(request);
 
-    const result = await client.insert('Journal Entry', journalPayload) as any;
+    const result = await client.insert<{ name: string }>('Journal Entry', journalPayload);
 
     return NextResponse.json({
       success: true,

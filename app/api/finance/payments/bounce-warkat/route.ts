@@ -39,12 +39,12 @@ export async function POST(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Use client call method for custom ERPNext method
-    const data = await client.call('bounce_warkat_payment', {
+    const data = await client.call<{ journal_entry?: string }>('bounce_warkat_payment', {
       company,
       payment_entry,
       reason: reason || 'Warkat ditolak',
       payment_type
-    }) as any;
+    });
 
     return NextResponse.json({
       success: true,

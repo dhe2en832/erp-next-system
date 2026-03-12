@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '50');
     const start = parseInt(searchParams.get('start') || '0');
 
-    const filters: any[][] = [];
+    const filters: [string, string, string | number | boolean | null][] = [];
     
     if (period_name) {
       filters.push(['accounting_period', '=', period_name]);

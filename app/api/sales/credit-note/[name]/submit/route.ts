@@ -60,7 +60,7 @@ export async function POST(
       });
 
       if (periods && periods.length > 0) {
-        const period = periods[0];
+        const period = periods[0] as any;
         if (period.status === 'Closed' || period.status === 'Permanently Closed') {
           return NextResponse.json(
             { 
@@ -77,7 +77,7 @@ export async function POST(
     }
 
     // Submit the document using ERPNext's submit method
-    const submittedDoc = await client.submit('Sales Invoice', name);
+    const submittedDoc = await client.submit('Sales Invoice', name) as any;
     
     // Transform response to match frontend expectations
     return NextResponse.json({

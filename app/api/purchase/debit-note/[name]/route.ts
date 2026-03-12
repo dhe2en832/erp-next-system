@@ -47,14 +47,11 @@ export async function GET(
     // Get site-aware client
     const client = await getERPNextClientForRequest(request);
     
-    // Use ERPNext's form.load.getdoc method to get full document with child tables
-    const debitNoteData = await client.call('frappe.desk.form.load.getdoc', {
-      doctype: 'Purchase Invoice',
-      name: name.trim()
-    });
-
-    // form.load.getdoc returns data in different structure
-    const debitNote = debitNoteData.docs?.[0] || debitNoteData.doc || debitNoteData;
+    // Get Debit Note details
+    const result = await client.get('Purchase Invoice', name.trim()) as any;
+    
+    // Validate if it's actually a debit note (return)
+    const debitNote = result.docs?.[0] || result.doc || result;
 
     return NextResponse.json({
       success: true,

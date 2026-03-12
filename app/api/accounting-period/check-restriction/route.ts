@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
         canOverride: restrictionInfo.canOverride,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Check restriction error:', error);
 
     if (error instanceof z.ZodError) {
@@ -71,11 +71,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const message = error instanceof Error ? error.message : 'Internal server error';
+
     return NextResponse.json(
       {
         success: false,
         error: 'INTERNAL_ERROR',
-        message: error.message || 'Internal server error',
+        message: message,
       },
       { status: 500 }
     );

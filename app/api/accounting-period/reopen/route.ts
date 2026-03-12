@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get period details
-    const period = await client.get('Accounting Period', period_name) as any;
+    const period = await client.get<AccountingPeriod>('Accounting Period', period_name);
 
     // Validate period status
     if (period.status === 'Open') {
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if next period is closed
-    const nextPeriods = await client.getList('Accounting Period', {
+    const nextPeriods = await client.getList<AccountingPeriod>('Accounting Period', {
       filters: [
         ['company', '=', company],
         ['start_date', '>', period.end_date],
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
         { 
           success: false, 
           error: 'VALIDATION_ERROR', 
-          message: `Cannot reopen period because next period "${(nextPeriods[0] as any).period_name}" is already closed` 
+          message: `Cannot reopen period because next period "${nextPeriods[0].period_name}" is already closed` 
         },
         { status: 422 }
       );
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
 
     // Get session cookie to identify actual user
     const sessionCookie = request.cookies.get('sid')?.value;
-    const currentUser = await client.getCurrentUser(sessionCookie);
+    const currentUser = sessionCookie ? await client.getCurrentUser(sessionCookie) : 'System';
 
     // CRITICAL: Handle closing journal entry cancellation/reversal
     let journalCancellationResult = { success: false, method: 'none' as 'cancel' | 'reversal' | 'none', original_journal: null as string | null, reversal_journal: null as string | null, details: { action: '', timestamp: '' } };
@@ -76,8 +76,7 @@ export async function POST(request: NextRequest) {
       journalCancellationResult = await handleClosingJournalCancellation(
         period.closing_journal_entry,
         period,
-        client,
-        currentUser
+        client
       );
     }
 
@@ -85,7 +84,7 @@ export async function POST(request: NextRequest) {
     const now = new Date();
     const erpnextDatetime = now.toISOString().slice(0, 19).replace('T', ' ');
     
-    const updateData: any = {
+    const updateData: Record<string, unknown> = {
       status: 'Open',
       closed_by: null,
       closed_on: null,
@@ -105,7 +104,7 @@ export async function POST(request: NextRequest) {
     // CRITICAL: Set all closed_documents[].closed = 0 to allow transactions
     // This is required because ERPNext checks both status AND closed_documents flags
     if (period.closed_documents && Array.isArray(period.closed_documents)) {
-      updateData.closed_documents = period.closed_documents.map((doc: any) => ({
+      updateData.closed_documents = period.closed_documents.map((doc: Record<string, unknown>) => ({
         ...doc,
         closed: 0
       }));
@@ -158,8 +157,7 @@ export async function POST(request: NextRequest) {
 async function handleClosingJournalCancellation(
   journalName: string,
   period: AccountingPeriod,
-  client: ERPNextClient,
-  currentUser: string
+  client: ERPNextClient
 ): Promise<{ 
   success: boolean; 
   method: 'cancel' | 'reversal' | 'none'; 
@@ -191,7 +189,7 @@ async function handleClosingJournalCancellation(
     }
 
     // Step 2: If cancel failed, create reversal journal entry
-    const reversalResult = await createReversalJournal(journalName, period, client, currentUser);
+    const reversalResult = await createReversalJournal(journalName, period, client);
     
     return reversalResult;
   } catch (error) {
@@ -221,8 +219,7 @@ async function handleClosingJournalCancellation(
 async function createReversalJournal(
   originalJournalName: string,
   period: AccountingPeriod,
-  client: ERPNextClient,
-  currentUser: string
+  client: ERPNextClient
 ): Promise<{ 
   success: boolean; 
   method: 'reversal'; 
@@ -235,14 +232,23 @@ async function createReversalJournal(
 
   try {
     // Get original journal entry details
-    const originalJournal = await client.get('Journal Entry', originalJournalName) as any;
+    interface JournalEntryWithAccounts {
+      name: string;
+      accounts: {
+        account: string;
+        credit_in_account_currency: number;
+        debit_in_account_currency: number;
+        user_remark?: string;
+      }[];
+    }
+    const originalJournal = await client.get<JournalEntryWithAccounts>('Journal Entry', originalJournalName);
 
     if (!originalJournal.accounts || originalJournal.accounts.length === 0) {
       throw new Error(`No accounts found in original journal ${originalJournalName}`);
     }
 
     // Build reversal accounts (flip debit/credit)
-    const reversalAccounts = originalJournal.accounts.map((acc: any) => ({
+    const reversalAccounts = originalJournal.accounts.map((acc) => ({
       account: acc.account,
       debit_in_account_currency: acc.credit_in_account_currency || 0,
       credit_in_account_currency: acc.debit_in_account_currency || 0,
@@ -250,14 +256,14 @@ async function createReversalJournal(
     }));
 
     // Create reversal journal entry
-    const reversalJournal = await client.insert('Journal Entry', {
+    const reversalJournal = await client.insert<{ name: string }>('Journal Entry', {
       voucher_type: 'Journal Entry',
       posting_date: period.end_date,
       company: period.company,
       accounts: reversalAccounts,
       user_remark: `Reversal of closing entry ${originalJournalName} - Period reopened`,
       accounting_period: period.name,
-    }) as any;
+    });
 
     // Submit the reversal journal
     await client.submit('Journal Entry', reversalJournal.name);

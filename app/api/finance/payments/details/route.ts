@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Use client method instead of fetch
-    const data = await client.get('Payment Entry', paymentName) as any;
+    const data = await client.get('Payment Entry', paymentName);
 
     return NextResponse.json({
       success: true,

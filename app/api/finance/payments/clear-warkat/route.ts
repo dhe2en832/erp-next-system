@@ -40,13 +40,13 @@ export async function POST(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Use client call method for custom ERPNext method
-    const data = await client.call('clear_warkat_payment', {
+    const data = await client.call<{ journal_entry?: string }>('clear_warkat_payment', {
       company,
       payment_entry,
       bank_account,
       payment_type,
       clearance_date
-    }) as any;
+    });
 
     return NextResponse.json({
       success: true,

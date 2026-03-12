@@ -33,14 +33,25 @@ export async function GET(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Get GL Entries for "Expenses Included In Asset Valuation" (ongkir masuk HPP)
-    const hppFilters: any[][] = [
+    const hppFilters: [string, string, string | number][] = [
       ['company', '=', company],
       ['account', 'like', '%Expenses Included In Asset Valuation%']
     ];
     if (from_date) hppFilters.push(['posting_date', '>=', from_date]);
     if (to_date) hppFilters.push(['posting_date', '<=', to_date]);
 
-    const hppData = await client.getList('GL Entry', {
+    interface AcquisitionGLEntry {
+      name: string;
+      posting_date: string;
+      account: string;
+      debit: number;
+      credit: number;
+      voucher_type: string;
+      voucher_no: string;
+      remarks?: string;
+    }
+
+    const hppData = await client.getList<AcquisitionGLEntry>('GL Entry', {
       fields: ['name', 'posting_date', 'account', 'debit', 'credit', 'voucher_type', 'voucher_no', 'remarks'],
       filters: hppFilters,
       order_by: 'posting_date desc',
@@ -48,14 +59,14 @@ export async function GET(request: NextRequest) {
     });
 
     // Get GL Entries for operational expenses (ongkir NOT in HPP)
-    const expFilters: any[][] = [
+    const expFilters: [string, string, string | number][] = [
       ['company', '=', company],
       ['account', 'like', '%Freight%']
     ];
     if (from_date) expFilters.push(['posting_date', '>=', from_date]);
     if (to_date) expFilters.push(['posting_date', '<=', to_date]);
 
-    const expData = await client.getList('GL Entry', {
+    const expData = await client.getList<AcquisitionGLEntry>('GL Entry', {
       fields: ['name', 'posting_date', 'account', 'debit', 'credit', 'voucher_type', 'voucher_no', 'remarks'],
       filters: expFilters,
       order_by: 'posting_date desc',
@@ -63,8 +74,8 @@ export async function GET(request: NextRequest) {
     });
 
     const results = {
-      hpp_costs: (hppData || []).map((e: any) => ({ ...e, category: 'Masuk HPP', amount: e.debit - e.credit })),
-      operational_costs: (expData || []).map((e: any) => ({ ...e, category: 'Beban Operasional', amount: e.debit - e.credit }))
+      hpp_costs: (hppData || []).map((e) => ({ ...e, category: 'Masuk HPP', amount: e.debit - e.credit })),
+      operational_costs: (expData || []).map((e) => ({ ...e, category: 'Beban Operasional', amount: e.debit - e.credit }))
     };
 
     return NextResponse.json({ success: true, data: results });

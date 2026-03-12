@@ -40,8 +40,16 @@ export async function GET(request: NextRequest) {
 
     const client = await getERPNextClientForRequest(request);
 
+    interface CompanyData {
+      default_bank_account?: string;
+      default_cash_account?: string;
+      default_receivable_account?: string;
+      default_payable_account?: string;
+      default_advance_account?: string;
+    }
+
     // Fetch company default accounts from ERPNext
-    const companyData = await client.get('Company', company) as any;
+    const companyData = await client.get<CompanyData>('Company', company);
 
     if (companyData) {
       // Fetch available accounts for dropdowns

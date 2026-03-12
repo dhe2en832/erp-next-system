@@ -42,7 +42,7 @@ export async function POST(
 
     try {
       // Submit the delivery note using client method
-      const result = await client.submit('Delivery Note', name);
+      const result = await client.submit('Delivery Note', name) as any;
 
       const deliveryNote = result.docs?.[0] || result.doc || result;
 
@@ -80,7 +80,7 @@ export async function POST(
                     ['warehouse', '=', warehouse.trim()]
                   ],
                   limit: 1
-                });
+                }) as any[];
 
                 if (bins && bins.length > 0) {
                   const currentStock = bins[0].actual_qty || 0;

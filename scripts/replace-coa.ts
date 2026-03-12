@@ -91,7 +91,7 @@ async function deleteExistingCOA(): Promise<void> {
     let deleted = 0;
     let skipped = 0;
     
-    for (const account of accounts) {
+    for (const account of accounts as any[]) {
       try {
         // Skip if account has GL entries
         const glEntries = await erpnextClient.getList('GL Entry', {
@@ -246,7 +246,7 @@ async function verifyCOA(): Promise<void> {
     
     // Count by root type
     const counts: Record<string, number> = {};
-    for (const account of accounts) {
+    for (const account of accounts as any[]) {
       counts[account.root_type] = (counts[account.root_type] || 0) + 1;
     }
     

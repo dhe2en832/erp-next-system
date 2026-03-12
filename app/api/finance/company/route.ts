@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
         success: true,
         data: data || mockCompanies,
       });
-    } catch (erpError) {
+    } catch {
       console.log('ERPNext not available, using mock data');
       
       // Fallback to mock data

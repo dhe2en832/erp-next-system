@@ -47,8 +47,16 @@ export async function GET(request: NextRequest) {
     });
 
     // Fetch balances from GL Entry for each account
+    interface AccountWithBasicInfo {
+      name: string;
+      account_name: string;
+      account_type: string;
+      parent_account: string;
+      is_group: number;
+      company: string;
+    }
     const accountsWithBalance = await Promise.all(
-      (accounts || []).map(async (account: any) => {
+      (accounts as AccountWithBasicInfo[] || []).map(async (account) => {
         try {
           // Get GL Entry balance for this account
           const glFilters: Array<[string, string, string]> = [
@@ -59,7 +67,7 @@ export async function GET(request: NextRequest) {
             glFilters.push(['company', '=', company]);
           }
 
-          const glEntries = await client.getList('GL Entry', {
+          const glEntries = await client.getList<{ debit: number; credit: number }>('GL Entry', {
             fields: ['debit', 'credit'],
             filters: glFilters,
             limit_page_length: 99999
@@ -68,7 +76,7 @@ export async function GET(request: NextRequest) {
           // Calculate balance (debit - credit)
           let balance = 0;
           if (glEntries && Array.isArray(glEntries)) {
-            balance = glEntries.reduce((sum: number, entry: any) => {
+            balance = glEntries.reduce((sum: number, entry) => {
               return sum + (entry.debit || 0) - (entry.credit || 0);
             }, 0);
           }

@@ -286,7 +286,7 @@ export async function POST(request: NextRequest) {
       });
       
       if (periods && periods.length > 0) {
-        const period = periods[0];
+        const period = periods[0] as any;
         if (period.status === 'Closed' || period.status === 'Permanently Closed') {
           return NextResponse.json(
             { 
@@ -304,7 +304,7 @@ export async function POST(request: NextRequest) {
     // Use ERPNext's make_sales_return method to generate Credit Note template (Requirement 1.10)
     const returnTemplate = await client.call('erpnext.accounts.doctype.sales_invoice.sales_invoice.make_sales_return', {
       source_name: creditNoteData.return_against,
-    });
+    }) as any;
 
     // Customize template with user data (Requirement 1.11)
     returnTemplate.posting_date = creditNoteData.posting_date;
@@ -350,15 +350,15 @@ export async function POST(request: NextRequest) {
       });
 
     // Calculate custom_total_komisi_sales (Requirement 1.13)
-    const totalCommission = returnTemplate.items.reduce((sum: number, item: any) => {
+    const totalCommission = (returnTemplate.items || []).reduce((sum: number, item: any) => {
       return sum + (item.custom_komisi_sales || 0);
     }, 0);
     returnTemplate.custom_total_komisi_sales = Math.round(totalCommission * 100) / 100;
 
     console.log('Commission calculation:', {
-      items_count: returnTemplate.items.length,
+      items_count: returnTemplate.items?.length || 0,
       total_commission: returnTemplate.custom_total_komisi_sales,
-      sample_item_commission: returnTemplate.items[0]?.custom_komisi_sales
+      sample_item_commission: returnTemplate.items?.[0]?.custom_komisi_sales
     });
 
     // Save Credit Note to ERPNext (Requirement 1.14)
@@ -370,7 +370,7 @@ export async function POST(request: NextRequest) {
         const refreshedDoc = await client.call('frappe.desk.form.load.getdoc', {
           doctype: 'Sales Invoice',
           name: savedDoc.name
-        });
+        }) as any;
         
         // getdoc returns data in docs[0]
         if (refreshedDoc?.docs?.[0]) {

@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Get Stock Entries with purpose = "Material Issue/Receipt/Reconciliation"
-    const filters: any[][] = [
+    const filters: [string, string, string | number | string[]][] = [
       ['company', '=', company],
       ['docstatus', '=', 1],
       ['purpose', 'in', ['Material Receipt', 'Material Issue', 'Repack', 'Stock Reconciliation']]
@@ -40,7 +40,15 @@ export async function GET(request: NextRequest) {
     if (from_date) filters.push(['posting_date', '>=', from_date]);
     if (to_date) filters.push(['posting_date', '<=', to_date]);
 
-    const data = await client.getList('Stock Entry', {
+    interface StockEntryBasic {
+      name: string;
+      posting_date: string;
+      purpose: string;
+      total_amount: number;
+      remarks?: string;
+    }
+
+    const data = await client.getList<StockEntryBasic>('Stock Entry', {
       fields: ['name', 'posting_date', 'purpose', 'total_amount', 'remarks'],
       filters,
       order_by: 'posting_date desc',
@@ -49,9 +57,16 @@ export async function GET(request: NextRequest) {
 
     // Get GL Entry for each Stock Entry to see journal impact
     const entries = [];
-    for (const se of (data || []) as any[]) {
-      const glFilters: any[][] = [['voucher_type', '=', 'Stock Entry'], ['voucher_no', '=', se.name]];
-      const glData = await client.getList('GL Entry', {
+    for (const se of (data || [])) {
+      const glFilters: [string, string, string | number][] = [['voucher_type', '=', 'Stock Entry'], ['voucher_no', '=', se.name]];
+      
+      interface GLEntryDetail {
+        account: string;
+        debit: number;
+        credit: number;
+      }
+
+      const glData = await client.getList<GLEntryDetail>('GL Entry', {
         fields: ['account', 'debit', 'credit'],
         filters: glFilters,
         limit_page_length: 50

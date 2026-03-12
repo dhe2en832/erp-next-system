@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Query Credit Notes and Commission Payments
-    const invoiceNames = invoices.map((inv: Record<string, unknown>) => inv.name as string);
+    const invoiceNames = (invoices as any[]).map((inv: any) => inv.name as string);
     let creditNotes: Record<string, unknown>[] = [];
     let commissionPayments: Record<string, unknown>[] = [];
     

@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify retained earnings account is not a stock account
-    const retainedEarningsAcc = await client.get('Account', config.retained_earnings_account) as any;
+    const retainedEarningsAcc = await client.get<{ account_type: string; root_type: string }>('Account', config.retained_earnings_account);
     if (retainedEarningsAcc.account_type === 'Stock') {
       return NextResponse.json(
         { 
@@ -279,14 +279,14 @@ async function createClosingJournalEntry(
   }
 
   // Create journal entry
-  const journalEntry = await client.insert('Journal Entry', {
+  const journalEntry = await client.insert<{ name: string; message?: string }>('Journal Entry', {
     voucher_type: 'Journal Entry',
     posting_date: period.end_date,
     company: period.company,
     accounts: journalAccounts,
     user_remark: `Closing entry for accounting period ${period.period_name}`,
     accounting_period: period.name,
-  }) as any;
+  });
 
   // Submit the journal entry
   await client.submit('Journal Entry', journalEntry.name);

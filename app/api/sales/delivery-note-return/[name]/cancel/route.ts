@@ -47,7 +47,7 @@ export async function POST(
     }
 
     // Cancel the document
-    const cancelledDoc = await client.cancel('Delivery Note', name);
+    const cancelledDoc = await client.cancel('Delivery Note', name) as any;
     
     // Transform response to match frontend expectations
     return NextResponse.json({

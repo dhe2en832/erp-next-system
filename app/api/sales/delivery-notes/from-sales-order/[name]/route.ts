@@ -26,13 +26,11 @@ export async function POST(
     // Get site-aware client
     const client = await getERPNextClientForRequest(request);
 
-    // Use ERPNext's make_delivery_note method
-    const data = await client.call('erpnext.stock.doctype.delivery_note.delivery_note.make_delivery_note', {
+    // Use erpnext method to generate DN from SO
+    const data = await client.call('erpnext.selling.doctype.sales_order.sales_order.make_delivery_note', {
       source_name: name,
-      target_doc: null // Create new delivery note
-    });
+    }) as any;
 
-    // The response should contain the delivery note data
     const deliveryNoteData = data.docs?.[0] || data.doc || data.message || data;
     
     return NextResponse.json({

@@ -46,7 +46,7 @@ export async function GET(
     const receiptData = await client.call('frappe.desk.form.load.getdoc', {
       doctype: 'Purchase Receipt',
       name: name.trim()
-    });
+    }) as any;
 
     // form.load.getdoc returns data in different structure
     const receipt = receiptData.docs?.[0] || receiptData.doc || receiptData;

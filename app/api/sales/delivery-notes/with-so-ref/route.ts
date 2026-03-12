@@ -24,10 +24,7 @@ export async function GET(request: NextRequest) {
       limit_page_length: 20
     });
     
-    const soReferences = new Set();
-    const dnWithSORef = [];
-    
-    for (const dn of deliveryNotes) {
+    const results = await Promise.all(deliveryNotes.map(async (dn: any) => {
       try {
         const dnDetail = await client.get('Delivery Note', dn.name) as any;
         const dnSORefs = new Set();
@@ -36,25 +33,32 @@ export async function GET(request: NextRequest) {
           dnDetail.items.forEach((item: any) => {
             if (item.against_sales_order) {
               dnSORefs.add(item.against_sales_order);
-              soReferences.add(item.against_sales_order);
             }
           });
         }
         
         if (dnSORefs.size > 0) {
-          dnWithSORef.push({
+          return {
             dn_name: dn.name,
             customer: dn.customer,
             status: dn.status,
             grand_total: dn.grand_total,
             so_references: Array.from(dnSORefs),
             item_count: dnDetail.items?.length || 0
-          });
+          };
         }
+        return null;
       } catch (error) {
         console.log(`Error getting DN detail for ${dn.name}:`, error);
+        return null;
       }
-    }
+    }));
+    
+    const dnWithSORef = results.filter((r): r is NonNullable<typeof r> => r !== null);
+    const soReferences = new Set();
+    dnWithSORef.forEach(dn => {
+      dn.so_references.forEach((ref: any) => soReferences.add(ref));
+    });
     
     return NextResponse.json({
       success: true,

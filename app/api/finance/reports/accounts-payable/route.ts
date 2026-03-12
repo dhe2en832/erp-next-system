@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
     });
     
     // Fetch Purchase Returns
-    const returnFilters = [
+    const returnFilters: [string, string, string | number][] = [
       ['docstatus', '=', '1'],
       ['company', '=', company],
       ['is_return', '=', '1'],
@@ -48,13 +48,19 @@ export async function GET(request: NextRequest) {
 
     const returnsMap = new Map<string, number>();
     try {
-      const returnsData = await client.getList('Purchase Invoice', {
+      interface PurchaseInvoiceReturn {
+        name: string;
+        return_against?: string;
+        grand_total: number;
+        outstanding_amount: number;
+      }
+      const returnsData = await client.getList<PurchaseInvoiceReturn>('Purchase Invoice', {
         fields: ['name', 'return_against', 'grand_total', 'outstanding_amount'],
         filters: returnFilters,
         limit_page_length: 500
       });
 
-      (returnsData as any[]).forEach((ret: any) => {
+      returnsData.forEach((ret) => {
         const originalInvoice = ret.return_against || ret.name;
         const returnAmount = Math.abs(ret.grand_total || 0);
         returnsMap.set(originalInvoice, (returnsMap.get(originalInvoice) || 0) + returnAmount);
@@ -65,8 +71,18 @@ export async function GET(request: NextRequest) {
     }
     
     // Adjust outstanding amounts for returns
-    const apData = invoices
-      .map((inv: any) => {
+    interface PurchaseInvoiceSummary {
+      name: string;
+      supplier: string;
+      supplier_name: string;
+      posting_date: string;
+      due_date: string;
+      grand_total: number;
+      outstanding_amount: number;
+      status: string;
+    }
+    const apData = (invoices as unknown as PurchaseInvoiceSummary[])
+      .map((inv) => {
         const returnAmount = returnsMap.get(inv.name) || 0;
         const adjustedOutstanding = Math.max(0, inv.outstanding_amount - returnAmount);
         
@@ -84,7 +100,7 @@ export async function GET(request: NextRequest) {
           formatted_return_amount: formatCurrency(returnAmount),
         };
       })
-      .filter((inv: any) => inv.outstanding_amount > 0);
+      .filter((inv) => inv.outstanding_amount > 0);
     
     return NextResponse.json({ success: true, data: apData, total_records: apData.length });
   } catch (error: unknown) {

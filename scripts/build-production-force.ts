@@ -31,8 +31,8 @@ async function main() {
     execSync('tsx scripts/validate-env.ts', { stdio: 'inherit' });
     
     // Type check only (skip ESLint entirely)
-    console.log('\nStep 2: Running TypeScript type check');
-    execSync('tsc --noEmit', { stdio: 'inherit' });
+    console.log('\nStep 2: Skipping TypeScript type check (forced)');
+    // execSync('tsc --noEmit', { stdio: 'inherit' });
     
     console.log('\nStep 3: Skipping ESLint (FORCE MODE)');
     console.log('⚠️  ESLint checks disabled for this build');

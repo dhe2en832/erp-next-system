@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
 
     const client = await getERPNextClientForRequest(request);
 
-    const filters: any[][] = [
+    const filters: [string, string, string | number][] = [
       ['docstatus', '=', '1'],
       ['company', '=', company],
     ];
@@ -39,7 +39,18 @@ export async function GET(request: NextRequest) {
     if (fromDate) filters.push(['transaction_date', '>=', fromDate]);
     if (toDate) filters.push(['transaction_date', '<=', toDate]);
 
-    const data = await client.getList('Sales Order', {
+    interface SalesOrderBasic {
+      name: string;
+      customer: string;
+      customer_name: string;
+      transaction_date: string;
+      grand_total: number;
+      status: string;
+      per_delivered: number;
+      per_billed: number;
+    }
+
+    const data = await client.getList<SalesOrderBasic>('Sales Order', {
       fields: ['name', 'customer', 'customer_name', 'transaction_date', 'grand_total', 'status', 'per_delivered', 'per_billed'],
       filters,
       order_by: 'transaction_date desc',
@@ -50,12 +61,18 @@ export async function GET(request: NextRequest) {
     
     // Fetch sales team for each sales order
     const ordersWithSales = await Promise.all(
-      salesOrders.map(async (order: any) => {
+      salesOrders.map(async (order) => {
         try {
-          const salesTeamData = await client.get('Sales Order', order.name) as any;
+          interface SalesTeamMember {
+            sales_person: string;
+          }
+          interface SalesOrderDetail {
+            sales_team?: SalesTeamMember[];
+          }
+          const salesTeamData = await client.get<SalesOrderDetail>('Sales Order', order.name);
           
           // Get first sales person from sales_team child table
-          const salesPerson = salesTeamData.data?.sales_team?.[0]?.sales_person || '';
+          const salesPerson = salesTeamData.sales_team?.[0]?.sales_person || '';
           
           return {
             ...order,

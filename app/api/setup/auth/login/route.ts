@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
           doctype: 'User',
           fields: ['name', 'email', 'username'],
           filters: [['username', '=', usr]]
-        });
+        }) as any;
         
         const users = usersResult?.data || usersResult || [];
 

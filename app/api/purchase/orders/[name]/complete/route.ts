@@ -22,7 +22,7 @@ export async function POST(
     const data = await client.update('Purchase Order', name, {
       docstatus: 1, // Submit document
       action: 'complete',
-    });
+    }) as any;
 
     const orderData = data.docs?.[0] || data.doc || data.data || data;
     

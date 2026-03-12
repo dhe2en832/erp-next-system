@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     const company = searchParams.get('company') || '';
 
     // Build filters - preserve account type filtering (Cash, Bank)
-    const filters: any[] = [
+    const filters: [string, string, string | string[] | number][] = [
       ['account_type', 'in', ['Cash', 'Bank']],
       ['is_group', '=', 0],
       ['disabled', '=', 0],

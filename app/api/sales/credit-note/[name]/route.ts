@@ -37,14 +37,17 @@ export async function GET(
     // Get site-aware client
     const client = await getERPNextClientForRequest(request);
 
-    // Use frappe.desk.form.load.getdoc for complete document with child tables
-    const data = await client.call('frappe.desk.form.load.getdoc', {
-      doctype: 'Sales Invoice',
-      name: name,
-    });
+    // Use getList with filter to find the specific Sales Invoice that is a return
+    const data = await client.getList('Sales Invoice', {
+      filters: [
+        ['name', '=', name],
+        ['is_return', '=', 1]
+      ],
+      fields: ['*']
+    }) as any;
 
-    if (data.docs && data.docs.length > 0) {
-      const creditNote = data.docs[0];
+    if (data && data.length > 0) {
+      const creditNote = data[0];
       
       // Verify this is actually a Credit Note (is_return=1)
       if (creditNote.is_return !== 1) {

@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Build filters for ERPNext API
-    const filters: any[][] = [
+    const filters: [string, string, string | number][] = [
       ['docstatus', '=', '1'],
       ['company', '=', company]
     ];
@@ -50,8 +50,19 @@ export async function GET(request: NextRequest) {
       filters.push(['posting_date', '<=', toDate]);
     }
 
+    interface PurchaseInvoiceBasic {
+      name: string;
+      supplier: string;
+      supplier_name: string;
+      posting_date: string;
+      status: string;
+      docstatus: number;
+      grand_total: number;
+      outstanding_amount: number;
+    }
+
     // Fetch list of purchase invoices
-    const listData = await client.getList('Purchase Invoice', {
+    const listData = await client.getList<PurchaseInvoiceBasic>('Purchase Invoice', {
       fields: [
         'name',
         'supplier',
@@ -69,28 +80,52 @@ export async function GET(request: NextRequest) {
     const invoices = listData || [];
 
     // Fetch details for each invoice in parallel
-    const detailPromises = invoices.map(async (invoice: any) => {
+    const detailPromises = invoices.map(async (invoice) => {
       try {
-        const detailData = await client.get('Purchase Invoice', invoice.name) as any;
+        interface PurchaseInvoiceItem {
+          item_code: string;
+          item_name?: string;
+          description?: string;
+          qty: number;
+          uom: string;
+          rate: number;
+          discount_percentage?: number;
+          discount_amount?: number;
+          tax_amount?: number;
+          amount: number;
+        }
+        interface PurchaseInvoiceDetail {
+          name: string;
+          supplier: string;
+          supplier_name: string;
+          posting_date: string;
+          due_date: string;
+          status: string;
+          docstatus: number;
+          grand_total: number;
+          outstanding_amount: number;
+          items: PurchaseInvoiceItem[];
+        }
+        const detailData = await client.get<PurchaseInvoiceDetail>('Purchase Invoice', invoice.name);
 
         return {
-          name: detailData.data.name,
-          supplier: detailData.data.supplier,
-          supplier_name: detailData.data.supplier_name,
-          posting_date: detailData.data.posting_date,
-          due_date: detailData.data.due_date,
-          status: detailData.data.status,
-          docstatus: detailData.data.docstatus,
-          grand_total: detailData.data.grand_total,
-          outstanding_amount: detailData.data.outstanding_amount,
-          items: (detailData.data.items || []).map((item: any) => ({
+          name: detailData.name,
+          supplier: detailData.supplier,
+          supplier_name: detailData.supplier_name,
+          posting_date: detailData.posting_date,
+          due_date: detailData.due_date,
+          status: detailData.status,
+          docstatus: detailData.docstatus,
+          grand_total: detailData.grand_total,
+          outstanding_amount: detailData.outstanding_amount,
+          items: (detailData.items || []).map((item) => ({
             item_code: item.item_code,
-            item_name: item.item_name,
-            description: item.description,
+            item_name: item.item_name || '',
+            description: item.description || '',
             qty: item.qty,
             uom: item.uom,
             rate: item.rate,
-            discount_percentage: item.discount_percentage,
+            discount_percentage: item.discount_percentage || 0,
             discount_amount: item.discount_amount || 0,
             tax_amount: item.tax_amount || 0,
             amount: item.amount
@@ -100,6 +135,7 @@ export async function GET(request: NextRequest) {
         console.error(`Error fetching details for ${invoice.name}:`, error);
         return {
           ...invoice,
+          due_date: '',
           items: []
         };
       }

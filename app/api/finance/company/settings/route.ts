@@ -32,8 +32,12 @@ export async function GET(request: NextRequest) {
 
     const client = await getERPNextClientForRequest(request);
 
+    interface CompanySettings {
+      default_warehouse?: string;
+    }
+
     // Fetch company details
-    const data = await client.get('Company', company) as any;
+    const data = await client.get<CompanySettings>('Company', company);
 
     if (data) {
       return NextResponse.json({

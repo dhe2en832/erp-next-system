@@ -5,6 +5,7 @@ import {
   buildSiteAwareErrorResponse,
   logSiteError 
 } from '@/lib/api-helpers';
+import { ERPNextClient } from '@/lib/erpnext';
 import { calculateNetIncome } from '@/lib/calculate-net-income';
 import type { AccountingPeriod, PeriodClosingConfig, AccountBalance, ClosingJournalAccount } from '@/types/accounting-period';
 
@@ -102,7 +103,7 @@ export async function GET(
 /**
  * Get nominal account balances for the period
  */
-async function getNominalAccountBalances(client: any, period: AccountingPeriod): Promise<AccountBalance[]> {
+async function getNominalAccountBalances(client: ERPNextClient, period: AccountingPeriod): Promise<AccountBalance[]> {
   // Get all GL entries for the period (EXCLUDE entries on the last day to avoid including closing journal entries)
   const filters = [
     ['company', '=', period.company],
@@ -111,27 +112,38 @@ async function getNominalAccountBalances(client: any, period: AccountingPeriod):
     ['is_cancelled', '=', 0],
   ];
 
-  const glEntries = await client.getList('GL Entry', {
+  interface GLEntrySummary {
+    account: string;
+    debit: number;
+    credit: number;
+  }
+  const glEntries = await client.getList<GLEntrySummary>('GL Entry', {
     filters,
     fields: ['account', 'debit', 'credit'],
     limit_page_length: 999999,
   });
 
   // Aggregate by account
-  const accountMap = new Map<string, { debit: number; credit: number }>();
+  const accountBalancesMap = new Map<string, { debit: number; credit: number }>();
 
   for (const entry of glEntries) {
-    const existing = accountMap.get(entry.account) || { debit: 0, credit: 0 };
-    accountMap.set(entry.account, {
+    const existing = accountBalancesMap.get(entry.account) || { debit: 0, credit: 0 };
+    accountBalancesMap.set(entry.account, {
       debit: existing.debit + (entry.debit || 0),
       credit: existing.credit + (entry.credit || 0),
     });
   }
 
   // Get account details for nominal accounts only
-  const accounts = await client.getList('Account', {
+  interface AccountInfo {
+    name: string;
+    account_name: string;
+    account_type: string;
+    root_type: string;
+  }
+  const accounts = await client.getList<AccountInfo>('Account', {
     filters: [
-      ['name', 'in', Array.from(accountMap.keys())],
+      ['name', 'in', Array.from(accountBalancesMap.keys())],
       ['root_type', 'in', ['Income', 'Expense']],
       ['is_group', '=', 0],
     ],
@@ -143,7 +155,7 @@ async function getNominalAccountBalances(client: any, period: AccountingPeriod):
   const result: AccountBalance[] = [];
 
   for (const account of accounts) {
-    const totals = accountMap.get(account.name);
+    const totals = accountBalancesMap.get(account.name);
     if (!totals) continue;
 
     const balance =

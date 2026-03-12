@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Build GL Entry filters with date range
-    const glFilters: any[][] = [['company', '=', company]];
+    const glFilters: [string, string, string | number][] = [['company', '=', company]];
     if (fromDate) {
       glFilters.push(['posting_date', '>=', fromDate]);
     }
@@ -50,9 +50,17 @@ export async function GET(request: NextRequest) {
       glFilters.push(['posting_date', '<=', toDate]);
     }
 
+    interface GLEntryVat {
+      posting_date: string;
+      voucher_no: string;
+      against: string;
+      credit: number;
+      debit: number;
+    }
+
     // Query PPN Output (Sales Tax - Account 2210 - Hutang PPN)
     const ppnOutputFilters = [...glFilters, ['account', 'like', '%2210%']];
-    const ppnOutputApiData = await client.getList('GL Entry', {
+    const ppnOutputApiData = await client.getList<GLEntryVat>('GL Entry', {
       fields: ['posting_date', 'voucher_no', 'against', 'credit', 'debit'],
       filters: ppnOutputFilters,
       order_by: 'posting_date',
@@ -63,7 +71,7 @@ export async function GET(request: NextRequest) {
     const ppnOutputMap = new Map<string, { tanggal: string; customer: string; ppn: number }>();
     let totalPpnOutput = 0;
 
-    (ppnOutputApiData || []).forEach((entry: any) => {
+    (ppnOutputApiData || []).forEach((entry) => {
       const ppnAmount = (entry.credit || 0) - (entry.debit || 0);
       if (ppnAmount > 0 && entry.voucher_no) {
         if (!ppnOutputMap.has(entry.voucher_no)) {
@@ -92,7 +100,7 @@ export async function GET(request: NextRequest) {
 
     // Query PPN Input (Purchase Tax - Account 1410 - Pajak Dibayar Dimuka)
     const ppnInputFilters = [...glFilters, ['account', 'like', '%1410%']];
-    const ppnInputApiData = await client.getList('GL Entry', {
+    const ppnInputApiData = await client.getList<GLEntryVat>('GL Entry', {
       fields: ['posting_date', 'voucher_no', 'against', 'debit', 'credit'],
       filters: ppnInputFilters,
       order_by: 'posting_date',
@@ -103,7 +111,7 @@ export async function GET(request: NextRequest) {
     const ppnInputMap = new Map<string, { tanggal: string; supplier: string; ppn: number }>();
     let totalPpnInput = 0;
 
-    (ppnInputApiData || []).forEach((entry: any) => {
+    (ppnInputApiData || []).forEach((entry) => {
       const ppnAmount = (entry.debit || 0) - (entry.credit || 0);
       if (ppnAmount > 0 && entry.voucher_no) {
         if (!ppnInputMap.has(entry.voucher_no)) {
@@ -155,14 +163,14 @@ export async function GET(request: NextRequest) {
     XLSX.utils.book_append_sheet(workbook, summarySheet, 'Ringkasan');
 
     // Sheet 2: PPN Output (Sales)
-    const ppnOutputData: any[] = [
+    const ppnOutputTable: (string | number | undefined)[][] = [
       ['LAPORAN PPN OUTPUT (PENJUALAN)'],
       ['Periode:', `${fromDate || 'Awal'} s/d ${toDate || 'Akhir'}`],
       [],
       ['Tanggal', 'Nomor Invoice', 'Customer', 'DPP (Dasar Pengenaan Pajak)', 'PPN 11%'],
     ];
     ppnOutputInvoices.forEach(inv => {
-      ppnOutputData.push([
+      ppnOutputTable.push([
         inv.tanggal,
         inv.nomor_invoice,
         inv.customer_supplier,
@@ -170,21 +178,21 @@ export async function GET(request: NextRequest) {
         inv.ppn,
       ]);
     });
-    ppnOutputData.push([]);
-    ppnOutputData.push(['', '', 'TOTAL', '', totalPpnOutput]);
+    ppnOutputTable.push([]);
+    ppnOutputTable.push(['', '', 'TOTAL', '', totalPpnOutput]);
     
-    const ppnOutputSheet = XLSX.utils.aoa_to_sheet(ppnOutputData);
+    const ppnOutputSheet = XLSX.utils.aoa_to_sheet(ppnOutputTable);
     XLSX.utils.book_append_sheet(workbook, ppnOutputSheet, 'PPN Output');
 
     // Sheet 3: PPN Input (Purchase)
-    const ppnInputData: any[] = [
+    const ppnInputTable: (string | number | undefined)[][] = [
       ['LAPORAN PPN INPUT (PEMBELIAN)'],
       ['Periode:', `${fromDate || 'Awal'} s/d ${toDate || 'Akhir'}`],
       [],
       ['Tanggal', 'Nomor Invoice', 'Supplier', 'DPP (Dasar Pengenaan Pajak)', 'PPN 11%'],
     ];
     ppnInputInvoices.forEach(inv => {
-      ppnInputData.push([
+      ppnInputTable.push([
         inv.tanggal,
         inv.nomor_invoice,
         inv.customer_supplier,
@@ -192,10 +200,10 @@ export async function GET(request: NextRequest) {
         inv.ppn,
       ]);
     });
-    ppnInputData.push([]);
-    ppnInputData.push(['', '', 'TOTAL', '', totalPpnInput]);
+    ppnInputTable.push([]);
+    ppnInputTable.push(['', '', 'TOTAL', '', totalPpnInput]);
     
-    const ppnInputSheet = XLSX.utils.aoa_to_sheet(ppnInputData);
+    const ppnInputSheet = XLSX.utils.aoa_to_sheet(ppnInputTable);
     XLSX.utils.book_append_sheet(workbook, ppnInputSheet, 'PPN Input');
 
     // Generate Excel file buffer

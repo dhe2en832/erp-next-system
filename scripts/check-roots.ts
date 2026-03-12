@@ -15,7 +15,7 @@ async function main() {
     limit: 500
   });
   
-  const rootAccounts = accounts.filter((acc) => !acc.parent_account || acc.parent_account === '');
+  const rootAccounts = (accounts as any[]).filter((acc) => !acc.parent_account || acc.parent_account === '');
   
   // console.log(`Total accounts: ${accounts.length}`);
   // console.log(`Root accounts (no parent): ${rootAccounts.length}\n`);
@@ -35,7 +35,7 @@ async function main() {
   // console.log('\nAccounts by root_type:');
   const rootTypes = ['Asset', 'Liability', 'Equity', 'Income', 'Expense'];
   for (const rootType of rootTypes) {
-    const typeAccounts = accounts.filter((acc) => acc.root_type === rootType && (!acc.parent_account || acc.parent_account === ''));
+    const typeAccounts = (accounts as any[]).filter((acc) => acc.root_type === rootType && (!acc.parent_account || acc.parent_account === ''));
     // console.log(`${rootType}: ${typeAccounts.length} root accounts`);
   }
 }

@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
     const rootType = type === 'income' ? 'Income' : 'Expense';
 
     // Build filters - preserve account hierarchy logic
-    const filters: any[] = [
+    const filters: [string, string, string | number][] = [
       ['root_type', '=', rootType],
       ['is_group', '=', 0],
     ];

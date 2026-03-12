@@ -37,12 +37,13 @@ export async function GET(
     
     // Use ERPNext's form.load.getdoc method to get complete document data
     const data = await client.call('frappe.desk.form.load.getdoc', {
-      doctype: 'Sales Return',
+      doctype: 'Sales Invoice',
       name: name.trim()
-    });
+    }) as Record<string, unknown>;
 
     // form.load.getdoc returns data in different structure
-    const salesReturnData = data.docs?.[0] || data.doc || data;
+    const docs = data.docs as Record<string, unknown>[] | undefined;
+    const salesReturnData = docs?.[0] || data.doc || data;
 
     return NextResponse.json({
       success: true,
@@ -53,7 +54,7 @@ export async function GET(
     logSiteError(error, 'GET /api/sales/sales-return/[name]', siteId);
     const errorResponse = buildSiteAwareErrorResponse(error, siteId);
     const statusCode = errorResponse.errorType === 'authentication' ? 401 : 
-                       (error as any)?.message?.includes('not found') ? 404 : 500;
+                       (error instanceof Error && error.message.includes('not found')) ? 404 : 500;
     return NextResponse.json(errorResponse, { status: statusCode });
   }
 }
@@ -86,6 +87,7 @@ export async function PUT(
     const body = await request.json();
     
     // Remove name from body to avoid conflicts
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { name: _n, ...updateData } = body;
 
     // Validate request body structure

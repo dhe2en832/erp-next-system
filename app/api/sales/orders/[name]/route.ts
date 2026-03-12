@@ -51,7 +51,7 @@ export async function GET(
     const orderData = await client.call('frappe.desk.form.load.getdoc', {
       doctype: 'Sales Order',
       name: name.trim()
-    });
+    }) as any;
 
     // form.load.getdoc returns data in different structure
     // The actual document data is in docs or doc

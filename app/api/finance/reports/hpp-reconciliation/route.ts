@@ -32,11 +32,21 @@ export async function GET(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Get all HPP GL Entries
-    const hppFilters: any[][] = [['company', '=', company], ['account', 'like', '%HPP%']];
+    const hppFilters: [string, string, string | number][] = [['company', '=', company], ['account', 'like', '%HPP%']];
     if (from_date) hppFilters.push(['posting_date', '>=', from_date]);
     if (to_date) hppFilters.push(['posting_date', '<=', to_date]);
 
-    const hppData = await client.getList('GL Entry', {
+    interface HppReconGLEntry {
+      name: string;
+      posting_date: string;
+      account: string;
+      debit: number;
+      credit: number;
+      voucher_type: string;
+      voucher_no: string;
+    }
+
+    const hppData = await client.getList<HppReconGLEntry>('GL Entry', {
       fields: ['name', 'posting_date', 'account', 'debit', 'credit', 'voucher_type', 'voucher_no'],
       filters: hppFilters,
       order_by: 'posting_date desc',
@@ -44,18 +54,18 @@ export async function GET(request: NextRequest) {
     });
 
     // Get Sales Invoice total for comparison
-    const siFilters: any[][] = [['company', '=', company], ['docstatus', '=', 1]];
+    const siFilters: [string, string, string | number][] = [['company', '=', company], ['docstatus', '=', 1]];
     if (from_date) siFilters.push(['posting_date', '>=', from_date]);
     if (to_date) siFilters.push(['posting_date', '<=', to_date]);
 
-    const siData = await client.getList('Sales Invoice', {
+    const siData = await client.getList<{ grand_total: number }>('Sales Invoice', {
       fields: ['grand_total'],
       filters: siFilters,
       limit_page_length: 999
     });
 
-    const totalHPP = (hppData || []).reduce((sum: number, e: any) => sum + (e.debit || 0) - (e.credit || 0), 0);
-    const totalSales = (siData || []).reduce((sum: number, si: any) => sum + (si.grand_total || 0), 0);
+    const totalHPP = (hppData || []).reduce((sum: number, e) => sum + (e.debit || 0) - (e.credit || 0), 0);
+    const totalSales = (siData || []).reduce((sum: number, si) => sum + (si.grand_total || 0), 0);
     const hppPercentage = totalSales > 0 ? (totalHPP / totalSales) * 100 : 0;
 
     const results = {

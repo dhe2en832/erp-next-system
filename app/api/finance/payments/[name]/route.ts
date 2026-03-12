@@ -16,6 +16,7 @@ export async function PUT(
     const { name } = await params;
     const body = await request.json();
     const { name: _bodyName, ...updateData } = body;
+    console.log(`Updating Payment Entry ${name} (body name: ${_bodyName})`);
 
     // Get site-aware client (handles dual authentication: API Key → session cookie fallback)
     const client = await getERPNextClientForRequest(request);
@@ -44,7 +45,7 @@ export async function GET(
     const client = await getERPNextClientForRequest(request);
 
     // Use client method instead of fetch
-    const data = await client.get('Payment Entry', name) as any;
+    const data = await client.get('Payment Entry', name);
 
     return NextResponse.json({
       success: true,

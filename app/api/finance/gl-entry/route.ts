@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Parse filters from JSON or build from individual params (backward compatibility)
-    let filters: any[] = [];
+    let filters: [string, string, string | number][] = [];
     
     if (filtersParam) {
       try {
@@ -150,7 +150,7 @@ export async function POST(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
     
     // Use client method instead of fetch
-    const result = await client.insert('GL Entry', glEntryData) as any;
+    const result = await client.insert<{ name: string }>('GL Entry', glEntryData);
 
     return NextResponse.json({
       success: true,

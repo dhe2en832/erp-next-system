@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
     });
     
     // Fetch Sales Returns
-    const returnFilters = [
+    const returnFilters: [string, string, string | number][] = [
       ['docstatus', '=', '1'],
       ['company', '=', company],
       ['is_return', '=', '1'],
@@ -49,13 +49,19 @@ export async function GET(request: NextRequest) {
 
     const returnsMap = new Map<string, number>();
     try {
-      const returnsData = await client.getList('Sales Invoice', {
+      interface SalesInvoiceReturn {
+        name: string;
+        return_against?: string;
+        grand_total: number;
+        outstanding_amount: number;
+      }
+      const returnsData = await client.getList<SalesInvoiceReturn>('Sales Invoice', {
         fields: ['name', 'return_against', 'grand_total', 'outstanding_amount'],
         filters: returnFilters,
         limit_page_length: 500
       });
 
-      (returnsData as any[]).forEach((ret: any) => {
+      returnsData.forEach((ret) => {
         const originalInvoice = ret.return_against || ret.name;
         const returnAmount = Math.abs(ret.grand_total || 0);
         returnsMap.set(originalInvoice, (returnsMap.get(originalInvoice) || 0) + returnAmount);
@@ -66,10 +72,26 @@ export async function GET(request: NextRequest) {
     }
     
     // Fetch sales team for each invoice and adjust outstanding amounts
+    interface SalesInvoiceBasic {
+      name: string;
+      customer: string;
+      customer_name: string;
+      posting_date: string;
+      due_date: string;
+      grand_total: number;
+      outstanding_amount: number;
+      status: string;
+    }
     const invoicesWithSales = await Promise.all(
-      invoices.map(async (inv: any) => {
+      (invoices as unknown as SalesInvoiceBasic[]).map(async (inv) => {
         try {
-          const salesTeamData = await client.get('Sales Invoice', inv.name) as any;
+          interface SalesTeamMember {
+            sales_person: string;
+          }
+          interface SalesInvoiceDetail {
+            sales_team?: SalesTeamMember[];
+          }
+          const salesTeamData = await client.get<SalesInvoiceDetail>('Sales Invoice', inv.name);
           
           // Get first sales person from sales_team child table
           const salesPerson = salesTeamData.sales_team?.[0]?.sales_person || '';

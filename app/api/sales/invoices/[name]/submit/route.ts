@@ -54,7 +54,7 @@ export async function POST(
             });
             
             if (employees && employees.length > 0) {
-              return { ...st, employee: employees[0].name };
+              return { ...st, employee: (employees as any[])[0].name };
             }
           } catch (empErr) {
             console.warn('Employee lookup failed for sales person', st.sales_person, empErr);

@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { 
   getERPNextClientForRequest, 
   getSiteIdFromRequest,
-  buildSiteAwareErrorResponse,
   logSiteError 
 } from '@/lib/api-helpers';
 

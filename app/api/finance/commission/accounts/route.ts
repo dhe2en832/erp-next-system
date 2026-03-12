@@ -13,6 +13,10 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const company = searchParams.get('company');
 
+    if (!company) {
+      return NextResponse.json({ success: false, message: 'Company parameter is required' }, { status: 400 });
+    }
+
     const sid = request.cookies.get('sid')?.value;
     if (!sid) {
       return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });

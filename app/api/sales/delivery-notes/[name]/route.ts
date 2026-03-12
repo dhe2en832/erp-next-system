@@ -25,14 +25,14 @@ export async function GET(
     // Get site-aware client
     const client = await getERPNextClientForRequest(request);
     
-    // Fetch full delivery note with items using form.load.getdoc
+    // Use frappe.desk.form.load.getdoc for complete document with child tables
     const result = await client.call('frappe.desk.form.load.getdoc', {
       doctype: 'Delivery Note',
       name: name,
-    });
+    }) as any;
 
-    if (result.message && result.message.docs && result.message.docs.length > 0) {
-      const deliveryNote = result.message.docs[0];
+    if (result.docs && result.docs.length > 0) {
+      const deliveryNote = result.docs[0];
 
       return NextResponse.json({
         success: true,

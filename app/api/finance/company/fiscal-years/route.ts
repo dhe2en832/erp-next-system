@@ -22,11 +22,18 @@ export async function GET(request: NextRequest) {
 
     const client = await getERPNextClientForRequest(request);
 
-    const filters = [
+    interface FiscalYear {
+      name: string;
+      year_start_date: string;
+      year_end_date: string;
+      company: string;
+    }
+
+    const filters: [string, string, string][] = [
       ['company', '=', company]
     ];
 
-    const data = await client.getList('Fiscal Year', {
+    const data = await client.getList<FiscalYear>('Fiscal Year', {
       fields: ['name', 'year_start_date', 'year_end_date', 'company'],
       filters,
       order_by: 'creation desc, year_start_date desc',
@@ -34,7 +41,7 @@ export async function GET(request: NextRequest) {
     });
 
     if (data) {
-      const formattedFiscalYears = data.map((fiscalYear: any) => {
+      const formattedFiscalYears = data.map((fiscalYear) => {
         const startDate = new Date(fiscalYear.year_start_date);
         const endDate = new Date(fiscalYear.year_end_date);
         const yearName = `${startDate.getFullYear()}-${endDate.getFullYear()}`;

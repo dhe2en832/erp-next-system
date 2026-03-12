@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Build filters - show ALL submitted invoices with commission (paid & unpaid)
-    const filters: any[][] = [
+    const filters: [string, string, string | number][] = [
       ['docstatus', '=', '1'],
       ['company', '=', company],
       ['outstanding_amount', '=', '0'],
@@ -58,7 +58,20 @@ export async function GET(request: NextRequest) {
 
     try {
       // Try to fetch with custom_commission_paid field
-      let invoices = await client.getList('Sales Invoice', {
+      interface SalesInvoiceWithCommission {
+        name: string;
+        customer: string;
+        customer_name: string;
+        posting_date: string;
+        grand_total: number;
+        base_grand_total: number;
+        outstanding_amount: number;
+        custom_total_komisi_sales: number;
+        custom_commission_paid?: number;
+        status: string;
+        sales_team: { sales_person: string }[];
+      }
+      let invoices = await client.getList<SalesInvoiceWithCommission>('Sales Invoice', {
         fields,
         filters,
         order_by: 'posting_date desc',
@@ -67,16 +80,16 @@ export async function GET(request: NextRequest) {
       });
 
       // Filter results: only include invoices with commission > 0
-      invoices = (invoices || []).filter((inv: any) =>
+      invoices = (invoices || []).filter((inv) =>
         (inv.custom_total_komisi_sales || 0) > 0
       );
 
       // Fetch sales_team for each invoice (child table not returned by default)
       if (invoices.length > 0) {
         const invoicesWithSalesTeam = await Promise.all(
-          invoices.map(async (inv: any) => {
+          invoices.map(async (inv) => {
             try {
-              const detailData = await client.get('Sales Invoice', inv.name) as any;
+              const detailData = await client.get<{ sales_team: { sales_person: string }[] }>('Sales Invoice', inv.name);
               if (detailData) {
                 return { ...inv, sales_team: detailData.sales_team || [] };
               }
@@ -96,10 +109,11 @@ export async function GET(request: NextRequest) {
       const total = invoices.length;
 
       return NextResponse.json({ success: true, data: invoices, total });
-    } catch (error: any) {
+    } catch (error: unknown) {
       // If custom_commission_paid field doesn't exist, retry without it
-      if (error.message?.includes('custom_commission_paid') || error.message?.includes('FieldDoesNotExistError')) {
-        const fallbackFilters: any[][] = [
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage?.includes('custom_commission_paid') || errorMessage?.includes('FieldDoesNotExistError')) {
+        const fallbackFilters: [string, string, string | number][] = [
           ['docstatus', '=', '1'],
           ['company', '=', company],
           ['outstanding_amount', '=', '0'],
@@ -109,7 +123,7 @@ export async function GET(request: NextRequest) {
           'base_grand_total', 'outstanding_amount', 'custom_total_komisi_sales', 'status', 'sales_team'
         ];
 
-        let invoices = await client.getList('Sales Invoice', {
+        let invoices = await client.getList<SalesInvoiceWithCommission>('Sales Invoice', {
           fields: fallbackFields,
           filters: fallbackFilters,
           order_by: 'posting_date desc',
@@ -117,16 +131,16 @@ export async function GET(request: NextRequest) {
           start: limitStart
         });
 
-        invoices = (invoices || []).filter((inv: any) =>
+        invoices = (invoices || []).filter((inv) =>
           (inv.custom_total_komisi_sales || 0) > 0
         );
 
         // Fetch sales_team for each invoice (child table not returned by default)
         if (invoices.length > 0) {
           const invoicesWithSalesTeam = await Promise.all(
-            invoices.map(async (inv: any) => {
+            invoices.map(async (inv) => {
               try {
-                const detailData = await client.get('Sales Invoice', inv.name) as any;
+                const detailData = await client.get<{ sales_team: { sales_person: string }[] }>('Sales Invoice', inv.name);
                 if (detailData) {
                   return { ...inv, sales_team: detailData.sales_team || [] };
                 }
@@ -156,7 +170,21 @@ export async function GET(request: NextRequest) {
   }
 }
 
-function applyFrontendFilters(invoices: any[], filters: any) {
+interface SalesInvoiceWithCommission {
+  name: string;
+  customer: string;
+  customer_name: string;
+  posting_date: string;
+  grand_total: number;
+  base_grand_total: number;
+  outstanding_amount: number;
+  custom_total_komisi_sales: number;
+  custom_commission_paid?: number;
+  status: string;
+  sales_team: { sales_person: string }[];
+}
+
+function applyFrontendFilters(invoices: SalesInvoiceWithCommission[], filters: { invoiceNo?: string | null; customerName?: string | null; salesPerson?: string | null; dateFrom?: string | null; dateTo?: string | null }) {
   let result = invoices;
 
   if (filters.invoiceNo) {
@@ -175,18 +203,20 @@ function applyFrontendFilters(invoices: any[], filters: any) {
   if (filters.salesPerson) {
     const search = filters.salesPerson.toLowerCase();
     result = result.filter(inv =>
-      inv.sales_team?.some((member: any) =>
+      inv.sales_team?.some((member) =>
         member.sales_person?.toLowerCase().includes(search)
       )
     );
   }
 
   if (filters.dateFrom) {
-    result = result.filter(inv => inv.posting_date >= filters.dateFrom);
+    const from = filters.dateFrom;
+    result = result.filter(inv => inv.posting_date >= from);
   }
 
   if (filters.dateTo) {
-    result = result.filter(inv => inv.posting_date <= filters.dateTo);
+    const to = filters.dateTo;
+    result = result.filter(inv => inv.posting_date <= to);
   }
 
   return result;

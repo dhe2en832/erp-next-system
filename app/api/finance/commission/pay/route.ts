@@ -18,16 +18,27 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
+    interface InvoiceToPay {
+      invoice_name: string;
+      commission_amount: number;
+    }
     const {
       company,
       sales_person,
       employee_id,
       posting_date,
-      mode_of_payment,
       paid_from_account,
       commission_expense_account,
       invoices, // Array of { invoice_name, commission_amount }
-    } = body;
+    } = body as {
+      company: string;
+      sales_person: string;
+      employee_id?: string;
+      posting_date?: string;
+      paid_from_account: string;
+      commission_expense_account?: string;
+      invoices: InvoiceToPay[];
+    };
 
     if (!company || !sales_person || !invoices || invoices.length === 0) {
       return NextResponse.json(
@@ -36,7 +47,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const totalAmount = invoices.reduce((sum: number, inv: any) => sum + (inv.commission_amount || 0), 0);
+    const totalAmount = invoices.reduce((sum: number, inv) => sum + (inv.commission_amount || 0), 0);
     
     // Build account names based on company
     // Extract company abbreviation (e.g., "Berkat Abadi Cirebon" -> "BAC")
@@ -54,7 +65,14 @@ export async function POST(request: NextRequest) {
     // Step 1: Create Journal Entry for commission payment
     // Debit: Hutang Komisi Sales (liability) with Party Type Employee if employee_id provided
     // Credit: Cash/Bank account
-    const debitEntry: any = {
+    interface JournalEntryAccount {
+      account: string;
+      debit_in_account_currency: number;
+      credit_in_account_currency: number;
+      party_type?: string;
+      party?: string;
+    }
+    const debitEntry: JournalEntryAccount = {
       account: liabilityAccount,
       debit_in_account_currency: totalAmount,
       credit_in_account_currency: 0,
@@ -66,7 +84,7 @@ export async function POST(request: NextRequest) {
       debitEntry.party = employee_id;
     }
 
-    const creditEntry: any = {
+    const creditEntry: JournalEntryAccount = {
       account: cashAccount,
       debit_in_account_currency: 0,
       credit_in_account_currency: totalAmount,
@@ -77,12 +95,12 @@ export async function POST(request: NextRequest) {
       voucher_type: 'Journal Entry',
       company,
       posting_date: posting_date || new Date().toISOString().split('T')[0],
-      user_remark: `Pembayaran Komisi Sales: ${sales_person} - ${invoices.map((i: any) => i.invoice_name).join(', ')}`,
+      user_remark: `Pembayaran Komisi Sales: ${sales_person} - ${invoices.map((i) => i.invoice_name).join(', ')}`,
       accounts: [debitEntry, creditEntry],
     };
 
     // Use client method to create Journal Entry
-    const jeData = await client.insert('Journal Entry', journalEntry) as any;
+    const jeData = await client.insert<{ name: string }>('Journal Entry', journalEntry);
     const journalEntryName = jeData?.name;
 
     // Step 1b: Submit the Journal Entry (docstatus = 1)

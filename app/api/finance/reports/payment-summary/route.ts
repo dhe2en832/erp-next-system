@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Build filters for ERPNext API
-    const filters: any[][] = [
+    const filters: [string, string, string | number][] = [
       ['docstatus', '=', '1'],
       ['company', '=', company]
     ];
@@ -50,8 +50,22 @@ export async function GET(request: NextRequest) {
       filters.push(['posting_date', '<=', toDate]);
     }
 
+    interface PaymentEntrySummary {
+      name: string;
+      posting_date: string;
+      payment_type: 'Receive' | 'Pay';
+      party_type: string;
+      party: string;
+      party_name: string;
+      mode_of_payment: string;
+      paid_amount: number;
+      received_amount: number;
+      status: string;
+      docstatus: number;
+    }
+
     // Fetch payment entries
-    const listData = await client.getList('Payment Entry', {
+    const listData = await client.getList<PaymentEntrySummary>('Payment Entry', {
       fields: [
         'name',
         'posting_date',
@@ -72,19 +86,32 @@ export async function GET(request: NextRequest) {
     const payments = listData || [];
 
     // Fetch details including sales person for each payment
-    const detailPromises = payments.map(async (payment: any) => {
+    const detailPromises = payments.map(async (payment) => {
       try {
-        const detailData = await client.get('Payment Entry', payment.name) as any;
+        interface PaymentReference {
+          reference_doctype: string;
+          reference_name: string;
+        }
+        interface PaymentEntryDetail {
+          references: PaymentReference[];
+        }
+        const detailData = await client.get<PaymentEntryDetail>('Payment Entry', payment.name);
         
         // Get sales person from first referenced Sales Invoice
         let salesPerson = '';
-        const references = detailData.data.references || [];
+        const references = detailData.references || [];
         
         for (const ref of references) {
           if (ref.reference_doctype === 'Sales Invoice' && ref.reference_name) {
             try {
-              const invoiceData = await client.get('Sales Invoice', ref.reference_name) as any;
-              salesPerson = invoiceData.data?.sales_team?.[0]?.sales_person || '';
+              interface SalesTeamMember {
+                sales_person: string;
+              }
+              interface SalesInvoiceDetail {
+                sales_team?: SalesTeamMember[];
+              }
+              const invoiceData = await client.get<SalesInvoiceDetail>('Sales Invoice', ref.reference_name);
+              salesPerson = invoiceData.sales_team?.[0]?.sales_person || '';
               if (salesPerson) break;
             } catch (error) {
               console.error(`Error fetching sales person from ${ref.reference_name}:`, error);

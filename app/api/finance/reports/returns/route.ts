@@ -32,11 +32,20 @@ export async function GET(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Sales Returns
-    const srFilters: any[][] = [['company', '=', company], ['is_return', '=', 1], ['docstatus', '=', 1]];
+    const srFilters: [string, string, string | number][] = [['company', '=', company], ['is_return', '=', 1], ['docstatus', '=', 1]];
     if (from_date) srFilters.push(['posting_date', '>=', from_date]);
     if (to_date) srFilters.push(['posting_date', '<=', to_date]);
 
-    const srData = await client.getList('Sales Invoice', {
+    interface SalesReturn {
+      name: string;
+      posting_date: string;
+      customer: string;
+      customer_name: string;
+      grand_total: number;
+      return_against?: string;
+    }
+
+    const srData = await client.getList<SalesReturn>('Sales Invoice', {
       fields: ['name', 'posting_date', 'customer', 'customer_name', 'grand_total', 'return_against'],
       filters: srFilters,
       order_by: 'posting_date desc',
@@ -44,11 +53,20 @@ export async function GET(request: NextRequest) {
     });
 
     // Purchase Returns
-    const prFilters: any[][] = [['company', '=', company], ['is_return', '=', 1], ['docstatus', '=', 1]];
+    const prFilters: [string, string, string | number][] = [['company', '=', company], ['is_return', '=', 1], ['docstatus', '=', 1]];
     if (from_date) prFilters.push(['posting_date', '>=', from_date]);
     if (to_date) prFilters.push(['posting_date', '<=', to_date]);
 
-    const prData = await client.getList('Purchase Invoice', {
+    interface PurchaseReturn {
+      name: string;
+      posting_date: string;
+      supplier: string;
+      supplier_name: string;
+      grand_total: number;
+      return_against?: string;
+    }
+
+    const prData = await client.getList<PurchaseReturn>('Purchase Invoice', {
       fields: ['name', 'posting_date', 'supplier', 'supplier_name', 'grand_total', 'return_against'],
       filters: prFilters,
       order_by: 'posting_date desc',
@@ -56,8 +74,8 @@ export async function GET(request: NextRequest) {
     });
 
     const results = {
-      sales_returns: (srData || []).map((r: any) => ({ ...r, type: 'Retur Penjualan' })),
-      purchase_returns: (prData || []).map((r: any) => ({ ...r, type: 'Retur Pembelian' }))
+      sales_returns: (srData || []).map((r) => ({ ...r, type: 'Retur Penjualan' })),
+      purchase_returns: (prData || []).map((r) => ({ ...r, type: 'Retur Pembelian' }))
     };
 
     return NextResponse.json({ success: true, data: results });

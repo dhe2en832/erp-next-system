@@ -15,11 +15,11 @@ export async function GET(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Get the singleton Period Closing Config document
-    const config = await client.getDoc('Period Closing Config', 'Period Closing Config') as any;
+    const config = await client.getDoc('Period Closing Config', 'Period Closing Config') as PeriodClosingConfig;
 
     const response: GetConfigResponse = {
       success: true,
-      data: config as PeriodClosingConfig
+      data: config
     };
 
     return NextResponse.json(response);
@@ -70,7 +70,7 @@ export async function PUT(request: NextRequest) {
 
     // Validate retained_earnings_account if provided
     if (body.retained_earnings_account) {
-      const account = await client.getDoc('Account', body.retained_earnings_account) as any;
+      const account = await client.getDoc('Account', body.retained_earnings_account) as { root_type: string };
       
       if (account.root_type !== 'Equity') {
         return NextResponse.json(
@@ -94,7 +94,7 @@ export async function PUT(request: NextRequest) {
     if (body.closing_role) {
       try {
         await client.getDoc('Role', body.closing_role);
-      } catch (error) {
+      } catch {
         return NextResponse.json(
           {
             success: false,
@@ -113,7 +113,7 @@ export async function PUT(request: NextRequest) {
     if (body.reopen_role) {
       try {
         await client.getDoc('Role', body.reopen_role);
-      } catch (error) {
+      } catch {
         return NextResponse.json(
           {
             success: false,
@@ -130,17 +130,17 @@ export async function PUT(request: NextRequest) {
     }
 
     // Get current config or create if doesn't exist
-    let config: any;
+    let config: PeriodClosingConfig | undefined;
     try {
-      config = await client.getDoc('Period Closing Config', 'Period Closing Config');
-    } catch (error: any) {
+      config = await client.getDoc('Period Closing Config', 'Period Closing Config') as PeriodClosingConfig;
+    } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       if (errorMessage?.includes('does not exist')) {
         // Create new config
         config = await client.insert('Period Closing Config', {
           doctype: 'Period Closing Config',
           ...body
-        });
+        }) as PeriodClosingConfig;
       } else {
         throw error;
       }
@@ -178,14 +178,14 @@ export async function PUT(request: NextRequest) {
     logSiteError(error, 'PUT /api/accounting-period/config', siteId);
     
     // Handle permission errors
-    const errorObj = error as any;
-    if (errorObj.statusCode === 403) {
+    if (error && typeof error === 'object' && 'statusCode' in error && error.statusCode === 403) {
+      const permissionError = error as { message?: string; details?: unknown };
       return NextResponse.json(
         { 
           success: false, 
           error: 'AUTHORIZATION_ERROR',
-          message: errorObj.message,
-          details: errorObj.details
+          message: permissionError.message,
+          details: permissionError.details
         },
         { status: 403 }
       );

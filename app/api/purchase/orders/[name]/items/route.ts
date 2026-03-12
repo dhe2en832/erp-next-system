@@ -71,7 +71,7 @@ export async function GET(
           ["parenttype", "=", "Purchase Order"]
         ],
         order_by: 'idx asc'
-      });
+      }) as any;
       items = itemsResult?.data || itemsResult || [];
     } catch (error) {
       console.error('Items fetch failed, trying alternative approach:', error);
@@ -107,12 +107,12 @@ export async function GET(
       success: true,
       data: {
         purchase_order: {
-          name: po.name,
-          supplier: po.supplier,
-          supplier_name: po.supplier_name,
-          transaction_date: po.transaction_date,
-          status: po.status,
-          warehouse: po.warehouse
+          name: (po as any).name,
+          supplier: (po as any).supplier,
+          supplier_name: (po as any).supplier_name,
+          transaction_date: (po as any).transaction_date,
+          status: (po as any).status,
+          warehouse: (po as any).warehouse
         },
         items: processedItems
       }

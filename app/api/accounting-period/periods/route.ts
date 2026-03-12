@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { 
   getERPNextClientForRequest, 
   getSiteIdFromRequest,
@@ -29,7 +30,7 @@ export async function GET(request: NextRequest) {
     const validatedParams = getPeriodsRequestSchema.parse(queryParams);
 
     // Build filters for ERPNext API
-    const filters: any[][] = [];
+    const filters: [string, string, string | number][] = [];
     
     if (validatedParams.company) {
       filters.push(['company', '=', validatedParams.company]);
@@ -163,14 +164,13 @@ export async function POST(request: NextRequest) {
     logSiteError(error, 'POST /api/accounting-period/periods', siteId);
     
     // Handle validation errors
-    const errorObj = error as any;
-    if (errorObj.name === 'ZodError') {
+    if (error instanceof z.ZodError) {
       return NextResponse.json(
         {
           success: false,
           error: 'VALIDATION_ERROR',
           message: 'Invalid request data',
-          details: errorObj.errors,
+          details: error.issues,
         },
         { status: 400 }
       );

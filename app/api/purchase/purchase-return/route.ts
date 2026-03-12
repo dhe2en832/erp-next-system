@@ -199,7 +199,7 @@ export async function POST(request: NextRequest) {
     // Use ERPNext's make_purchase_return method to generate return template
     const returnTemplate = await client.call('erpnext.stock.doctype.purchase_receipt.purchase_receipt.make_purchase_return', {
       source_name: purchaseReturnData.return_against,
-    });
+    }) as any;
 
     // Customize template with user data
     returnTemplate.posting_date = purchaseReturnData.posting_date;
@@ -246,7 +246,7 @@ export async function POST(request: NextRequest) {
         const refreshedDoc = await client.call('frappe.desk.form.load.getdoc', {
           doctype: 'Purchase Receipt',
           name: savedDoc.name
-        });
+        }) as any;
         
         // getdoc returns data in docs[0]
         if (refreshedDoc?.docs?.[0]) {

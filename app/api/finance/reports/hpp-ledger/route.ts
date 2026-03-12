@@ -34,13 +34,13 @@ export async function GET(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Query Account master to get COGS accounts
-    const accountsData = await client.getList('Account', {
+    const accountsData = await client.getList<{ name: string }>('Account', {
       fields: ['name'],
       filters: [['company', '=', company], ['account_type', '=', 'Cost of Goods Sold']],
       limit_page_length: 500
     });
 
-    const cogsAccounts = (accountsData || []).map((acc: any) => acc.name);
+    const cogsAccounts = (accountsData || []).map((acc) => acc.name);
 
     // Handle empty cogsAccounts case
     if (cogsAccounts.length === 0) {
@@ -48,21 +48,32 @@ export async function GET(request: NextRequest) {
     }
 
     // Get GL Entries for COGS accounts
-    const filters: any[][] = [
+    const filters: [string, string, string | string[]][] = [
       ['company', '=', company],
       ['account', 'in', cogsAccounts]
     ];
     if (from_date) filters.push(['posting_date', '>=', from_date]);
     if (to_date) filters.push(['posting_date', '<=', to_date]);
 
-    const data = await client.getList('GL Entry', {
+    interface HppGLEntry {
+      name: string;
+      posting_date: string;
+      account: string;
+      debit: number;
+      credit: number;
+      voucher_type: string;
+      voucher_no: string;
+      remarks?: string;
+    }
+
+    const data = await client.getList<HppGLEntry>('GL Entry', {
       fields: ['name', 'posting_date', 'account', 'debit', 'credit', 'voucher_type', 'voucher_no', 'remarks'],
       filters,
       order_by: 'debit desc,posting_date desc',
       limit_page_length: parseInt(limit)
     });
 
-    const entries = (data || []).map((e: any) => {
+    const entries = (data || []).map((e) => {
       const amount = (e.debit || 0) - (e.credit || 0);
       return {
         ...e,
@@ -73,7 +84,7 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    const total = entries.reduce((sum: number, e: any) => sum + Math.abs(e.amount), 0);
+    const total = entries.reduce((sum: number, e) => sum + Math.abs(e.amount), 0);
 
     return NextResponse.json({
       success: true,

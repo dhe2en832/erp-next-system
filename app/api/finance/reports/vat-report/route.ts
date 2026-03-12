@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Build GL Entry filters with date range
-    const glFilters: any[][] = [['company', '=', company]];
+    const glFilters: [string, string, string | number][] = [['company', '=', company]];
     if (fromDate) {
       glFilters.push(['posting_date', '>=', fromDate]);
     }
@@ -87,9 +87,18 @@ export async function GET(request: NextRequest) {
       glFilters.push(['posting_date', '<=', toDate]);
     }
 
+    interface GLEntryVat {
+      posting_date: string;
+      voucher_no: string;
+      against: string;
+      credit: number;
+      debit: number;
+      remarks?: string;
+    }
+
     // Query PPN Output (Sales Tax - Account 2210 - Hutang PPN)
     const ppnOutputFilters = [...glFilters, ['account', 'like', '%2210%']];
-    const ppnOutputData = await client.getList('GL Entry', {
+    const ppnOutputData = await client.getList<GLEntryVat>('GL Entry', {
       fields: ['posting_date', 'voucher_no', 'against', 'credit', 'debit', 'remarks'],
       filters: ppnOutputFilters,
       order_by: 'posting_date',
@@ -100,7 +109,7 @@ export async function GET(request: NextRequest) {
     const ppnOutputMap = new Map<string, { tanggal: string; customer: string; ppn: number }>();
     let totalPpnOutput = 0;
 
-    (ppnOutputData || []).forEach((entry: any) => {
+    (ppnOutputData || []).forEach((entry) => {
       const ppnAmount = (entry.credit || 0) - (entry.debit || 0); // Credit is PPN liability
       if (ppnAmount > 0 && entry.voucher_no) {
         if (!ppnOutputMap.has(entry.voucher_no)) {
@@ -122,8 +131,14 @@ export async function GET(request: NextRequest) {
         let taxRate = 0.11; // Default to 11%
         
         try {
-          const invoiceResponse = await client.get('Sales Invoice', invoiceNo) as any;
-          const taxes = invoiceResponse.data?.taxes || [];
+          interface SalesInvoiceTax {
+            rate: number;
+          }
+          interface SalesInvoiceDetail {
+            taxes?: SalesInvoiceTax[];
+          }
+          const invoiceResponse = await client.get<SalesInvoiceDetail>('Sales Invoice', invoiceNo);
+          const taxes = invoiceResponse.taxes || [];
           if (taxes.length > 0 && taxes[0].rate) {
             taxRate = taxes[0].rate / 100; // Convert percentage to decimal
           }
@@ -147,7 +162,7 @@ export async function GET(request: NextRequest) {
 
     // Query PPN Input (Purchase Tax - Account 1410 - Pajak Dibayar Dimuka)
     const ppnInputFilters = [...glFilters, ['account', 'like', '%1410%']];
-    const ppnInputData = await client.getList('GL Entry', {
+    const ppnInputData = await client.getList<GLEntryVat>('GL Entry', {
       fields: ['posting_date', 'voucher_no', 'against', 'debit', 'credit', 'remarks'],
       filters: ppnInputFilters,
       order_by: 'posting_date',
@@ -158,7 +173,7 @@ export async function GET(request: NextRequest) {
     const ppnInputMap = new Map<string, { tanggal: string; supplier: string; ppn: number }>();
     let totalPpnInput = 0;
 
-    (ppnInputData || []).forEach((entry: any) => {
+    (ppnInputData || []).forEach((entry) => {
       const ppnAmount = (entry.debit || 0) - (entry.credit || 0); // Debit is PPN asset (prepaid tax)
       if (ppnAmount > 0 && entry.voucher_no) {
         if (!ppnInputMap.has(entry.voucher_no)) {
@@ -180,8 +195,14 @@ export async function GET(request: NextRequest) {
         let taxRate = 0.11; // Default to 11%
         
         try {
-          const invoiceResponse = await client.get('Purchase Invoice', invoiceNo) as any;
-          const taxes = invoiceResponse.data?.taxes || [];
+          interface PurchaseInvoiceTax {
+            rate: number;
+          }
+          interface PurchaseInvoiceDetail {
+            taxes?: PurchaseInvoiceTax[];
+          }
+          const invoiceResponse = await client.get<PurchaseInvoiceDetail>('Purchase Invoice', invoiceNo);
+          const taxes = invoiceResponse.taxes || [];
           if (taxes.length > 0 && taxes[0].rate) {
             taxRate = taxes[0].rate / 100; // Convert percentage to decimal
           }

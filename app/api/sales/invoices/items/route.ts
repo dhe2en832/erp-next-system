@@ -38,8 +38,6 @@ export async function GET(request: NextRequest) {
     });
     console.log('[Sales Invoice Items] Found DNs:', allDNs.length);
 
-    console.log('[Sales Invoice Items] Found DNs:', allDNs.length);
-
     // Get all Sales Invoice
     console.log('[Sales Invoice Items] Fetching Sales Invoices...');
     const invoices = await client.getList('Sales Invoice', {
@@ -52,25 +50,26 @@ export async function GET(request: NextRequest) {
     // Extract DN numbers from each invoice items
     // Fallback approach: fetch each invoice and extract items
     // Child table queries require special permissions, so we use parent document approach
-    const usedDNs: string[] = [];
-    
     console.log('[Sales Invoice Items] Extracting DNs from invoices...');
-    for (const invoice of invoices) {
+    const results = await Promise.all(invoices.map(async (invoice: any) => {
       try {
         const invoiceData = await client.get('Sales Invoice', invoice.name) as any;
-        const items = invoiceData.items || [];
         
-        const dnInItems = items
-          .map((item: any) => item.delivery_note)
-          .filter(Boolean);
-        
-        usedDNs.push(...dnInItems);
+        return (invoiceData.items || []).map((item: any) => ({
+          ...item,
+          customer: invoice.customer,
+          customer_name: invoice.customer_name,
+          posting_date: invoice.posting_date,
+          invoice_name: invoice.name,
+          status: invoice.status
+        }));
       } catch (itemError) {
-        // Continue with other invoices
         console.error(`[Sales Invoice Items] Error fetching invoice ${invoice.name}:`, itemError);
-        continue;
+        return [];
       }
-    }
+    }));
+
+    const usedDNs = results.flat().map((item: any) => item.delivery_note).filter(Boolean);
     console.log('[Sales Invoice Items] Total DNs found in invoices:', usedDNs.length);
 
     const uniqueUsedDNs = [...new Set(usedDNs)];

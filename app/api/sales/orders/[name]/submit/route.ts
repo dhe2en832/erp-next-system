@@ -41,7 +41,7 @@ export async function POST(
     const client = await getERPNextClientForRequest(request);
     
     // Submit the Sales Order (will fetch latest doc automatically)
-    const result = await client.submit('Sales Order', name);
+    const result = await client.submit('Sales Order', name) as any;
     
     const orderData = result.docs?.[0] || result.doc || result.data || result;
     return NextResponse.json({ 

@@ -191,7 +191,7 @@ export async function POST(request: NextRequest) {
     // Use ERPNext's make_return method to ensure proper return handling
     const returnTemplate = await client.call('erpnext.stock.doctype.delivery_note.delivery_note.make_sales_return', {
       source_name: returnData.return_against,
-    });
+    }) as any;
 
     if (!returnTemplate) {
       return NextResponse.json(
@@ -253,7 +253,7 @@ export async function POST(request: NextRequest) {
               ['warehouse', '=', item.warehouse]
             ],
             limit_page_length: 1
-          });
+          }) as any[];
           
           if (stockData && stockData.length > 0) {
             item.actual_qty = stockData[0].actual_qty || 0;
@@ -277,10 +277,8 @@ export async function POST(request: NextRequest) {
               fields: ['actual_qty'],
               filters: [
                 ['item_code', '=', item.item_code],
-                ['warehouse', '=', item.warehouse]
               ],
-              limit_page_length: 1
-            });
+            }) as any[];
             
             if (stockData && stockData.length > 0) {
               const actualQty = stockData[0].actual_qty || 0;

@@ -6,6 +6,7 @@ import {
   buildSiteAwareErrorResponse,
   logSiteError 
 } from '@/lib/api-helpers';
+import { ERPNextClient } from '@/lib/erpnext';
 import type { ValidationResult, PeriodClosingConfig, AccountingPeriod } from '@/types/accounting-period';
 
 export async function POST(request: NextRequest) {
@@ -37,7 +38,7 @@ export async function POST(request: NextRequest) {
     let config: PeriodClosingConfig;
     try {
       config = await client.get<PeriodClosingConfig>('Period Closing Config', 'Period Closing Config');
-    } catch (error) {
+    } catch {
       // Use default config if not found
       config = {
         name: 'Period Closing Config',
@@ -107,14 +108,14 @@ export async function POST(request: NextRequest) {
 
 // Validation functions
 async function validateNoDraftTransactions(
-  client: any,
+  client: ERPNextClient,
   period: AccountingPeriod
 ): Promise<ValidationResult> {
   const doctypes = ['Journal Entry', 'Sales Invoice', 'Purchase Invoice', 'Payment Entry'];
-  const draftDocs: any[] = [];
+  const draftDocs: { name: string; posting_date: string; doctype: string; [key: string]: unknown }[] = [];
 
   for (const doctype of doctypes) {
-    const filters = [
+    const filters: [string, string, string | number][] = [
       ['company', '=', period.company],
       ['posting_date', '>=', period.start_date],
       ['posting_date', '<=', period.end_date],
@@ -122,15 +123,15 @@ async function validateNoDraftTransactions(
     ];
 
     try {
-      const docs = await client.getList(doctype, {
+      const docs = await client.getList<{ name: string; posting_date: string }>(doctype, {
         filters,
         fields: ['name', 'posting_date'],
         limit_page_length: 100,
       });
 
-      draftDocs.push(...docs.map((d: any) => ({ ...d, doctype })));
-    } catch (error) {
-      console.error(`Error checking ${doctype}:`, error);
+      draftDocs.push(...docs.map((d) => ({ ...d, doctype })));
+    } catch {
+      console.error(`Error checking ${doctype}`);
     }
   }
 
@@ -147,14 +148,14 @@ async function validateNoDraftTransactions(
 }
 
 async function validateAllTransactionsPosted(
-  client: any,
+  client: ERPNextClient,
   period: AccountingPeriod
 ): Promise<ValidationResult> {
   const voucherTypes = ['Journal Entry', 'Sales Invoice', 'Purchase Invoice', 'Payment Entry'];
-  const unpostedVouchers: any[] = [];
+  const unpostedVouchers: { doctype: string; name: string; [key: string]: unknown }[] = [];
 
   for (const voucherType of voucherTypes) {
-    const voucherFilters = [
+    const voucherFilters: [string, string, string | number][] = [
       ['company', '=', period.company],
       ['posting_date', '>=', period.start_date],
       ['posting_date', '<=', period.end_date],
@@ -162,14 +163,14 @@ async function validateAllTransactionsPosted(
     ];
 
     try {
-      const vouchers = await client.getList(voucherType, {
+      const vouchers = await client.getList<{ name: string }>(voucherType, {
         filters: voucherFilters,
         fields: ['name'],
         limit_page_length: 1000,
       });
 
       for (const voucher of vouchers) {
-        const glFilters = [
+        const glFilters: [string, string, string][] = [
           ['voucher_type', '=', voucherType],
           ['voucher_no', '=', voucher.name],
         ];
@@ -184,8 +185,8 @@ async function validateAllTransactionsPosted(
           unpostedVouchers.push({ doctype: voucherType, name: voucher.name });
         }
       }
-    } catch (error) {
-      console.error(`Error checking ${voucherType}:`, error);
+    } catch {
+      console.error(`Error checking ${voucherType}`);
     }
   }
 
@@ -202,13 +203,13 @@ async function validateAllTransactionsPosted(
 }
 
 async function validateBankReconciliation(
-  client: any,
+  client: ERPNextClient,
   period: AccountingPeriod
 ): Promise<ValidationResult> {
   try {
     // In ERPNext v15, bank reconciliation uses Payment Entry, not GL Entry
     // Get all bank accounts first
-    const bankAccounts = await client.getList('Account', {
+    const bankAccounts = await client.getList<{ name: string; account_name: string }>('Account', {
       filters: [
         ['company', '=', period.company],
         ['account_type', '=', 'Bank'],
@@ -217,13 +218,21 @@ async function validateBankReconciliation(
       limit_page_length: 1000,
     });
 
-    const unreconciledAccounts: any[] = [];
+    interface UnreconciledAccount {
+      account: string;
+      account_name: string;
+      unreconciled_payments: number;
+      unreconciled_receipts: number;
+      total_unreconciled: number;
+      [key: string]: unknown;
+    }
+    const unreconciledAccounts: UnreconciledAccount[] = [];
     let skippedAccountsCount = 0;
 
     for (const account of bankAccounts) {
       try {
         // Check Payment Entry for uncleared transactions (ERPNext v15 approach)
-        const filters = [
+        const filters: [string, string, string | number][] = [
           ['paid_from', '=', account.name],
           ['posting_date', '<=', period.end_date],
           ['clearance_date', 'is', 'not set'],
@@ -237,7 +246,7 @@ async function validateBankReconciliation(
         });
 
         // Also check for received payments
-        const receivedFilters = [
+        const receivedFilters: [string, string, string | number][] = [
           ['paid_to', '=', account.name],
           ['posting_date', '<=', period.end_date],
           ['clearance_date', 'is', 'not set'],
@@ -261,9 +270,10 @@ async function validateBankReconciliation(
             total_unreconciled: totalUnreconciled,
           });
         }
-      } catch (fieldError: any) {
+      } catch (fieldError: unknown) {
         // Handle field permission restrictions for clearance_date
-        if (fieldError.message && fieldError.message.includes('Field not permitted in query: clearance_date')) {
+        const message = fieldError instanceof Error ? fieldError.message : String(fieldError);
+        if (message && message.includes('Field not permitted in query: clearance_date')) {
           console.info(`Bank reconciliation check skipped for account ${account.name}: clearance_date field access restricted`);
           skippedAccountsCount++;
           continue; // Skip this account and continue with others
@@ -313,11 +323,12 @@ async function validateBankReconciliation(
       severity: unreconciledAccounts.length === 0 ? 'info' : 'warning',
       details: unreconciledAccounts,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Handle general permission or access errors
-    if (error.message && (
-      error.message.includes('Field not permitted') ||
-      error.message.includes('clearance_date')
+    const message = error instanceof Error ? error.message : String(error);
+    if (message && (
+      message.includes('Field not permitted') ||
+      message.includes('clearance_date')
     )) {
       console.info('Bank reconciliation check skipped: clearance_date field is restricted');
       return {
@@ -331,7 +342,7 @@ async function validateBankReconciliation(
       };
     }
 
-    console.warn('Bank reconciliation check skipped:', error.message || error);
+    console.warn('Bank reconciliation check skipped:', message);
     return {
       check_name: 'Bank Reconciliation Complete',
       passed: true,
@@ -355,7 +366,7 @@ async function validateBankReconciliation(
  * @returns ValidationResult with details of any unprocessed invoices
  */
 async function validateSalesInvoices(
-  client: any,
+  client: ERPNextClient,
   period: AccountingPeriod
 ): Promise<ValidationResult> {
   try {
@@ -363,14 +374,14 @@ async function validateSalesInvoices(
     // docstatus = 0: Draft (not submitted)
     // docstatus = 1: Submitted (processed)
     // docstatus = 2: Cancelled
-    const filters = [
+    const filters: [string, string, string | number][] = [
       ['company', '=', period.company],
       ['posting_date', '>=', period.start_date],
       ['posting_date', '<=', period.end_date],
       ['docstatus', '=', 0], // Draft only
     ];
 
-    const draftInvoices = await client.getList('Sales Invoice', {
+    const draftInvoices = await client.getList<{ name: string; customer: string; grand_total: number; posting_date: string; [key: string]: unknown }>('Sales Invoice', {
       filters,
       fields: ['name', 'customer', 'grand_total', 'posting_date'],
       limit_page_length: 100,
@@ -411,7 +422,7 @@ async function validateSalesInvoices(
  * @returns ValidationResult with details of any unprocessed invoices
  */
 async function validatePurchaseInvoices(
-  client: any,
+  client: ERPNextClient,
   period: AccountingPeriod
 ): Promise<ValidationResult> {
   try {
@@ -419,14 +430,14 @@ async function validatePurchaseInvoices(
     // docstatus = 0: Draft (not submitted)
     // docstatus = 1: Submitted (processed)
     // docstatus = 2: Cancelled
-    const filters = [
+    const filters: [string, string, string | number][] = [
       ['company', '=', period.company],
       ['posting_date', '>=', period.start_date],
       ['posting_date', '<=', period.end_date],
       ['docstatus', '=', 0], // Draft only
     ];
 
-    const draftInvoices = await client.getList('Purchase Invoice', {
+    const draftInvoices = await client.getList<{ name: string; supplier: string; grand_total: number; posting_date: string; [key: string]: unknown }>('Purchase Invoice', {
       filters,
       fields: ['name', 'supplier', 'grand_total', 'posting_date'],
       limit_page_length: 100,
@@ -455,18 +466,18 @@ async function validatePurchaseInvoices(
 }
 
 async function validateInventoryTransactions(
-  client: any,
+  client: ERPNextClient,
   period: AccountingPeriod
 ): Promise<ValidationResult> {
   try {
-    const filters = [
+    const filters: [string, string, string | number][] = [
       ['company', '=', period.company],
       ['posting_date', '>=', period.start_date],
       ['posting_date', '<=', period.end_date],
       ['docstatus', '=', 0], // Draft
     ];
 
-    const draftStockEntries = await client.getList('Stock Entry', {
+    const draftStockEntries = await client.getList<{ name: string; stock_entry_type: string; [key: string]: unknown }>('Stock Entry', {
       filters,
       fields: ['name', 'stock_entry_type'],
       limit_page_length: 100,
@@ -495,18 +506,18 @@ async function validateInventoryTransactions(
 }
 
 async function validatePayrollEntries(
-  client: any,
+  client: ERPNextClient,
   period: AccountingPeriod
 ): Promise<ValidationResult> {
   try {
-    const filters = [
+    const filters: [string, string, string | number][] = [
       ['company', '=', period.company],
       ['posting_date', '>=', period.start_date],
       ['posting_date', '<=', period.end_date],
       ['docstatus', '=', 0], // Draft
     ];
 
-    const draftPayrollEntries = await client.getList('Salary Slip', {
+    const draftPayrollEntries = await client.getList<{ name: string; employee: string; net_pay: number; [key: string]: unknown }>('Salary Slip', {
       filters,
       fields: ['name', 'employee', 'net_pay'],
       limit_page_length: 100,
@@ -522,13 +533,14 @@ async function validatePayrollEntries(
       severity: draftPayrollEntries.length === 0 ? 'info' : 'error',
       details: draftPayrollEntries,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Handle Salary Slip doctype access restrictions
-    if (error.message && (
-      error.message.includes('Failed to fetch Salary Slip list') ||
-      error.message.includes('Permission denied') ||
-      error.message.includes('Not permitted') ||
-      error.message.includes('Salary Slip')
+    const message = error instanceof Error ? error.message : String(error);
+    if (message && (
+      message.includes('Failed to fetch Salary Slip list') ||
+      message.includes('Permission denied') ||
+      message.includes('Not permitted') ||
+      message.includes('Salary Slip')
     )) {
       console.info('Payroll validation check skipped: Salary Slip access is restricted');
       return {
@@ -542,7 +554,7 @@ async function validatePayrollEntries(
       };
     }
 
-    console.warn('Payroll validation check skipped:', error.message || error);
+    console.warn('Payroll validation check skipped:', message);
     return {
       check_name: 'Payroll Entries Recorded',
       passed: true,

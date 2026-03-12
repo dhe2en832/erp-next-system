@@ -199,7 +199,7 @@ export async function POST(request: NextRequest) {
     // Use ERPNext's make_debit_note method to generate return template
     const returnTemplate = await client.call('erpnext.accounts.doctype.purchase_invoice.purchase_invoice.make_debit_note', {
       source_name: debitNoteData.return_against,
-    });
+    }) as any;
 
     // Customize template with user data
     returnTemplate.posting_date = debitNoteData.posting_date;
@@ -243,7 +243,7 @@ export async function POST(request: NextRequest) {
         const refreshedDoc = await client.call('frappe.desk.form.load.getdoc', {
           doctype: 'Purchase Invoice',
           name: savedDoc.name
-        });
+        }) as any;
         
         // getdoc returns data in docs[0]
         if (refreshedDoc?.docs?.[0]) {

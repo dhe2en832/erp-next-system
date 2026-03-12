@@ -47,7 +47,7 @@ export async function POST(
     }
 
     // Submit the document
-    const submittedDoc = await client.submit('Delivery Note', name);
+    const submittedDoc = await client.submit('Delivery Note', name) as any;
     
     // Transform response to match frontend expectations
     return NextResponse.json({

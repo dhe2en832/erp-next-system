@@ -30,7 +30,12 @@ export async function GET(
     const period = await client.get<AccountingPeriod>('Accounting Period', periodName);
 
     // Fetch account balances for this period
-    const glEntries = await client.getList('GL Entry', {
+    interface GLEntryDetail {
+      account: string;
+      debit: number;
+      credit: number;
+    }
+    const glEntries = await client.getList<GLEntryDetail>('GL Entry', {
       filters: [
         ['company', '=', period.company],
         ['posting_date', '>=', period.start_date],
@@ -41,18 +46,33 @@ export async function GET(
     });
 
     // Get account details
-    const accounts = await client.getList('Account', {
+    interface AccountDetail {
+      name: string;
+      account_name: string;
+      root_type: string;
+      account_type: string;
+    }
+    const accounts = await client.getList<AccountDetail>('Account', {
       filters: [['company', '=', period.company]],
       fields: ['name', 'account_name', 'root_type', 'account_type'],
       limit: 10000,
     });
 
-    const accountMap = new Map(accounts.map((acc: any) => [acc.name, acc]));
+    const accountMap = new Map<string, AccountDetail>(accounts.map((acc) => [acc.name, acc]));
 
     // Aggregate balances by account
-    const accountBalances: Record<string, any> = {};
+    interface AccountBalanceRecord {
+      account: string;
+      account_name: string;
+      root_type: string;
+      account_type: string;
+      debit: number;
+      credit: number;
+      balance: number;
+    }
+    const accountBalances: Record<string, AccountBalanceRecord> = {};
     
-    glEntries.forEach((entry: any) => {
+    glEntries.forEach((entry) => {
       const accountInfo = accountMap.get(entry.account);
       if (!accountBalances[entry.account]) {
         accountBalances[entry.account] = {
@@ -118,7 +138,7 @@ export async function PUT(
 
     // Only allow updating certain fields
     const allowedFields = ['remarks', 'fiscal_year'];
-    const updateData: any = {};
+    const updateData: Record<string, unknown> = {};
     
     for (const field of allowedFields) {
       if (body[field] !== undefined) {

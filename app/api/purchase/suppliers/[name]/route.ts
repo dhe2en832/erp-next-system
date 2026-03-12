@@ -54,7 +54,7 @@ async function handleSupplier(request: NextRequest, name: string, method: 'GET' 
         });
         
         if (Array.isArray(searchResults) && searchResults.length > 0) {
-          const actualName = searchResults[0].name;
+          const actualName = (searchResults as any[])[0].name;
           const data = await client.get('Supplier', actualName) as any;
           return NextResponse.json({ 
             success: true, 

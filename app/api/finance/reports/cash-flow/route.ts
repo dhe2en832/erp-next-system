@@ -34,13 +34,13 @@ export async function GET(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Bug #6 fix: Query Account master to get Cash/Bank accounts by account_type
-    const accountsData = await client.getList('Account', {
+    const accountsData = await client.getList<{ name: string }>('Account', {
       fields: ['name'],
       filters: [['company', '=', company], ['account_type', 'in', ['Cash', 'Bank']]],
       limit_page_length: 500
     });
 
-    const cashBankAccounts = accountsData.map((acc: any) => acc.name);
+    const cashBankAccounts = accountsData.map((acc) => acc.name);
 
     // Handle empty cashBankAccounts case
     if (cashBankAccounts.length === 0) {
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch GL Entries for these accounts
-    const filters: any[] = [
+    const filters: [string, string, string | string[]][] = [
       ['company', '=', company],
       ['account', 'in', cashBankAccounts],
     ];
@@ -56,7 +56,16 @@ export async function GET(request: NextRequest) {
     if (fromDate) filters.push(['posting_date', '>=', fromDate]);
     if (toDate) filters.push(['posting_date', '<=', toDate]);
 
-    const glData = await client.getList('GL Entry', {
+    interface CashFlowGLEntry {
+      account: string;
+      posting_date: string;
+      debit: number;
+      credit: number;
+      voucher_type: string;
+      voucher_no: string;
+    }
+
+    const glData = await client.getList<CashFlowGLEntry>('GL Entry', {
       fields: ['account', 'posting_date', 'debit', 'credit', 'voucher_type', 'voucher_no'],
       filters,
       order_by: 'posting_date desc',
@@ -64,7 +73,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Sort entries by posting_date ascending for proper balance calculation
-    const sortedEntries = glData.sort((a: any, b: any) => {
+    const sortedEntries = [...glData].sort((a, b) => {
       const dateA = new Date(a.posting_date).getTime();
       const dateB = new Date(b.posting_date).getTime();
       return dateA - dateB;
@@ -72,7 +81,7 @@ export async function GET(request: NextRequest) {
 
     // Calculate running balance
     let runningBalance = 0;
-    const entries = sortedEntries.map((entry: any) => {
+    const entries = sortedEntries.map((entry) => {
       const debit = entry.debit || 0;
       const credit = entry.credit || 0;
       runningBalance += debit - credit;

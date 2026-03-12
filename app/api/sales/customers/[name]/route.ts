@@ -35,8 +35,8 @@ export async function GET(
           limit_page_length: 1
         });
         
-        if (searchData && searchData.length > 0) {
-          const actualName = searchData[0].name;
+        if (Array.isArray(searchData) && searchData.length > 0) {
+          const actualName = (searchData as any[])[0].name;
           const data = await client.get('Customer', actualName) as any;
           return NextResponse.json({ 
             success: true, 

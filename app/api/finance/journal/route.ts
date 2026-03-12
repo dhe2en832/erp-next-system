@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Build filters array
-    const filters: any[] = [['company', '=', company]];
+    const filters: [string, string, string | number][] = [['company', '=', company]];
     
     // Filter berdasarkan kas_type (masuk/keluar) di user_remark
     if (kas_type === 'masuk') {
@@ -62,7 +62,17 @@ export async function GET(request: NextRequest) {
     // Fetch journal entries - first get basic fields
     const basicFields = ["name","voucher_type","posting_date","user_remark","company","creation","docstatus"];
     
-    const data = await client.getList('Journal Entry', {
+    interface JournalEntryBasic {
+      name: string;
+      voucher_type: string;
+      posting_date: string;
+      user_remark?: string;
+      company: string;
+      creation: string;
+      docstatus: number;
+    }
+
+    const data = await client.getList<JournalEntryBasic>('Journal Entry', {
       fields: basicFields,
       filters,
       limit_page_length: parseInt(limit_page_length),
@@ -72,18 +82,27 @@ export async function GET(request: NextRequest) {
 
     // Fetch detailed data for each entry to get accounts
     const enrichedData = await Promise.all(
-      data.map(async (entry: any) => {
+      data.map(async (entry) => {
         let total_debit = 0;
         let total_credit = 0;
         
         try {
           // Fetch full document to get accounts child table
-          const detailData = await client.get('Journal Entry', entry.name) as any;
+          interface JournalAccount {
+            debit_in_account_currency?: number;
+            debit?: number;
+            credit_in_account_currency?: number;
+            credit?: number;
+          }
+          interface JournalEntryDetail {
+            accounts: JournalAccount[];
+          }
+          const detailData = await client.get<JournalEntryDetail>('Journal Entry', entry.name);
           const accounts = detailData?.accounts || [];
           
-          accounts.forEach((acc: any) => {
-            const debit = parseFloat(acc.debit_in_account_currency || acc.debit || 0);
-            const credit = parseFloat(acc.credit_in_account_currency || acc.credit || 0);
+          accounts.forEach((acc) => {
+            const debit = parseFloat(String(acc.debit_in_account_currency || acc.debit || 0));
+            const credit = parseFloat(String(acc.credit_in_account_currency || acc.credit || 0));
             total_debit += debit;
             total_credit += credit;
           });
@@ -92,9 +111,9 @@ export async function GET(request: NextRequest) {
         }
 
         // Map docstatus to status text
-        let status = 'Draft';
-        if (entry.docstatus === 1) status = 'Submitted';
-        else if (entry.docstatus === 2) status = 'Cancelled';
+        let statusText = 'Draft';
+        if (entry.docstatus === 1) statusText = 'Submitted';
+        else if (entry.docstatus === 2) statusText = 'Cancelled';
 
         return {
           name: entry.name,
@@ -105,7 +124,7 @@ export async function GET(request: NextRequest) {
           user_remark: entry.user_remark || '',
           company: entry.company,
           creation: entry.creation,
-          status,
+          status: statusText,
         };
       })
     );
@@ -140,7 +159,7 @@ export async function POST(request: NextRequest) {
     // Get site-aware client (handles dual authentication: API Key → session cookie fallback)
     const client = await getERPNextClientForRequest(request);
 
-    const result = await client.insert('Journal Entry', journalData) as any;
+    const result = await client.insert<{ name: string }>('Journal Entry', journalData);
 
     return NextResponse.json({
       success: true,

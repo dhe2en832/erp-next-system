@@ -74,7 +74,7 @@ async function testFixedBankReconciliation() {
     console.log(`Found ${bankAccounts.length} bank accounts`);
 
     if (bankAccounts.length > 0) {
-      const testAccount = bankAccounts[0];
+      const testAccount = bankAccounts[0] as any;
       console.log(`Testing with account: ${testAccount.name}`);
 
       // Test Payment Entry query
@@ -86,7 +86,7 @@ async function testFixedBankReconciliation() {
         ],
         fields: ['name', 'paid_amount', 'posting_date'],
         limit_page_length: 5,
-      });
+      }) as any[];
 
       console.log(`✅ SUCCESS: Found ${unreconciledPayments.length} uncleared payments`);
       if (unreconciledPayments.length > 0) {
@@ -102,7 +102,7 @@ async function testFixedBankReconciliation() {
         ],
         fields: ['name', 'received_amount', 'posting_date'],
         limit_page_length: 5,
-      });
+      }) as any[];
 
       console.log(`✅ SUCCESS: Found ${unreconciledReceipts.length} uncleared receipts`);
       if (unreconciledReceipts.length > 0) {
