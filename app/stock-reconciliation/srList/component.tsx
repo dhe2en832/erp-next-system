@@ -84,7 +84,13 @@ export default function StockReconciliationList() {
       const response = await fetch(`/api/inventory/reconciliation?${params}`);
       const data = await response.json();
       if (data.success) {
-        setReconciliations(data.data || []);
+        // Sort by posting_date and posting_time desc to ensure latest is on top
+        const sortedData = (data.data || []).sort((a: StockReconciliation, b: StockReconciliation) => {
+          const dateA = new Date(`${a.posting_date}T${a.posting_time}`);
+          const dateB = new Date(`${b.posting_date}T${b.posting_time}`);
+          return dateB.getTime() - dateA.getTime();
+        });
+        setReconciliations(sortedData);
       } else {
         setError(data.message || 'Gagal memuat rekonsiliasi stok');
       }

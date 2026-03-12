@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import Pagination from '../../components/Pagination';
-import { Save, ArrowLeft, Plus, Trash2 } from 'lucide-react';
+import ItemDialog, { Item as DialogItem } from '../../components/ItemDialog';
+import { Save, ArrowLeft, Plus, Trash2, Upload, Search, Edit2, Settings } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,17 +14,13 @@ interface Warehouse {
   warehouse_name: string;
 }
 
-interface Item {
-  name: string;
-  item_name: string;
-  item_code: string;
-  stock_uom: string;
-}
-
 interface ReconciliationItem {
   item_code: string;
   qty: number;
   valuation_rate: number;
+  warehouse?: string;
+  stock_uom?: string;
+  item_name?: string;
 }
 
 const STATUS_LABELS: Record<number, string> = {
@@ -43,9 +40,11 @@ export default function StockReconciliationMain() {
   const searchParams = useSearchParams();
   const entryName = searchParams.get('name');
   const isEditMode = !!entryName;
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
-  const [items, setItems] = useState<Item[]>([]);
+  const [items, setItems] = useState<DialogItem[]>([]);
+  const [uoms, setUoms] = useState<{ name: string }[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<string>('');
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
@@ -53,30 +52,46 @@ export default function StockReconciliationMain() {
   const [docstatus, setDocstatus] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
-  const ITEMS_PER_PAGE = 10;
+  const [showItemDialog, setShowItemDialog] = useState(false);
+  const [currentItemIndex, setCurrentItemIndex] = useState<number | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [editingQty, setEditingQty] = useState<{ index: number, value: string } | null>(null);
+  const ITEMS_PER_PAGE = 20;
 
   const [newReconciliation, setNewReconciliation] = useState({
     warehouse: '',
     posting_date: new Date().toISOString().split('T')[0],
     posting_time: new Date().toTimeString().split(' ')[0].substring(0, 5),
     purpose: 'Stock Reconciliation',
-    items: [{ item_code: '', qty: 0, valuation_rate: 0 }] as ReconciliationItem[]
+    items: [{ item_code: '', qty: 0, valuation_rate: 0, warehouse: '', stock_uom: '', item_name: '' }] as ReconciliationItem[]
   });
 
   const isReadOnly = docstatus === 1 || docstatus === 2;
+
+  // Sync item warehouse when header warehouse changes
+  useEffect(() => {
+    if (newReconciliation.warehouse) {
+      setNewReconciliation(prev => ({
+        ...prev,
+        items: prev.items.map(item => ({
+          ...item,
+          warehouse: prev.warehouse
+        }))
+      }));
+    }
+  }, [newReconciliation.warehouse]);
 
   // Items filtering and pagination
   const filteredItems = useMemo(() => {
     if (!searchTerm) return newReconciliation.items;
     const lowerSearch = searchTerm.toLowerCase();
     return newReconciliation.items.filter(item => {
-      const itemDetail = items.find(it => it.item_code === item.item_code);
       return (
-        item.item_code.toLowerCase().includes(lowerSearch) ||
-        (itemDetail?.item_name || '').toLowerCase().includes(lowerSearch)
+        (item.item_code || '').toLowerCase().includes(lowerSearch) ||
+        (item.item_name || '').toLowerCase().includes(lowerSearch)
       );
     });
-  }, [newReconciliation.items, items, searchTerm]);
+  }, [newReconciliation.items, searchTerm]);
 
   const paginatedItems = useMemo(() => {
     const start = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -119,6 +134,9 @@ export default function StockReconciliationMain() {
             item_code: it.item_code || '',
             qty: it.qty || 0,
             valuation_rate: it.valuation_rate || 0,
+            warehouse: it.warehouse || rec.warehouse || '',
+            stock_uom: it.stock_uom || '',
+            item_name: it.item_name || '',
           }))
         });
       } else {
@@ -168,7 +186,7 @@ export default function StockReconciliationMain() {
       const response = await fetch(`/api/inventory/items?company=${selectedCompany}`);
       interface ItemsResponse {
         success: boolean;
-        data?: Item[];
+        data?: DialogItem[];
       }
       const data: ItemsResponse = await response.json();
       if (data.success) setItems(data.data || []);
@@ -177,40 +195,162 @@ export default function StockReconciliationMain() {
     }
   }, [selectedCompany]);
 
+  const fetchUoms = useCallback(async () => {
+    try {
+      const response = await fetch('/api/inventory/dropdowns/uoms?filters=[["enabled","=",1]]', { credentials: 'include' });
+      const data = await response.json();
+      if (data.success) {
+        // Sort UOMs alphabetically for easier selection
+        const sortedUoms = (data.data || []).sort((a: { name: string }, b: { name: string }) => 
+          a.name.localeCompare(b.name)
+        );
+        setUoms(sortedUoms);
+      }
+    } catch (err) {
+      console.error('Gagal memuat UOM:', err);
+    }
+  }, []);
+
   useEffect(() => {
     if (selectedCompany) {
       fetchWarehouses();
       fetchItems();
+      fetchUoms();
     }
-  }, [selectedCompany, fetchWarehouses, fetchItems]);
+  }, [selectedCompany, fetchWarehouses, fetchItems, fetchUoms]);
 
   const addItemRow = () => {
     if (isReadOnly) return;
-    const newItem = { item_code: '', qty: 0, valuation_rate: 0 };
-    setNewReconciliation(prev => ({
-      ...prev,
-      items: [newItem, ...prev.items]
-    }));
+    const newItem = { item_code: '', qty: 0, valuation_rate: 0, warehouse: newReconciliation.warehouse, stock_uom: '', item_name: '' };
+    setNewReconciliation(prev => {
+      const updatedItems = [...prev.items, newItem];
+      // Update page to show the last row
+      const newPage = Math.ceil(updatedItems.length / ITEMS_PER_PAGE);
+      setCurrentPage(newPage);
+      return {
+        ...prev,
+        items: updatedItems
+      };
+    });
     setSearchTerm(''); // Reset search to show the new row
-    setCurrentPage(1); // Go to first page to see the new row
   };
 
-  const removeItemRow = (itemCode: string) => {
+  const removeItemRow = (index: number) => {
     if (isReadOnly) return;
-    setNewReconciliation(prev => ({
-      ...prev,
-      items: prev.items.filter(it => it.item_code !== itemCode)
-    }));
+    setNewReconciliation(prev => {
+      const updatedItems = [...prev.items];
+      updatedItems.splice(index, 1);
+      return { ...prev, items: updatedItems };
+    });
   };
 
-  const updateItemRow = (itemCode: string, field: string, value: string | number) => {
+  const updateItemRow = (index: number, field: string, value: string | number) => {
     if (isReadOnly) return;
-    setNewReconciliation(prev => ({
-      ...prev,
-      items: prev.items.map(item =>
-        item.item_code === itemCode ? { ...item, [field]: value } : item
-      )
-    }));
+    setNewReconciliation(prev => {
+      const updatedItems = [...prev.items];
+      updatedItems[index] = { ...updatedItems[index], [field]: value };
+      
+      // If item_code is updated, find its details
+      if (field === 'item_code') {
+        const itemDetail = items.find(it => it.item_code === value);
+        if (itemDetail) {
+          updatedItems[index].item_name = itemDetail.item_name;
+          updatedItems[index].stock_uom = itemDetail.stock_uom;
+        }
+      }
+      
+      return { ...prev, items: updatedItems };
+    });
+  };
+
+  const handleItemSelect = (selectedItem: DialogItem) => {
+    if (currentItemIndex !== null) {
+      updateItemRow(currentItemIndex, 'item_code', selectedItem.item_code);
+      updateItemRow(currentItemIndex, 'item_name', selectedItem.item_name);
+      updateItemRow(currentItemIndex, 'stock_uom', selectedItem.stock_uom || '');
+    }
+    setShowItemDialog(false);
+    setCurrentItemIndex(null);
+  };
+
+  const handleCsvUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const content = event.target?.result as string;
+        const lines = content.split('\n');
+        
+        // Find header line (starts with Barcode,Item Code,...)
+        let headerIndex = -1;
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].includes('Barcode,Item Code,Item Name')) {
+            headerIndex = i + 1; // Actual field names are in the next line
+            break;
+          }
+        }
+
+        if (headerIndex === -1 || headerIndex >= lines.length) {
+          throw new Error('Format CSV tidak valid');
+        }
+
+        const dataLines = lines.slice(headerIndex + 1); // Data starts after the lowercase field names line
+         const newItems: ReconciliationItem[] = [];
+ 
+         dataLines.forEach(line => {
+           const trimmedLine = line.trim();
+           if (!trimmedLine || trimmedLine.startsWith(',,,,') || trimmedLine.includes('---') || trimmedLine.includes('CSV format') || trimmedLine.includes('Do not edit')) return;
+           
+           const parts = line.split(',');
+           if (parts.length >= 8) {
+             // parts[1] is item_code, parts[5] is qty, parts[7] is valuation_rate, parts[6] is stock_uom
+             const item_code = parts[1]?.trim();
+             if (!item_code || item_code === 'item_code' || item_code === 'Item Code') return;
+             
+             const item_name = parts[2]?.trim();
+             const qty = parseFloat(parts[5]) || 0;
+             const stock_uom = parts[6]?.trim();
+             const valuation_rate = parseFloat(parts[7]) || 0;
+             const warehouse = parts[4]?.trim() || newReconciliation.warehouse;
+ 
+             newItems.push({
+               item_code,
+               item_name,
+               qty,
+               stock_uom,
+               valuation_rate,
+               warehouse
+             });
+           }
+         });
+
+        if (newItems.length > 0) {
+          setNewReconciliation(prev => {
+            const currentFilledItems = prev.items.filter(it => it.item_code !== '');
+            const updatedItems = [...currentFilledItems, ...newItems];
+            // Update page to show the last row if many items added
+            const newPage = Math.ceil(updatedItems.length / ITEMS_PER_PAGE);
+            setCurrentPage(newPage);
+            return {
+              ...prev,
+              items: updatedItems
+            };
+          });
+          setSuccessMessage(`${newItems.length} item berhasil diimpor dari CSV`);
+          setTimeout(() => setSuccessMessage(''), 3000);
+        }
+      } catch (err) {
+        console.error('CSV Parsing Error:', err);
+        setError('Gagal memproses file CSV. Pastikan format sesuai.');
+      } finally {
+        setIsUploading(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      }
+    };
+    reader.readAsText(file);
   };
 
   const handleSave = async () => {
@@ -219,8 +359,13 @@ export default function StockReconciliationMain() {
       return;
     }
 
-    if (!selectedCompany || !newReconciliation.warehouse) {
-      setError('Gudang harus dipilih');
+    if (!newReconciliation.warehouse) {
+      setError('Gudang harus dipilih sebelum menyimpan.');
+      return;
+    }
+
+    if (!selectedCompany) {
+      setError('Company belum dipilih. Silakan kembali dan pilih company.');
       return;
     }
 
@@ -381,7 +526,7 @@ export default function StockReconciliationMain() {
                   disabled={isReadOnly}
                 />
               </div>
-              <div>
+              <div className="hidden">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Waktu Posting</label>
                 <input 
                   type="time" 
@@ -404,11 +549,12 @@ export default function StockReconciliationMain() {
             </div>
 
             {/* Items Table */}
-            <div>
+            <div className="mt-8">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
                 <div className="flex items-center gap-4 w-full sm:w-auto">
-                  <label className="block text-sm font-medium text-gray-700">Barang ({newReconciliation.items.length})</label>
+                  <label className="block text-sm font-semibold text-gray-700">Items</label>
                   <div className="relative flex-1 sm:w-64">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <input
                       type="text"
                       placeholder="Cari kode atau nama barang..."
@@ -417,93 +563,175 @@ export default function StockReconciliationMain() {
                         setSearchTerm(e.target.value);
                         setCurrentPage(1);
                       }}
-                      className="block w-full border border-gray-300 rounded-md shadow-sm py-1.5 px-3 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      className="block w-full border border-gray-300 rounded-md shadow-sm py-1.5 pl-9 pr-3 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                     />
                   </div>
                 </div>
                 {!isReadOnly && (
-                  <button 
-                    type="button" 
-                    onClick={addItemRow} 
-                    className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
-                  >
-                    <Plus className="w-4 h-4 mr-1" />
-                    Tambah Barang
-                  </button>
+                  <div className="flex gap-2 w-full sm:w-auto">
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      className="hidden"
+                      accept=".csv"
+                      onChange={handleCsvUpload}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isUploading}
+                      className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                    >
+                      <Upload className="w-4 h-4 mr-1 text-gray-500" />
+                      Upload CSV
+                    </button>
+                    <button 
+                      type="button" 
+                      onClick={addItemRow} 
+                      className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
+                    >
+                      <Plus className="w-4 h-4 mr-1" />
+                      Add Row
+                    </button>
+                  </div>
                 )}
               </div>
 
-              <div className="border border-gray-200 rounded-lg overflow-hidden">
-                <div className="overflow-x-auto max-h-[500px] overflow-y-auto relative">
-                  <table className="min-w-full divide-y divide-gray-200 border-collapse">
-                    <thead className="bg-gray-50 sticky top-0 z-10 shadow-sm">
+              <div className="border border-gray-200 rounded-lg overflow-hidden shadow-sm">
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200 table-fixed">
+                    <thead className="bg-gray-50">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Barang</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-32">Jumlah</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-40">Nilai Valuasi</th>
-                        {!isReadOnly && (
-                          <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider w-20">Aksi</th>
-                        )}
+                        <th className="w-10 px-3 py-3 text-center">
+                          <input type="checkbox" className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" disabled />
+                        </th>
+                        <th className="w-16 px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">No.</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[200px]">Item Code <span className="text-red-500">*</span></th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[200px]">Warehouse <span className="text-red-500">*</span></th>
+                        <th className="w-32 px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Quantity</th>
+                        <th className="w-32 px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Stock UOM</th>
+                        <th className="w-16 px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                          <Settings className="w-4 h-4 mx-auto text-gray-400" />
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {paginatedItems.length > 0 ? (
-                        paginatedItems.map((item, index) => (
-                          <tr key={item.item_code || `new-${index}`} className="hover:bg-gray-50 transition-colors">
-                            <td className="px-4 py-3">
-                              <select 
-                                className="block w-full border border-gray-300 rounded-md shadow-sm py-1.5 px-3 text-sm focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-50 disabled:text-gray-500" 
-                                value={item.item_code} 
-                                onChange={(e) => updateItemRow(item.item_code, 'item_code', e.target.value)}
-                                disabled={isReadOnly}
-                              >
-                                <option value="">Pilih Barang</option>
-                                {items.map((it) => (
-                                  <option key={it.item_code} value={it.item_code}>
-                                    {it.item_name} ({it.item_code})
-                                  </option>
-                                ))}
-                              </select>
-                            </td>
-                            <td className="px-4 py-3">
-                              <input 
-                                type="number" 
-                                className="block w-full border border-gray-300 rounded-md shadow-sm py-1.5 px-3 text-sm focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-50 disabled:text-gray-500" 
-                                value={item.qty} 
-                                onChange={(e) => updateItemRow(item.item_code, 'qty', parseFloat(e.target.value) || 0)} 
-                                min="0" 
-                                step="0.01"
-                                disabled={isReadOnly}
-                              />
-                            </td>
-                            <td className="px-4 py-3">
-                              <input 
-                                type="number" 
-                                className="block w-full border border-gray-300 rounded-md shadow-sm py-1.5 px-3 text-sm focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-50 disabled:text-gray-500" 
-                                value={item.valuation_rate} 
-                                onChange={(e) => updateItemRow(item.item_code, 'valuation_rate', parseFloat(e.target.value) || 0)} 
-                                min="0" 
-                                step="0.01"
-                                disabled={isReadOnly}
-                              />
-                            </td>
-                            {!isReadOnly && (
-                              <td className="px-4 py-3 text-center">
-                                <button 
-                                  type="button" 
-                                  onClick={() => removeItemRow(item.item_code)} 
-                                  className="text-red-500 hover:text-red-700 p-1.5 rounded-full hover:bg-red-50 transition-colors"
-                                  title="Hapus"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
+                        paginatedItems.map((item, index) => {
+                          const actualIndex = (currentPage - 1) * ITEMS_PER_PAGE + index;
+                          return (
+                            <tr key={actualIndex} className="hover:bg-gray-50 transition-colors group">
+                              <td className="px-3 py-3 text-center">
+                                <input type="checkbox" className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" disabled />
                               </td>
-                            )}
-                          </tr>
-                        ))
+                              <td className="px-3 py-3 text-sm text-blue-600 font-medium">
+                                {actualIndex + 1}
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-2">
+                                  <div 
+                                    className={`flex-1 border border-gray-300 rounded-md py-1.5 px-3 text-sm min-h-[38px] flex items-center ${isReadOnly ? 'bg-gray-50 text-gray-500' : 'cursor-pointer hover:border-indigo-400'}`}
+                                    onClick={() => {
+                                      if (!isReadOnly) {
+                                        setCurrentItemIndex(actualIndex);
+                                        setShowItemDialog(true);
+                                      }
+                                    }}
+                                  >
+                                    {item.item_code ? (
+                                      <span className="text-gray-900">{item.item_code}</span>
+                                    ) : (
+                                      <span className="text-gray-400">Pilih barang...</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <select 
+                                  className="block w-full border border-gray-300 rounded-md shadow-sm py-1.5 px-3 text-sm focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-50 disabled:text-gray-500" 
+                                  value={item.warehouse} 
+                                  onChange={(e) => updateItemRow(actualIndex, 'warehouse', e.target.value)}
+                                  disabled={isReadOnly}
+                                >
+                                  <option value="">Pilih Gudang</option>
+                                  {warehouses.map((wh) => (
+                                    <option key={wh.name} value={wh.name}>{wh.warehouse_name}</option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <input 
+                                  type="text" 
+                                  className="block w-full border-none bg-transparent py-1.5 px-3 text-sm text-right focus:ring-0 focus:outline-none disabled:text-gray-500" 
+                                  value={editingQty?.index === actualIndex ? editingQty.value : (item.qty === 0 ? '0,00' : item.qty.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))} 
+                                  onFocus={(e) => {
+                                    if (isReadOnly) return;
+                                    setEditingQty({ index: actualIndex, value: item.qty === 0 ? '' : item.qty.toString() });
+                                    e.target.select();
+                                  }}
+                                  onChange={(e) => {
+                                    if (isReadOnly) return;
+                                    const val = e.target.value.replace(/[^0-9.]/g, '');
+                                    setEditingQty({ index: actualIndex, value: val });
+                                    
+                                    // Also update main state so it's "overwritten" correctly
+                                    if (val !== '' && val !== '.') {
+                                      updateItemRow(actualIndex, 'qty', parseFloat(val) || 0);
+                                    }
+                                  }} 
+                                  onBlur={() => {
+                                    if (isReadOnly) return;
+                                    const val = parseFloat(editingQty?.value || '0') || 0;
+                                    updateItemRow(actualIndex, 'qty', val);
+                                    setEditingQty(null);
+                                  }}
+                                  disabled={isReadOnly}
+                                />
+                              </td>
+                              <td className="px-4 py-3">
+                                <select 
+                                  className="block w-full border border-gray-300 rounded-md shadow-sm py-1.5 px-3 text-sm focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-50 disabled:text-gray-500" 
+                                  value={item.stock_uom} 
+                                  onChange={(e) => updateItemRow(actualIndex, 'stock_uom', e.target.value)}
+                                  disabled={isReadOnly}
+                                >
+                                  <option value="">Pilih UOM</option>
+                                  {uoms.map((uom) => (
+                                    <option key={uom.name} value={uom.name}>{uom.name}</option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                {!isReadOnly && (
+                                  <div className="flex justify-center gap-1">
+                                    <button 
+                                      type="button" 
+                                      onClick={() => {
+                                        setCurrentItemIndex(actualIndex);
+                                        setShowItemDialog(true);
+                                      }}
+                                      className="text-gray-400 hover:text-indigo-600 p-1 rounded-md transition-colors"
+                                      title="Edit"
+                                    >
+                                      <Edit2 className="w-4 h-4" />
+                                    </button>
+                                    <button 
+                                      type="button" 
+                                      onClick={() => removeItemRow(actualIndex)} 
+                                      className="text-gray-400 hover:text-red-600 p-1 rounded-md transition-colors"
+                                      title="Hapus"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })
                       ) : (
                         <tr>
-                          <td colSpan={isReadOnly ? 3 : 4} className="px-4 py-8 text-center text-gray-500 italic">
+                          <td colSpan={7} className="px-4 py-12 text-center text-gray-500 italic">
                             {searchTerm ? 'Tidak ada barang yang cocok dengan pencarian' : 'Belum ada barang ditambahkan'}
                           </td>
                         </tr>
@@ -526,6 +754,12 @@ export default function StockReconciliationMain() {
               )}
             </div>
 
+            <ItemDialog
+              isOpen={showItemDialog}
+              onClose={() => { setShowItemDialog(false); setCurrentItemIndex(null); }}
+              onSelect={handleItemSelect}
+            />
+
             {!isReadOnly && (
               <div className="flex flex-col sm:flex-row justify-end gap-2 pt-4">
                 <button 
@@ -542,7 +776,17 @@ export default function StockReconciliationMain() {
                   className="w-full sm:w-auto bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={loading}
                 >
-                  {loading ? 'Menyimpan...' : isEditMode ? 'Simpan Perubahan' : 'Buat Rekonsiliasi'}
+                  {loading ? (
+                    <div className="flex items-center gap-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                      <span>Menyimpan...</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <Save className="w-4 h-4" />
+                      <span>{isEditMode ? 'Simpan Perubahan' : 'Buat Rekonsiliasi'}</span>
+                    </div>
+                  )}
                 </button>
               </div>
             )}
