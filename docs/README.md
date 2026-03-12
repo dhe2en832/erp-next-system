@@ -51,6 +51,13 @@ Dokumentasi manajemen karyawan dan komisi.
 - Manajemen data karyawan
 - Perhitungan komisi
 
+### 📦 inventory/
+Dokumentasi terkait manajemen inventory dan stok.
+- **stock-card-report-standards.md** - Standar implementasi untuk Stock Card Report (pagination, sorting, export, print)
+- Best practices untuk laporan inventory
+- Implementasi dual summary (periode & halaman)
+- Metode pengambilan data dengan `client.getCount()`
+
 ### 🌐 multi-site/
 Dokumentasi untuk konfigurasi multi-site/multi-tenant.
 - Setup multi-site
