@@ -6,6 +6,7 @@ import {
   logSiteError 
 } from '@/lib/api-helpers';
 import { calculateNetIncome } from '@/lib/calculate-net-income';
+import { AccountBalance } from '@/types/accounting-period';
 
 export async function GET(request: NextRequest) {
   const siteId = await getSiteIdFromRequest(request);
@@ -25,10 +26,17 @@ export async function GET(request: NextRequest) {
     }
 
     // Get period
-    const periodList = await client.getList('Accounting Period', {
+    interface AccountingPeriod {
+      name: string;
+      start_date: string;
+      end_date: string;
+      closing_journal_entry?: string;
+      [key: string]: unknown;
+    }
+    const periodList = await client.getList<AccountingPeriod>('Accounting Period', {
       filters: [['name', '=', period_name]],
       fields: ['name', 'start_date', 'end_date', 'closing_journal_entry'],
-      limit: 1,
+      limit_page_length: 1,
     });
     
     if (!periodList || periodList.length === 0) {
@@ -38,10 +46,10 @@ export async function GET(request: NextRequest) {
       );
     }
     
-    const period = periodList[0] as any;
+    const period = periodList[0];
 
     // Get GL entries
-    const filters: any[] = [
+    const filters: (string | number | boolean | null | string[])[][] = [
       ['company', '=', company],
       ['posting_date', '>=', period.start_date],
       ['posting_date', '<=', period.end_date],
@@ -54,25 +62,42 @@ export async function GET(request: NextRequest) {
     
     filters.push(['voucher_type', '!=', 'Closing Entry']);
     
-    const glEntries = await client.getList('GL Entry', {
+    interface GLEntrySummary {
+      account: string;
+      debit: number;
+      credit: number;
+      posting_date: string;
+      voucher_type: string;
+      voucher_no: string;
+      [key: string]: unknown;
+    }
+    const glEntries = await client.getList<GLEntrySummary>('GL Entry', {
       filters,
       fields: ['account', 'debit', 'credit', 'posting_date', 'voucher_type', 'voucher_no'],
-      limit: 10000,
+      limit_page_length: 10000,
     });
 
+    interface AccountSummary {
+      name: string;
+      account_name: string;
+      root_type: 'Asset' | 'Liability' | 'Equity' | 'Income' | 'Expense';
+      account_type: string;
+      is_group: number;
+      [key: string]: unknown;
+    }
     // Get accounts
-    const accounts = await client.getList('Account', {
+    const accounts = await client.getList<AccountSummary>('Account', {
       filters: [['company', '=', company]],
-      fields: ['name', 'account_name', 'root_type'],
-      limit: 10000,
+      fields: ['name', 'account_name', 'root_type', 'account_type', 'is_group'],
+      limit_page_length: 10000,
     });
 
-    const accountMap = new Map(accounts.map((acc: any) => [acc.name, acc]));
+    const accountMap = new Map(accounts.map((acc: AccountSummary) => [acc.name, acc]));
 
     // Aggregate
-    const accountBalances: Record<string, any> = {};
+    const accountBalances: Record<string, AccountBalance> = {};
     
-    glEntries.forEach((entry: any) => {
+    glEntries.forEach((entry: GLEntrySummary) => {
       const accountInfo = accountMap.get(entry.account);
       const rootType = accountInfo?.root_type || 'Asset';
       
@@ -80,10 +105,13 @@ export async function GET(request: NextRequest) {
         accountBalances[entry.account] = { 
           account: entry.account,
           account_name: accountInfo?.account_name || entry.account,
+          account_type: accountInfo?.account_type || '',
           root_type: rootType,
+          is_group: !!accountInfo?.is_group,
           debit: 0, 
           credit: 0, 
           balance: 0,
+          is_nominal: rootType === 'Income' || rootType === 'Expense',
         };
       }
       accountBalances[entry.account].debit += entry.debit || 0;
@@ -99,17 +127,17 @@ export async function GET(request: NextRequest) {
     });
 
     const allAccounts = Object.values(accountBalances);
-    const nominal_accounts = allAccounts.filter((a: any) => a.root_type === 'Income' || a.root_type === 'Expense');
+    const nominal_accounts = allAccounts.filter((a: AccountBalance) => a.root_type === 'Income' || a.root_type === 'Expense');
     
     // Calculate using utility
-    const { totalIncome, totalExpense, netIncome } = calculateNetIncome(nominal_accounts as any);
+    const { totalIncome, totalExpense, netIncome } = calculateNetIncome(nominal_accounts);
 
     // Manual calculation for verification
-    const incomeAccounts = nominal_accounts.filter((a: any) => a.root_type === 'Income');
-    const expenseAccounts = nominal_accounts.filter((a: any) => a.root_type === 'Expense');
+    const incomeAccounts = nominal_accounts.filter((a: AccountBalance) => a.root_type === 'Income');
+    const expenseAccounts = nominal_accounts.filter((a: AccountBalance) => a.root_type === 'Expense');
     
-    const manualTotalIncome = incomeAccounts.reduce((sum: number, a: any) => sum + a.balance, 0);
-    const manualTotalExpense = expenseAccounts.reduce((sum: number, a: any) => sum + a.balance, 0);
+    const manualTotalIncome = incomeAccounts.reduce((sum: number, a: AccountBalance) => sum + a.balance, 0);
+    const manualTotalExpense = expenseAccounts.reduce((sum: number, a: AccountBalance) => sum + a.balance, 0);
     const manualNetIncome = manualTotalIncome - manualTotalExpense;
 
     return NextResponse.json({
@@ -123,14 +151,14 @@ export async function GET(request: NextRequest) {
         },
         filters_applied: filters,
         gl_entries_count: glEntries.length,
-        income_accounts: incomeAccounts.map((a: any) => ({
+        income_accounts: incomeAccounts.map((a: AccountBalance) => ({
           account: a.account,
           account_name: a.account_name,
           debit: a.debit,
           credit: a.credit,
           balance: a.balance,
         })),
-        expense_accounts: expenseAccounts.map((a: any) => ({
+        expense_accounts: expenseAccounts.map((a: AccountBalance) => ({
           account: a.account,
           account_name: a.account_name,
           debit: a.debit,

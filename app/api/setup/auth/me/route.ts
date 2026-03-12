@@ -60,8 +60,18 @@ export async function GET(request: NextRequest) {
     // Fetch user detail + roles using API Key (requires admin privilege to read roles)
     // But we use the userId from session cookie to ensure we get the correct user
     const client = await getERPNextClientForRequest(request);
-    const userData = await client.get('User', userId) as any;
-    const roles = (userData.roles || []).map((r: any) => r.role);
+    interface UserDoc {
+      name: string;
+      full_name?: string;
+      email?: string;
+      username?: string;
+      enabled?: number;
+      user_type?: string;
+      roles?: { role: string }[];
+      [key: string]: unknown;
+    }
+    const userData = await client.get<UserDoc>('User', userId);
+    const roles = (userData.roles || []).map((r: { role: string }) => r.role);
 
     return NextResponse.json({
       success: true,

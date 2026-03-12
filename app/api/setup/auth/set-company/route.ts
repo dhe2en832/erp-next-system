@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
       await client.call('frappe.utils.setup_docs.set_session_default', {
         default_company: company
       });
-    } catch (error) {
+    } catch {
       console.log('Failed to set session default in ERPNext, but continuing...');
     }
 

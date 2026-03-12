@@ -13,11 +13,21 @@ export async function GET(request: NextRequest) {
     // Get site-aware client
     const client = await getERPNextClientForRequest(request);
 
-    const results: any = {};
+    interface ValidDataResults {
+      priceLists?: { name: string }[];
+      taxCategories?: { name: string }[];
+      territories?: { name: string }[];
+      incomeAccounts?: { name: string }[];
+      warehouses?: { name: string }[];
+      costCenters?: { name: string }[];
+      [key: string]: unknown;
+    }
+
+    const results: ValidDataResults = {};
 
     // Fetch Price Lists
     try {
-      results.priceLists = await client.getList('Price List', { fields: ['name'] });
+      results.priceLists = await client.getList<{ name: string }>('Price List', { fields: ['name'] });
     } catch (error) {
       console.error('Error fetching Price Lists:', error);
       results.priceLists = [];
@@ -25,7 +35,7 @@ export async function GET(request: NextRequest) {
 
     // Fetch Tax Categories
     try {
-      results.taxCategories = await client.getList('Tax Category', { fields: ['name'] });
+      results.taxCategories = await client.getList<{ name: string }>('Tax Category', { fields: ['name'] });
     } catch (error) {
       console.error('Error fetching Tax Categories:', error);
       results.taxCategories = [];
@@ -33,7 +43,7 @@ export async function GET(request: NextRequest) {
 
     // Fetch Territories
     try {
-      results.territories = await client.getList('Territory', { fields: ['name'] });
+      results.territories = await client.getList<{ name: string }>('Territory', { fields: ['name'] });
     } catch (error) {
       console.error('Error fetching Territories:', error);
       results.territories = [];
@@ -41,7 +51,7 @@ export async function GET(request: NextRequest) {
 
     // Fetch Income Accounts (filter by Income type)
     try {
-      results.incomeAccounts = await client.getList('Account', { 
+      results.incomeAccounts = await client.getList<{ name: string }>('Account', { 
         fields: ['name'], 
         filters: [['root_type', '=', 'Income']]
       });
@@ -52,7 +62,7 @@ export async function GET(request: NextRequest) {
 
     // Fetch Warehouses
     try {
-      results.warehouses = await client.getList('Warehouse', { fields: ['name'] });
+      results.warehouses = await client.getList<{ name: string }>('Warehouse', { fields: ['name'] });
     } catch (error) {
       console.error('Error fetching Warehouses:', error);
       results.warehouses = [];
@@ -60,7 +70,7 @@ export async function GET(request: NextRequest) {
 
     // Fetch Cost Centers
     try {
-      results.costCenters = await client.getList('Cost Center', { fields: ['name'] });
+      results.costCenters = await client.getList<{ name: string }>('Cost Center', { fields: ['name'] });
     } catch (error) {
       console.error('Error fetching Cost Centers:', error);
       results.costCenters = [];

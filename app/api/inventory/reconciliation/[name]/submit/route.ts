@@ -16,8 +16,12 @@ export async function POST(
   try {
     const client = await getERPNextClientForRequest(request);
     
+    interface ReconciliationDoc {
+      docstatus: number;
+      [key: string]: unknown;
+    }
     // Check if document exists and is in draft state
-    const existing = await client.get('Stock Reconciliation', name) as any;
+    const existing = await client.get<ReconciliationDoc>('Stock Reconciliation', name);
     
     if (existing.docstatus === 1) {
       return NextResponse.json(
@@ -34,7 +38,7 @@ export async function POST(
     }
     
     // Submit the document
-    const data = await client.submit('Stock Reconciliation', name);
+    const data = await client.submit<Record<string, unknown>>('Stock Reconciliation', name);
     
     return NextResponse.json({ 
       success: true, 

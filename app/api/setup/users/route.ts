@@ -29,7 +29,18 @@ export async function GET(request: NextRequest) {
     const fields = ['name', 'full_name', 'email', 'enabled', 'user_type', 'last_login', 'creation'];
     const filters = [['user_type', '!=', 'Website User']];
 
-    const users = await client.getList('User', {
+    interface UserSummary {
+      name: string;
+      full_name?: string;
+      email?: string;
+      enabled?: number;
+      user_type?: string;
+      last_login?: string;
+      creation?: string;
+      [key: string]: unknown;
+    }
+
+    const users = await client.getList<UserSummary>('User', {
       fields,
       filters,
       limit_page_length: 100,
@@ -38,10 +49,14 @@ export async function GET(request: NextRequest) {
 
     // Fetch roles for each user (batch)
     const usersWithRoles = await Promise.all(
-      users.map(async (user: any) => {
+      users.map(async (user: UserSummary) => {
         try {
-          const userDetail = await client.getDoc('User', user.name) as any;
-          const roles = (userDetail.roles || []).map((r: any) => r.role);
+          interface UserDoc {
+            roles?: { role: string }[];
+            [key: string]: unknown;
+          }
+          const userDetail = await client.getDoc<UserDoc>('User', user.name);
+          const roles = (userDetail.roles || []).map((r: { role: string }) => r.role);
           return { ...user, roles };
         } catch {
           return { ...user, roles: [] };
@@ -87,7 +102,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const userPayload: any = {
+    interface UserPayload {
+      doctype?: string;
+      email: string;
+      first_name: string;
+      last_name: string;
+      full_name: string;
+      enabled: number;
+      user_type: string;
+      send_welcome_email: number;
+      new_password?: string;
+      roles?: { role: string }[];
+      [key: string]: unknown;
+    }
+
+    const userPayload: UserPayload = {
       doctype: 'User',
       email,
       first_name: full_name.split(' ')[0],
@@ -106,7 +135,7 @@ export async function POST(request: NextRequest) {
       userPayload.roles = roles.map((role: string) => ({ role }));
     }
 
-    const result = await client.insert('User', userPayload) as any;
+    const result = await client.insert<Record<string, unknown>>('User', userPayload);
 
     return NextResponse.json({
       success: true,
@@ -169,7 +198,18 @@ export async function PUT(request: NextRequest) {
     }
 
     // Build update payload for ERPNext
-    const updatePayload: any = {};
+    interface UserUpdatePayload {
+      email?: string;
+      first_name?: string;
+      last_name?: string;
+      full_name?: string;
+      new_password?: string;
+      roles?: { role: string }[];
+      enabled?: number;
+      [key: string]: unknown;
+    }
+
+    const updatePayload: UserUpdatePayload = {};
 
     // Include only fields provided in the request
     if (email) {

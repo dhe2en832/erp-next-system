@@ -25,14 +25,18 @@ export async function GET(request: NextRequest) {
     });
 
     // Also check Sales Team doctype - use frappe.client.get_list to bypass permission check
-    let salesTeamData = [];
+    let salesTeamData: Record<string, unknown>[] = [];
     try {
-      const salesTeamResult = await client.call('frappe.client.get_list', {
+      interface SalesTeamResult {
+        data?: Record<string, unknown>[];
+        [key: string]: unknown;
+      }
+      const salesTeamResult = await client.call<SalesTeamResult>('frappe.client.get_list', {
         doctype: 'Sales Team',
         fields: ['*'],
         limit_page_length: 1
-      }) as any;
-      salesTeamData = salesTeamResult?.data || salesTeamResult || [];
+      });
+      salesTeamData = salesTeamResult?.data || (Array.isArray(salesTeamResult) ? salesTeamResult : []);
     } catch (error) {
       console.error('Sales Team fetch failed:', error);
       salesTeamData = [];

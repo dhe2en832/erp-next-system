@@ -20,8 +20,14 @@ export async function GET(request: NextRequest) {
     // Get site-aware client
     const client = await getERPNextClientForRequest(request);
 
+    interface BinSummary {
+      warehouse: string;
+      actual_qty: number;
+      reserved_qty: number;
+      [key: string]: unknown;
+    }
     // Query ke DocType Bin untuk mendapatkan stok per gudang
-    const bins = await client.getList('Bin', {
+    const bins = await client.getList<BinSummary>('Bin', {
       fields: ['warehouse', 'actual_qty', 'reserved_qty'],
       filters: [["item_code", "=", itemCode]]
     });
@@ -33,8 +39,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json([]);
     }
 
+    interface FormattedStock {
+      warehouse: string;
+      available: number;
+      actual: number;
+      reserved: number;
+    }
     // Format data agar mudah dibaca oleh UI
-    const stockData = bins.map((bin: any) => ({
+    const stockData = bins.map((bin: BinSummary) => ({
       warehouse: bin.warehouse,
       available: bin.actual_qty - bin.reserved_qty, // Stok yang benar-benar bisa dijual
       actual: bin.actual_qty,
@@ -44,12 +56,12 @@ export async function GET(request: NextRequest) {
     // console.log('Formatted stock data:', stockData);
 
     // Filter hanya warehouse yang ada stok (available > 0)
-    const availableStock = stockData.filter((stock: any) => stock.available > 0);
+    const availableStock = stockData.filter((stock: FormattedStock) => stock.available > 0);
     
     if (availableStock.length === 0) {
       // console.log('No available stock, returning all warehouses');
       // Jika tidak ada stok tersedia, kirim semua warehouse dengan available = 0
-      const zeroStockData = stockData.map((stock: any) => ({
+      const zeroStockData = stockData.map((stock: FormattedStock) => ({
         ...stock,
         available: 0
       }));

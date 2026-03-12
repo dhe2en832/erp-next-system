@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
 
     // Build company filters
     const companyFilter = company ? [['company', '=', company]] : [];
-    const buildFilters = (extra: any[][]) => 
+    const buildFilters = (extra: (string | number | boolean | null | string[])[][]) => 
       company ? [['company', '=', company], ...extra] : extra;
 
     // Run all queries in parallel using client methods
@@ -64,8 +64,15 @@ export async function GET(request: NextRequest) {
     ]);
 
     // Calculate outstanding amount
-    const outstandingAmount = (siOutstanding || []).reduce(
-      (sum: number, inv: any) => sum + (inv.outstanding_amount || 0),
+    interface InvoiceSummary {
+      outstanding_amount?: number;
+      posting_date?: string;
+      grand_total?: number;
+      [key: string]: unknown;
+    }
+
+    const outstandingAmount = ((siOutstanding || []) as InvoiceSummary[]).reduce(
+      (sum: number, inv: InvoiceSummary) => sum + (inv.outstanding_amount || 0),
       0
     );
 
@@ -78,11 +85,11 @@ export async function GET(request: NextRequest) {
       monthlyMap[key] = 0;
     }
 
-    (monthlySalesInvoices || []).forEach((inv: any) => {
+    ((monthlySalesInvoices || []) as InvoiceSummary[]).forEach((inv: InvoiceSummary) => {
       if (!inv.posting_date) return;
       const key = inv.posting_date.substring(0, 7);
       if (key in monthlyMap) {
-        monthlyMap[key] += inv.grand_total || 0;
+        monthlyMap[key] += (inv.grand_total || 0);
       }
     });
 

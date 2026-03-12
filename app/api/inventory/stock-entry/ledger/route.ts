@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Build filters array
-    const filters: any[][] = [['company', '=', company]];
+    const filters: (string | number | boolean | null | string[])[][] = [['company', '=', company]];
     
     if (search) {
       filters.push(['item_code', 'like', `%${search}%`]);

@@ -31,7 +31,16 @@ export async function GET(request: NextRequest) {
     });
 
     // Query Sales Invoice yang sudah paid
-    const invoices = await client.getList('Sales Invoice', {
+    interface InvoiceSummary {
+      name: string;
+      base_grand_total?: number;
+      posting_date?: string;
+      status?: string;
+      custom_total_komisi_sales?: number;
+      [key: string]: unknown;
+    }
+
+    const invoices = await client.getList<InvoiceSummary>('Sales Invoice', {
       fields: ['name', 'base_grand_total', 'posting_date', 'status', 'sales_team.sales_person', 'custom_total_komisi_sales'],
       filters: [
         ['docstatus', '=', 1],
@@ -41,7 +50,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Query Credit Notes and Commission Payments
-    const invoiceNames = (invoices as any[]).map((inv: any) => inv.name as string);
+    const invoiceNames = invoices.map((inv: InvoiceSummary) => inv.name);
     let creditNotes: Record<string, unknown>[] = [];
     let commissionPayments: Record<string, unknown>[] = [];
     

@@ -79,13 +79,17 @@ export async function GET(request: NextRequest) {
       ];
 
       // Fetch list of tax templates using client
-      const templateNames = await client.getList(docType, { 
+      interface TemplateSummary {
+        name: string;
+        [key: string]: unknown;
+      }
+      const templateNames = await client.getList<TemplateSummary>(docType, { 
         filters,
         fields: ['name']
-      }) as any[];
+      });
 
       console.log(`[Tax Templates] Found ${templateNames.length} templates from getList`);
-      console.log(`[Tax Templates] Template names:`, templateNames.map((t: any) => t.name));
+      console.log(`[Tax Templates] Template names:`, templateNames.map((t: TemplateSummary) => t.name));
 
       // Fetch full details for each template to get child table data
       const fetchedTemplates = [];
@@ -94,7 +98,22 @@ export async function GET(request: NextRequest) {
         try {
           console.log(`[Tax Templates] Fetching detail for: ${templateName.name}`);
           
-          const template = await client.get(docType, templateName.name) as any;
+          interface TaxItem {
+            charge_type: string;
+            account_head: string;
+            description?: string;
+            rate?: number;
+            [key: string]: unknown;
+          }
+          interface TaxTemplate {
+            name: string;
+            title?: string;
+            company: string;
+            is_default?: number;
+            taxes?: TaxItem[];
+            [key: string]: unknown;
+          }
+          const template = await client.get<TaxTemplate>(docType, templateName.name);
           
           console.log(`[Tax Templates] Fetched ${templateName.name} - Company: ${template.company}, Taxes: ${(template.taxes || []).length}`);
           
@@ -110,7 +129,7 @@ export async function GET(request: NextRequest) {
             title: template.title,
             company: template.company,
             is_default: template.is_default || 0,
-            taxes: (template.taxes || []).map((tax: any) => ({
+            taxes: (template.taxes || []).map((tax: TaxItem) => ({
               charge_type: tax.charge_type,
               account_head: tax.account_head,
               description: tax.description || tax.charge_type,

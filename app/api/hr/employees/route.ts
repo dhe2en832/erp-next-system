@@ -17,13 +17,8 @@ export async function GET(request: NextRequest) {
     const limitPageLength = searchParams.get('limit_page_length') || '20';
     const limitStart = searchParams.get('limit_start') || '0';
 
-    // Check site-specific cookie first, fallback to generic sid
-    const siteSpecificCookie = siteId ? `sid_${siteId.replace(/\./g, '-')}` : null;
-    const sid = (siteSpecificCookie && request.cookies.get(siteSpecificCookie)?.value) || request.cookies.get('sid')?.value;
-    
     // Build filters array
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const filters: any[] = [];
+    const filters: (string | number | boolean | null | string[])[][] = [];
     
     if (status) {
       filters.push(["status", "=", status]);
@@ -46,8 +41,23 @@ export async function GET(request: NextRequest) {
     // Get site-aware client
     const client = await getERPNextClientForRequest(request);
     
+    interface EmployeeSummary {
+      name: string;
+      employee_name?: string;
+      first_name?: string;
+      company?: string;
+      department?: string;
+      designation?: string;
+      gender?: string;
+      status?: string;
+      cell_number?: string;
+      personal_email?: string;
+      date_of_birth?: string;
+      date_of_joining?: string;
+      [key: string]: unknown;
+    }
     // Use client method instead of direct fetch
-    const data = await client.getList('Employee', {
+    const data = await client.getList<EmployeeSummary>('Employee', {
       fields: fields,
       filters: filters,
       limit_page_length: parseInt(limitPageLength),
@@ -55,7 +65,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Transform employee data
-    const employeesList = (data || []).map((emp: any) => ({
+    const employeesList = (data || []).map((emp: EmployeeSummary) => ({
       name: emp.name,
       employee_name: emp.employee_name || emp.name,
       first_name: emp.first_name || emp.employee_name || emp.name,
@@ -115,18 +125,18 @@ export async function PUT(request: NextRequest) {
     // Extract detailed error message
     let errorMessage = 'Failed to update employee';
     if (error && typeof error === 'object') {
-      const errorObj = error as any;
+      const errorObj = error as Record<string, unknown>;
       if (errorObj._server_messages) {
         try {
-          const parsed = JSON.parse(JSON.parse(errorObj._server_messages)[0]);
+          const parsed = JSON.parse(JSON.parse(errorObj._server_messages as string)[0]);
           errorMessage = parsed.message || errorMessage;
         } catch {
           // Ignore parse errors
         }
       } else if (errorObj.message) {
-        errorMessage = errorObj.message;
+        errorMessage = errorObj.message as string;
       } else if (errorObj.exc) {
-        errorMessage = errorObj.exc;
+        errorMessage = errorObj.exc as string;
       }
     }
     
@@ -149,7 +159,7 @@ export async function POST(request: NextRequest) {
     // Simply insert the employee - let ERPNext handle naming series
     // If naming series counter is out of sync, this will fail with duplicate entry error
     // User must fix the naming series counter on the server using fix_employee_naming_series.py
-    const newEmployee = await client.insert('Employee', body) as any;
+    const newEmployee = await client.insert<Record<string, unknown>>('Employee', body);
 
     return NextResponse.json({ success: true, data: newEmployee });
   } catch (error) {
@@ -158,12 +168,12 @@ export async function POST(request: NextRequest) {
     // Extract detailed error message
     let errorMessage = 'Failed to create employee';
     if (error && typeof error === 'object') {
-      const errorObj = error as any;
+      const errorObj = error as Record<string, unknown>;
 
       if (errorObj.message) {
-        errorMessage = errorObj.message;
+        errorMessage = errorObj.message as string;
       } else if (errorObj.exc) {
-        errorMessage = errorObj.exc;
+        errorMessage = errorObj.exc as string;
       }
       
       // Check if it's a duplicate entry error (naming series issue)

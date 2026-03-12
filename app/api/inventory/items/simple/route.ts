@@ -24,11 +24,10 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const limit = searchParams.get('limit_page_length') || '20';
     const start = searchParams.get('start') || '0';
-    const company = searchParams.get('company');
     const searchTerm = searchParams.get('search');
 
     // console.log('Testing Items with pagination...');
-    // console.log('Parameters:', { limit, start, company, searchTerm });
+    // console.log('Parameters:', { limit, start, searchTerm });
 
     // Get site-aware client
     const client = await getERPNextClientForRequest(request);

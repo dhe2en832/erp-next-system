@@ -20,14 +20,26 @@ export async function POST(request: NextRequest) {
         // Get site-aware client for user lookup
         const client = await getERPNextClientForRequest(request);
         
+        interface UserSummary {
+          name: string;
+          email?: string;
+          username?: string;
+          [key: string]: unknown;
+        }
+
+        interface UsersResult {
+          data?: UserSummary[];
+          [key: string]: unknown;
+        }
+
         // Look up email by username - use frappe.client.get_list to bypass permission check
-        const usersResult = await client.call('frappe.client.get_list', {
+        const usersResult = await client.call<UsersResult>('frappe.client.get_list', {
           doctype: 'User',
           fields: ['name', 'email', 'username'],
           filters: [['username', '=', usr]]
-        }) as any;
+        });
         
-        const users = usersResult?.data || usersResult || [];
+        const users = usersResult?.data || (Array.isArray(usersResult) ? usersResult : []);
 
         if (users && users.length > 0) {
           loginId = users[0].email || users[0].name;
@@ -108,8 +120,12 @@ export async function POST(request: NextRequest) {
     }
     
     try {
-      const userData = await client.get('User', actualUserId) as any;
-      roles = (userData.roles || []).map((r: any) => r.role);
+      interface UserDoc {
+        roles?: { role: string }[];
+        [key: string]: unknown;
+      }
+      const userData = await client.get<UserDoc>('User', actualUserId);
+      roles = (userData.roles || []).map((r: { role: string }) => r.role);
     } catch (err) {
       console.error('Failed to fetch roles during login', err);
     }

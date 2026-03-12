@@ -26,9 +26,9 @@ export async function GET(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Call ERPNext method for commission preview
-    const data = await client.call('preview_sales_invoice_commission', {
+    const data = await client.call<Record<string, unknown>>('preview_sales_invoice_commission', {
       delivery_note
-    }) as any;
+    });
 
     console.log('[Commission Preview] Response:', JSON.stringify(data, null, 2));
 

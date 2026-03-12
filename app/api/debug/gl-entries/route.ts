@@ -24,32 +24,71 @@ export async function GET(request: NextRequest) {
     }
 
     // Get period details
-    const period = await client.get('Accounting Period', period_name) as any;
+    interface AccountingPeriod {
+      name: string;
+      period_name: string;
+      start_date: string;
+      end_date: string;
+      closing_journal_entry?: string;
+      [key: string]: unknown;
+    }
+    const period = await client.get<AccountingPeriod>('Accounting Period', period_name);
 
+    interface GLEntrySummary {
+      account: string;
+      debit: number;
+      credit: number;
+      posting_date: string;
+      voucher_type: string;
+      voucher_no: string;
+      account_currency: string;
+      [key: string]: unknown;
+    }
     // Get ALL GL entries for the period (no filters)
-    const glEntries = await client.getList('GL Entry', {
+    const glEntries = await client.getList<GLEntrySummary>('GL Entry', {
       filters: [
         ['company', '=', company],
         ['posting_date', '>=', period.start_date],
         ['posting_date', '<=', period.end_date],
       ],
       fields: ['account', 'debit', 'credit', 'posting_date', 'voucher_type', 'voucher_no', 'account_currency'],
-      limit: 10000,
+      limit_page_length: 10000,
     });
 
+    interface AccountSummary {
+      name: string;
+      account_name: string;
+      root_type: string;
+      account_type: string;
+      [key: string]: unknown;
+    }
     // Get account details
-    const accounts = await client.getList('Account', {
+    const accounts = await client.getList<AccountSummary>('Account', {
       filters: [['company', '=', company]],
       fields: ['name', 'account_name', 'root_type', 'account_type'],
-      limit: 10000,
+      limit_page_length: 10000,
     });
 
-    const accountMap = new Map(accounts.map((acc: any) => [acc.name, acc]));
+    const accountMap = new Map(accounts.map((acc: AccountSummary) => [acc.name, acc]));
 
     // Aggregate by account
-    const accountBalances: Record<string, any> = {};
+    interface AccountBalance {
+      account: string;
+      account_name: string;
+      root_type: string;
+      debit: number;
+      credit: number;
+      entries: {
+        voucher_type: string;
+        voucher_no: string;
+        posting_date: string;
+        debit: number;
+        credit: number;
+      }[];
+    }
+    const accountBalances: Record<string, AccountBalance> = {};
     
-    glEntries.forEach((entry: any) => {
+    glEntries.forEach((entry: GLEntrySummary) => {
       const accountInfo = accountMap.get(entry.account);
       if (!accountBalances[entry.account]) {
         accountBalances[entry.account] = { 

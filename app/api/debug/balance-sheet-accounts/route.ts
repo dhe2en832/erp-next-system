@@ -17,20 +17,28 @@ export async function GET(request: NextRequest) {
 
     const client = await getERPNextClientForRequest(request);
 
+    interface AccountMaster {
+      name: string;
+      account_name: string;
+      account_type?: string;
+      root_type?: string;
+      is_group: number;
+      [key: string]: unknown;
+    }
     // Fetch Account master
-    const accountsData = await client.getList('Account', {
+    const accountsData = await client.getList<AccountMaster>('Account', {
       fields: ['name', 'account_name', 'account_type', 'root_type', 'is_group'],
       filters: [['company', '=', company], ['is_group', '=', 0]],
       limit_page_length: 2000
     });
 
-    const accountMasterMap = new Map();
-    (accountsData as any[]).forEach((acc: any) => {
+    const accountMasterMap = new Map<string, AccountMaster>();
+    accountsData.forEach((acc: AccountMaster) => {
       accountMasterMap.set(acc.name, acc);
     });
 
     // Fetch GL Entries
-    const glFilters: any[] = [
+    const glFilters: (string | number | boolean | null | string[])[][] = [
       ['company', '=', company],
       ['is_cancelled', '=', 0],
       ['voucher_type', '!=', 'Closing Entry'],
@@ -38,7 +46,14 @@ export async function GET(request: NextRequest) {
       ['posting_date', '<=', toDate]
     ];
 
-    const glData = await client.getList('GL Entry', {
+    interface GLEntrySummary {
+      account: string;
+      debit: number;
+      credit: number;
+      voucher_no: string;
+      [key: string]: unknown;
+    }
+    const glData = await client.getList<GLEntrySummary>('GL Entry', {
       fields: ['account', 'debit', 'credit', 'voucher_no'],
       filters: glFilters,
       limit_page_length: 5000
@@ -46,21 +61,26 @@ export async function GET(request: NextRequest) {
 
     // Filter out closing entries
     const closingVouchers = new Set<string>();
-    (glData as any[]).forEach((entry: any) => {
+    glData.forEach((entry: GLEntrySummary) => {
       if (entry.account && entry.account.includes('Laba Periode Berjalan')) {
         closingVouchers.add(entry.voucher_no);
       }
     });
     
-    const filteredGlData = glData.filter((entry: any) => !closingVouchers.has(entry.voucher_no));
+    const filteredGlData = glData.filter((entry: GLEntrySummary) => !closingVouchers.has(entry.voucher_no));
 
     // Aggregate by account
-    const accountMap = new Map();
-    (filteredGlData as any[]).forEach((entry: any) => {
+    interface AccountAggregated {
+      account: string;
+      debit: number;
+      credit: number;
+    }
+    const accountMap = new Map<string, AccountAggregated>();
+    filteredGlData.forEach((entry: GLEntrySummary) => {
       if (!accountMap.has(entry.account)) {
         accountMap.set(entry.account, { account: entry.account, debit: 0, credit: 0 });
       }
-      const row = accountMap.get(entry.account);
+      const row = accountMap.get(entry.account)!;
       row.debit += entry.debit || 0;
       row.credit += entry.credit || 0;
     });
@@ -68,7 +88,7 @@ export async function GET(request: NextRequest) {
     // Process Balance Sheet accounts
     const BALANCE_SHEET_ROOT_TYPES = ['Asset', 'Liability', 'Equity'];
     const allAccounts = Array.from(accountMap.values())
-      .map((row: any) => {
+      .map((row: AccountAggregated) => {
         const master = accountMasterMap.get(row.account);
         const rootType = master?.root_type || '';
         const accountType = master?.account_type || '';
@@ -98,17 +118,17 @@ export async function GET(request: NextRequest) {
                   balance === 0 ? 'Zero balance' : 'Included'
         };
       })
-      .filter((a: any) => a.root_type === 'Asset'); // Only show Asset accounts for debugging
+      .filter((a) => a.root_type === 'Asset'); // Only show Asset accounts for debugging
 
     const totalAsset = allAccounts
-      .filter((a: any) => !a.is_excluded)
-      .reduce((sum: number, a: any) => sum + a.balance, 0);
+      .filter((a) => !a.is_excluded)
+      .reduce((sum: number, a) => sum + a.balance, 0);
 
     return NextResponse.json({
       success: true,
       data: {
         total_asset: totalAsset,
-        accounts: allAccounts.sort((a: any, b: any) => b.balance - a.balance)
+        accounts: allAccounts.sort((a, b) => b.balance - a.balance)
       }
     });
   } catch (error: unknown) {

@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Build filters array
-    const filters: any[][] = [
+    const filters: (string | number | boolean | null | string[])[][] = [
       ['company', '=', company],
       ['status', '=', 'Open'] // Only open projects
     ];
@@ -35,8 +35,18 @@ export async function GET(request: NextRequest) {
       filters.push(['project_name', 'like', `%${search}%`]);
     }
 
+    interface ProjectSummary {
+      name: string;
+      project_name: string;
+      company: string;
+      status: string;
+      expected_start_date?: string;
+      expected_end_date?: string;
+      [key: string]: unknown;
+    }
+
     // Get projects from ERPNext
-    const projects = await client.getList('Project', {
+    const projects = await client.getList<ProjectSummary>('Project', {
       fields: ['name', 'project_name', 'company', 'status', 'expected_start_date', 'expected_end_date'],
       filters,
       order_by: 'project_name asc',
@@ -44,7 +54,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Format projects for dropdown
-    const formattedProjects = projects.map((project: any) => ({
+    const formattedProjects = projects.map((project: ProjectSummary) => ({
       name: project.name,
       project_name: project.project_name,
       company: project.company,

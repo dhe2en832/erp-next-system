@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Build filters
-    const filters: any[] = [
+    const filters: (string | number | boolean | null | string[])[][] = [
       ['account', '=', account],
       ['company', '=', company],
       ['is_cancelled', '=', 0]
@@ -50,8 +50,27 @@ export async function GET(request: NextRequest) {
       filters.push(['posting_date', '<=', toDate]);
     }
 
+    interface GLEntrySummary {
+      name: string;
+      posting_date: string;
+      account: string;
+      party_type?: string;
+      party?: string;
+      debit: number;
+      credit: number;
+      against?: string;
+      against_voucher_type?: string;
+      against_voucher?: string;
+      voucher_type?: string;
+      voucher_no?: string;
+      remarks?: string;
+      is_cancelled: number;
+      creation: string;
+      modified: string;
+      [key: string]: unknown;
+    }
     // Fetch GL Entries with detailed information
-    const glEntries = await client.getList('GL Entry', {
+    const glEntries = await client.getList<GLEntrySummary>('GL Entry', {
       fields: [
         'name',
         'posting_date',
@@ -77,7 +96,7 @@ export async function GET(request: NextRequest) {
 
     // Calculate running balance
     let runningBalance = 0;
-    const entriesWithBalance = glEntries.map((entry: any) => {
+    const entriesWithBalance = glEntries.map((entry: GLEntrySummary) => {
       const debit = entry.debit || 0;
       const credit = entry.credit || 0;
       const amount = debit - credit;
@@ -91,8 +110,8 @@ export async function GET(request: NextRequest) {
     });
 
     // Calculate totals
-    const totalDebit = glEntries.reduce((sum: number, e: any) => sum + (e.debit || 0), 0);
-    const totalCredit = glEntries.reduce((sum: number, e: any) => sum + (e.credit || 0), 0);
+    const totalDebit = glEntries.reduce((sum: number, e: GLEntrySummary) => sum + (e.debit || 0), 0);
+    const totalCredit = glEntries.reduce((sum: number, e: GLEntrySummary) => sum + (e.credit || 0), 0);
     const netBalance = totalDebit - totalCredit;
 
     return NextResponse.json({

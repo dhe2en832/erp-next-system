@@ -31,7 +31,15 @@ export async function GET(
     const client = await getERPNextClientForRequest(request);
 
     // Use client method instead of fetch
-    const entryData = await client.get('Stock Entry', entryName) as any;
+    interface StockEntry {
+      name: string;
+      stock_entry_type: string;
+      company: string;
+      posting_date: string;
+      items: Record<string, unknown>[];
+      [key: string]: unknown;
+    }
+    const entryData = await client.get<StockEntry>('Stock Entry', entryName);
     
     // console.log('Get Stock Entry Response:', {
     //   entryName,

@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Fetch UOMs from ERPNext
-    const uoms = await client.getList('UOM', {
+    const uoms = await client.getList<{ name: string }>('UOM', {
       fields: ['name']
     });
     
@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: uoms?.map((uom: any) => ({ name: uom.name })) || []
+      data: uoms?.map((uom: { name: string }) => ({ name: uom.name })) || []
     });
   } catch (error: unknown) {
     logSiteError(error, 'GET /api/inventory/dropdowns/uoms', siteId);

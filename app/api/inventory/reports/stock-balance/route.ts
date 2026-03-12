@@ -22,11 +22,19 @@ export async function GET(request: NextRequest) {
 
     // Fetch Bin (stock balance per warehouse per item)
     const fields = ['item_code', 'warehouse', 'actual_qty', 'stock_value', 'stock_uom'];
-    const filters = [
-      ['actual_qty', '>', '0'],
+    const filters: (string | number | boolean | null | string[])[][] = [
+      ['actual_qty', '>', 0],
     ];
 
-    const bins = await client.getList('Bin', {
+    interface BinSummary {
+      item_code: string;
+      warehouse: string;
+      actual_qty: number;
+      stock_value: number;
+      stock_uom: string;
+      [key: string]: unknown;
+    }
+    const bins = await client.getList<BinSummary>('Bin', {
       fields,
       filters,
       order_by: 'item_code',
@@ -34,19 +42,23 @@ export async function GET(request: NextRequest) {
     });
 
     // Try to enrich with item names
-    const itemCodes = [...new Set((bins || []).map((b: any) => b.item_code))];
+    const itemCodes = [...new Set((bins || []).map((b: BinSummary) => b.item_code))];
 
     const itemNames: Record<string, string> = {};
     if (itemCodes.length > 0 && itemCodes.length <= 100) {
       try {
-        const itemFilters = [['name', 'in', itemCodes]];
-        const items = await client.getList('Item', {
+        const itemFilters: (string | number | boolean | null | string[])[][] = [['name', 'in', itemCodes]];
+        interface ItemSummary {
+          name: string;
+          item_name: string;
+        }
+        const items = await client.getList<ItemSummary>('Item', {
           fields: ['name', 'item_name'],
           filters: itemFilters,
           limit_page_length: 1000
         });
         
-        (items || []).forEach((item: any) => {
+        (items || []).forEach((item: ItemSummary) => {
           itemNames[item.name] = item.item_name;
         });
       } catch {
@@ -54,7 +66,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const enrichedData = (bins || []).map((bin: any) => ({
+    const enrichedData = (bins || []).map((bin: BinSummary) => ({
       ...bin,
       item_name: itemNames[bin.item_code] || '',
     }));

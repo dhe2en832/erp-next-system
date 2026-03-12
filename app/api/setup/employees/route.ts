@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search');
 
     const fields = ['name', 'employee_name', 'designation', 'department', 'status'];
-    const filters: any[][] = [['status', '=', 'Active']];
+    const filters: (string | number | boolean | null | string[])[][] = [['status', '=', 'Active']];
 
     if (salesPerson) {
       // Try to find employee by matching employee_name with sales_person name

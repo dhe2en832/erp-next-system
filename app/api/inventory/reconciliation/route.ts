@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
 
     // Handle detail request
     if (name) {
-      const data = await client.get('Stock Reconciliation', name) as any;
+      const data = await client.get<Record<string, unknown>>('Stock Reconciliation', name);
       return NextResponse.json({ success: true, data });
     }
 
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Build filters
-    const filters: any[][] = [['company', '=', company]];
+    const filters: (string | number | boolean | null | string[])[][] = [['company', '=', company]];
     if (search) filters.push(['name', 'like', `%${search}%`]);
     if (warehouse) filters.push(['warehouse', '=', warehouse]);
     if (status) {
@@ -51,7 +51,17 @@ export async function GET(request: NextRequest) {
     const limitStart = searchParams.get('limit_start') || '0';
     const orderBy = searchParams.get('order_by') || 'creation desc, posting_date desc, posting_time desc';
 
-    const data = await client.getList('Stock Reconciliation', {
+    interface ReconciliationSummary {
+      name: string;
+      posting_date: string;
+      posting_time: string;
+      company: string;
+      warehouse: string;
+      purpose: string;
+      docstatus: number;
+      [key: string]: unknown;
+    }
+    const data = await client.getList<ReconciliationSummary>('Stock Reconciliation', {
       fields: ['name', 'posting_date', 'posting_time', 'company', 'warehouse', 'purpose', 'docstatus'],
       filters,
       order_by: orderBy,
@@ -95,6 +105,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    interface ReconciliationItem {
+      item_code: string;
+      warehouse: string;
+      qty: number;
+      valuation_rate: number;
+      [key: string]: unknown;
+    }
+
     const reconciliationData = {
       doctype: 'Stock Reconciliation',
       posting_date,
@@ -102,7 +120,7 @@ export async function POST(request: NextRequest) {
       company,
       warehouse,
       purpose: purpose || 'Stock Reconciliation',
-      items: items.map((item: any) => ({
+      items: items.map((item: ReconciliationItem) => ({
         item_code: item.item_code,
         warehouse,
         qty: item.qty || 0,
@@ -110,7 +128,7 @@ export async function POST(request: NextRequest) {
       })),
     };
 
-    const data = await client.insert('Stock Reconciliation', reconciliationData) as any;
+    const data = await client.insert<Record<string, unknown>>('Stock Reconciliation', reconciliationData);
 
     return NextResponse.json({ success: true, data });
   } catch (error: unknown) {
@@ -143,12 +161,25 @@ export async function PUT(request: NextRequest) {
     }
 
     // Check if document is already submitted
-    const existing = await client.get('Stock Reconciliation', name) as any;
+    interface StockReconciliation {
+      name: string;
+      docstatus: number;
+      [key: string]: unknown;
+    }
+    const existing = await client.get<StockReconciliation>('Stock Reconciliation', name);
     if (existing.docstatus === 1) {
       return NextResponse.json(
         { success: false, message: 'Cannot update submitted document' },
         { status: 400 }
       );
+    }
+
+    interface ReconciliationItem {
+      item_code: string;
+      warehouse: string;
+      qty: number;
+      valuation_rate: number;
+      [key: string]: unknown;
     }
 
     const reconciliationData = {
@@ -157,7 +188,7 @@ export async function PUT(request: NextRequest) {
       company,
       warehouse,
       purpose: purpose || 'Stock Reconciliation',
-      items: items.map((item: any) => ({
+      items: items.map((item: ReconciliationItem) => ({
         item_code: item.item_code,
         warehouse,
         qty: item.qty || 0,
@@ -191,7 +222,12 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Check if document is submitted
-    const existing = await client.get('Stock Reconciliation', name) as any;
+    interface StockReconciliation {
+      name: string;
+      docstatus: number;
+      [key: string]: unknown;
+    }
+    const existing = await client.get<StockReconciliation>('Stock Reconciliation', name);
     if (existing.docstatus === 1) {
       return NextResponse.json(
         { success: false, message: 'Cannot delete submitted document. Cancel it first.' },

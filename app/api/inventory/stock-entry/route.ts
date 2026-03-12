@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Parse filters array (similar to payment API)
-    let filtersArray: any[] = [];
+    let filtersArray: (string | number | boolean | null | string[])[][] = [];
     
     if (filters) {
       try {
@@ -131,7 +131,16 @@ export async function POST(request: NextRequest) {
     }
 
     // Calculate total quantities
-    const total_qty = items.reduce((total: number, item: any) => {
+    interface StockEntryItem {
+      item_code: string;
+      qty: number;
+      transfer_qty?: number;
+      serial_no?: string;
+      batch_no?: string;
+      [key: string]: unknown;
+    }
+
+    const total_qty = items.reduce((total: number, item: StockEntryItem) => {
       return total + (item.transfer_qty || item.qty || 0);
     }, 0);
 
@@ -145,7 +154,7 @@ export async function POST(request: NextRequest) {
       ...(to_warehouse && { to_warehouse }),
       total_qty,
       stock_entry_type: purpose, // Map purpose to stock_entry_type
-      items: items.map((item: any) => ({
+      items: items.map((item: StockEntryItem) => ({
         item_code: item.item_code,
         qty: item.qty,
         transfer_qty: item.qty, // Use qty since transfer_qty removed
@@ -155,7 +164,7 @@ export async function POST(request: NextRequest) {
     };
 
     // Use client method instead of fetch
-    const data = await client.insert('Stock Entry', entryData) as any;
+    const data = await client.insert<Record<string, unknown>>('Stock Entry', entryData);
 
     return NextResponse.json({
       success: true,

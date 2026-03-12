@@ -14,16 +14,10 @@ export async function GET(request: NextRequest) {
     
     // ✅ BACKWARD COMPATIBLE: Support both old & new param names
     const filters = searchParams.get('filters');
-    const company = searchParams.get('company');
     const limit = searchParams.get('limit_page_length') || searchParams.get('limit') || '20';
     const start = searchParams.get('start') || '0';
-    const orderBy = searchParams.get('order_by') || 'modified desc';
+const orderBy = searchParams.get('order_by') || 'modified desc';
     const fieldsParam = searchParams.get('fields');
-
-    const cookies = request.cookies;
-    // Check site-specific cookie first, fallback to generic sid
-    const siteSpecificCookie = siteId ? `sid_${siteId.replace(/\./g, '-')}` : null;
-    const sid = (siteSpecificCookie && cookies.get(siteSpecificCookie)?.value) || cookies.get('sid')?.value;
 
     // ✅ Dynamic fields with fallback to default
     const defaultFields = [
@@ -53,9 +47,9 @@ export async function GET(request: NextRequest) {
     }
 
     // ✅ STEP 2: Get actual data with fields
-    const queryFilters = filters ? JSON.parse(filters) : [];
+    const queryFilters: (string | number | boolean | null | string[])[][] = filters ? JSON.parse(filters) : [];
     
-    const items = await client.getList('Item', {
+    const items = await client.getList<Record<string, unknown>>('Item', {
       fields,
       filters: queryFilters,
       limit_page_length: parseInt(limit),
@@ -142,7 +136,7 @@ export async function POST(request: NextRequest) {
     createData.item_code = item_code || generateItemCode();
     
     // Remove system-managed fields for create
-    const validCreateData: any = {};
+    const validCreateData: Record<string, unknown> = {};
     const allowedFields = [
       'item_code', 'item_name', 'description', 'item_group', 'stock_uom', 
       'opening_stock', 'brand', 'standard_rate', 'last_purchase_rate', 'valuation_method',
@@ -150,8 +144,8 @@ export async function POST(request: NextRequest) {
     ];
     
     Object.keys(createData).forEach(key => {
-      if (allowedFields.includes(key) && createData[key] !== undefined) {
-        validCreateData[key] = createData[key];
+      if (allowedFields.includes(key) && (createData as Record<string, unknown>)[key] !== undefined) {
+        validCreateData[key] = (createData as Record<string, unknown>)[key];
       }
     });
 
@@ -167,7 +161,12 @@ export async function POST(request: NextRequest) {
     // Get site-aware client
     const client = await getERPNextClientForRequest(request);
 
-    const result = await client.insert('Item', validCreateData) as any;
+    interface ItemInsertResult {
+      item_code?: string;
+      name?: string;
+      [key: string]: unknown;
+    }
+    const result = await client.insert<ItemInsertResult>('Item', validCreateData);
     
     // console.log('Create Item Response:', {
     //   createData: validCreateData,
@@ -180,17 +179,17 @@ export async function POST(request: NextRequest) {
     if (newItemCode) {
       const priceUpdates = [];
       
-      if (createData.last_purchase_rate !== undefined) {
+      if ((createData as Record<string, unknown>).last_purchase_rate !== undefined) {
         priceUpdates.push({
           price_list: 'Standar Pembelian',
-          price_list_rate: createData.last_purchase_rate
+          price_list_rate: (createData as Record<string, unknown>).last_purchase_rate
         });
       }
       
-      if (createData.standard_rate !== undefined) {
+      if ((createData as Record<string, unknown>).standard_rate !== undefined) {
         priceUpdates.push({
           price_list: 'Standard Jual', 
-          price_list_rate: createData.standard_rate
+          price_list_rate: (createData as Record<string, unknown>).standard_rate
         });
       }
 
@@ -199,7 +198,7 @@ export async function POST(request: NextRequest) {
         try {
           // console.log('Creating Item Price for new item:', priceUpdate);
           
-          const pricePayload: any = {
+          const pricePayload: Record<string, unknown> = {
             item_code: newItemCode,
             price_list: priceUpdate.price_list,
             price_list_rate: priceUpdate.price_list_rate
@@ -210,10 +209,10 @@ export async function POST(request: NextRequest) {
             pricePayload.custom_company = company;
           }
           
-          await client.insert('Item Price', pricePayload);
+          await client.insert<Record<string, unknown>>('Item Price', pricePayload);
           
           // console.log(`Created ${priceUpdate.price_list} price at ${priceUpdate.price_list_rate} for company ${company || 'default'}`);
-        } catch (error) {
+        } catch {
           // console.log(`Error creating ${priceUpdate.price_list} price:`, error);
         }
       }
@@ -267,7 +266,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Filter only valid updateable fields (exclude system-managed price fields)
-    const validUpdateData: any = {};
+    const validUpdateData: Record<string, unknown> = {};
     const allowedFields = [
       'item_name', 'description', 'item_group', 'stock_uom', 
       'opening_stock', 'brand', 'custom_financial_cost_percent'
@@ -275,8 +274,8 @@ export async function PUT(request: NextRequest) {
     ];
     
     Object.keys(updateData).forEach(key => {
-      if (allowedFields.includes(key) && updateData[key] !== undefined) {
-        validUpdateData[key] = updateData[key];
+      if (allowedFields.includes(key) && (updateData as Record<string, unknown>)[key] !== undefined) {
+        validUpdateData[key] = (updateData as Record<string, unknown>)[key];
       }
     });
 
@@ -291,7 +290,7 @@ export async function PUT(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Update master item
-    const result = await client.update('Item', item_code, validUpdateData);
+    const result = await client.update<Record<string, unknown>>('Item', item_code, validUpdateData);
     
     // console.log('Update Item Response:', {
     //   item_code,
@@ -302,17 +301,17 @@ export async function PUT(request: NextRequest) {
     // Update Item Price records if price fields changed
     const priceUpdates = [];
     
-    if (updateData.last_purchase_rate !== undefined) {
+    if ((updateData as Record<string, unknown>).last_purchase_rate !== undefined) {
       priceUpdates.push({
         price_list: 'Standar Pembelian',
-        price_list_rate: updateData.last_purchase_rate
+        price_list_rate: (updateData as Record<string, unknown>).last_purchase_rate
       });
     }
     
-    if (updateData.standard_rate !== undefined) {
+    if ((updateData as Record<string, unknown>).standard_rate !== undefined) {
       priceUpdates.push({
         price_list: 'Standard Jual', 
-        price_list_rate: updateData.standard_rate
+        price_list_rate: (updateData as Record<string, unknown>).standard_rate
       });
     }
 
@@ -322,7 +321,7 @@ export async function PUT(request: NextRequest) {
         // console.log('Updating Item Price:', priceUpdate);
         
         // Build filters for checking existing Item Price
-        const filters: any[] = [
+        const filters: (string | number | boolean | null | string[])[][] = [
           ["item_code", "=", item_code],
           ["price_list", "=", priceUpdate.price_list]
         ];
@@ -332,16 +331,19 @@ export async function PUT(request: NextRequest) {
           filters.push(["custom_company", "=", company]);
         }
         
+        interface ItemPriceSummary {
+          name: string;
+        }
         // Check if Item Price exists
-        const existingPrices = await client.getList('Item Price', {
+        const existingPrices = await client.getList<ItemPriceSummary>('Item Price', {
           filters,
           fields: ['name']
         });
 
         if (existingPrices && existingPrices.length > 0) {
           // Update existing Item Price
-          const existingPrice = existingPrices[0] as any;
-          const updatePricePayload: any = {
+          const existingPrice = existingPrices[0];
+          const updatePricePayload: Record<string, unknown> = {
             price_list_rate: priceUpdate.price_list_rate
           };
           
@@ -350,12 +352,12 @@ export async function PUT(request: NextRequest) {
             updatePricePayload.custom_company = company;
           }
           
-          await client.update('Item Price', existingPrice.name, updatePricePayload);
+          await client.update<Record<string, unknown>>('Item Price', existingPrice.name, updatePricePayload);
           
           // console.log(`Updated ${priceUpdate.price_list} price to ${priceUpdate.price_list_rate} for company ${company || 'default'}`);
         } else {
           // Create new Item Price
-          const createPricePayload: any = {
+          const createPricePayload: Record<string, unknown> = {
             item_code: item_code,
             price_list: priceUpdate.price_list,
             price_list_rate: priceUpdate.price_list_rate
@@ -366,11 +368,11 @@ export async function PUT(request: NextRequest) {
             createPricePayload.custom_company = company;
           }
           
-          await client.insert('Item Price', createPricePayload);
+          await client.insert<Record<string, unknown>>('Item Price', createPricePayload);
           
           // console.log(`Created ${priceUpdate.price_list} price at ${priceUpdate.price_list_rate} for company ${company || 'default'}`);
         }
-      } catch (error) {
+      } catch {
         // console.log(`Error updating ${priceUpdate.price_list} price:`, error);
       }
     }

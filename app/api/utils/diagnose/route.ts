@@ -15,12 +15,35 @@ export async function GET(request: NextRequest) {
     // Get site-aware client
     const client = await getERPNextClientForRequest(request);
     
-    const diagnostics: Record<string, any> = {};
+    interface DiagnosticResult {
+      status: string;
+      name?: string;
+      module?: string;
+      custom?: number;
+      engine?: string;
+      error?: string;
+      email?: string;
+      enabled?: number;
+      roles?: { role: string }[];
+      count?: number;
+      sample_items?: { name: string; item_name?: string; item_group?: string }[];
+      sample_warehouses?: { name: string; warehouse_name?: string }[];
+      response_status?: number;
+      response_data?: Record<string, unknown>;
+    }
+    const diagnostics: Record<string, DiagnosticResult> = {};
     
     // 1. Check Delivery Note doctype
     // console.log('1. Checking Delivery Note doctype...');
     try {
-      const dnDoctype = await client.get('DocType', 'Delivery Note') as any;
+      interface DocTypeSummary {
+        name: string;
+        module?: string;
+        custom?: number;
+        engine?: string;
+        [key: string]: unknown;
+      }
+      const dnDoctype = await client.get<DocTypeSummary>('DocType', 'Delivery Note');
       diagnostics.delivery_note_doctype = {
         status: 'found',
         name: dnDoctype.name,
@@ -38,7 +61,14 @@ export async function GET(request: NextRequest) {
     // 2. Check Delivery Note Item doctype
     // console.log('2. Checking Delivery Note Item doctype...');
     try {
-      const dnItemDoctype = await client.get('DocType', 'Delivery Note Item') as any;
+      interface DocTypeSummary {
+        name: string;
+        module?: string;
+        custom?: number;
+        engine?: string;
+        [key: string]: unknown;
+      }
+      const dnItemDoctype = await client.get<DocTypeSummary>('DocType', 'Delivery Note Item');
       diagnostics.delivery_note_item_doctype = {
         status: 'found',
         name: dnItemDoctype.name,
@@ -57,10 +87,16 @@ export async function GET(request: NextRequest) {
     // console.log('3. Checking user permissions...');
     try {
       // Get site config to access API key for user lookup
-      const siteConfig = (client as any).getSiteConfig?.() || { apiKey: process.env.ERP_API_KEY };
-      const userEmail = siteConfig.apiKey || process.env.ERP_API_KEY;
+      const siteConfig = (client as { getSiteConfig?: () => { apiKey: string } }).getSiteConfig?.() || { apiKey: process.env.ERP_API_KEY || '' };
+      const userEmail = siteConfig.apiKey || process.env.ERP_API_KEY || '';
       
-      const userData = await client.get('User', userEmail) as any;
+      interface UserDoc {
+        email?: string;
+        enabled?: number;
+        roles?: { role: string }[];
+        [key: string]: unknown;
+      }
+      const userData = await client.get<UserDoc>('User', userEmail);
       diagnostics.user_permissions = {
         status: 'found',
         email: userData.email,
@@ -77,14 +113,20 @@ export async function GET(request: NextRequest) {
     // 4. Check available items
     // console.log('4. Checking available items...');
     try {
-      const itemsData = await client.getList('Item', {
+      interface ItemSummary {
+        name: string;
+        item_name?: string;
+        item_group?: string;
+        [key: string]: unknown;
+      }
+      const itemsData = await client.getList<ItemSummary>('Item', {
         fields: ['name', 'item_name', 'item_group'],
         limit_page_length: 5
       });
       diagnostics.available_items = {
         status: 'found',
         count: itemsData.length || 0,
-        sample_items: itemsData.slice(0, 3).map((item: any) => ({
+        sample_items: itemsData.slice(0, 3).map((item: ItemSummary) => ({
           name: item.name,
           item_name: item.item_name,
           item_group: item.item_group
@@ -100,14 +142,19 @@ export async function GET(request: NextRequest) {
     // 5. Check warehouses
     // console.log('5. Checking warehouses...');
     try {
-      const warehouseData = await client.getList('Warehouse', {
+      interface WarehouseSummary {
+        name: string;
+        warehouse_name?: string;
+        [key: string]: unknown;
+      }
+      const warehouseData = await client.getList<WarehouseSummary>('Warehouse', {
         fields: ['name', 'warehouse_name'],
         limit_page_length: 5
       });
       diagnostics.warehouses = {
         status: 'found',
         count: warehouseData.length || 0,
-        sample_warehouses: warehouseData.slice(0, 3).map((wh: any) => ({
+        sample_warehouses: warehouseData.slice(0, 3).map((wh: WarehouseSummary) => ({
           name: wh.name,
           warehouse_name: wh.warehouse_name
         }))
@@ -134,7 +181,7 @@ export async function GET(request: NextRequest) {
         warehouse: "Stores - E1D"
       };
       
-      const testItemData = await client.insert('Delivery Note Item', testItemPayload) as any;
+      const testItemData = await client.insert<Record<string, unknown>>('Delivery Note Item', testItemPayload);
       
       diagnostics.direct_item_creation_test = {
         status: 'success',

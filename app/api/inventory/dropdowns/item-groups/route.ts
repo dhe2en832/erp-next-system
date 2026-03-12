@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Fetch item groups from ERPNext
-    const itemGroups = await client.getList('Item Group', {
+    const itemGroups = await client.getList<{ name: string }>('Item Group', {
       fields: ['name']
     });
     
@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: itemGroups?.map((group: any) => ({ name: group.name })) || []
+      data: itemGroups?.map((group: { name: string }) => ({ name: group.name })) || []
     });
   } catch (error: unknown) {
     logSiteError(error, 'GET /api/inventory/dropdowns/item-groups', siteId);

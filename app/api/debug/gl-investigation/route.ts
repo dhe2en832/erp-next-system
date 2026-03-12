@@ -19,10 +19,23 @@ export async function GET(request: NextRequest) {
     }
 
     // Get period details
-    const period = await client.get('Accounting Period', period_name) as any;
+    interface AccountingPeriod {
+      name: string;
+      start_date: string;
+      end_date: string;
+      [key: string]: unknown;
+    }
+    const period = await client.get<AccountingPeriod>('Accounting Period', period_name);
 
+    interface SalesInvoiceSummary {
+      name: string;
+      total: number;
+      grand_total: number;
+      posting_date: string;
+      [key: string]: unknown;
+    }
     // 1. Check Sales Invoice
-    const salesInvoices = await client.getList('Sales Invoice', {
+    const salesInvoices = await client.getList<SalesInvoiceSummary>('Sales Invoice', {
       filters: [
         ['company', '=', company],
         ['docstatus', '=', 1],
@@ -30,11 +43,20 @@ export async function GET(request: NextRequest) {
         ['posting_date', '<=', period.end_date],
       ],
       fields: ['name', 'total', 'grand_total', 'posting_date'],
-      limit: 500,
+      limit_page_length: 500,
     });
 
+    interface GLEntrySummary {
+      account: string;
+      debit: number;
+      credit: number;
+      voucher_type: string;
+      voucher_no: string;
+      posting_date?: string;
+      [key: string]: unknown;
+    }
     // 2. Check GL Entry for Income Account (4xxx)
-    const incomeGLEntries = await client.getList('GL Entry', {
+    const incomeGLEntries = await client.getList<GLEntrySummary>('GL Entry', {
       filters: [
         ['company', '=', company],
         ['posting_date', '>=', period.start_date],
@@ -42,11 +64,11 @@ export async function GET(request: NextRequest) {
         ['account', 'like', '4%'], // Income accounts start with 4
       ],
       fields: ['account', 'debit', 'credit', 'voucher_type', 'voucher_no'],
-      limit: 500,
+      limit_page_length: 500,
     });
 
     // 3. Check GL Entry for Beban (5xxx)
-    const expenseGLEntries = await client.getList('GL Entry', {
+    const expenseGLEntries = await client.getList<GLEntrySummary>('GL Entry', {
       filters: [
         ['company', '=', company],
         ['posting_date', '>=', period.start_date],
@@ -54,11 +76,11 @@ export async function GET(request: NextRequest) {
         ['account', 'like', '5%'], // Expense accounts start with 5
       ],
       fields: ['account', 'debit', 'credit', 'voucher_type', 'voucher_no'],
-      limit: 500,
+      limit_page_length: 500,
     });
 
     // 4. Check GL Entry for Penyesuaian Stock (5110.020)
-    const adjustmentGLEntries = await client.getList('GL Entry', {
+    const adjustmentGLEntries = await client.getList<GLEntrySummary>('GL Entry', {
       filters: [
         ['company', '=', company],
         ['posting_date', '>=', period.start_date],
@@ -66,11 +88,11 @@ export async function GET(request: NextRequest) {
         ['account', '=', '5110.020 - Penyesuaian Stock - C'],
       ],
       fields: ['account', 'debit', 'credit', 'voucher_type', 'voucher_no', 'posting_date'],
-      limit: 500,
+      limit_page_length: 500,
     });
 
     // 5. Check GL Entry for Persediaan Barang (1141.000)
-    const inventoryGLEntries = await client.getList('GL Entry', {
+    const inventoryGLEntries = await client.getList<GLEntrySummary>('GL Entry', {
       filters: [
         ['company', '=', company],
         ['posting_date', '>=', period.start_date],
@@ -78,15 +100,15 @@ export async function GET(request: NextRequest) {
         ['account', '=', '1141.000 - Persediaan Barang - C'],
       ],
       fields: ['account', 'debit', 'credit', 'voucher_type', 'voucher_no', 'posting_date'],
-      limit: 500,
+      limit_page_length: 500,
     });
 
     // Calculate totals
-    const totalIncome = incomeGLEntries.reduce((sum: number, entry: any) => sum + (entry.credit || 0), 0);
-    const totalExpenseDebit = expenseGLEntries.reduce((sum: number, entry: any) => sum + (entry.debit || 0), 0);
-    const totalExpenseCredit = expenseGLEntries.reduce((sum: number, entry: any) => sum + (entry.credit || 0), 0);
-    const totalAdjustmentDebit = adjustmentGLEntries.reduce((sum: number, entry: any) => sum + (entry.debit || 0), 0);
-    const totalAdjustmentCredit = adjustmentGLEntries.reduce((sum: number, entry: any) => sum + (entry.credit || 0), 0);
+    const totalIncome = incomeGLEntries.reduce((sum: number, entry: GLEntrySummary) => sum + (entry.credit || 0), 0);
+    const totalExpenseDebit = expenseGLEntries.reduce((sum: number, entry: GLEntrySummary) => sum + (entry.debit || 0), 0);
+    const totalExpenseCredit = expenseGLEntries.reduce((sum: number, entry: GLEntrySummary) => sum + (entry.credit || 0), 0);
+    const totalAdjustmentDebit = adjustmentGLEntries.reduce((sum: number, entry: GLEntrySummary) => sum + (entry.debit || 0), 0);
+    const totalAdjustmentCredit = adjustmentGLEntries.reduce((sum: number, entry: GLEntrySummary) => sum + (entry.credit || 0), 0);
 
     return NextResponse.json({
       success: true,
@@ -98,7 +120,7 @@ export async function GET(request: NextRequest) {
         },
         sales_invoices: {
           count: salesInvoices.length,
-          total_amount: salesInvoices.reduce((sum: number, inv: any) => sum + (inv.grand_total || 0), 0),
+          total_amount: salesInvoices.reduce((sum: number, inv: SalesInvoiceSummary) => sum + (inv.grand_total || 0), 0),
           invoices: salesInvoices,
         },
         income_gl_entries: {

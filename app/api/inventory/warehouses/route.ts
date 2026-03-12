@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Build filters
-    const filters: any[] = [
+    const filters: (string | number | boolean | null | string[])[][] = [
       ["company", "=", company],
       ["disabled", "=", 0]  // Only show active warehouses
     ];
@@ -51,16 +51,25 @@ export async function GET(request: NextRequest) {
     // Build cache key: siteId-company-search
     const cacheKey = `${siteId}-${company}-${search || 'all'}`;
 
+    interface Warehouse {
+      name: string;
+      warehouse_name: string;
+      company: string;
+      is_group: number;
+      parent_warehouse?: string;
+      [key: string]: unknown;
+    }
+
     // Use cache to reduce API calls (skip cache if search is active)
     const warehouses = search 
-      ? await client.getList('Warehouse', {
+      ? await client.getList<Warehouse>('Warehouse', {
           fields: ['name', 'warehouse_name', 'company', 'is_group', 'parent_warehouse'],
           filters,
           order_by: 'warehouse_name',
           limit_page_length: 500
         })
       : await warehouseCache.get(cacheKey, async () => {
-          return await client.getList('Warehouse', {
+          return await client.getList<Warehouse>('Warehouse', {
             fields: ['name', 'warehouse_name', 'company', 'is_group', 'parent_warehouse'],
             filters,
             order_by: 'warehouse_name',
@@ -69,8 +78,14 @@ export async function GET(request: NextRequest) {
         });
 
     // Fetch stock quantity for each warehouse from Bin
+    interface Bin {
+      actual_qty: number;
+      stock_value: number;
+      [key: string]: unknown;
+    }
+
     const warehousesWithStock = await Promise.all(
-      (warehouses || []).map(async (wh: any) => {
+      ((warehouses || []) as Warehouse[]).map(async (wh: Warehouse) => {
         try {
           // Skip stock calculation for warehouse groups
           if (wh.is_group) {
@@ -83,14 +98,14 @@ export async function GET(request: NextRequest) {
           }
           
           // Get total stock quantity from Bin for this warehouse
-          const bins = await client.getList('Bin', {
+          const bins = await client.getList<Bin>('Bin', {
             fields: ['actual_qty', 'stock_value'],
             filters: [["warehouse", "=", wh.name]],
             limit_page_length: 1000
           });
           
-          const totalQty = bins.reduce((sum: number, bin: any) => sum + (bin.actual_qty || 0), 0);
-          const totalValue = bins.reduce((sum: number, bin: any) => sum + (bin.stock_value || 0), 0);
+          const totalQty = bins.reduce((sum: number, bin: Bin) => sum + (bin.actual_qty || 0), 0);
+          const totalValue = bins.reduce((sum: number, bin: Bin) => sum + (bin.stock_value || 0), 0);
           
           return {
             ...wh,
@@ -150,7 +165,16 @@ export async function POST(request: NextRequest) {
     // Get site-aware client
     const client = await getERPNextClientForRequest(request);
 
-    const warehouseData: any = {
+    interface WarehouseData {
+      doctype?: string;
+      warehouse_name: string;
+      company: string;
+      is_group?: number;
+      parent_warehouse?: string;
+      [key: string]: unknown;
+    }
+
+    const warehouseData: WarehouseData = {
       doctype: 'Warehouse',
       warehouse_name,
       company
@@ -166,7 +190,7 @@ export async function POST(request: NextRequest) {
 
     // console.log('Creating warehouse:', warehouseData);
 
-    const result = await client.insert('Warehouse', warehouseData) as any;
+    const result = await client.insert<Record<string, unknown>>('Warehouse', warehouseData);
     
     // Invalidate cache after create
     warehouseCache.clear(); // Clear all warehouse cache since it affects multiple companies
@@ -217,7 +241,15 @@ export async function PUT(request: NextRequest) {
     // Get site-aware client
     const client = await getERPNextClientForRequest(request);
 
-    const warehouseData: any = {
+    interface WarehouseData {
+      warehouse_name: string;
+      company: string;
+      is_group?: number;
+      parent_warehouse?: string;
+      [key: string]: unknown;
+    }
+
+    const warehouseData: WarehouseData = {
       warehouse_name,
       company
     };

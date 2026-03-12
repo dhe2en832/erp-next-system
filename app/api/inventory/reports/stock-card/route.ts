@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getErpAuthHeaders } from '@/utils/erpnext-auth';
 import { StockLedgerEntry } from '@/types/stock-card';
 import { 
   getERPNextClientForRequest, 
@@ -45,7 +44,7 @@ function isValidDateRange(from_date: string | null, to_date: string | null): boo
  */
 async function fetchItemNames(
   itemCodes: string[],
-  client: any
+  client: { getList: <T>(doctype: string, options: Record<string, unknown>) => Promise<T[]> }
 ): Promise<Map<string, string>> {
   if (itemCodes.length === 0) return new Map();
   
@@ -56,7 +55,11 @@ async function fetchItemNames(
     const filters = [['item_code', 'in', uniqueItemCodes]];
     const fields = ['item_code', 'item_name'];
     
-    const items = await client.getList('Item', {
+    interface ItemSummary {
+      item_code: string;
+      item_name?: string;
+    }
+    const items = await client.getList<ItemSummary>('Item', {
       fields,
       filters,
       limit_page_length: 0
@@ -73,78 +76,12 @@ async function fetchItemNames(
 }
 
 /**
- * Fetch customer names for a list of customer IDs
- * Requirements: 9.3
- */
-async function fetchCustomerNames(
-  customerIds: string[],
-  client: any
-): Promise<Map<string, string>> {
-  if (customerIds.length === 0) return new Map();
-  
-  const uniqueCustomerIds = [...new Set(customerIds)];
-  const customerNameMap = new Map<string, string>();
-  
-  try {
-    const filters = [['name', 'in', uniqueCustomerIds]];
-    const fields = ['name', 'customer_name'];
-    
-    const customers = await client.getList('Customer', {
-      fields,
-      filters,
-      limit_page_length: 0
-    });
-    
-    for (const customer of (customers || [])) {
-      customerNameMap.set(customer.name, customer.customer_name || customer.name);
-    }
-  } catch (error) {
-    console.error('Error fetching customer names:', error);
-  }
-  
-  return customerNameMap;
-}
-
-/**
- * Fetch supplier names for a list of supplier IDs
- * Requirements: 9.4
- */
-async function fetchSupplierNames(
-  supplierIds: string[],
-  client: any
-): Promise<Map<string, string>> {
-  if (supplierIds.length === 0) return new Map();
-  
-  const uniqueSupplierIds = [...new Set(supplierIds)];
-  const supplierNameMap = new Map<string, string>();
-  
-  try {
-    const filters = [['name', 'in', uniqueSupplierIds]];
-    const fields = ['name', 'supplier_name'];
-    
-    const suppliers = await client.getList('Supplier', {
-      fields,
-      filters,
-      limit_page_length: 0
-    });
-    
-    for (const supplier of (suppliers || [])) {
-      supplierNameMap.set(supplier.name, supplier.supplier_name || supplier.name);
-    }
-  } catch (error) {
-    console.error('Error fetching supplier names:', error);
-  }
-  
-  return supplierNameMap;
-}
-
-/**
  * Fetch party information (customer/supplier) for vouchers
  * Requirements: 9.3, 9.4
  */
 async function fetchPartyInfo(
   vouchers: Array<{ voucher_type: string; voucher_no: string }>,
-  client: any
+  client: { getList: <T>(doctype: string, options: Record<string, unknown>) => Promise<T[]> }
 ): Promise<Map<string, { party_type: 'Customer' | 'Supplier'; party_name: string }>> {
   const partyInfoMap = new Map<string, { party_type: 'Customer' | 'Supplier'; party_name: string }>();
   
@@ -159,7 +96,12 @@ async function fetchPartyInfo(
       const filters = [['name', 'in', [...new Set(salesInvoices)]]];
       const fields = ['name', 'customer', 'customer_name'];
       
-      const invoices = await client.getList('Sales Invoice', {
+      interface SalesInvoiceSummary {
+        name: string;
+        customer?: string;
+        customer_name?: string;
+      }
+      const invoices = await client.getList<SalesInvoiceSummary>('Sales Invoice', {
         fields,
         filters,
         limit_page_length: 0
@@ -168,7 +110,7 @@ async function fetchPartyInfo(
       for (const invoice of (invoices || [])) {
         partyInfoMap.set(invoice.name, {
           party_type: 'Customer',
-          party_name: invoice.customer_name || invoice.customer
+          party_name: invoice.customer_name || invoice.customer || ''
         });
       }
     }
@@ -178,7 +120,12 @@ async function fetchPartyInfo(
       const filters = [['name', 'in', [...new Set(deliveryNotes)]]];
       const fields = ['name', 'customer', 'customer_name'];
       
-      const notes = await client.getList('Delivery Note', {
+      interface DeliveryNoteSummary {
+        name: string;
+        customer?: string;
+        customer_name?: string;
+      }
+      const notes = await client.getList<DeliveryNoteSummary>('Delivery Note', {
         fields,
         filters,
         limit_page_length: 0
@@ -187,7 +134,7 @@ async function fetchPartyInfo(
       for (const note of (notes || [])) {
         partyInfoMap.set(note.name, {
           party_type: 'Customer',
-          party_name: note.customer_name || note.customer
+          party_name: note.customer_name || note.customer || ''
         });
       }
     }
@@ -197,7 +144,12 @@ async function fetchPartyInfo(
       const filters = [['name', 'in', [...new Set(purchaseReceipts)]]];
       const fields = ['name', 'supplier', 'supplier_name'];
       
-      const receipts = await client.getList('Purchase Receipt', {
+      interface PurchaseReceiptSummary {
+        name: string;
+        supplier?: string;
+        supplier_name?: string;
+      }
+      const receipts = await client.getList<PurchaseReceiptSummary>('Purchase Receipt', {
         fields,
         filters,
         limit_page_length: 0
@@ -206,7 +158,7 @@ async function fetchPartyInfo(
       for (const receipt of (receipts || [])) {
         partyInfoMap.set(receipt.name, {
           party_type: 'Supplier',
-          party_name: receipt.supplier_name || receipt.supplier
+          party_name: receipt.supplier_name || receipt.supplier || ''
         });
       }
     }
@@ -223,7 +175,7 @@ async function fetchPartyInfo(
  */
 async function fetchStockEntryWarehouses(
   stockEntryVouchers: string[],
-  client: any
+  client: { getList: <T>(doctype: string, options: Record<string, unknown>) => Promise<T[]> }
 ): Promise<Map<string, { source_warehouse?: string; target_warehouse?: string }>> {
   if (stockEntryVouchers.length === 0) return new Map();
   
@@ -233,7 +185,12 @@ async function fetchStockEntryWarehouses(
     const filters = [['name', 'in', [...new Set(stockEntryVouchers)]]];
     const fields = ['name', 'from_warehouse', 'to_warehouse'];
     
-    const entries = await client.getList('Stock Entry', {
+    interface StockEntrySummary {
+      name: string;
+      from_warehouse?: string;
+      to_warehouse?: string;
+    }
+    const entries = await client.getList<StockEntrySummary>('Stock Entry', {
       fields,
       filters,
       limit_page_length: 0
@@ -257,23 +214,23 @@ async function fetchStockEntryWarehouses(
  * Requirements: 9.1-9.6
  */
 async function enrichStockLedgerEntries(
-  entries: any[],
-  client: any
+  entries: Record<string, unknown>[],
+  client: { getList: <T>(doctype: string, options: Record<string, unknown>) => Promise<T[]> }
 ): Promise<StockLedgerEntry[]> {
   if (entries.length === 0) return [];
   
   // Collect unique item codes
-  const itemCodes = entries.map(e => e.item_code);
+  const itemCodes = entries.map(e => e.item_code as string);
   
   // Collect vouchers that need party info
   const vouchersNeedingPartyInfo = entries
-    .filter(e => ['Sales Invoice', 'Delivery Note', 'Purchase Receipt'].includes(e.voucher_type))
-    .map(e => ({ voucher_type: e.voucher_type, voucher_no: e.voucher_no }));
+    .filter(e => ['Sales Invoice', 'Delivery Note', 'Purchase Receipt'].includes(e.voucher_type as string))
+    .map(e => ({ voucher_type: e.voucher_type as string, voucher_no: e.voucher_no as string }));
   
   // Collect Stock Entry vouchers
   const stockEntryVouchers = entries
     .filter(e => e.voucher_type === 'Stock Entry')
-    .map(e => e.voucher_no);
+    .map(e => e.voucher_no as string);
   
   // Batch fetch all related data
   const [itemNameMap, partyInfoMap, warehouseMap] = await Promise.all([
@@ -285,12 +242,12 @@ async function enrichStockLedgerEntries(
   // Enrich entries with fetched data
   const enrichedEntries: StockLedgerEntry[] = entries.map(entry => {
     const enriched: StockLedgerEntry = {
-      ...entry,
-      item_name: itemNameMap.get(entry.item_code) || entry.item_code
+      ...(entry as unknown as StockLedgerEntry),
+      item_name: itemNameMap.get(entry.item_code as string) || (entry.item_code as string)
     };
     
     // Add party information for sales and purchase transactions
-    const partyInfo = partyInfoMap.get(entry.voucher_no);
+    const partyInfo = partyInfoMap.get(entry.voucher_no as string);
     if (partyInfo) {
       enriched.party_type = partyInfo.party_type;
       enriched.party_name = partyInfo.party_name;
@@ -298,7 +255,7 @@ async function enrichStockLedgerEntries(
     
     // Add warehouse information for Stock Entry transfers
     if (entry.voucher_type === 'Stock Entry') {
-      const warehouseInfo = warehouseMap.get(entry.voucher_no);
+      const warehouseInfo = warehouseMap.get(entry.voucher_no as string);
       if (warehouseInfo) {
         enriched.source_warehouse = warehouseInfo.source_warehouse;
         enriched.target_warehouse = warehouseInfo.target_warehouse;
@@ -327,7 +284,10 @@ async function calculateSummary(
   company: string,
   item_code: string | null,
   from_date: string | null,
-  client: any
+  client: { 
+    getList: <T>(doctype: string, options: Record<string, unknown>) => Promise<T[]>;
+    get: <T>(doctype: string, name: string) => Promise<T>;
+  }
 ): Promise<{
   opening_balance: number;
   closing_balance: number;
@@ -345,7 +305,11 @@ async function calculateSummary(
   // Only fetch item details if specific item is selected
   if (item_code) {
     try {
-      const itemData = await client.get('Item', item_code) as any;
+      interface ItemDoc {
+        item_name?: string;
+        stock_uom?: string;
+      }
+      const itemData = await client.get<ItemDoc>('Item', item_code);
       item_name = itemData.item_name || item_code;
       uom = itemData.stock_uom || '';
     } catch (error) {
@@ -360,13 +324,16 @@ async function calculateSummary(
   
   if (from_date && item_code) {
     try {
-      const openingFilters = [
+      const openingFilters: (string | number | boolean | null | string[])[][] = [
         ['company', '=', company],
         ['item_code', '=', item_code],
         ['posting_date', '<', from_date]
       ];
       
-      const openingEntries = await client.getList('Stock Ledger Entry', {
+      interface OpeningEntry {
+        qty_after_transaction: number;
+      }
+      const openingEntries = await client.getList<OpeningEntry>('Stock Ledger Entry', {
         fields: ['qty_after_transaction'],
         filters: openingFilters,
         order_by: 'posting_date desc,posting_time desc',
@@ -527,21 +494,11 @@ export async function GET(request: NextRequest) {
       );
     }
     
-    // Get authentication headers (Requirement 8.5)
-    const headers = getErpAuthHeaders(request);
-    if (!headers['Authorization'] && !headers['Cookie']) {
-      console.error('Stock Card API: Missing authentication headers');
-      return NextResponse.json(
-        { success: false, message: 'Autentikasi diperlukan. Silakan login terlebih dahulu.' },
-        { status: 401 }
-      );
-    }
-    
     // Get site-aware client
     const client = await getERPNextClientForRequest(request);
     
     // Build ERPNext API filters (Requirement 8.2)
-    const filters: any[] = [
+    const filters: (string | number | boolean | null | string[])[][] = [
       ['company', '=', company]
     ];
     
@@ -588,7 +545,7 @@ export async function GET(request: NextRequest) {
     ];
     
     // Fetch Stock Ledger Entries from ERPNext (Requirement 8.1)
-    let stockLedgerEntries = await client.getList('Stock Ledger Entry', {
+    let stockLedgerEntries = await client.getList<Record<string, unknown>>('Stock Ledger Entry', {
       fields,
       filters,
       order_by: 'posting_date asc,posting_time asc',
@@ -605,23 +562,25 @@ export async function GET(request: NextRequest) {
     stockLedgerEntries = stockLedgerEntries || [];
     
     // Enrich entries with item names, party info, and warehouse info (Requirement 9.1-9.6)
+    let enrichedEntries: StockLedgerEntry[] = [];
     try {
-      stockLedgerEntries = await enrichStockLedgerEntries(stockLedgerEntries, client);
+      enrichedEntries = await enrichStockLedgerEntries(stockLedgerEntries, client);
     } catch (enrichError) {
       // Log enrichment error but continue with basic data (graceful degradation)
       console.error('Stock Card API: Error enriching entries', enrichError);
       // Entries will have basic data without enrichment
+      enrichedEntries = stockLedgerEntries as unknown as StockLedgerEntry[];
     }
     
     // Apply customer/supplier filters after enrichment (since they're not direct fields)
     if (customer) {
-      stockLedgerEntries = (stockLedgerEntries as any[]).filter((entry: StockLedgerEntry) => 
+      enrichedEntries = enrichedEntries.filter((entry: StockLedgerEntry) => 
         entry.party_type === 'Customer' && entry.party_name === customer
       );
     }
     
     if (supplier) {
-      stockLedgerEntries = (stockLedgerEntries as any[]).filter((entry: StockLedgerEntry) => 
+      enrichedEntries = enrichedEntries.filter((entry: StockLedgerEntry) => 
         entry.party_type === 'Supplier' && entry.party_name === supplier
       );
     }
@@ -630,7 +589,7 @@ export async function GET(request: NextRequest) {
     let summary;
     try {
       summary = await calculateSummary(
-        stockLedgerEntries as StockLedgerEntry[],
+        enrichedEntries,
         company,
         item_code,
         from_date,
@@ -641,18 +600,18 @@ export async function GET(request: NextRequest) {
       console.error('Stock Card API: Error calculating summary', summaryError);
       summary = {
         opening_balance: 0,
-        closing_balance: stockLedgerEntries.length > 0 ? (stockLedgerEntries[stockLedgerEntries.length - 1] as any).qty_after_transaction : 0,
+        closing_balance: enrichedEntries.length > 0 ? enrichedEntries[enrichedEntries.length - 1].qty_after_transaction : 0,
         total_in: 0,
         total_out: 0,
-        transaction_count: stockLedgerEntries.length,
-        item_code,
-        item_name: item_code,
+        transaction_count: enrichedEntries.length,
+        item_code: item_code || 'All',
+        item_name: item_code || 'All Items',
         uom: ''
       };
     }
     
     // Calculate pagination metadata (Requirement 11.1)
-    const total_records = stockLedgerEntries.length;
+    const total_records = enrichedEntries.length;
     const total_pages = Math.ceil(total_records / limit);
     
     // Validate page number against total pages
@@ -670,7 +629,7 @@ export async function GET(request: NextRequest) {
     // Apply pagination - slice the array based on page and limit
     const startIndex = (page - 1) * limit;
     const endIndex = startIndex + limit;
-    const paginatedEntries = stockLedgerEntries.slice(startIndex, endIndex);
+    const paginatedEntries = enrichedEntries.slice(startIndex, endIndex);
     
     // console.log('Stock Card API: Returning paginated results', {
     //   page,

@@ -44,8 +44,14 @@ export async function GET(request: NextRequest) {
     // For each item, get latest stock ledger entry with valuation rate
     for (const itemCode of itemCodeArray) {
       try {
+        interface StockLedgerEntry {
+          item_code: string;
+          valuation_rate: number;
+          posting_date: string;
+          [key: string]: unknown;
+        }
         // Get stock ledger entries for this item, ordered by posting_date desc
-        const ledgerEntries = await client.getList('Stock Ledger Entry', {
+        const ledgerEntries = await client.getList<StockLedgerEntry>('Stock Ledger Entry', {
           fields: ['item_code', 'valuation_rate', 'posting_date'],
           filters: [
             ["item_code", "=", itemCode],
@@ -58,14 +64,14 @@ export async function GET(request: NextRequest) {
         // console.log(`Fetching stock ledger for ${itemCode}`);
         
         if (ledgerEntries && ledgerEntries.length > 0) {
-          const latestEntry = ledgerEntries[0] as any;
+          const latestEntry = ledgerEntries[0];
           valuationRates[itemCode] = latestEntry.valuation_rate || 0;
           // console.log(`Valuation rate for ${itemCode}:`, latestEntry.valuation_rate);
         } else {
           valuationRates[itemCode] = 0;
           // console.log(`No valuation rate found for ${itemCode}`);
         }
-      } catch (error) {
+      } catch {
         valuationRates[itemCode] = 0;
         // console.log(`Error fetching ledger for ${itemCode}:`, error);
       }

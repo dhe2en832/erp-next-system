@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Query ke ERPNext Item Price dengan filter company jika ada custom_company field
-    const filters: any[] = [
+    const filters: (string | number | boolean | null | string[])[][] = [
       ["item_code", "=", itemCode],
       ["price_list", "=", priceList]
     ];
@@ -47,7 +47,14 @@ export async function GET(request: NextRequest) {
     
     // console.log('Filters:', JSON.stringify(filters));
     
-    let result = await client.getList('Item Price', {
+    interface ItemPrice {
+      item_code: string;
+      price_list_rate: number;
+      price_list: string;
+      custom_company?: string;
+      [key: string]: unknown;
+    }
+    let result = await client.getList<ItemPrice>('Item Price', {
       fields: ['price_list_rate', 'item_code', 'price_list', 'custom_company'],
       filters
     });
@@ -55,12 +62,12 @@ export async function GET(request: NextRequest) {
     // Jika tidak ketemu dengan filter company, coba tanpa filter company
     if ((!result || result.length === 0) && company) {
       // console.log('No price found with company filter, retrying without company filter');
-      const filtersWithoutCompany: any[] = [
+      const filtersWithoutCompany: (string | number | boolean | null | string[])[][] = [
         ["item_code", "=", itemCode],
         ["price_list", "=", priceList]
       ];
       
-      result = await client.getList('Item Price', {
+      result = await client.getList<ItemPrice>('Item Price', {
         fields: ['price_list_rate', 'item_code', 'price_list', 'custom_company'],
         filters: filtersWithoutCompany
       });
@@ -79,7 +86,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Return the first matching price
-    const itemPrice = result[0] as any;
+    const itemPrice = result[0];
     const responseData = {
       item_code: itemPrice.item_code,
       price_list_rate: itemPrice.price_list_rate,
