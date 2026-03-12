@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import Pagination from '../../components/Pagination';
+import { Save, ArrowLeft, Plus, Trash2 } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,6 +51,10 @@ export default function StockReconciliationMain() {
   const [successMessage, setSuccessMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [docstatus, setDocstatus] = useState<number>(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [searchTerm, setSearchTerm] = useState('');
+  const ITEMS_PER_PAGE = 10;
+
   const [newReconciliation, setNewReconciliation] = useState({
     warehouse: '',
     posting_date: new Date().toISOString().split('T')[0],
@@ -58,6 +64,26 @@ export default function StockReconciliationMain() {
   });
 
   const isReadOnly = docstatus === 1 || docstatus === 2;
+
+  // Items filtering and pagination
+  const filteredItems = useMemo(() => {
+    if (!searchTerm) return newReconciliation.items;
+    const lowerSearch = searchTerm.toLowerCase();
+    return newReconciliation.items.filter(item => {
+      const itemDetail = items.find(it => it.item_code === item.item_code);
+      return (
+        item.item_code.toLowerCase().includes(lowerSearch) ||
+        (itemDetail?.item_name || '').toLowerCase().includes(lowerSearch)
+      );
+    });
+  }, [newReconciliation.items, items, searchTerm]);
+
+  const paginatedItems = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredItems.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredItems, currentPage]);
+
+  const totalPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE);
 
   // Fetch detail when editing
   const fetchDetail = useCallback(async () => {
@@ -160,26 +186,29 @@ export default function StockReconciliationMain() {
 
   const addItemRow = () => {
     if (isReadOnly) return;
+    const newItem = { item_code: '', qty: 0, valuation_rate: 0 };
     setNewReconciliation(prev => ({
       ...prev,
-      items: [...prev.items, { item_code: '', qty: 0, valuation_rate: 0 }]
+      items: [newItem, ...prev.items]
     }));
+    setSearchTerm(''); // Reset search to show the new row
+    setCurrentPage(1); // Go to first page to see the new row
   };
 
-  const removeItemRow = (index: number) => {
+  const removeItemRow = (itemCode: string) => {
     if (isReadOnly) return;
     setNewReconciliation(prev => ({
       ...prev,
-      items: prev.items.filter((_, i) => i !== index)
+      items: prev.items.filter(it => it.item_code !== itemCode)
     }));
   };
 
-  const updateItemRow = (index: number, field: string, value: string | number) => {
+  const updateItemRow = (itemCode: string, field: string, value: string | number) => {
     if (isReadOnly) return;
     setNewReconciliation(prev => ({
       ...prev,
-      items: prev.items.map((item, i) =>
-        i === index ? { ...item, [field]: value } : item
+      items: prev.items.map(item =>
+        item.item_code === itemCode ? { ...item, [field]: value } : item
       )
     }));
   };
@@ -195,7 +224,10 @@ export default function StockReconciliationMain() {
       return;
     }
 
-    if (newReconciliation.items.length === 0 || !newReconciliation.items[0].item_code) {
+    // Filter out empty rows
+    const validItems = newReconciliation.items.filter(item => item.item_code !== '');
+
+    if (validItems.length === 0) {
       setError('Minimal satu barang harus ditambahkan');
       return;
     }
@@ -203,7 +235,11 @@ export default function StockReconciliationMain() {
     try {
       setLoading(true);
       setError('');
-      const payload = { ...newReconciliation, company: selectedCompany };
+      const payload = { 
+        ...newReconciliation, 
+        items: validItems,
+        company: selectedCompany 
+      };
       const url = isEditMode 
         ? `/api/inventory/reconciliation/${entryName}` 
         : '/api/inventory/reconciliation';
@@ -244,31 +280,56 @@ export default function StockReconciliationMain() {
       <div className="bg-white shadow">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 py-6">
-            <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
-                  {isEditMode ? `Rekonsiliasi: ${entryName}` : 'Buat Rekonsiliasi Stok Baru'}
-                </h1>
-                {isEditMode && (
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${STATUS_COLORS[docstatus]}`}>
-                    {STATUS_LABELS[docstatus]}
-                  </span>
-                )}
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => router.push('/stock-reconciliation')}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                title="Kembali"
+              >
+                <ArrowLeft className="w-6 h-6 text-gray-600" />
+              </button>
+              <div>
+                <div className="flex items-center gap-3">
+                  <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
+                    {isEditMode ? `Rekonsiliasi: ${entryName}` : 'Buat Rekonsiliasi Stok Baru'}
+                  </h1>
+                  {isEditMode && (
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${STATUS_COLORS[docstatus]}`}>
+                      {STATUS_LABELS[docstatus]}
+                    </span>
+                  )}
+                </div>
+                <p className="mt-1 text-sm text-gray-600">
+                  {isReadOnly 
+                    ? 'Dokumen ini sudah diajukan dan tidak dapat diubah' 
+                    : isEditMode 
+                      ? 'Perbarui rekonsiliasi stok' 
+                      : 'Sesuaikan kuantitas stok'}
+                </p>
               </div>
-              <p className="mt-1 text-sm text-gray-600">
-                {isReadOnly 
-                  ? 'Dokumen ini sudah diajukan dan tidak dapat diubah' 
-                  : isEditMode 
-                    ? 'Perbarui rekonsiliasi stok' 
-                    : 'Sesuaikan kuantitas stok'}
-              </p>
             </div>
-            <button 
-              onClick={() => router.push('/stock-reconciliation')} 
-              className="w-full sm:w-auto bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 min-h-[44px]"
-            >
-              Kembali ke Daftar
-            </button>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              {!isReadOnly && (
+                <button 
+                  onClick={handleSave} 
+                  disabled={loading}
+                  className="flex-1 sm:flex-none inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 min-h-[44px]"
+                >
+                  {loading ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                  ) : (
+                    <Save className="w-4 h-4 mr-2" />
+                  )}
+                  {isEditMode ? 'Simpan Perubahan' : 'Buat Rekonsiliasi'}
+                </button>
+              )}
+              <button 
+                onClick={() => router.push('/stock-reconciliation')} 
+                className="flex-1 sm:flex-none inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 min-h-[44px]"
+              >
+                Kembali ke Daftar
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -344,88 +405,125 @@ export default function StockReconciliationMain() {
 
             {/* Items Table */}
             <div>
-              <div className="flex justify-between items-center mb-2">
-                <label className="block text-sm font-medium text-gray-700">Barang</label>
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+                <div className="flex items-center gap-4 w-full sm:w-auto">
+                  <label className="block text-sm font-medium text-gray-700">Barang ({newReconciliation.items.length})</label>
+                  <div className="relative flex-1 sm:w-64">
+                    <input
+                      type="text"
+                      placeholder="Cari kode atau nama barang..."
+                      value={searchTerm}
+                      onChange={(e) => {
+                        setSearchTerm(e.target.value);
+                        setCurrentPage(1);
+                      }}
+                      className="block w-full border border-gray-300 rounded-md shadow-sm py-1.5 px-3 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    />
+                  </div>
+                </div>
                 {!isReadOnly && (
                   <button 
                     type="button" 
                     onClick={addItemRow} 
-                    className="text-indigo-600 hover:text-indigo-800 text-sm"
+                    className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
                   >
-                    + Tambah Barang
+                    <Plus className="w-4 h-4 mr-1" />
+                    Tambah Barang
                   </button>
                 )}
               </div>
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Barang</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Jumlah</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Nilai Valuasi</th>
-                      {!isReadOnly && (
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Aksi</th>
-                      )}
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {newReconciliation.items.map((item, index) => (
-                      <tr key={index}>
-                        <td className="px-4 py-2">
-                          <select 
-                            className="block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm disabled:bg-gray-100 disabled:cursor-not-allowed" 
-                            value={item.item_code} 
-                            onChange={(e) => updateItemRow(index, 'item_code', e.target.value)}
-                            disabled={isReadOnly}
-                          >
-                            <option value="">Pilih Barang</option>
-                            {items.map((it) => (
-                              <option key={it.item_code} value={it.item_code}>
-                                {it.item_name} ({it.item_code})
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td className="px-4 py-2">
-                          <input 
-                            type="number" 
-                            className="block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm disabled:bg-gray-100 disabled:cursor-not-allowed" 
-                            value={item.qty} 
-                            onChange={(e) => updateItemRow(index, 'qty', parseFloat(e.target.value) || 0)} 
-                            min="0" 
-                            step="0.01"
-                            disabled={isReadOnly}
-                          />
-                        </td>
-                        <td className="px-4 py-2">
-                          <input 
-                            type="number" 
-                            className="block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm disabled:bg-gray-100 disabled:cursor-not-allowed" 
-                            value={item.valuation_rate} 
-                            onChange={(e) => updateItemRow(index, 'valuation_rate', parseFloat(e.target.value) || 0)} 
-                            min="0" 
-                            step="0.01"
-                            disabled={isReadOnly}
-                          />
-                        </td>
+
+              <div className="border border-gray-200 rounded-lg overflow-hidden">
+                <div className="overflow-x-auto max-h-[500px] overflow-y-auto relative">
+                  <table className="min-w-full divide-y divide-gray-200 border-collapse">
+                    <thead className="bg-gray-50 sticky top-0 z-10 shadow-sm">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Barang</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-32">Jumlah</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-40">Nilai Valuasi</th>
                         {!isReadOnly && (
-                          <td className="px-4 py-2">
-                            {newReconciliation.items.length > 1 && (
-                              <button 
-                                type="button" 
-                                onClick={() => removeItemRow(index)} 
-                                className="text-red-600 hover:text-red-800 text-sm"
-                              >
-                                Hapus
-                              </button>
-                            )}
-                          </td>
+                          <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider w-20">Aksi</th>
                         )}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {paginatedItems.length > 0 ? (
+                        paginatedItems.map((item, index) => (
+                          <tr key={item.item_code || `new-${index}`} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-4 py-3">
+                              <select 
+                                className="block w-full border border-gray-300 rounded-md shadow-sm py-1.5 px-3 text-sm focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-50 disabled:text-gray-500" 
+                                value={item.item_code} 
+                                onChange={(e) => updateItemRow(item.item_code, 'item_code', e.target.value)}
+                                disabled={isReadOnly}
+                              >
+                                <option value="">Pilih Barang</option>
+                                {items.map((it) => (
+                                  <option key={it.item_code} value={it.item_code}>
+                                    {it.item_name} ({it.item_code})
+                                  </option>
+                                ))}
+                              </select>
+                            </td>
+                            <td className="px-4 py-3">
+                              <input 
+                                type="number" 
+                                className="block w-full border border-gray-300 rounded-md shadow-sm py-1.5 px-3 text-sm focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-50 disabled:text-gray-500" 
+                                value={item.qty} 
+                                onChange={(e) => updateItemRow(item.item_code, 'qty', parseFloat(e.target.value) || 0)} 
+                                min="0" 
+                                step="0.01"
+                                disabled={isReadOnly}
+                              />
+                            </td>
+                            <td className="px-4 py-3">
+                              <input 
+                                type="number" 
+                                className="block w-full border border-gray-300 rounded-md shadow-sm py-1.5 px-3 text-sm focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-50 disabled:text-gray-500" 
+                                value={item.valuation_rate} 
+                                onChange={(e) => updateItemRow(item.item_code, 'valuation_rate', parseFloat(e.target.value) || 0)} 
+                                min="0" 
+                                step="0.01"
+                                disabled={isReadOnly}
+                              />
+                            </td>
+                            {!isReadOnly && (
+                              <td className="px-4 py-3 text-center">
+                                <button 
+                                  type="button" 
+                                  onClick={() => removeItemRow(item.item_code)} 
+                                  className="text-red-500 hover:text-red-700 p-1.5 rounded-full hover:bg-red-50 transition-colors"
+                                  title="Hapus"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </td>
+                            )}
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={isReadOnly ? 3 : 4} className="px-4 py-8 text-center text-gray-500 italic">
+                            {searchTerm ? 'Tidak ada barang yang cocok dengan pencarian' : 'Belum ada barang ditambahkan'}
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
+
+              {totalPages > 1 && (
+                <div className="mt-4">
+                  <Pagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    totalRecords={filteredItems.length}
+                    pageSize={ITEMS_PER_PAGE}
+                    onPageChange={setCurrentPage}
+                  />
+                </div>
+              )}
             </div>
 
             {!isReadOnly && (

@@ -4,7 +4,9 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Pagination from '../../components/Pagination';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import { Send } from 'lucide-react';
+import BrowserStyleDatePicker from '@/components/BrowserStyleDatePicker';
+import { Send, Search, Trash2, Filter, X } from 'lucide-react';
+import { formatDate, parseDate } from '@/utils/format';
 
 interface StockReconciliation {
   name: string;
@@ -47,7 +49,10 @@ export default function StockReconciliationList() {
   const [searchTerm, setSearchTerm] = useState('');
   const [warehouseFilter, setWarehouseFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [dateFilter, setDateFilter] = useState({ from_date: '', to_date: '' });
+  const [dateFilter, setDateFilter] = useState({ 
+    from_date: formatDate(new Date(Date.now() - 86400000)), 
+    to_date: formatDate(new Date()) 
+  });
   const [selectedCompany, setSelectedCompany] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [submittingDoc, setSubmittingDoc] = useState<string | null>(null);
@@ -72,8 +77,8 @@ export default function StockReconciliationList() {
         ...(searchTerm && { search: searchTerm }),
         ...(warehouseFilter && { warehouse: warehouseFilter }),
         ...(statusFilter && { status: statusFilter }),
-        ...(dateFilter.from_date && { from_date: dateFilter.from_date }),
-        ...(dateFilter.to_date && { to_date: dateFilter.to_date }),
+        ...(dateFilter.from_date && { from_date: parseDate(dateFilter.from_date) }),
+        ...(dateFilter.to_date && { to_date: parseDate(dateFilter.to_date) }),
         order_by: 'creation desc, posting_date desc, posting_time desc'
       });
       const response = await fetch(`/api/inventory/reconciliation?${params}`);
@@ -174,13 +179,16 @@ export default function StockReconciliationList() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Cari</label>
-              <input 
-                type="text" 
-                className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" 
-                placeholder="Cari rekonsiliasi..." 
-                value={searchTerm} 
-                onChange={(e) => setSearchTerm(e.target.value)} 
-              />
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input 
+                  type="text" 
+                  className="block w-full border border-gray-300 rounded-md shadow-sm py-2 pl-9 pr-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" 
+                  placeholder="Cari rekonsiliasi..." 
+                  value={searchTerm} 
+                  onChange={(e) => setSearchTerm(e.target.value)} 
+                />
+              </div>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Gudang</label>
@@ -210,20 +218,20 @@ export default function StockReconciliationList() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Dari Tanggal</label>
-              <input 
-                type="date" 
-                className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" 
-                value={dateFilter.from_date} 
-                onChange={(e) => setDateFilter(prev => ({ ...prev, from_date: e.target.value }))} 
+              <BrowserStyleDatePicker
+                value={dateFilter.from_date}
+                onChange={(value: string) => setDateFilter(prev => ({ ...prev, from_date: value }))}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="DD/MM/YYYY"
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Sampai Tanggal</label>
-              <input 
-                type="date" 
-                className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" 
-                value={dateFilter.to_date} 
-                onChange={(e) => setDateFilter(prev => ({ ...prev, to_date: e.target.value }))} 
+              <BrowserStyleDatePicker
+                value={dateFilter.to_date}
+                onChange={(value: string) => setDateFilter(prev => ({ ...prev, to_date: value }))}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="DD/MM/YYYY"
               />
             </div>
           </div>
@@ -233,16 +241,21 @@ export default function StockReconciliationList() {
                 setSearchTerm(''); 
                 setWarehouseFilter(''); 
                 setStatusFilter(''); 
-                setDateFilter({ from_date: '', to_date: '' }); 
+                setDateFilter({ 
+                  from_date: formatDate(new Date(Date.now() - 86400000)), 
+                  to_date: formatDate(new Date()) 
+                }); 
               }} 
-              className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400"
+              className="bg-gray-100 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-200 transition-colors flex items-center"
             >
+              <X className="w-4 h-4 mr-1" />
               Hapus Filter
             </button>
             <button 
               onClick={fetchReconciliations} 
-              className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
+              className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors flex items-center"
             >
+              <Filter className="w-4 h-4 mr-1" />
               Terapkan Filter
             </button>
           </div>

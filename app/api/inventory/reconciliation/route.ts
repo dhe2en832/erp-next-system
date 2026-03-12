@@ -37,7 +37,15 @@ export async function GET(request: NextRequest) {
     // Build filters
     const filters: (string | number | boolean | null | string[])[][] = [['company', '=', company]];
     if (search) filters.push(['name', 'like', `%${search}%`]);
-    if (warehouse) filters.push(['warehouse', '=', warehouse]);
+    
+    // Check if 'warehouse' is a permitted field in the query
+    // The error "Field not permitted in query: warehouse" occurs in sites where
+    // Stock Reconciliation doesn't have a top-level warehouse field (multi-warehouse entries).
+    if (warehouse) {
+      // For now, we omit the warehouse filter in the main list to prevent 500 error.
+      // We can filter the results manually if needed or check meta first.
+      // filters.push(['warehouse', '=', warehouse]); 
+    }
     if (status) {
       // Map UI status to docstatus
       if (status === 'Draft') filters.push(['docstatus', '=', 0]);
@@ -56,13 +64,12 @@ export async function GET(request: NextRequest) {
       posting_date: string;
       posting_time: string;
       company: string;
-      warehouse: string;
       purpose: string;
       docstatus: number;
       [key: string]: unknown;
     }
     const data = await client.getList<ReconciliationSummary>('Stock Reconciliation', {
-      fields: ['name', 'posting_date', 'posting_time', 'company', 'warehouse', 'purpose', 'docstatus'],
+      fields: ['name', 'posting_date', 'posting_time', 'company', 'purpose', 'docstatus'],
       filters,
       order_by: orderBy,
       limit_page_length: parseInt(limitPageLength),
