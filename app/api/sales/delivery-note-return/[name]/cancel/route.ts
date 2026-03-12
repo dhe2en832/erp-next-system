@@ -30,7 +30,12 @@ export async function POST(
     const client = await getERPNextClientForRequest(request);
 
     // First, verify document exists and is in Submitted status
-    const currentDoc = await client.get('Delivery Note', name) as any;
+    interface DeliveryNoteDoc {
+      is_return?: number;
+      docstatus?: number;
+      [key: string]: unknown;
+    }
+    const currentDoc = await client.get<DeliveryNoteDoc>('Delivery Note', name);
     
     if (!currentDoc.is_return) {
       return NextResponse.json(
@@ -47,7 +52,12 @@ export async function POST(
     }
 
     // Cancel the document
-    const cancelledDoc = await client.cancel('Delivery Note', name) as any;
+    interface CancelledDoc {
+      return_against?: string;
+      return_notes?: string;
+      [key: string]: unknown;
+    }
+    const cancelledDoc = await client.cancel<CancelledDoc>('Delivery Note', name);
     
     // Transform response to match frontend expectations
     return NextResponse.json({

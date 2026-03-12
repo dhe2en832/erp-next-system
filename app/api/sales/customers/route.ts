@@ -19,15 +19,20 @@ export async function GET(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
     
     // Build filters array
-    const filters: any[][] = [];
+    const filters: (string | number | boolean | null | string[])[][] = [];
     
     if (search && search.trim()) {
       const searchTrim = search.trim();
       filters.push(["customer_name", "like", `%${searchTrim}%`]);
     }
     
+    interface CustomerSummary {
+      name: string;
+      customer_name: string;
+      [key: string]: unknown;
+    }
     // Use client method instead of fetch
-    const data = await client.getList('Customer', {
+    const data = await client.getList<CustomerSummary>('Customer', {
       fields: ['name', 'customer_name'],
       filters,
       limit_page_length: parseInt(limitPageLength),
@@ -74,7 +79,7 @@ export async function POST(request: NextRequest) {
       delete body.sales_person;
     }
 
-    const data = await client.insert('Customer', body) as any;
+    const data = await client.insert<Record<string, unknown>>('Customer', body);
 
     return NextResponse.json({ success: true, data });
   } catch (error: unknown) {

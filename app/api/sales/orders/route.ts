@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     const toDate = searchParams.get('to_date');
 
     // Build filters
-    const filtersArray: any[][] = [];
+    const filtersArray: (string | number | boolean | null | string[])[][] = [];
     
     // Always add company filter if company is provided
     const company = searchParams.get('company');
@@ -35,13 +35,13 @@ export async function GET(request: NextRequest) {
       try {
         const parsedFilters = JSON.parse(filters);
         // Merge with existing filters, but don't duplicate company filter
-        parsedFilters.forEach((filter: any) => {
-          if (filter[0] !== 'company') {
-            filtersArray.push(filter);
+        parsedFilters.forEach((filter: (string | number | boolean | null | string[])) => {
+          if (Array.isArray(filter) && filter[0] !== 'company') {
+            filtersArray.push(filter as (string | number | boolean | null | string[])[]);
           }
         });
-      } catch (e) {
-        console.error('Error parsing filters:', e);
+      } catch {
+        console.error('Error parsing filters:');
       }
     }
     
@@ -136,7 +136,7 @@ export async function POST(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
     
     // Use client method instead of direct fetch
-    const newOrder = await client.insert('Sales Order', orderData) as any;
+    const newOrder = await client.insert<Record<string, unknown>>('Sales Order', orderData);
 
     return NextResponse.json({
       success: true,
@@ -149,12 +149,12 @@ export async function POST(request: NextRequest) {
     let errorMessage = 'Failed to create sales order';
     
     if (error && typeof error === 'object' && 'message' in error) {
-      const errorObj = error as any;
+      const errorObj = error as Record<string, unknown>;
       
       if (errorObj.exc) {
         // Parse ERPNext exception
         try {
-          const excData = JSON.parse(errorObj.exc);
+          const excData = JSON.parse(errorObj.exc as string);
           
           if (excData.exc_type === 'MandatoryError') {
             errorMessage = `Missing required field: ${excData.message}`;
@@ -167,20 +167,20 @@ export async function POST(request: NextRequest) {
           } else {
             errorMessage = `${excData.exc_type}: ${excData.message}`;
           }
-        } catch (_e) {
-          errorMessage = errorObj.message || errorObj.exc || 'Failed to create sales order';
+        } catch {
+          errorMessage = (errorObj.message as string) || (errorObj.exc as string) || 'Failed to create sales order';
         }
       } else if (errorObj.message) {
-        errorMessage = errorObj.message;
+        errorMessage = errorObj.message as string;
       } else if (errorObj._server_messages) {
         try {
-          const serverMessages = JSON.parse(errorObj._server_messages);
+          const serverMessages = JSON.parse(errorObj._server_messages as string);
           errorMessage = serverMessages[0]?.message || serverMessages[0] || errorMessage;
-        } catch (_e) {
-          errorMessage = errorObj._server_messages;
+        } catch {
+          errorMessage = errorObj._server_messages as string;
         }
       } else if (errorObj.exc_type && errorObj.exc_message) {
-        errorMessage = `${errorObj.exc_type}: ${errorObj.exc_message}`;
+        errorMessage = `${errorObj.exc_type as string}: ${errorObj.exc_message as string}`;
       }
     } else if (error instanceof Error) {
       errorMessage = error.message;

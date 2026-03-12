@@ -24,10 +24,16 @@ export async function GET(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Use frappe.desk.form.load.getdoc method for full document details
-    const data = await client.call('frappe.desk.form.load.getdoc', {
+    interface RefreshedDoc {
+      docs?: Record<string, unknown>[];
+      doc?: Record<string, unknown>;
+      data?: Record<string, unknown>;
+      [key: string]: unknown;
+    }
+    const data = await client.call<RefreshedDoc>('frappe.desk.form.load.getdoc', {
       doctype: 'Delivery Note',
       name: name
-    }) as any;
+    });
 
     // form.load.getdoc returns data in different structure
     const dnData = data.docs?.[0] || data.doc || data.data || data;

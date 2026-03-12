@@ -32,7 +32,7 @@ export async function GET(
     const client = await getERPNextClientForRequest(request);
 
     // Fetch invoice with all fields
-    const invoice = await client.get('Sales Invoice', invoiceName) as any;
+    const invoice = await client.get<Record<string, unknown>>('Sales Invoice', invoiceName);
 
     return NextResponse.json({
       success: true,
@@ -73,7 +73,7 @@ export async function PUT(
     const client = await getERPNextClientForRequest(request);
 
     // Prepare payload with proper ERPNext structure
-    const payload: any = {
+    const payload: Record<string, unknown> = {
       customer: invoiceData.customer,
       customer_name: invoiceData.customer_name,
       posting_date: invoiceData.posting_date,
@@ -105,7 +105,7 @@ export async function PUT(
     }
 
     // Update invoice using client method
-    const result = await client.update('Sales Invoice', invoiceName, payload);
+    const result = await client.update<Record<string, unknown>>('Sales Invoice', invoiceName, payload);
 
     return NextResponse.json({
       success: true,
@@ -113,7 +113,7 @@ export async function PUT(
       data: result
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     logSiteError(error, 'PUT /api/sales/invoices/[name]', siteId);
     console.error('Update Invoice Error:', error);
     const errorResponse = buildSiteAwareErrorResponse(error, siteId);

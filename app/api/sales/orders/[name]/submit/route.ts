@@ -3,7 +3,6 @@ import { parseErpError } from '../../../../../../utils/erp-error';
 import { 
   getERPNextClientForRequest, 
   getSiteIdFromRequest,
-  buildSiteAwareErrorResponse,
   logSiteError 
 } from '@/lib/api-helpers';
 
@@ -41,7 +40,13 @@ export async function POST(
     const client = await getERPNextClientForRequest(request);
     
     // Submit the Sales Order (will fetch latest doc automatically)
-    const result = await client.submit('Sales Order', name) as any;
+    interface SubmitResult {
+      docs?: Record<string, unknown>[];
+      doc?: Record<string, unknown>;
+      data?: Record<string, unknown>;
+      [key: string]: unknown;
+    }
+    const result = await client.submit<SubmitResult>('Sales Order', name);
     
     const orderData = result.docs?.[0] || result.doc || result.data || result;
     return NextResponse.json({ 
@@ -58,7 +63,6 @@ export async function POST(
       ? parseErpError({ message: error.message }, 'Gagal mengajukan Sales Order')
       : 'Internal server error';
     
-    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
     return NextResponse.json(
       { success: false, message: errorMessage },
       { status: 500 }

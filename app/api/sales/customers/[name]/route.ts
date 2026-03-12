@@ -20,24 +20,28 @@ export async function GET(
 
     // Try direct fetch by name
     try {
-      const data = await client.get('Customer', name) as any;
+      const data = await client.get<Record<string, unknown>>('Customer', name);
       return NextResponse.json({ 
         success: true, 
         data, 
         message: 'Customer detail fetched successfully' 
       });
-    } catch (directError) {
+    } catch {
       // Fallback: search by customer_name
       try {
-        const searchData = await client.getList('Customer', {
+        interface CustomerSummary {
+          name: string;
+          customer_name: string;
+        }
+        const searchData = await client.getList<CustomerSummary>('Customer', {
           fields: ['name', 'customer_name'],
           filters: [['customer_name', '=', name]],
           limit_page_length: 1
         });
         
         if (Array.isArray(searchData) && searchData.length > 0) {
-          const actualName = (searchData as any[])[0].name;
-          const data = await client.get('Customer', actualName) as any;
+          const actualName = searchData[0].name;
+          const data = await client.get<Record<string, unknown>>('Customer', actualName);
           return NextResponse.json({ 
             success: true, 
             data, 

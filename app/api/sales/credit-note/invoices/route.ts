@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Build filters from search params
-    const filters: any[][] = [];
+    const filters: (string | number | boolean | null | string[])[][] = [];
     
     // Parse filters from searchParams if provided
     const filtersParam = searchParams.get('filters');
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
         if (Array.isArray(parsedFilters)) {
           filters.push(...parsedFilters);
         }
-      } catch (e) {
+      } catch {
         // Ignore invalid filter JSON
       }
     }
@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
     if (fieldsParam) {
       try {
         fields = JSON.parse(fieldsParam);
-      } catch (e) {
+      } catch {
         // Use default fields if parsing fails
       }
     }

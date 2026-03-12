@@ -13,12 +13,12 @@ export async function GET(request: NextRequest) {
     // Get site-aware client
     const client = await getERPNextClientForRequest(request);
 
-    const territories = await client.getList('Territory', {
+    const territories = await client.getList<{ name: string }>('Territory', {
       fields: ['name'],
       limit_page_length: 0
     });
 
-    const territoryNames = territories.map((t: any) => t.name).filter(Boolean);
+    const territoryNames = territories.map((t: { name: string }) => t.name).filter(Boolean);
     return NextResponse.json({ success: true, data: territoryNames });
 
   } catch (error: unknown) {

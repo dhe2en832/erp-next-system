@@ -27,9 +27,15 @@ export async function POST(
     const client = await getERPNextClientForRequest(request);
 
     // Use erpnext method to generate DN from SO
-    const data = await client.call('erpnext.selling.doctype.sales_order.sales_order.make_delivery_note', {
+    interface ReturnTemplate {
+      docs?: Record<string, unknown>[];
+      doc?: Record<string, unknown>;
+      message?: Record<string, unknown>;
+      [key: string]: unknown;
+    }
+    const data = await client.call<ReturnTemplate>('erpnext.selling.doctype.sales_order.sales_order.make_delivery_note', {
       source_name: name,
-    }) as any;
+    });
 
     const deliveryNoteData = data.docs?.[0] || data.doc || data.message || data;
     

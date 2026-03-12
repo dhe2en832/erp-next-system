@@ -14,13 +14,13 @@ export async function GET(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Fetch selling price lists only
-    const priceLists = await client.getList('Price List', {
+    const priceLists = await client.getList<{ name: string }>('Price List', {
       fields: ['name'],
       filters: [['selling', '=', 1]],
       limit_page_length: 0
     });
 
-    const lists = priceLists.map((p: any) => p.name).filter(Boolean);
+    const lists = priceLists.map((p: { name: string }) => p.name).filter(Boolean);
     return NextResponse.json({ success: true, data: lists });
 
   } catch (error: unknown) {

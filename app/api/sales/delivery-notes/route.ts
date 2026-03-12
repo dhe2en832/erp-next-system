@@ -21,12 +21,12 @@ export async function GET(request: NextRequest) {
     const toDate = searchParams.get('to_date');
 
     // Parse filters
-    let filters: any[] = [];
+    let filters: (string | number | boolean | null | string[])[][] = [];
     if (filtersParam) {
       try {
         filters = JSON.parse(filtersParam);
-      } catch (e) {
-        console.error('Error parsing filters:', e);
+      } catch {
+        console.error('Error parsing filters:');
       }
     }
 
@@ -46,8 +46,19 @@ export async function GET(request: NextRequest) {
     // Get site-aware client
     const client = await getERPNextClientForRequest(request);
     
+    interface DeliveryNoteSummary {
+      name: string;
+      customer: string;
+      customer_name: string;
+      posting_date: string;
+      posting_time: string;
+      status: string;
+      grand_total: number;
+      company: string;
+      [key: string]: unknown;
+    }
     // Fetch delivery notes using client method
-    const deliveryNotes = await client.getList('Delivery Note', {
+    const deliveryNotes = await client.getList<DeliveryNoteSummary>('Delivery Note', {
       fields: [
         'name',
         'customer',
@@ -90,7 +101,7 @@ export async function POST(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
     
     // Create delivery note using client method
-    const result = await client.insert('Delivery Note', body) as any;
+    const result = await client.insert<Record<string, unknown>>('Delivery Note', body);
     
     const deliveryNote = result.data || result;
 

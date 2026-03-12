@@ -42,7 +42,12 @@ export async function POST(
 
     try {
       // Submit the delivery note using client method
-      const result = await client.submit('Delivery Note', name) as any;
+      interface SubmitResult {
+        docs?: Record<string, unknown>[];
+        doc?: Record<string, unknown>;
+        [key: string]: unknown;
+      }
+      const result = await client.submit<SubmitResult>('Delivery Note', name);
 
       const deliveryNote = result.docs?.[0] || result.doc || result;
 
@@ -52,16 +57,16 @@ export async function POST(
         message: 'Delivery Note submitted successfully'
       });
 
-    } catch (submitError: any) {
+    } catch (submitError: unknown) {
       // Handle ERPNext-specific errors with detailed stock information
       let errorMessage = 'Failed to submit delivery note';
 
-      const errorData = submitError.response || submitError;
+      const errorData = (submitError as { response?: unknown })?.response || submitError;
 
       if (errorData && typeof errorData === 'object') {
         // Handle ERPNext exception format
         if ('exception' in errorData) {
-          const exceptionStr = String(errorData.exception);
+          const exceptionStr = String((errorData as { exception: unknown }).exception);
 
           // Check for NegativeStockError specifically
           if (exceptionStr.includes('NegativeStockError')) {
@@ -73,14 +78,18 @@ export async function POST(
 
               try {
                 // Fetch real-time stock information using Bin endpoint
-                const bins = await client.getList('Bin', {
+                interface BinSummary {
+                  actual_qty?: number;
+                  [key: string]: unknown;
+                }
+                const bins = await client.getList<BinSummary>('Bin', {
                   fields: ['actual_qty'],
                   filters: [
                     ['item_code', '=', itemCode.trim()],
                     ['warehouse', '=', warehouse.trim()]
                   ],
                   limit: 1
-                }) as any[];
+                });
 
                 if (bins && bins.length > 0) {
                   const currentStock = bins[0].actual_qty || 0;
@@ -97,7 +106,7 @@ export async function POST(
               // Fallback: try to extract at least the item name and quantity
               const fallbackMatch = exceptionStr.match(/([\d.]+)\s+unit\s+([^:]+):\s*([^.]+)/);
               if (fallbackMatch) {
-                const [, qtyNeeded, itemCode, itemName] = fallbackMatch;
+                const [, qtyNeeded, , itemName] = fallbackMatch;
                 errorMessage = `❌ Stok Tidak Mencukupi!\n\n📦 Item: ${itemName.trim()}\n📈 Stok Dibutuhkan: ${qtyNeeded} unit\n\n⚠️ Detail gudang tidak dapat diparsing. Silakan periksa stok manual di ERPNext.`;
               } else {
                 errorMessage = `❌ Stok Tidak Mencukupi! ${exceptionStr}`;

@@ -25,7 +25,14 @@ export async function GET(
     const client = await getERPNextClientForRequest(request);
 
     // Use getDoc method for complete data with child tables
-    const doc = await client.getDoc('Delivery Note', name) as any;
+    interface DeliveryNoteDoc {
+      is_return?: number;
+      docstatus?: number;
+      return_against?: string;
+      return_notes?: string;
+      [key: string]: unknown;
+    }
+    const doc = await client.getDoc<DeliveryNoteDoc>('Delivery Note', name);
     
     // Verify this is a return document
     if (!doc.is_return) {
@@ -74,7 +81,11 @@ export async function PUT(
     const client = await getERPNextClientForRequest(request);
 
     // First, get current document to check status
-    const currentDoc = await client.get('Delivery Note', name) as any;
+    interface CurrentDoc {
+      docstatus?: number;
+      [key: string]: unknown;
+    }
+    const currentDoc = await client.get<CurrentDoc>('Delivery Note', name);
     
     if (currentDoc.docstatus !== 0) {
       return NextResponse.json(
@@ -84,20 +95,20 @@ export async function PUT(
     }
 
     // Transform update data
-    const deliveryNoteUpdate = {
+    const deliveryNoteUpdate: Record<string, unknown> = {
       ...updateData,
       return_notes: updateData.return_notes || updateData.custom_notes,
     };
     
     // Make quantities negative for returns
-    if (deliveryNoteUpdate.items) {
-      deliveryNoteUpdate.items = deliveryNoteUpdate.items.map((item: any) => ({
+    if (deliveryNoteUpdate.items && Array.isArray(deliveryNoteUpdate.items)) {
+      deliveryNoteUpdate.items = deliveryNoteUpdate.items.map((item: Record<string, unknown>) => ({
         ...item,
-        qty: -Math.abs(item.qty),
+        qty: -Math.abs(item.qty as number || 0),
       }));
     }
 
-    const data = await client.update('Delivery Note', name, deliveryNoteUpdate);
+    const data = await client.update<Record<string, unknown>>('Delivery Note', name, deliveryNoteUpdate);
 
     return NextResponse.json({
       success: true,

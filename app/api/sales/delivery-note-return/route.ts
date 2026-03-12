@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Build filters array
-    let filtersArray: any[][] = [];
+    let filtersArray: (string | number | boolean | null | string[])[][] = [];
     
     // CRITICAL: Filter for returns only (is_return=1)
     filtersArray.push(["is_return", "=", 1]);
@@ -52,8 +52,8 @@ export async function GET(request: NextRequest) {
         const decodedFilters = decodeURIComponent(filters);
         const parsedFilters = JSON.parse(decodedFilters);
         filtersArray = filtersArray.concat(parsedFilters);
-      } catch (e) {
-        console.error('Error parsing filters:', e);
+      } catch {
+        console.error('Error parsing filters:');
       }
     }
     
@@ -88,7 +88,21 @@ export async function GET(request: NextRequest) {
     }
 
     // Use client method instead of fetch
-    const data = await client.getList('Delivery Note', {
+    interface DeliveryNoteSummary {
+      name: string;
+      customer: string;
+      customer_name: string;
+      posting_date: string;
+      return_against: string;
+      docstatus: number;
+      grand_total: number;
+      return_notes: string;
+      return_processed_date: string;
+      return_processed_by: string;
+      creation: string;
+      [key: string]: unknown;
+    }
+    const data = await client.getList<DeliveryNoteSummary>('Delivery Note', {
       fields: ['name', 'customer', 'customer_name', 'posting_date', 'return_against', 'docstatus', 'grand_total', 'return_notes', 'return_processed_date', 'return_processed_by', 'creation'],
       filters: filtersArray,
       limit_page_length: parseInt(limit),
@@ -97,7 +111,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Transform data to match frontend expectations
-    const transformedData = (data || []).map((dn: any) => ({
+    const transformedData = (data || []).map((dn: DeliveryNoteSummary) => ({
       name: dn.name,
       customer: dn.customer,
       customer_name: dn.customer_name,
@@ -189,9 +203,16 @@ export async function POST(request: NextRequest) {
     }
 
     // Use ERPNext's make_return method to ensure proper return handling
-    const returnTemplate = await client.call('erpnext.stock.doctype.delivery_note.delivery_note.make_sales_return', {
+    interface ReturnTemplate {
+      posting_date: string;
+      return_notes: string;
+      company: string;
+      items: Record<string, unknown>[];
+      [key: string]: unknown;
+    }
+    const returnTemplate = await client.call<ReturnTemplate>('erpnext.stock.doctype.delivery_note.delivery_note.make_sales_return', {
       source_name: returnData.return_against,
-    }) as any;
+    });
 
     if (!returnTemplate) {
       return NextResponse.json(
@@ -210,17 +231,17 @@ export async function POST(request: NextRequest) {
     }
     
     // Update items with user's return quantities and reasons
-    const userItemsMap = new Map();
-    returnData.items.forEach((item: any) => {
-      userItemsMap.set(item.item_code, item);
+    const userItemsMap = new Map<string, Record<string, unknown>>();
+    returnData.items.forEach((item: Record<string, unknown>) => {
+      userItemsMap.set(item.item_code as string, item);
     });
 
     // Filter and update items based on user selection
-    returnTemplate.items = returnTemplate.items
-      .filter((item: any) => userItemsMap.has(item.item_code))
-      .map((item: any) => {
-        const userItem = userItemsMap.get(item.item_code);
-        const returnQty = -Math.abs(userItem.qty); // Negative for return
+    returnTemplate.items = (returnTemplate.items || [])
+      .filter((item: Record<string, unknown>) => userItemsMap.has(item.item_code as string))
+      .map((item: Record<string, unknown>) => {
+        const userItem = userItemsMap.get(item.item_code as string) || {};
+        const returnQty = -Math.abs(userItem.qty as number || 0); // Negative for return
         
         return {
           ...item,
@@ -228,8 +249,8 @@ export async function POST(request: NextRequest) {
           received_qty: returnQty, // Must be negative for returns
           accepted_qty: returnQty, // Must be negative for returns
           rejected_qty: 0, // No rejected qty for returns
-          rate: item.rate || userItem.rate || 0,
-          amount: returnQty * (item.rate || userItem.rate || 0),
+          rate: (item.rate as number) || (userItem.rate as number) || 0,
+          amount: returnQty * ((item.rate as number) || (userItem.rate as number) || 0),
           warehouse: userItem.warehouse || item.warehouse,
           return_reason: userItem.return_reason,
           return_item_notes: userItem.return_item_notes || '',
@@ -237,23 +258,27 @@ export async function POST(request: NextRequest) {
       });
 
     // Validate that all items have warehouse
-    const itemsWithoutWarehouse = returnTemplate.items.filter((item: any) => !item.warehouse);
+    const itemsWithoutWarehouse = returnTemplate.items.filter((item: Record<string, unknown>) => !item.warehouse);
     if (itemsWithoutWarehouse.length > 0) {
-      console.warn('WARNING: Some items missing warehouse:', itemsWithoutWarehouse.map((i: any) => i.item_code));
+      console.warn('WARNING: Some items missing warehouse:', itemsWithoutWarehouse.map((i: Record<string, unknown>) => i.item_code));
     }
 
     // Fetch stock levels for each item before saving
     for (const item of returnTemplate.items) {
       if (item.item_code && item.warehouse) {
         try {
-          const stockData = await client.getList('Bin', {
+          interface Bin {
+            actual_qty?: number;
+            [key: string]: unknown;
+          }
+          const stockData = await client.getList<Bin>('Bin', {
             fields: ['actual_qty', 'projected_qty'],
             filters: [
-              ['item_code', '=', item.item_code],
-              ['warehouse', '=', item.warehouse]
+              ['item_code', '=', item.item_code as string],
+              ['warehouse', '=', item.warehouse as string]
             ],
             limit_page_length: 1
-          }) as any[];
+          });
           
           if (stockData && stockData.length > 0) {
             item.actual_qty = stockData[0].actual_qty || 0;
@@ -265,7 +290,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Save the customized return document
-    const saveData = await client.insert('Delivery Note', returnTemplate) as any;
+    interface SaveData {
+      name: string;
+      items: Record<string, unknown>[];
+      [key: string]: unknown;
+    }
+    const saveData = await client.insert<SaveData>('Delivery Note', returnTemplate as unknown as Record<string, unknown>);
     const savedDocName = saveData?.name;
     
     // Update company_total_stock for each item after save
@@ -273,17 +303,21 @@ export async function POST(request: NextRequest) {
       for (const item of saveData.items) {
         if (item.name && item.item_code && item.warehouse) {
           try {
-            const stockData = await client.getList('Bin', {
+            interface StockSummary {
+              actual_qty?: number;
+              [key: string]: unknown;
+            }
+            const stockData = await client.getList<StockSummary>('Bin', {
               fields: ['actual_qty'],
               filters: [
-                ['item_code', '=', item.item_code],
+                ['item_code', '=', item.item_code as string],
               ],
-            }) as any[];
+            });
             
             if (stockData && stockData.length > 0) {
               const actualQty = stockData[0].actual_qty || 0;
               
-              await client.update('Delivery Note Item', item.name, {
+              await client.update<Record<string, unknown>>('Delivery Note Item', item.name as string, {
                 company_total_stock: actualQty
               });
               
@@ -299,7 +333,7 @@ export async function POST(request: NextRequest) {
     // Refresh document to get all calculated fields
     if (savedDocName) {
       try {
-        const refreshedDoc = await client.getDoc('Delivery Note', savedDocName) as any;
+        const refreshedDoc = await client.getDoc<Record<string, unknown>>('Delivery Note', savedDocName);
         if (refreshedDoc) {
           return NextResponse.json({
             success: true,

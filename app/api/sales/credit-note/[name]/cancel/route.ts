@@ -31,7 +31,14 @@ export async function POST(
     const client = await getERPNextClientForRequest(request);
 
     // First, verify document exists and is in Submitted status
-    const currentDoc = await client.get('Sales Invoice', name) as any;
+    interface CreditNoteDoc {
+      is_return?: number;
+      docstatus?: number;
+      company: string;
+      posting_date: string;
+      [key: string]: unknown;
+    }
+    const currentDoc = await client.get<CreditNoteDoc>('Sales Invoice', name);
     
     if (!currentDoc.is_return) {
       return NextResponse.json(
@@ -49,7 +56,14 @@ export async function POST(
 
     // Validate Accounting Period for posting_date (Requirement 3.7, 9.8)
     try {
-      const periods = await client.getList('Accounting Period', {
+      interface AccountingPeriod {
+        name: string;
+        period_name: string;
+        status: string;
+        start_date: string;
+        end_date: string;
+      }
+      const periods = await client.getList<AccountingPeriod>('Accounting Period', {
         fields: ['name', 'period_name', 'status', 'start_date', 'end_date'],
         filters: [
           ['company', '=', currentDoc.company],
@@ -60,7 +74,7 @@ export async function POST(
       });
 
       if (periods && periods.length > 0) {
-        const period = periods[0] as any;
+        const period = periods[0];
         if (period.status === 'Closed' || period.status === 'Permanently Closed') {
           return NextResponse.json(
             { 
@@ -77,7 +91,12 @@ export async function POST(
     }
 
     // Cancel the document using ERPNext's cancel method
-    const cancelledDoc = await client.cancel('Sales Invoice', name) as any;
+    interface CancelledDoc {
+      return_against?: string;
+      return_notes?: string;
+      [key: string]: unknown;
+    }
+    const cancelledDoc = await client.cancel<CancelledDoc>('Sales Invoice', name);
     
     // Transform response to match frontend expectations
     return NextResponse.json({

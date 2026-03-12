@@ -3,7 +3,6 @@ import { parseErpError } from '../../../../../../utils/erp-error';
 import { 
   getERPNextClientForRequest, 
   getSiteIdFromRequest,
-  buildSiteAwareErrorResponse,
   logSiteError 
 } from '@/lib/api-helpers';
 
@@ -36,25 +35,37 @@ export async function POST(
 
     // Get current invoice data to verify custom fields before submit
     try {
-      const currentData = await client.get('Sales Invoice', invoiceName) as any;
+      interface SalesTeamMember {
+        sales_person?: string;
+        employee?: string;
+        [key: string]: unknown;
+      }
+      interface SalesInvoiceDoc {
+        sales_team?: SalesTeamMember[];
+        [key: string]: unknown;
+      }
+      const currentData = await client.get<SalesInvoiceDoc>('Sales Invoice', invoiceName);
 
       // Auto-fill employee for sales team if missing
       const salesTeam = currentData.sales_team || [];
-      const missingEmployeeEntries = salesTeam.filter((st: any) => st.sales_person && !st.employee);
+      const missingEmployeeEntries = salesTeam.filter((st: SalesTeamMember) => st.sales_person && !st.employee);
       
       if (missingEmployeeEntries.length > 0) {
-        const updatedSalesTeam = await Promise.all(salesTeam.map(async (st: any) => {
+        const updatedSalesTeam = await Promise.all(salesTeam.map(async (st: SalesTeamMember) => {
           if (st.employee || !st.sales_person) return st;
           
           try {
             // Fetch employee for sales person
-            const employees = await client.getList('Employee', {
+            interface EmployeeSummary {
+              name: string;
+            }
+            const employees = await client.getList<EmployeeSummary>('Employee', {
               filters: [['sales_person', '=', st.sales_person]],
               limit: 1
             });
             
             if (employees && employees.length > 0) {
-              return { ...st, employee: (employees as any[])[0].name };
+              return { ...st, employee: employees[0].name };
             }
           } catch (empErr) {
             console.warn('Employee lookup failed for sales person', st.sales_person, empErr);
@@ -62,13 +73,13 @@ export async function POST(
           return st;
         }));
 
-        const hasNewEmployee = updatedSalesTeam.some((st: any, idx: number) => 
+        const hasNewEmployee = updatedSalesTeam.some((st: SalesTeamMember, idx: number) => 
           st.employee && !salesTeam[idx]?.employee
         );
         
         if (hasNewEmployee) {
           try {
-            await client.update('Sales Invoice', invoiceName, { sales_team: updatedSalesTeam });
+            await client.update<Record<string, unknown>>('Sales Invoice', invoiceName, { sales_team: updatedSalesTeam });
           } catch (updateErr) {
             console.warn('Failed to update sales_team before submit:', updateErr);
           }
@@ -79,7 +90,7 @@ export async function POST(
     }
 
     // Submit invoice using client method
-    const result = await client.submit('Sales Invoice', invoiceName);
+    const result = await client.submit<Record<string, unknown>>('Sales Invoice', invoiceName);
 
     return NextResponse.json({ 
       success: true, 
@@ -87,10 +98,12 @@ export async function POST(
       data: result 
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     logSiteError(error, 'POST /api/sales/invoices/[name]/submit', siteId);
-    const errorMessage = parseErpError({ message: error.message }, 'Gagal mengajukan Sales Invoice');
-    const errorResponse = buildSiteAwareErrorResponse(error, siteId);
+    const errorMessage = error instanceof Error 
+      ? parseErpError({ message: error.message }, 'Gagal mengajukan Sales Invoice')
+      : 'Gagal mengajukan Sales Invoice';
+    
     return NextResponse.json(
       { success: false, message: errorMessage },
       { status: 500 }

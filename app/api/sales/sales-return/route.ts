@@ -41,17 +41,23 @@ export async function GET(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Build filters array
-    let filtersArray: any[] = [];
+    const filtersArray: (string | number | boolean | null | string[])[][] = [];
     
     // Parse existing filters if provided
     if (filters) {
       try {
         const decodedFilters = decodeURIComponent(filters);
-        filtersArray = JSON.parse(decodedFilters);
-      } catch (e) {
+        const parsedFilters = JSON.parse(decodedFilters);
+        if (Array.isArray(parsedFilters)) {
+          filtersArray.push(...parsedFilters);
+        }
+      } catch {
         try {
-          filtersArray = JSON.parse(filters);
-        } catch (e2) {
+          const parsedFilters = JSON.parse(filters);
+          if (Array.isArray(parsedFilters)) {
+            filtersArray.push(...parsedFilters);
+          }
+        } catch {
           // Ignore invalid filters
         }
       }
@@ -173,7 +179,7 @@ export async function POST(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Create sales return using client
-    const result = await client.insert('Sales Return', salesReturnData) as any;
+    const result = await client.insert<Record<string, unknown>>('Sales Return', salesReturnData);
 
     return NextResponse.json({
       success: true,

@@ -38,13 +38,18 @@ export async function GET(
     const client = await getERPNextClientForRequest(request);
 
     // Use getList with filter to find the specific Sales Invoice that is a return
-    const data = await client.getList('Sales Invoice', {
+    interface CreditNoteListItem {
+      is_return?: number;
+      return_against?: string;
+      [key: string]: unknown;
+    }
+    const data = await client.getList<CreditNoteListItem>('Sales Invoice', {
       filters: [
         ['name', '=', name],
         ['is_return', '=', 1]
       ],
       fields: ['*']
-    }) as any;
+    });
 
     if (data && data.length > 0) {
       const creditNote = data[0];
@@ -70,7 +75,7 @@ export async function GET(
       });
     } else {
       // Fallback: Try using getDoc method
-      const creditNote = await client.getDoc('Sales Invoice', name) as any;
+      const creditNote = await client.getDoc<CreditNoteListItem>('Sales Invoice', name);
       
       // Verify this is a Credit Note
       if (creditNote.is_return !== 1) {
@@ -96,7 +101,7 @@ export async function GET(
     logSiteError(error, 'GET /api/sales/credit-note/[name]', siteId);
     const errorResponse = buildSiteAwareErrorResponse(error, siteId);
     const statusCode = errorResponse.errorType === 'authentication' ? 401 : 
-                       (error as any)?.message?.includes('not found') ? 404 : 500;
+                       (error instanceof Error && error.message.includes('not found')) ? 404 : 500;
     return NextResponse.json(errorResponse, { status: statusCode });
   }
 }

@@ -26,10 +26,14 @@ export async function GET(
     const client = await getERPNextClientForRequest(request);
     
     // Use frappe.desk.form.load.getdoc for complete document with child tables
-    const result = await client.call('frappe.desk.form.load.getdoc', {
+    interface RefreshedDoc {
+      docs?: Record<string, unknown>[];
+      [key: string]: unknown;
+    }
+    const result = await client.call<RefreshedDoc>('frappe.desk.form.load.getdoc', {
       doctype: 'Delivery Note',
       name: name,
-    }) as any;
+    });
 
     if (result.docs && result.docs.length > 0) {
       const deliveryNote = result.docs[0];
@@ -40,7 +44,7 @@ export async function GET(
       });
     } else {
       // Fallback: Try using resource API with fields parameter to include child tables
-      const deliveryNote = await client.get('Delivery Note', name) as any;
+      const deliveryNote = await client.get<Record<string, unknown>>('Delivery Note', name);
       
       return NextResponse.json({
         success: true,

@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
     const client = await getERPNextClientForRequest(request);
 
     // Build filters array
-    const filtersArray: any[] = [];
+    const filtersArray: (string | number | boolean | null | string[])[][] = [];
     
     // CRITICAL: Filter by is_return=1 to get only Credit Notes (Sales Invoice returns)
     filtersArray.push(["is_return", "=", 1]);
@@ -61,15 +61,15 @@ export async function GET(request: NextRequest) {
         if (Array.isArray(parsedFilters)) {
           filtersArray.push(...parsedFilters);
         }
-      } catch (e) {
-        console.error('Error parsing filters:', e);
+      } catch {
+        console.error('Error parsing filters:');
         try {
           const parsedFilters = JSON.parse(filters);
           if (Array.isArray(parsedFilters)) {
             filtersArray.push(...parsedFilters);
           }
-        } catch (e2) {
-          console.error('Error parsing filters directly:', e2);
+        } catch {
+          console.error('Error parsing filters directly:');
         }
       }
     }
@@ -113,7 +113,20 @@ export async function GET(request: NextRequest) {
     }
 
     // Use client.getList instead of fetch
-    const creditNotes = await client.getList('Sales Invoice', {
+    interface CreditNote {
+      name: string;
+      customer: string;
+      customer_name: string;
+      posting_date: string;
+      return_against: string;
+      docstatus: number;
+      grand_total: number;
+      custom_total_komisi_sales: number;
+      creation: string;
+      modified: string;
+      [key: string]: unknown;
+    }
+    const creditNotes = await client.getList<CreditNote>('Sales Invoice', {
       fields: ['name', 'customer', 'customer_name', 'posting_date', 'return_against', 'docstatus', 'grand_total', 'custom_total_komisi_sales', 'creation', 'modified'],
       filters: filtersArray,
       limit_page_length: parseInt(limit),
@@ -122,7 +135,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Transform data: docstatus → status, return_against → sales_invoice
-    const transformedData = (creditNotes || []).map((creditNote: any) => {
+    const transformedData = (creditNotes || []).map((creditNote: CreditNote) => {
         // Map docstatus to status label
         let statusLabel: string;
         switch (creditNote.docstatus) {
@@ -242,7 +255,12 @@ export async function POST(request: NextRequest) {
 
     // Validate Sales Invoice existence and status (Requirement 11.7)
     try {
-      const invoice = await client.get('Sales Invoice', creditNoteData.return_against) as any;
+      interface SalesInvoice {
+        status: string;
+        customer: string;
+        [key: string]: unknown;
+      }
+      const invoice = await client.get<SalesInvoice>('Sales Invoice', creditNoteData.return_against);
       
       if (invoice.status !== 'Paid') {
         return NextResponse.json(
@@ -263,7 +281,7 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
-    } catch (invoiceError) {
+    } catch {
       return NextResponse.json(
         { 
           success: false, 
@@ -275,7 +293,12 @@ export async function POST(request: NextRequest) {
 
     // Validate Accounting Period for posting_date (Requirement 1.15, 11.8)
     try {
-      const periods = await client.getList('Accounting Period', {
+      interface AccountingPeriod {
+        status: string;
+        period_name: string;
+        [key: string]: unknown;
+      }
+      const periods = await client.getList<AccountingPeriod>('Accounting Period', {
         fields: ['name', 'period_name', 'status', 'start_date', 'end_date'],
         filters: [
           ['company', '=', creditNoteData.company],
@@ -286,7 +309,7 @@ export async function POST(request: NextRequest) {
       });
       
       if (periods && periods.length > 0) {
-        const period = periods[0] as any;
+        const period = periods[0];
         if (period.status === 'Closed' || period.status === 'Permanently Closed') {
           return NextResponse.json(
             { 
@@ -297,14 +320,22 @@ export async function POST(request: NextRequest) {
           );
         }
       }
-    } catch (periodError) {
+    } catch {
       // Continue without blocking if period check fails
     }
 
     // Use ERPNext's make_sales_return method to generate Credit Note template (Requirement 1.10)
-    const returnTemplate = await client.call('erpnext.accounts.doctype.sales_invoice.sales_invoice.make_sales_return', {
+    interface ReturnTemplate {
+      posting_date: string;
+      custom_return_notes: string;
+      company: string;
+      items: Record<string, unknown>[];
+      custom_total_komisi_sales: number;
+      [key: string]: unknown;
+    }
+    const returnTemplate = await client.call<ReturnTemplate>('erpnext.accounts.doctype.sales_invoice.sales_invoice.make_sales_return', {
       source_name: creditNoteData.return_against,
-    }) as any;
+    });
 
     // Customize template with user data (Requirement 1.11)
     returnTemplate.posting_date = creditNoteData.posting_date;
@@ -316,32 +347,32 @@ export async function POST(request: NextRequest) {
     }
     
     // Build map of user items for quick lookup
-    const userItemsMap = new Map();
-    creditNoteData.items.forEach((item: any) => {
-      userItemsMap.set(item.item_code, item);
+    const userItemsMap = new Map<string, Record<string, unknown>>();
+    creditNoteData.items.forEach((item: Record<string, unknown>) => {
+      userItemsMap.set(item.item_code as string, item);
     });
 
     // Filter and update items based on user selection
     // Copy custom_komisi_sales from original items (negative, proportional) (Requirement 1.12)
-    returnTemplate.items = returnTemplate.items
-      .filter((item: any) => userItemsMap.has(item.item_code))
-      .map((item: any) => {
-        const userItem = userItemsMap.get(item.item_code);
-        const returnQty = -Math.abs(userItem.qty); // Negative for return
+    returnTemplate.items = (returnTemplate.items || [])
+      .filter((item: Record<string, unknown>) => userItemsMap.has(item.item_code as string))
+      .map((item: Record<string, unknown>) => {
+        const userItem = userItemsMap.get(item.item_code as string) || {};
+        const returnQty = -Math.abs(userItem.qty as number || 0); // Negative for return
         
         // Calculate proportional commission (negative)
         // Formula: -(original_commission × return_qty / original_qty)
-        const originalQty = Math.abs(item.qty); // Template has negative qty
-        const originalCommission = userItem.custom_komisi_sales || 0;
+        const originalQty = Math.abs(item.qty as number || 0); // Template has negative qty
+        const originalCommission = userItem.custom_komisi_sales as number || 0;
         const proportionalCommission = originalQty > 0 
-          ? -(originalCommission * Math.abs(userItem.qty) / originalQty)
+          ? -(originalCommission * Math.abs(userItem.qty as number || 0) / originalQty)
           : 0;
         
         return {
           ...item,
           qty: returnQty,
-          rate: item.rate || userItem.rate || 0,
-          amount: returnQty * (item.rate || userItem.rate || 0),
+          rate: (item.rate as number) || (userItem.rate as number) || 0,
+          amount: returnQty * ((item.rate as number) || (userItem.rate as number) || 0),
           warehouse: userItem.warehouse || item.warehouse,
           custom_return_reason: userItem.custom_return_reason,
           custom_return_item_notes: userItem.custom_return_item_notes || '',
@@ -350,8 +381,8 @@ export async function POST(request: NextRequest) {
       });
 
     // Calculate custom_total_komisi_sales (Requirement 1.13)
-    const totalCommission = (returnTemplate.items || []).reduce((sum: number, item: any) => {
-      return sum + (item.custom_komisi_sales || 0);
+    const totalCommission = (returnTemplate.items || []).reduce((sum: number, item: Record<string, unknown>) => {
+      return sum + (item.custom_komisi_sales as number || 0);
     }, 0);
     returnTemplate.custom_total_komisi_sales = Math.round(totalCommission * 100) / 100;
 
@@ -361,16 +392,24 @@ export async function POST(request: NextRequest) {
       sample_item_commission: returnTemplate.items?.[0]?.custom_komisi_sales
     });
 
+    interface SavedDoc {
+      name: string;
+      [key: string]: unknown;
+    }
     // Save Credit Note to ERPNext (Requirement 1.14)
-    const savedDoc = await client.insert('Sales Invoice', returnTemplate) as any;
+    const savedDoc = await client.insert<SavedDoc>('Sales Invoice', returnTemplate as unknown as Record<string, unknown>);
 
     // Refresh document using frappe.desk.form.load.getdoc to get all calculated fields
     if (savedDoc.name) {
       try {
-        const refreshedDoc = await client.call('frappe.desk.form.load.getdoc', {
+        interface RefreshedDoc {
+          docs?: Record<string, unknown>[];
+          [key: string]: unknown;
+        }
+        const refreshedDoc = await client.call<RefreshedDoc>('frappe.desk.form.load.getdoc', {
           doctype: 'Sales Invoice',
           name: savedDoc.name
-        }) as any;
+        });
         
         // getdoc returns data in docs[0]
         if (refreshedDoc?.docs?.[0]) {
@@ -380,7 +419,7 @@ export async function POST(request: NextRequest) {
             message: 'Credit Note berhasil disimpan',
           });
         }
-      } catch (refreshError) {
+      } catch {
         // Fallback to saved data if refresh fails
       }
     }

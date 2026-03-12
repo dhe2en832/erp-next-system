@@ -48,10 +48,15 @@ export async function GET(
     const client = await getERPNextClientForRequest(request);
     
     // Use ERPNext's form.load.getdoc method to get full document with child tables
-    const orderData = await client.call('frappe.desk.form.load.getdoc', {
+    interface RefreshedDoc {
+      docs?: Record<string, unknown>[];
+      doc?: Record<string, unknown>;
+      [key: string]: unknown;
+    }
+    const orderData = await client.call<RefreshedDoc>('frappe.desk.form.load.getdoc', {
       doctype: 'Sales Order',
       name: name.trim()
-    }) as any;
+    });
 
     // form.load.getdoc returns data in different structure
     // The actual document data is in docs or doc

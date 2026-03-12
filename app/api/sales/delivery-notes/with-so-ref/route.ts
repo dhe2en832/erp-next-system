@@ -16,23 +16,34 @@ export async function GET(request: NextRequest) {
     // Get site-aware client
     const client = await getERPNextClientForRequest(request);
     
-    const filters: any[][] = [["company", "=", company]];
+    const filters: (string | number | boolean | null | string[])[][] = [["company", "=", company]];
     
-    const deliveryNotes = await client.getList('Delivery Note', {
+    interface DeliveryNoteSummary {
+      name: string;
+      customer: string;
+      status: string;
+      grand_total: number;
+      [key: string]: unknown;
+    }
+    const deliveryNotes = await client.getList<DeliveryNoteSummary>('Delivery Note', {
       fields: ['name', 'customer', 'status', 'grand_total'],
       filters,
       limit_page_length: 20
     });
     
-    const results = await Promise.all(deliveryNotes.map(async (dn: any) => {
+    const results = await Promise.all(deliveryNotes.map(async (dn: DeliveryNoteSummary) => {
       try {
-        const dnDetail = await client.get('Delivery Note', dn.name) as any;
-        const dnSORefs = new Set();
+        interface DeliveryNoteDetail {
+          items?: Record<string, unknown>[];
+          [key: string]: unknown;
+        }
+        const dnDetail = await client.get<DeliveryNoteDetail>('Delivery Note', dn.name);
+        const dnSORefs = new Set<string>();
         
         if (dnDetail.items && Array.isArray(dnDetail.items)) {
-          dnDetail.items.forEach((item: any) => {
+          dnDetail.items.forEach((item: Record<string, unknown>) => {
             if (item.against_sales_order) {
-              dnSORefs.add(item.against_sales_order);
+              dnSORefs.add(item.against_sales_order as string);
             }
           });
         }
@@ -55,9 +66,9 @@ export async function GET(request: NextRequest) {
     }));
     
     const dnWithSORef = results.filter((r): r is NonNullable<typeof r> => r !== null);
-    const soReferences = new Set();
+    const soReferences = new Set<string>();
     dnWithSORef.forEach(dn => {
-      dn.so_references.forEach((ref: any) => soReferences.add(ref));
+      dn.so_references.forEach((ref: string) => soReferences.add(ref));
     });
     
     return NextResponse.json({

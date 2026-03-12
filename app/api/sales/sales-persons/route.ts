@@ -18,12 +18,19 @@ export async function GET(request: NextRequest) {
     // Get site-aware client
     const client = await getERPNextClientForRequest(request);
 
-    const filters: any[][] = [];
+    const filters: (string | number | boolean | null | string[])[][] = [];
     if (search) {
       filters.push(['sales_person_name', 'like', `%${search}%`]);
     }
 
-    const salesPersons = await client.getList('Sales Person', {
+    interface SalesPersonSummary {
+      name: string;
+      sales_person_name?: string;
+      employee?: string;
+      email?: string;
+      [key: string]: unknown;
+    }
+    const salesPersons = await client.getList<SalesPersonSummary>('Sales Person', {
       fields: ['name', 'sales_person_name', 'employee'],
       filters: filters.length > 0 ? filters : undefined,
       limit_page_length: limitPageLength,
@@ -32,7 +39,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Transform sales person master data
-    const salesPersonsList = salesPersons.map((person: any) => ({
+    const salesPersonsList = salesPersons.map((person: SalesPersonSummary) => ({
       name: person.name,
       full_name: person.sales_person_name || person.name,
       employee: person.employee || '',
@@ -76,7 +83,7 @@ export async function POST(request: NextRequest) {
       enabled: body.enabled !== undefined ? body.enabled : 1,
     };
 
-    const data = await client.insert('Sales Person', salesPersonData) as any;
+    const data = await client.insert<Record<string, unknown>>('Sales Person', salesPersonData);
 
     return NextResponse.json({ success: true, data });
 

@@ -24,14 +24,25 @@ export async function GET(request: NextRequest) {
     // Get site-aware client
     const client = await getERPNextClientForRequest(request);
 
-    const filters: any[][] = [
+    const filters: (string | number | boolean | null | string[])[][] = [
       ["customer", "=", customer],
       ["company", "=", company],
       ["docstatus", "=", 1],
       ["outstanding_amount", ">", 0]
     ];
 
-    const invoices = await client.getList('Sales Invoice', {
+    interface SalesInvoiceSummary {
+      name: string;
+      customer: string;
+      posting_date: string;
+      due_date: string;
+      grand_total: number;
+      outstanding_amount: number;
+      status: string;
+      paid_amount: number;
+      [key: string]: unknown;
+    }
+    const invoices = await client.getList<SalesInvoiceSummary>('Sales Invoice', {
       fields: ['name', 'customer', 'posting_date', 'due_date', 'grand_total', 'outstanding_amount', 'status', 'paid_amount'],
       filters,
       order_by: 'due_date asc',

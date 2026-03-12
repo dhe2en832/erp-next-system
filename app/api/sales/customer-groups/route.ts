@@ -13,12 +13,12 @@ export async function GET(request: NextRequest) {
     // Get site-aware client
     const client = await getERPNextClientForRequest(request);
 
-    const data = await client.getList('Customer Group', {
+    const data = await client.getList<{ name: string }>('Customer Group', {
       fields: ['name'],
       limit_page_length: 0 // Get all
     });
 
-    const groups = (data || []).map((g: any) => g.name).filter(Boolean);
+    const groups = (data || []).map((g: { name: string }) => g.name).filter(Boolean);
     return NextResponse.json({ success: true, data: groups });
   } catch (error: unknown) {
     logSiteError(error, 'GET /api/sales/customer-groups', siteId);

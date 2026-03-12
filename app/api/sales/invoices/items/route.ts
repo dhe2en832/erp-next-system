@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     console.log('[Sales Invoice Items] Client created for site:', siteId);
 
     // Get all submitted DN (exclude returns)
-    const filters: any[][] = [
+    const filters: (string | number | boolean | null | string[])[][] = [
       ["docstatus", "=", 1],
       ["status", "!=", "Closed"],
       ["is_return", "=", 0]
@@ -31,7 +31,15 @@ export async function GET(request: NextRequest) {
     }
 
     console.log('[Sales Invoice Items] Fetching Delivery Notes with filters:', JSON.stringify(filters));
-    const allDNs = await client.getList('Delivery Note', {
+    interface DeliveryNoteSummary {
+      name: string;
+      customer: string;
+      customer_name: string;
+      grand_total: number;
+      status: string;
+      [key: string]: unknown;
+    }
+    const allDNs = await client.getList<DeliveryNoteSummary>('Delivery Note', {
       fields: ['name', 'customer', 'customer_name', 'grand_total', 'status'],
       filters,
       limit_page_length: 0 // Get all
@@ -40,7 +48,16 @@ export async function GET(request: NextRequest) {
 
     // Get all Sales Invoice
     console.log('[Sales Invoice Items] Fetching Sales Invoices...');
-    const invoices = await client.getList('Sales Invoice', {
+    interface SalesInvoiceSummary {
+      name: string;
+      docstatus: number;
+      customer?: string;
+      customer_name?: string;
+      posting_date?: string;
+      status?: string;
+      [key: string]: unknown;
+    }
+    const invoices = await client.getList<SalesInvoiceSummary>('Sales Invoice', {
       fields: ['name', 'docstatus'],
       filters: [["docstatus", "!=", 2]],
       limit_page_length: 0 // Get all
@@ -51,11 +68,15 @@ export async function GET(request: NextRequest) {
     // Fallback approach: fetch each invoice and extract items
     // Child table queries require special permissions, so we use parent document approach
     console.log('[Sales Invoice Items] Extracting DNs from invoices...');
-    const results = await Promise.all(invoices.map(async (invoice: any) => {
+    const results = await Promise.all(invoices.map(async (invoice: SalesInvoiceSummary) => {
       try {
-        const invoiceData = await client.get('Sales Invoice', invoice.name) as any;
+        interface SalesInvoiceDetail {
+          items?: Record<string, unknown>[];
+          [key: string]: unknown;
+        }
+        const invoiceData = await client.get<SalesInvoiceDetail>('Sales Invoice', invoice.name);
         
-        return (invoiceData.items || []).map((item: any) => ({
+        return (invoiceData.items || []).map((item: Record<string, unknown>) => ({
           ...item,
           customer: invoice.customer,
           customer_name: invoice.customer_name,
@@ -69,7 +90,7 @@ export async function GET(request: NextRequest) {
       }
     }));
 
-    const usedDNs = results.flat().map((item: any) => item.delivery_note).filter(Boolean);
+    const usedDNs = results.flat().map((item: Record<string, unknown>) => item.delivery_note).filter(Boolean);
     console.log('[Sales Invoice Items] Total DNs found in invoices:', usedDNs.length);
 
     const uniqueUsedDNs = [...new Set(usedDNs)];
