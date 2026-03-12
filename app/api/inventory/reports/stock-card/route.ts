@@ -274,7 +274,7 @@ async function enrichStockLedgerEntries(
  * 
  * @param entries - Filtered stock ledger entries
  * @param company - Company name
- * @param item_code - Item code
+ * @param item_code - Item code (can be null for "All Items")
  * @param from_date - Start date for the report (optional)
  * @param client - ERPNext client
  * @returns Summary data including opening balance, closing balance, totals
@@ -298,6 +298,18 @@ async function calculateSummary(
   item_name: string;
   uom: string;
 }> {
+  console.log('calculateSummary called with:', {
+    entries_count: entries.length,
+    company,
+    item_code: item_code || 'All Items',
+    from_date,
+    sample_entries: entries.slice(0, 3).map(e => ({
+      item_code: e.item_code,
+      actual_qty: e.actual_qty,
+      qty_after_transaction: e.qty_after_transaction
+    }))
+  });
+  
   // Get item name and UOM
   let item_name = item_code || 'All Items';
   let uom = '';
@@ -317,12 +329,27 @@ async function calculateSummary(
     }
   }
   
+  // Calculate total in, total out, and transaction count (Requirement 1.6)
+  // This works for both specific item and "All Items"
+  let total_in = 0;
+  let total_out = 0;
+  const transaction_count = entries.length;
+  
+  for (const entry of entries) {
+    const qty = Number(entry.actual_qty) || 0;
+    if (qty > 0) {
+      total_in += qty;
+    } else if (qty < 0) {
+      total_out += Math.abs(qty);
+    }
+  }
+  
   // Calculate opening balance (Requirement 1.5)
-  // Opening balance is the qty_after_transaction of the last transaction before from_date
-  // Note: Opening balance only makes sense when filtering by specific item
+  // Opening balance = stock balance at the START of the period (beginning of from_date)
   let opening_balance = 0;
   
   if (from_date && item_code) {
+    // For specific item: get qty_after_transaction before from_date
     try {
       const openingFilters: (string | number | boolean | null | string[])[][] = [
         ['company', '=', company],
@@ -346,30 +373,64 @@ async function calculateSummary(
     } catch (error) {
       console.error('Error fetching opening balance:', error);
     }
-  }
-  
-  // Calculate total in, total out, and transaction count (Requirement 1.6)
-  let total_in = 0;
-  let total_out = 0;
-  const transaction_count = entries.length;
-  
-  for (const entry of entries) {
-    if (entry.actual_qty > 0) {
-      total_in += entry.actual_qty;
-    } else if (entry.actual_qty < 0) {
-      total_out += Math.abs(entry.actual_qty);
+  } else if (from_date && !item_code) {
+    // For "All Items": Get the earliest balance in the period for each item
+    // Then subtract the movements in the period to get opening balance
+    // Opening Balance = Earliest Balance in Period - Total In + Total Out
+    
+    if (entries.length > 0) {
+      // Get the first transaction for each item in the period
+      const itemFirstBalances = new Map<string, number>();
+      
+      // Process entries to find the first occurrence of each item
+      for (const entry of entries) {
+        if (!itemFirstBalances.has(entry.item_code)) {
+          // This is the first transaction for this item in the period
+          // The opening balance for this item = qty_after_transaction - actual_qty
+          const itemOpeningBalance = (Number(entry.qty_after_transaction) || 0) - (Number(entry.actual_qty) || 0);
+          itemFirstBalances.set(entry.item_code, itemOpeningBalance);
+        }
+      }
+      
+      // Sum all item opening balances
+      opening_balance = Array.from(itemFirstBalances.values()).reduce((sum, qty) => sum + qty, 0);
+      
+      console.log('Opening balance calculation for All Items (from first transactions):', {
+        unique_items_in_period: itemFirstBalances.size,
+        sample_balances: Array.from(itemFirstBalances.entries()).slice(0, 5),
+        total_opening_balance: opening_balance,
+        total_in,
+        total_out
+      });
     }
   }
   
   // Calculate closing balance (Requirement 1.6)
-  // Closing balance is the qty_after_transaction of the last entry in chronological order
-  // If no transactions, closing balance equals opening balance
+  // For specific item: use qty_after_transaction from last entry
+  // For "All Items": sum all qty_after_transaction from last entries up to to_date
   let closing_balance = opening_balance;
   
-  if (entries.length > 0) {
-    // Entries are already sorted by posting_date and posting_time in ascending order
+  if (item_code && entries.length > 0) {
+    // Specific item: use the actual qty_after_transaction from last entry
     const lastEntry = entries[entries.length - 1];
     closing_balance = lastEntry.qty_after_transaction;
+  } else if (!item_code) {
+    // All Items: Need to get the latest balance for ALL items up to the end of period
+    // We cannot use the paginated entries because they only show a subset
+    // We need to query for the latest balance of each item up to to_date (or now if no to_date)
+    
+    // Calculate from opening balance + movements
+    closing_balance = opening_balance + total_in - total_out;
+    
+    console.log('Closing balance calculation for All Items (from movements):', {
+      opening_balance,
+      total_in,
+      total_out,
+      calculated_closing_balance: closing_balance
+    });
+  } else {
+    // Fallback: calculate based on movements
+    closing_balance = opening_balance + total_in - total_out;
   }
   
   return {
@@ -471,6 +532,7 @@ export async function GET(request: NextRequest) {
     // Extract and validate pagination parameters (Requirement 11.1)
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = parseInt(searchParams.get('limit') || '20', 10);
+    const order_by = searchParams.get('order_by') || 'posting_date desc, posting_time desc';
     
     if (page < 1) {
       console.error('Stock Card API: Invalid page number', { page });
@@ -544,22 +606,53 @@ export async function GET(request: NextRequest) {
       'company'
     ];
     
-    // Fetch Stock Ledger Entries from ERPNext (Requirement 8.1)
+    // Fetch Stock Ledger Entries from ERPNext with pagination (Requirement 8.1)
+    // Use ERPNext's built-in pagination for better performance
+    const start = (page - 1) * limit;
+    
+    // ✅ STEP 1: Get total count using getCount (like Item List)
+    let total_records = 0;
+    try {
+      console.log('Stock Card API: Fetching total count with filters:', filters);
+      
+      total_records = await client.getCount('Stock Ledger Entry', {
+        filters
+      });
+      
+      console.log('Stock Card API: Total count from ERPNext:', total_records);
+    } catch (countError) {
+      console.error('Error getting total count:', countError);
+    }
+    
+    // ✅ STEP 2: Get paginated data
     let stockLedgerEntries = await client.getList<Record<string, unknown>>('Stock Ledger Entry', {
       fields,
       filters,
-      order_by: 'posting_date asc,posting_time asc',
-      limit_page_length: 0 // Fetch all records, we'll paginate in memory
+      order_by: order_by,
+      limit_page_length: limit,
+      start: start
     });
     
-    // console.log('Stock Card API: Fetched entries', { 
-    //   count: stockLedgerEntries?.length,
-    //   company,
-    //   item_code,
-    //   filters: { warehouse, from_date, to_date, customer, supplier, transaction_type }
-    // });
+    console.log('Stock Card API: Fetched entries with pagination', { 
+      count: stockLedgerEntries?.length,
+      page,
+      limit,
+      start,
+      total_records,
+      company,
+      item_code: item_code || 'All Items',
+      filters: { warehouse, from_date, to_date, customer, supplier, transaction_type }
+    });
     
     stockLedgerEntries = stockLedgerEntries || [];
+    
+    console.log('Stock Card API: Paginated fetch result', {
+      fetched_count: stockLedgerEntries.length,
+      page,
+      limit,
+      start,
+      total_records
+    });
     
     // Enrich entries with item names, party info, and warehouse info (Requirement 9.1-9.6)
     let enrichedEntries: StockLedgerEntry[] = [];
@@ -586,19 +679,99 @@ export async function GET(request: NextRequest) {
     }
     
     // Calculate summary statistics (Requirements 1.5, 1.6)
-    let summary;
+    // We need TWO summaries:
+    // 1. Page summary - for current page entries (paginated)
+    // 2. Period summary - for ALL entries in the selected date range
+    
+    let pageSummary;
+    let periodSummary;
+    
     try {
-      summary = await calculateSummary(
+      console.log('Stock Card API: Calculating page summary from paginated entries');
+      
+      // Calculate page summary from paginated entries
+      pageSummary = await calculateSummary(
         enrichedEntries,
         company,
         item_code,
         from_date,
         client
       );
+      
+      console.log('Stock Card API: Page summary calculated', { 
+        pageSummary,
+        entries_count: enrichedEntries.length
+      });
+      
+      // Now fetch ALL entries for period summary
+      console.log('Stock Card API: Fetching ALL entries for period summary calculation');
+      console.log('Stock Card API: Filters for ALL entries:', JSON.stringify(filters));
+      console.log('Stock Card API: Total records to fetch:', total_records);
+      
+      // IMPORTANT: ERPNext getList without limit_page_length defaults to 20 records
+      // We MUST specify a high limit to get all records
+      const allEntries = await client.getList<Record<string, unknown>>('Stock Ledger Entry', {
+        fields,
+        filters,
+        order_by: 'posting_date asc,posting_time asc',
+        limit_page_length: Math.max(total_records, 99999) // Use the higher of total_records or 99999
+      });
+      
+      console.log('Stock Card API: Successfully fetched ALL entries', { 
+        allEntries_count: allEntries?.length,
+        expected_count: total_records,
+        sample_entry: allEntries?.[0]
+      });
+      
+      // Enrich all entries for period summary
+      const enrichedAllEntries = await enrichStockLedgerEntries(allEntries || [], client);
+      
+      console.log('Stock Card API: Enriched entries for period summary', { 
+        enrichedAllEntries_count: enrichedAllEntries.length 
+      });
+      
+      // Apply customer/supplier filters
+      let filteredAllEntries = enrichedAllEntries;
+      if (customer) {
+        filteredAllEntries = filteredAllEntries.filter((entry: StockLedgerEntry) => 
+          entry.party_type === 'Customer' && entry.party_name === customer
+        );
+      }
+      if (supplier) {
+        filteredAllEntries = filteredAllEntries.filter((entry: StockLedgerEntry) => 
+          entry.party_type === 'Supplier' && entry.party_name === supplier
+        );
+      }
+      
+      console.log('Stock Card API: Filtered entries for period summary', { 
+        filteredAllEntries_count: filteredAllEntries.length 
+      });
+      
+      // Calculate period summary from ALL entries
+      periodSummary = await calculateSummary(
+        filteredAllEntries,
+        company,
+        item_code,
+        from_date,
+        client
+      );
+      
+      console.log('Stock Card API: Period summary calculated', { 
+        periodSummary,
+        filteredAllEntries_count: filteredAllEntries.length
+      });
+      
+      // ✅ If customer/supplier filters are applied, update total_records
+      // because these filters are applied after fetching from ERPNext
+      if (customer || supplier) {
+        total_records = filteredAllEntries.length;
+        console.log('Stock Card API: Updated total_records after customer/supplier filter', { total_records });
+      }
     } catch (summaryError) {
       // Log summary calculation error but continue with default values (graceful degradation)
       console.error('Stock Card API: Error calculating summary', summaryError);
-      summary = {
+      
+      const defaultSummary = {
         opening_balance: 0,
         closing_balance: enrichedEntries.length > 0 ? enrichedEntries[enrichedEntries.length - 1].qty_after_transaction : 0,
         total_in: 0,
@@ -608,10 +781,12 @@ export async function GET(request: NextRequest) {
         item_name: item_code || 'All Items',
         uom: ''
       };
+      
+      pageSummary = defaultSummary;
+      periodSummary = defaultSummary;
     }
     
     // Calculate pagination metadata (Requirement 11.1)
-    const total_records = enrichedEntries.length;
     const total_pages = Math.ceil(total_records / limit);
     
     // Validate page number against total pages
@@ -626,24 +801,12 @@ export async function GET(request: NextRequest) {
       );
     }
     
-    // Apply pagination - slice the array based on page and limit
-    const startIndex = (page - 1) * limit;
-    const endIndex = startIndex + limit;
-    const paginatedEntries = enrichedEntries.slice(startIndex, endIndex);
-    
-    // console.log('Stock Card API: Returning paginated results', {
-    //   page,
-    //   limit,
-    //   total_records,
-    //   total_pages,
-    //   returned_records: paginatedEntries.length
-    // });
-    
-    // Return the enriched data with summary and pagination
+    // Return the enriched data with BOTH summaries and pagination
     return NextResponse.json({
       success: true,
-      data: paginatedEntries,
-      summary,
+      data: enrichedEntries,
+      summary: periodSummary, // Main summary for the entire period
+      page_summary: pageSummary, // Summary for current page only
       pagination: {
         current_page: page,
         page_size: limit,
@@ -652,7 +815,7 @@ export async function GET(request: NextRequest) {
       },
       message: total_records === 0 
         ? 'Tidak ada data untuk filter yang dipilih' 
-        : `Menampilkan ${paginatedEntries.length} dari ${total_records} transaksi`
+        : `Menampilkan ${enrichedEntries.length} dari ${total_records} transaksi`
     });
     
   } catch (error: unknown) {

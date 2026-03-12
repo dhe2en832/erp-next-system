@@ -6,9 +6,11 @@ import {
   FileDown, Printer, Package, AlertCircle,
   ArrowDownCircle, ArrowUpCircle, BarChart3,
   Calendar, FileText, ArrowUp, Loader2, Eye, X,
+  ArrowUpDown, ArrowDown,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import PrintPreviewModal from '../../../components/PrintPreviewModal';
+import Pagination from '../../components/Pagination';
 
 export const dynamic = 'force-dynamic';
 
@@ -69,6 +71,7 @@ interface StockCardAPIResponse {
   success: boolean;
   data?: StockLedgerEntry[];
   summary?: SummaryData;
+  page_summary?: SummaryData; // Summary for current page only
   pagination: {
     current_page: number;
     page_size: number;
@@ -86,6 +89,11 @@ interface FilterState {
   customer: string;
   supplier: string;
   transaction_type: string;
+}
+
+interface SortState {
+  field: string;
+  direction: 'asc' | 'desc';
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -107,7 +115,7 @@ const TRANSACTION_TYPE_OPTIONS: { label: string; value: string }[] = [
 // ─────────────────────────────────────────────────────────────
 function getYesterday(): string {
   const d = new Date();
-  d.setDate(d.getDate() - 1);
+  d.setDate(d.getDate() - 1); // Set to yesterday
   return d.toISOString().slice(0, 10);
 }
 
@@ -247,15 +255,56 @@ function SkeletonCard() {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Sortable Header Component
+// ─────────────────────────────────────────────────────────────
+interface SortableHeaderProps {
+  label: string;
+  field: string;
+  currentSort: SortState;
+  onSort: (field: string) => void;
+  align?: 'left' | 'right';
+}
+
+function SortableHeader({ label, field, currentSort, onSort, align = 'left' }: SortableHeaderProps) {
+  const isActive = currentSort.field === field;
+  const alignClass = align === 'right' ? 'justify-end' : 'justify-start';
+  
+  return (
+    <button
+      onClick={() => onSort(field)}
+      className={`flex items-center gap-1 ${alignClass} w-full hover:text-emerald-600 transition-colors`}
+    >
+      <span>{label}</span>
+      {isActive ? (
+        currentSort.direction === 'asc' ? (
+          <ArrowUp className="w-3 h-3" />
+        ) : (
+          <ArrowDown className="w-3 h-3" />
+        )
+      ) : (
+        <ArrowUpDown className="w-3 h-3 opacity-30" />
+      )}
+    </button>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // Summary Panel
 // ─────────────────────────────────────────────────────────────
-function SummaryPanel({ summary }: { summary: SummaryData }) {
-  const cards = [
-    { label: 'Saldo Awal',   value: `${summary.opening_balance.toLocaleString('id-ID')} ${summary.uom}`, icon: <BarChart3 className="w-4 h-4" />,       color: 'blue'    },
-    { label: 'Total Masuk',  value: `${summary.total_in.toLocaleString('id-ID')} ${summary.uom}`,         icon: <ArrowDownCircle className="w-4 h-4" />, color: 'emerald' },
-    { label: 'Total Keluar', value: `${summary.total_out.toLocaleString('id-ID')} ${summary.uom}`,        icon: <ArrowUpCircle className="w-4 h-4" />,   color: 'orange'  },
-    { label: 'Saldo Akhir',  value: `${summary.closing_balance.toLocaleString('id-ID')} ${summary.uom}`, icon: <Package className="w-4 h-4" />,         color: 'indigo'  },
-  ] as const;
+function SummaryPanel({ summary, pageSummary }: { summary: SummaryData; pageSummary?: SummaryData }) {
+  const cards: Array<{
+    label: string;
+    value: string;
+    icon: React.ReactElement;
+    color: 'blue' | 'emerald' | 'orange' | 'indigo';
+    showPage: boolean;
+    pageValue?: string;
+  }> = [
+    { label: 'Saldo Awal',   value: `${summary.opening_balance.toLocaleString('id-ID')} ${summary.uom}`, icon: <BarChart3 className="w-4 h-4" />,       color: 'blue', showPage: false    },
+    { label: 'Total Masuk',  value: `${summary.total_in.toLocaleString('id-ID')} ${summary.uom}`,         icon: <ArrowDownCircle className="w-4 h-4" />, color: 'emerald', showPage: true, pageValue: pageSummary ? `${pageSummary.total_in.toLocaleString('id-ID')} ${pageSummary.uom}` : undefined },
+    { label: 'Total Keluar', value: `${summary.total_out.toLocaleString('id-ID')} ${summary.uom}`,        icon: <ArrowUpCircle className="w-4 h-4" />,   color: 'orange', showPage: true, pageValue: pageSummary ? `${pageSummary.total_out.toLocaleString('id-ID')} ${pageSummary.uom}` : undefined  },
+    { label: 'Saldo Akhir',  value: `${summary.closing_balance.toLocaleString('id-ID')} ${summary.uom}`, icon: <Package className="w-4 h-4" />,         color: 'indigo', showPage: false  },
+  ];
 
   const colorMap = {
     blue:    { bg: 'bg-blue-50',    border: 'border-blue-200',    icon: 'text-blue-500',    label: 'text-blue-500',    value: 'text-blue-900' },
@@ -274,7 +323,7 @@ function SummaryPanel({ summary }: { summary: SummaryData }) {
         </div>
       )}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        {cards.map(({ label, value, icon, color }) => {
+        {cards.map(({ label, value, icon, color, showPage, pageValue }) => {
           const c = colorMap[color];
           return (
             <div key={label} className={`${c.bg} ${c.border} border rounded-lg p-2.5`}>
@@ -283,6 +332,11 @@ function SummaryPanel({ summary }: { summary: SummaryData }) {
                 <span className={`text-xs font-medium ${c.label}`}>{label}</span>
               </div>
               <p className={`text-sm font-bold ${c.value} leading-tight`}>{value}</p>
+              {showPage && pageValue && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Hal. ini: {pageValue}
+                </p>
+              )}
             </div>
           );
         })}
@@ -373,66 +427,7 @@ function StockDetailModal({ entry, onClose }: { entry: StockLedgerEntry; onClose
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// Pagination (Desktop)
-// ─────────────────────────────────────────────────────────────
-function Pagination({ currentPage, totalPages, totalRecords, pageSize, onPageChange }: {
-  currentPage: number;
-  totalPages: number;
-  totalRecords: number;
-  pageSize: number;
-  onPageChange: (p: number) => void;
-}) {
-  const start = (currentPage - 1) * pageSize + 1;
-  const end = Math.min(currentPage * pageSize, totalRecords);
 
-  const pages: (number | '...')[] = [];
-  if (totalPages <= 7) {
-    for (let i = 1; i <= totalPages; i++) pages.push(i);
-  } else {
-    pages.push(1);
-    if (currentPage > 3) pages.push('...');
-    for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) pages.push(i);
-    if (currentPage < totalPages - 2) pages.push('...');
-    pages.push(totalPages);
-  }
-
-  return (
-    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3">
-      <p className="text-sm text-gray-500">
-        Menampilkan <span className="font-medium text-gray-900">{start}–{end}</span> dari{' '}
-        <span className="font-medium text-gray-900">{totalRecords.toLocaleString('id-ID')}</span> transaksi
-      </p>
-      <div className="flex items-center gap-1">
-        <button
-          onClick={() => onPageChange(currentPage - 1)}
-          disabled={currentPage === 1}
-          className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-        >
-          ‹
-        </button>
-        {pages.map((p, i) =>
-          p === '...'
-            ? <span key={`ell-${i}`} className="w-8 h-8 flex items-center justify-center text-gray-400 text-sm">…</span>
-            : <button
-                key={p}
-                onClick={() => onPageChange(p as number)}
-                className={`w-8 h-8 flex items-center justify-center rounded-lg text-sm font-medium transition-colors ${currentPage === p ? 'bg-emerald-600 text-white' : 'border border-gray-200 text-gray-600 hover:bg-gray-50'}`}
-              >
-                {p}
-              </button>
-        )}
-        <button
-          onClick={() => onPageChange(currentPage + 1)}
-          disabled={currentPage === totalPages}
-          className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-        >
-          ›
-        </button>
-      </div>
-    </div>
-  );
-}
 
 // ─────────────────────────────────────────────────────────────
 // Main Component
@@ -448,6 +443,7 @@ export default function StockCardReportPage() {
   // ── State ──────────────────────────────────────────────────
   const [entries, setEntries] = useState<StockLedgerEntry[]>([]);
   const [summary, setSummary] = useState<SummaryData | undefined>(undefined);
+  const [pageSummary, setPageSummary] = useState<SummaryData | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -457,6 +453,8 @@ export default function StockCardReportPage() {
   const [selectedEntry, setSelectedEntry] = useState<StockLedgerEntry | null>(null);
   const [selectedCompany, setSelectedCompany] = useState('');
   const [showPrint, setShowPrint] = useState(false);
+  const [printEntries, setPrintEntries] = useState<StockLedgerEntry[]>([]);
+  const [printLoading, setPrintLoading] = useState(false);
 
   // Dropdown options
   const [items, setItems] = useState<DropdownOption[]>([]);
@@ -473,6 +471,12 @@ export default function StockCardReportPage() {
     customer: '',
     supplier: '',
     transaction_type: '',
+  });
+
+  // Sort state
+  const [sortState, setSortState] = useState<SortState>({
+    field: 'posting_date',
+    direction: 'desc',
   });
 
   // Refs
@@ -527,11 +531,13 @@ export default function StockCardReportPage() {
     setError('');
 
     try {
+      const orderBy = `${sortState.field} ${sortState.direction}, posting_time ${sortState.direction}`;
+      
       const params = new URLSearchParams({
         company: selectedCompany,
         page: String(currentPage),
         limit: String(pageSize),
-        order_by: 'posting_date desc, posting_time desc',
+        order_by: orderBy,
       });
       if (filters.item_code)       params.set('item_code',        filters.item_code);
       if (filters.from_date)       params.set('from_date',        filters.from_date);
@@ -551,6 +557,7 @@ export default function StockCardReportPage() {
 
         setEntries(data);
         setSummary(result.summary);
+        setPageSummary(result.page_summary);
         setTotalRecords(total);
         setTotalPages(pages);
         
@@ -560,19 +567,33 @@ export default function StockCardReportPage() {
         setError(result.message || 'Gagal memuat laporan kartu stok');
         setEntries([]);
         setSummary(undefined);
+        setPageSummary(undefined);
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Terjadi kesalahan saat memuat data');
     } finally {
       setLoading(false);
     }
-  }, [selectedCompany, currentPage, pageSize, filters]);
+  }, [selectedCompany, currentPage, pageSize, filters, sortState]);
 
   // ── Reset page when filters change ────────────────────────
   useEffect(() => {
     pageChangeSourceRef.current = 'filter';
     setCurrentPage(1);
   }, [filters]);
+
+  // ── Reset page when sort changes ──────────────────────────
+  useEffect(() => {
+    if (currentPage !== 1) {
+      setCurrentPage(1);
+    } else {
+      // If already on page 1, trigger fetch directly
+      if (selectedCompany) {
+        fetchData();
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sortState]);
 
   // ── Fetch on page change ───────────────────────────────────
   useEffect(() => {
@@ -598,40 +619,231 @@ export default function StockCardReportPage() {
   }, []);
 
   // ── Export Excel ───────────────────────────────────────────
-  const handleExportExcel = useCallback(() => {
-    if (!entries.length) { alert('Tidak ada data untuk diekspor'); return; }
-    const rows = entries.map((e, i) => ({
-      'No': i + 1,
-      'Tanggal': e.posting_date,
-      'Waktu': e.posting_time,
-      'Kode Item': e.item_code,
-      'Nama Item': e.item_name,
-      'Gudang': e.warehouse,
-      'Jenis Transaksi': voucherTypeLabel(e.voucher_type),
-      'No. Voucher': e.voucher_no,
-      'Pihak': e.party_name || '-',
-      'Qty Masuk': e.actual_qty > 0 ? e.actual_qty : 0,
-      'Qty Keluar': e.actual_qty < 0 ? Math.abs(e.actual_qty) : 0,
-      'Saldo': e.qty_after_transaction,
-      'UOM': e.stock_uom,
-      'Nilai': e.stock_value_difference || 0,
-    }));
-    if (summary) rows.push({ 'No': 0, 'Tanggal': '', 'Waktu': '', 'Kode Item': '', 'Nama Item': 'RINGKASAN', 'Gudang': '', 'Jenis Transaksi': '', 'No. Voucher': '', 'Pihak': '', 'Qty Masuk': summary.total_in, 'Qty Keluar': summary.total_out, 'Saldo': summary.closing_balance, 'UOM': summary.uom, 'Nilai': 0 });
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Kartu Stok');
-    XLSX.writeFile(wb, `Kartu_Stok_${selectedCompany}_${getToday()}.xlsx`);
-  }, [entries, summary, selectedCompany]);
+  const handleExportExcel = useCallback(async () => {
+    if (!selectedCompany) { 
+      alert('Perusahaan belum dipilih'); 
+      return; 
+    }
+    
+    try {
+      // Step 1: Get total count first
+      const countParams = new URLSearchParams({
+        company: selectedCompany,
+        page: '1',
+        limit: '1', // Just get 1 record to get total count
+        order_by: 'posting_date asc, posting_time asc',
+      });
+      if (filters.item_code)       countParams.set('item_code',        filters.item_code);
+      if (filters.from_date)       countParams.set('from_date',        filters.from_date);
+      if (filters.to_date)         countParams.set('to_date',          filters.to_date);
+      if (filters.warehouse)       countParams.set('warehouse',        filters.warehouse);
+      if (filters.customer)        countParams.set('customer',         filters.customer);
+      if (filters.supplier)        countParams.set('supplier',         filters.supplier);
+      if (filters.transaction_type) countParams.set('transaction_type', filters.transaction_type);
+
+      const countRes = await fetch(`/api/inventory/reports/stock-card?${countParams}`, { credentials: 'include' });
+      const countResult: StockCardAPIResponse = await countRes.json();
+
+      if (!countResult.success) {
+        alert('Gagal mendapatkan jumlah data');
+        return;
+      }
+
+      const totalRecords = countResult.pagination?.total_records || 0;
+      
+      if (totalRecords === 0) {
+        alert('Tidak ada data untuk diekspor');
+        return;
+      }
+
+      // Step 2: Fetch all data with the actual total count as limit (max 1000 per request)
+      const limit = Math.min(totalRecords, 1000);
+      const totalPages = Math.ceil(totalRecords / limit);
+      let allEntries: StockLedgerEntry[] = [];
+
+      // Fetch all pages
+      for (let page = 1; page <= totalPages; page++) {
+        const params = new URLSearchParams({
+          company: selectedCompany,
+          page: String(page),
+          limit: String(limit),
+          order_by: 'posting_date asc, posting_time asc',
+        });
+        if (filters.item_code)       params.set('item_code',        filters.item_code);
+        if (filters.from_date)       params.set('from_date',        filters.from_date);
+        if (filters.to_date)         params.set('to_date',          filters.to_date);
+        if (filters.warehouse)       params.set('warehouse',        filters.warehouse);
+        if (filters.customer)        params.set('customer',         filters.customer);
+        if (filters.supplier)        params.set('supplier',         filters.supplier);
+        if (filters.transaction_type) params.set('transaction_type', filters.transaction_type);
+
+        const res = await fetch(`/api/inventory/reports/stock-card?${params}`, { credentials: 'include' });
+        const result: StockCardAPIResponse = await res.json();
+
+        if (result.success && result.data) {
+          allEntries = allEntries.concat(result.data);
+        }
+      }
+
+      if (allEntries.length === 0) {
+        alert('Tidak ada data untuk diekspor');
+        return;
+      }
+
+      // Use the summary from the last response (which has the full period summary)
+      const exportSummary = summary;
+
+      // Create Excel rows from all entries
+      const rows = allEntries.map((e, i) => ({
+        'No': i + 1,
+        'Tanggal': e.posting_date,
+        'Waktu': e.posting_time,
+        'Kode Item': e.item_code,
+        'Nama Item': e.item_name,
+        'Gudang': e.warehouse,
+        'Jenis Transaksi': voucherTypeLabel(e.voucher_type),
+        'No. Voucher': e.voucher_no,
+        'Pihak': e.party_name || '-',
+        'Qty Masuk': e.actual_qty > 0 ? e.actual_qty : 0,
+        'Qty Keluar': e.actual_qty < 0 ? Math.abs(e.actual_qty) : 0,
+        'Saldo': e.qty_after_transaction,
+        'UOM': e.stock_uom,
+        'Nilai': e.stock_value_difference || 0,
+      }));
+
+      // Add summary row
+      if (exportSummary) {
+        rows.push({
+          'No': 0,
+          'Tanggal': '',
+          'Waktu': '',
+          'Kode Item': '',
+          'Nama Item': 'RINGKASAN',
+          'Gudang': '',
+          'Jenis Transaksi': '',
+          'No. Voucher': '',
+          'Pihak': '',
+          'Qty Masuk': exportSummary.total_in,
+          'Qty Keluar': exportSummary.total_out,
+          'Saldo': exportSummary.closing_balance,
+          'UOM': exportSummary.uom,
+          'Nilai': 0
+        });
+      }
+
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Kartu Stok');
+      
+      const filename = `Kartu_Stok_${selectedCompany}_${filters.from_date || 'All'}_${filters.to_date || getToday()}.xlsx`;
+      XLSX.writeFile(wb, filename);
+    } catch (err) {
+      console.error('Error exporting Excel:', err);
+      alert('Gagal mengekspor data ke Excel');
+    }
+  }, [selectedCompany, filters, summary]);
 
   const handleResetFilters = () => {
     setFilters({ from_date: getYesterday(), to_date: getToday(), item_code: '', warehouse: '', customer: '', supplier: '', transaction_type: '' });
     setSummary(undefined);
   };
 
+  const handlePrint = useCallback(async () => {
+    if (!selectedCompany) {
+      alert('Perusahaan belum dipilih');
+      return;
+    }
+
+    setPrintLoading(true);
+    try {
+      // Step 1: Get total count first
+      const countParams = new URLSearchParams({
+        company: selectedCompany,
+        page: '1',
+        limit: '1',
+        order_by: 'posting_date asc, posting_time asc',
+      });
+      if (filters.item_code)       countParams.set('item_code',        filters.item_code);
+      if (filters.from_date)       countParams.set('from_date',        filters.from_date);
+      if (filters.to_date)         countParams.set('to_date',          filters.to_date);
+      if (filters.warehouse)       countParams.set('warehouse',        filters.warehouse);
+      if (filters.customer)        countParams.set('customer',         filters.customer);
+      if (filters.supplier)        countParams.set('supplier',         filters.supplier);
+      if (filters.transaction_type) countParams.set('transaction_type', filters.transaction_type);
+
+      const countRes = await fetch(`/api/inventory/reports/stock-card?${countParams}`, { credentials: 'include' });
+      const countResult: StockCardAPIResponse = await countRes.json();
+
+      if (!countResult.success) {
+        alert('Gagal mendapatkan jumlah data');
+        setPrintLoading(false);
+        return;
+      }
+
+      const totalRecords = countResult.pagination?.total_records || 0;
+
+      if (totalRecords === 0) {
+        alert('Tidak ada data untuk dicetak');
+        setPrintLoading(false);
+        return;
+      }
+
+      // Step 2: Fetch all data
+      const limit = Math.min(totalRecords, 1000);
+      const totalPages = Math.ceil(totalRecords / limit);
+      let allEntries: StockLedgerEntry[] = [];
+
+      for (let page = 1; page <= totalPages; page++) {
+        const params = new URLSearchParams({
+          company: selectedCompany,
+          page: String(page),
+          limit: String(limit),
+          order_by: 'posting_date asc, posting_time asc',
+        });
+        if (filters.item_code)       params.set('item_code',        filters.item_code);
+        if (filters.from_date)       params.set('from_date',        filters.from_date);
+        if (filters.to_date)         params.set('to_date',          filters.to_date);
+        if (filters.warehouse)       params.set('warehouse',        filters.warehouse);
+        if (filters.customer)        params.set('customer',         filters.customer);
+        if (filters.supplier)        params.set('supplier',         filters.supplier);
+        if (filters.transaction_type) params.set('transaction_type', filters.transaction_type);
+
+        const res = await fetch(`/api/inventory/reports/stock-card?${params}`, { credentials: 'include' });
+        const result: StockCardAPIResponse = await res.json();
+
+        if (result.success && result.data) {
+          allEntries = allEntries.concat(result.data);
+        }
+      }
+
+      setPrintEntries(allEntries);
+      setShowPrint(true);
+    } catch (err) {
+      console.error('Error fetching print data:', err);
+      alert('Gagal memuat data untuk cetak');
+    } finally {
+      setPrintLoading(false);
+    }
+  }, [selectedCompany, filters]);
+
   const handlePageChange = useCallback((page: number) => {
     pageChangeSourceRef.current = 'pagination';
     setCurrentPage(page);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
+  const handleSort = useCallback((field: string) => {
+    setSortState(prev => {
+      if (prev.field === field) {
+        // Toggle direction if same field
+        return { field, direction: prev.direction === 'asc' ? 'desc' : 'asc' as 'asc' | 'desc' };
+      } else {
+        // New field, default to desc
+        return { field, direction: 'desc' as 'asc' | 'desc' };
+      }
+    });
+    // Reset to page 1 when sorting changes
+    setCurrentPage(1);
   }, []);
 
   const inputCls = 'w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500';
@@ -651,19 +863,19 @@ export default function StockCardReportPage() {
           <div className="flex items-center gap-2">
             <button
               onClick={handleExportExcel}
-              disabled={loading || !entries.length}
+              disabled={!selectedCompany}
               className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
             >
               <FileDown className="h-4 w-4" />
               Export Excel
             </button>
             <button
-              onClick={() => setShowPrint(true)}
-              disabled={loading || !entries.length}
+              onClick={handlePrint}
+              disabled={printLoading || !selectedCompany}
               className="inline-flex items-center gap-2 px-4 py-2 bg-gray-700 text-white text-sm font-medium rounded-lg hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
             >
-              <Printer className="h-4 w-4" />
-              Cetak
+              {printLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
+              {printLoading ? 'Memuat...' : 'Cetak'}
             </button>
           </div>
         </div>
@@ -747,7 +959,7 @@ export default function StockCardReportPage() {
       </div>
 
       {/* ── Summary Panel (muncul jika ada data) ───────────── */}
-      {summary && <SummaryPanel summary={summary} />}
+      {summary && <SummaryPanel summary={summary} pageSummary={pageSummary} />}
 
       {/* ── Error ──────────────────────────────────────────── */}
       {error && (
@@ -778,13 +990,65 @@ export default function StockCardReportPage() {
           {!isMobile && entries.length > 0 && (
             <div className="hidden sm:flex items-center px-4 py-3 bg-gray-50 border-b border-gray-200 text-xs font-medium text-gray-500 uppercase tracking-wider">
               <div className="grid grid-cols-12 gap-3 w-full">
-                <div className="col-span-2">Tanggal / Waktu</div>
-                <div className="col-span-3">Item</div>
-                <div className="col-span-2">Gudang</div>
-                <div className="col-span-2">Tipe / Voucher</div>
-                <div className="col-span-1 text-right">Masuk</div>
-                <div className="col-span-1 text-right">Keluar</div>
-                <div className="col-span-1 text-right">Saldo</div>
+                <div className="col-span-2">
+                  <SortableHeader 
+                    label="Tanggal / Waktu" 
+                    field="posting_date" 
+                    currentSort={sortState} 
+                    onSort={handleSort} 
+                  />
+                </div>
+                <div className="col-span-3">
+                  <SortableHeader 
+                    label="Item" 
+                    field="item_code" 
+                    currentSort={sortState} 
+                    onSort={handleSort} 
+                  />
+                </div>
+                <div className="col-span-2">
+                  <SortableHeader 
+                    label="Gudang" 
+                    field="warehouse" 
+                    currentSort={sortState} 
+                    onSort={handleSort} 
+                  />
+                </div>
+                <div className="col-span-2">
+                  <SortableHeader 
+                    label="Tipe / Voucher" 
+                    field="voucher_type" 
+                    currentSort={sortState} 
+                    onSort={handleSort} 
+                  />
+                </div>
+                <div className="col-span-1 text-right">
+                  <SortableHeader 
+                    label="Masuk" 
+                    field="actual_qty" 
+                    currentSort={sortState} 
+                    onSort={handleSort}
+                    align="right"
+                  />
+                </div>
+                <div className="col-span-1 text-right">
+                  <SortableHeader 
+                    label="Keluar" 
+                    field="actual_qty" 
+                    currentSort={sortState} 
+                    onSort={handleSort}
+                    align="right"
+                  />
+                </div>
+                <div className="col-span-1 text-right">
+                  <SortableHeader 
+                    label="Saldo" 
+                    field="qty_after_transaction" 
+                    currentSort={sortState} 
+                    onSort={handleSort}
+                    align="right"
+                  />
+                </div>
               </div>
             </div>
           )}
@@ -948,13 +1212,25 @@ export default function StockCardReportPage() {
       {showPrint && (
         <PrintPreviewModal
           title={`Laporan Kartu Stok — ${selectedCompany}`}
-          onClose={() => setShowPrint(false)}
+          onClose={() => {
+            setShowPrint(false);
+            setPrintEntries([]);
+          }}
           printUrl=""
           useContentFrame={true}
           allowPaperSettings={true}
         >
+          <style>{`
+            @media print {
+              table { page-break-inside: auto; }
+              tr { page-break-inside: avoid; page-break-after: auto; }
+              thead { display: table-header-group; }
+              tfoot { display: table-footer-group; }
+              .print-header { page-break-after: avoid; }
+            }
+          `}</style>
           <div className="p-8 bg-white">
-            <div className="text-center mb-6">
+            <div className="text-center mb-6 print-header">
               <h2 className="text-xl font-bold">{selectedCompany}</h2>
               <h3 className="text-lg font-semibold mt-2">Laporan Kartu Stok</h3>
               <p className="text-sm text-gray-600 mt-1">
@@ -980,7 +1256,7 @@ export default function StockCardReportPage() {
                 </tr>
               </thead>
               <tbody>
-                {entries.map((entry, index) => {
+                {printEntries.map((entry, index) => {
                   const isIn = entry.actual_qty > 0;
                   return (
                     <tr key={entry.name || entry.voucher_no || `stock-${index}`} className="border-b border-gray-200">
