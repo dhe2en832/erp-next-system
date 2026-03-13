@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Touch Target Size Test - Analytics Components</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .measurement-overlay {
+      position: absolute;
+      border: 2px dashed red;
+      pointer-events: none;
+      background: rgba(255, 0, 0, 0.1);
+    }
+    .dimension-label {
+      position: absolute;
+      background: red;
+      color: white;
+      padding: 2px 6px;
+      font-size: 12px;
+      font-weight: bold;
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 p-8">
+  <div class="max-w-4xl mx-auto">
+    <h1 class="text-3xl font-bold mb-6">Touch Target Size Verification</h1>
+    
+    <div class="bg-white rounded-lg shadow p-6 mb-6">
+      <h2 class="text-xl font-semibold mb-4">Requirement 12.5: Minimum 44x44px Touch Targets</h2>
+      <p class="text-gray-600 mb-4">
+        All interactive elements must have a minimum touch target size of 44x44 pixels for mobile accessibility.
+      </p>
+      <div class="bg-blue-50 border border-blue-200 rounded p-4">
+        <p class="text-sm text-blue-900">
+          <strong>Test Instructions:</strong> Click "Measure Button" to see the actual dimensions of the retry button.
+          The button should be at least 44x44 pixels.
+        </p>
+      </div>
+    </div>
+
+    <!-- ErrorState Component Replica -->
+    <div class="bg-white rounded-lg shadow p-8 mb-6">
+      <h3 class="text-lg font-semibold mb-4">ErrorState Retry Button (Actual Component)</h3>
+      
+      <div class="flex flex-col items-center justify-center text-center py-8">
+        <!-- Error Icon -->
+        <div class="mb-4 p-4 bg-red-50 rounded-full">
+          <svg class="w-12 h-12 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="10" stroke-width="2"/>
+            <line x1="12" y1="8" x2="12" y2="12" stroke-width="2" stroke-linecap="round"/>
+            <circle cx="12" cy="16" r="1" fill="currentColor"/>
+          </svg>
+        </div>
+        
+        <!-- Title -->
+        <h3 class="text-lg font-semibold text-gray-900 mb-2">
+          Terjadi Kesalahan
+        </h3>
+        
+        <!-- Error Message -->
+        <p class="text-sm text-gray-600 max-w-md mb-6">
+          Gagal memuat data analitik. Silakan coba lagi.
+        </p>
+        
+        <!-- Retry Button - THE ELEMENT WE'RE TESTING -->
+        <button
+          id="retryButton"
+          class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          Coba Lagi
+        </button>
+      </div>
+    </div>
+
+    <!-- Measurement Results -->
+    <div class="bg-white rounded-lg shadow p-6 mb-6">
+      <h3 class="text-lg font-semibold mb-4">Measurement Results</h3>
+      <button
+        onclick="measureButton()"
+        class="mb-4 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+      >
+        Measure Button
+      </button>
+      <div id="results" class="space-y-2"></div>
+    </div>
+
+    <!-- Reference Grid -->
+    <div class="bg-white rounded-lg shadow p-6">
+      <h3 class="text-lg font-semibold mb-4">44x44px Reference Grid</h3>
+      <p class="text-sm text-gray-600 mb-4">
+        This grid shows the minimum touch target size (44x44px) for comparison.
+      </p>
+      <div class="inline-block border-2 border-red-500 bg-red-50" style="width: 44px; height: 44px;">
+        <div class="flex items-center justify-center h-full text-xs font-bold text-red-700">
+          44x44
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function measureButton() {
+      const button = document.getElementById('retryButton');
+      const rect = button.getBoundingClientRect();
+      const computedStyle = window.getComputedStyle(button);
+      
+      const results = document.getElementById('results');
+      
+      const width = rect.width;
+      const height = rect.height;
+      const meetsRequirement = width >= 44 && height >= 44;
+      
+      results.innerHTML = `
+        <div class="border rounded p-4 ${meetsRequirement ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}">
+          <h4 class="font-semibold mb-2 ${meetsRequirement ? 'text-green-900' : 'text-red-900'}">
+            ${meetsRequirement ? '✓ PASS' : '✗ FAIL'} - Touch Target Size
+          </h4>
+          <div class="space-y-1 text-sm">
+            <p><strong>Width:</strong> ${width.toFixed(2)}px ${width >= 44 ? '✓' : '✗'}</p>
+            <p><strong>Height:</strong> ${height.toFixed(2)}px ${height >= 44 ? '✓' : '✗'}</p>
+            <p><strong>Minimum Required:</strong> 44x44px</p>
+          </div>
+        </div>
+        
+        <div class="border rounded p-4 bg-gray-50 border-gray-200">
+          <h4 class="font-semibold mb-2">Computed Styles</h4>
+          <div class="space-y-1 text-sm font-mono">
+            <p><strong>Padding:</strong> ${computedStyle.padding}</p>
+            <p><strong>Padding Top:</strong> ${computedStyle.paddingTop}</p>
+            <p><strong>Padding Right:</strong> ${computedStyle.paddingRight}</p>
+            <p><strong>Padding Bottom:</strong> ${computedStyle.paddingBottom}</p>
+            <p><strong>Padding Left:</strong> ${computedStyle.paddingLeft}</p>
+            <p><strong>Line Height:</strong> ${computedStyle.lineHeight}</p>
+            <p><strong>Font Size:</strong> ${computedStyle.fontSize}</p>
+          </div>
+        </div>
+        
+        <div class="border rounded p-4 bg-blue-50 border-blue-200">
+          <h4 class="font-semibold mb-2 text-blue-900">Analysis</h4>
+          <div class="space-y-1 text-sm text-blue-900">
+            <p><strong>Tailwind Classes:</strong> px-4 py-2</p>
+            <p><strong>Expected Padding:</strong> 16px horizontal, 8px vertical</p>
+            <p><strong>Content:</strong> Icon (16px) + Gap (8px) + Text</p>
+            <p><strong>Result:</strong> ${meetsRequirement ? 'Button meets the 44x44px minimum requirement' : 'Button does not meet the requirement'}</p>
+          </div>
+        </div>
+      `;
+      
+      // Visual overlay
+      const overlay = document.createElement('div');
+      overlay.className = 'measurement-overlay';
+      overlay.style.left = rect.left + 'px';
+      overlay.style.top = rect.top + window.scrollY + 'px';
+      overlay.style.width = rect.width + 'px';
+      overlay.style.height = rect.height + 'px';
+      
+      const widthLabel = document.createElement('div');
+      widthLabel.className = 'dimension-label';
+      widthLabel.textContent = `${width.toFixed(0)}px`;
+      widthLabel.style.left = rect.left + rect.width / 2 - 25 + 'px';
+      widthLabel.style.top = rect.top + window.scrollY - 25 + 'px';
+      
+      const heightLabel = document.createElement('div');
+      heightLabel.className = 'dimension-label';
+      heightLabel.textContent = `${height.toFixed(0)}px`;
+      heightLabel.style.left = rect.left + rect.width + 10 + 'px';
+      heightLabel.style.top = rect.top + window.scrollY + rect.height / 2 - 10 + 'px';
+      
+      document.body.appendChild(overlay);
+      document.body.appendChild(widthLabel);
+      document.body.appendChild(heightLabel);
+      
+      setTimeout(() => {
+        overlay.remove();
+        widthLabel.remove();
+        heightLabel.remove();
+      }, 3000);
+    }
+    
+    // Auto-measure on load
+    window.addEventListener('load', () => {
+      setTimeout(measureButton, 500);
+    });
+  </script>
+</body>
+</html>

@@ -6,6 +6,15 @@ import {
   StatCard, BarChart, QuickActionButton, AlertBanner,
   ALL_QUICK_ACTIONS, formatRp,
 } from './DashboardWidgets';
+import {
+  TopProductsChart,
+  CustomerBehaviorSection,
+  SalesPerformanceSection,
+  CommissionTrackerSection,
+  InventoryAnalyticsSection,
+  SupplierAnalyticsSection,
+} from '@/components/analytics';
+import AnalyticsErrorBoundary from '@/components/AnalyticsErrorBoundary';
 
 const EMPTY_STATS: DashboardStats = {
   total_items: 0, total_sales_orders: 0, pending_orders: 0,
@@ -16,6 +25,7 @@ const EMPTY_STATS: DashboardStats = {
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats>(EMPTY_STATS);
+  const [activeAnalyticsTab, setActiveAnalyticsTab] = useState<'products' | 'customers' | 'sales' | 'commission' | 'inventory' | 'suppliers'>('products');
   const [company] = useState<string>(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('selected_company') || '';
@@ -212,7 +222,7 @@ export default function DashboardPage() {
 
       {/* Quick Actions */}
       {visibleActions.length > 0 && (
-        <div className="bg-white shadow rounded-xl p-5">
+        <div className="bg-white shadow rounded-xl p-5 mb-6">
           <h3 className="text-base font-semibold text-gray-900 mb-4">Aksi Cepat</h3>
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3">
             {visibleActions.map((action) => (
@@ -221,6 +231,154 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
+      {/* Analytics Sections with Tabs */}
+      <AnalyticsErrorBoundary>
+        <div className="bg-white shadow rounded-xl overflow-hidden">
+
+          
+          {/* Tab Navigation */}
+          <div className="border-b border-gray-200">
+            <nav className="flex overflow-x-auto" aria-label="Analytics Tabs">
+              <button
+                onClick={() => setActiveAnalyticsTab('products')}
+                className={`
+                  flex items-center gap-2 px-4 md:px-6 py-4 text-sm font-medium whitespace-nowrap
+                  border-b-2 transition-colors
+                  ${activeAnalyticsTab === 'products'
+                    ? 'border-indigo-600 text-indigo-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }
+                `}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                </svg>
+                <span>Produk</span>
+              </button>
+              
+              <button
+                onClick={() => setActiveAnalyticsTab('customers')}
+                className={`
+                  flex items-center gap-2 px-4 md:px-6 py-4 text-sm font-medium whitespace-nowrap
+                  border-b-2 transition-colors
+                  ${activeAnalyticsTab === 'customers'
+                    ? 'border-indigo-600 text-indigo-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }
+                `}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                <span>Pelanggan</span>
+              </button>
+              
+              <button
+                onClick={() => setActiveAnalyticsTab('sales')}
+                className={`
+                  flex items-center gap-2 px-4 md:px-6 py-4 text-sm font-medium whitespace-nowrap
+                  border-b-2 transition-colors
+                  ${activeAnalyticsTab === 'sales'
+                    ? 'border-indigo-600 text-indigo-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }
+                `}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                </svg>
+                <span>Penjualan</span>
+              </button>
+              
+              <button
+                onClick={() => setActiveAnalyticsTab('commission')}
+                className={`
+                  flex items-center gap-2 px-4 md:px-6 py-4 text-sm font-medium whitespace-nowrap
+                  border-b-2 transition-colors
+                  ${activeAnalyticsTab === 'commission'
+                    ? 'border-indigo-600 text-indigo-600 bg-indigo-50'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 hover:bg-gray-50'
+                  }
+                `}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>Komisi</span>
+                {/* Badge to show this tab has data */}
+                <span className="ml-1 px-2 py-0.5 text-xs bg-yellow-100 text-yellow-800 rounded-full">
+                  Data
+                </span>
+              </button>
+              
+              <button
+                onClick={() => setActiveAnalyticsTab('inventory')}
+                className={`
+                  flex items-center gap-2 px-4 md:px-6 py-4 text-sm font-medium whitespace-nowrap
+                  border-b-2 transition-colors
+                  ${activeAnalyticsTab === 'inventory'
+                    ? 'border-indigo-600 text-indigo-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }
+                `}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                </svg>
+                <span>Inventori</span>
+              </button>
+              
+              <button
+                onClick={() => setActiveAnalyticsTab('suppliers')}
+                className={`
+                  flex items-center gap-2 px-4 md:px-6 py-4 text-sm font-medium whitespace-nowrap
+                  border-b-2 transition-colors
+                  ${activeAnalyticsTab === 'suppliers'
+                    ? 'border-indigo-600 text-indigo-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }
+                `}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" />
+                </svg>
+                <span>Supplier</span>
+              </button>
+            </nav>
+          </div>
+
+          {/* Tab Content */}
+          <div className="p-5">
+            {activeAnalyticsTab === 'products' && (isSales || isStock || isAdmin || showAll) && (
+              <div className="space-y-6">
+                <TopProductsChart />
+              </div>
+            )}
+
+            {activeAnalyticsTab === 'customers' && (isSales || isAccounts || isAdmin || showAll) && (
+              <CustomerBehaviorSection />
+            )}
+
+            {activeAnalyticsTab === 'sales' && (isSales || isAdmin || showAll) && (
+              <SalesPerformanceSection />
+            )}
+
+            {activeAnalyticsTab === 'commission' && (isSales || isAccounts || isAdmin || showAll) && (
+              <CommissionTrackerSection />
+            )}
+
+            {activeAnalyticsTab === 'inventory' && (isStock || isAdmin || showAll) && (
+              <InventoryAnalyticsSection />
+            )}
+
+            {activeAnalyticsTab === 'suppliers' && (isPurchase || isAdmin || showAll) && (
+              <SupplierAnalyticsSection />
+            )}
+          </div>
+        </div>
+      </AnalyticsErrorBoundary>
     </div>
   );
 }

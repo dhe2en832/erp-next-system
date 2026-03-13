@@ -65,6 +65,7 @@
     "test:accounting-period-sales-validation": "ts-node --project tsconfig.scripts.json tests/accounting-period-sales-validation.test.ts",
     "test:accounting-period-purchase-validation": "ts-node --project tsconfig.scripts.json tests/accounting-period-purchase-validation.test.ts",
     "test:csrf-protection": "ts-node --project tsconfig.scripts.json __tests__/csrf-protection.test.ts",
+    "test:analytics-cache": "ts-node --project tsconfig.scripts.json __tests__/analytics-cache.test.ts",
     "test:sales-return-properties": "ts-node --project tsconfig.scripts.json __tests__/sales-return-api.test.ts",
     "test:sales-return-ui": "ts-node --project tsconfig.scripts.json __tests__/sales-return-ui.test.ts",
     "test:sales-return-report": "ts-node --project tsconfig.scripts.json tests/sales-return-report.test.tsx",

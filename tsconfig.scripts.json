@@ -13,6 +13,6 @@
       "@/*": ["./*"]
     }
   },
-  "include": ["scripts/**/*", "tests/**/*"],
+  "include": ["scripts/**/*", "tests/**/*", "__tests__/**/*"],
   "exclude": ["node_modules"]
 }
