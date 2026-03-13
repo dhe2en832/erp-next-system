@@ -113,9 +113,9 @@ function TopProductsChart({ companyFilter }: TopProductsChartProps) {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow p-6">
+    <div className="bg-white rounded-lg shadow py-6 pr-6 pl-2">
       {/* Header */}
-      <div className="mb-4">
+      <div className="mb-4 pl-4">
         <div className="flex items-center gap-2 mb-1">
           <Package className="w-5 h-5 text-indigo-600" />
           <h3 className="text-lg font-semibold text-gray-900">
@@ -132,22 +132,22 @@ function TopProductsChart({ companyFilter }: TopProductsChartProps) {
         <BarChart
           data={data}
           layout="vertical"
-          margin={{ top: 5, right: 30, left: 150, bottom: 5 }}
+          margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
         >
-          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={true} vertical={false} />
           <XAxis
             type="number"
             tickFormatter={(value) => formatChartCurrency(value)}
             stroke="#6b7280"
-            style={{ fontSize: '12px' }}
+            style={{ fontSize: '11px' }}
           />
           <YAxis
             type="category"
             dataKey="item_name"
-            width={140}
-            tickFormatter={(value) => truncateLabel(value, 20)}
+            width={200}
+            tickFormatter={(value) => truncateLabel(value, 25)}
             stroke="#6b7280"
-            style={{ fontSize: '12px' }}
+            style={{ fontSize: '10px' }}
           />
           <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(79, 70, 229, 0.1)' }} />
           <Bar
@@ -163,7 +163,7 @@ function TopProductsChart({ companyFilter }: TopProductsChartProps) {
       </ResponsiveContainer>
 
       {/* Footer info */}
-      <div className="mt-4 pt-4 border-t border-gray-200">
+      <div className="mt-4 pt-4 border-t border-gray-200 pl-4">
         <p className="text-xs text-gray-500">
           Data diambil dari Sales Invoice yang sudah disubmit
         </p>

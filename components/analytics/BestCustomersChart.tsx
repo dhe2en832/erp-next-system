@@ -27,6 +27,19 @@ export default function BestCustomersChart({ companyFilter }: BestCustomersChart
   const [data, setData] = useState<BestCustomer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Detect mobile screen size
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   const fetchData = async () => {
     try {
@@ -114,9 +127,9 @@ export default function BestCustomersChart({ companyFilter }: BestCustomersChart
   };
 
   return (
-    <div className="bg-white rounded-lg shadow p-6">
+    <div className="bg-white rounded-lg shadow py-6 pr-6 pl-2">
       {/* Header */}
-      <div className="mb-4">
+      <div className="mb-4 pl-4">
         <div className="flex items-center gap-2 mb-1">
           <TrendingUp className="w-5 h-5 text-green-600" />
           <h3 className="text-lg font-semibold text-gray-900">
@@ -128,26 +141,33 @@ export default function BestCustomersChart({ companyFilter }: BestCustomersChart
         </p>
       </div>
 
-      {/* Chart */}
-      <ResponsiveContainer width="100%" height={400}>
+      {/* Chart - Horizontal bars with customer names on left */}
+      <ResponsiveContainer width="100%" height={isMobile ? 350 : 400}>
         <BarChart
           data={data}
           layout="vertical"
-          margin={{ top: 20, right: 30, left: 200, bottom: 40 }}
+          margin={{ 
+            top: 5, 
+            right: isMobile ? 5 : 10, 
+            left: 0, 
+            bottom: isMobile ? 10 : 20 
+          }}
         >
-          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={true} vertical={false} />
           <XAxis
             type="number"
             tickFormatter={(value) => formatChartCurrency(value)}
             stroke="#6b7280"
-            style={{ fontSize: '12px' }}
+            style={{ fontSize: isMobile ? '9px' : '11px' }}
+            tick={{ fontSize: isMobile ? 9 : 11 }}
           />
           <YAxis
             type="category"
             dataKey="customer_name"
-            width={190}
+            width={isMobile ? 120 : 200}
             stroke="#6b7280"
-            style={{ fontSize: '11px' }}
+            style={{ fontSize: isMobile ? '8px' : '10px' }}
+            tick={{ fontSize: isMobile ? 8 : 10 }}
           />
           <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(16, 185, 129, 0.1)' }} />
           <Bar
@@ -160,7 +180,7 @@ export default function BestCustomersChart({ companyFilter }: BestCustomersChart
       </ResponsiveContainer>
 
       {/* Footer info */}
-      <div className="mt-4 pt-4 border-t border-gray-200">
+      <div className="mt-4 pt-4 border-t border-gray-200 pl-4">
         <p className="text-xs text-gray-500">
           Data diambil dari Sales Invoice yang sudah dibayar
         </p>
