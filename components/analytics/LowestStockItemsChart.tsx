@@ -158,8 +158,8 @@ export default function LowestStockItemsChart({ companyFilter }: LowestStockItem
       <ResponsiveContainer width="100%" height={300}>
         <BarChart
           data={data}
-          layout="horizontal"
-          margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+          layout="vertical"
+          margin={{ top: 5, right: 30, left: 70, bottom: 5 }}
         >
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
           <XAxis
@@ -171,15 +171,16 @@ export default function LowestStockItemsChart({ companyFilter }: LowestStockItem
           <YAxis
             type="category"
             dataKey="item_name"
-            width={150}
-            tickFormatter={(value) => truncateLabel(value, 20)}
+            width={70}
+            tickFormatter={(value) => truncateLabel(value, 12)}
             stroke="#6b7280"
-            style={{ fontSize: '12px' }}
+            style={{ fontSize: '10px' }}
           />
           <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(245, 158, 11, 0.1)' }} />
           <Bar
             dataKey="total_stock"
             radius={[0, 4, 4, 0]}
+            minPointSize={5}
           >
             {data.map((entry, index) => (
               <Cell 

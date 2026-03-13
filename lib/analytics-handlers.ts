@@ -170,11 +170,11 @@ export async function fetchBestCustomers(
     customer_name: string;
     posting_date: string;
     due_date: string;
-    paid_amount: number;
+    grand_total: number;
     outstanding_amount: number;
   }>('Sales Invoice', {
     filters,
-    fields: ['customer', 'customer_name', 'posting_date', 'due_date', 'paid_amount', 'outstanding_amount'],
+    fields: ['customer', 'customer_name', 'posting_date', 'due_date', 'grand_total', 'outstanding_amount'],
     limit: 5000,
   });
   
@@ -194,13 +194,13 @@ export async function fetchBestCustomers(
       if (existing) {
         existing.paid_invoices += 1;
         existing.on_time_payments += isOnTime ? 1 : 0;
-        existing.total_paid += invoice.paid_amount;
+        existing.total_paid += invoice.grand_total; // Use grand_total instead of paid_amount
       } else {
         customerMap.set(invoice.customer, {
           customer_name: invoice.customer_name,
           paid_invoices: 1,
           on_time_payments: isOnTime ? 1 : 0,
-          total_paid: invoice.paid_amount,
+          total_paid: invoice.grand_total, // Use grand_total instead of paid_amount
         });
       }
     }
@@ -457,12 +457,13 @@ export async function fetchTopSalesByCommission(
     filters.push(['company', '=', company]);
   }
   
-  // Fetch Sales Invoices
+  // Fetch Sales Invoices with commission field
   const invoices = await client.getList<{
     name: string;
+    custom_total_komisi_sales: number;
   }>('Sales Invoice', {
     filters,
-    fields: ['name'],
+    fields: ['name', 'custom_total_komisi_sales'],
     limit: 5000,
   });
   
@@ -477,23 +478,25 @@ export async function fetchTopSalesByCommission(
       const invoiceDetail = await client.get<{
         sales_team?: Array<{
           sales_person: string;
-          commission_rate: number;
-          incentives: number;
+          allocated_percentage: number;
         }>;
       }>('Sales Invoice', invoice.name);
       
       if (invoiceDetail.sales_team && invoiceDetail.sales_team.length > 0) {
+        const totalCommission = invoice.custom_total_komisi_sales || 0;
+        
         for (const teamMember of invoiceDetail.sales_team) {
-          const commission = teamMember.incentives || 0;
+          // Allocate commission based on allocated_percentage
+          const allocatedCommission = (totalCommission * (teamMember.allocated_percentage || 100)) / 100;
           const existing = salesMap.get(teamMember.sales_person);
           
           if (existing) {
             existing.transaction_count += 1;
-            existing.total_commission += commission;
+            existing.total_commission += allocatedCommission;
           } else {
             salesMap.set(teamMember.sales_person, {
               transaction_count: 1,
-              total_commission: commission,
+              total_commission: allocatedCommission,
             });
           }
         }
@@ -531,11 +534,13 @@ export async function fetchWorstSalesByCommission(
     filters.push(['company', '=', company]);
   }
   
+  // Fetch Sales Invoices with commission field
   const invoices = await client.getList<{
     name: string;
+    custom_total_komisi_sales: number;
   }>('Sales Invoice', {
     filters,
-    fields: ['name'],
+    fields: ['name', 'custom_total_komisi_sales'],
     limit: 5000,
   });
   
@@ -549,23 +554,25 @@ export async function fetchWorstSalesByCommission(
       const invoiceDetail = await client.get<{
         sales_team?: Array<{
           sales_person: string;
-          commission_rate: number;
-          incentives: number;
+          allocated_percentage: number;
         }>;
       }>('Sales Invoice', invoice.name);
       
       if (invoiceDetail.sales_team && invoiceDetail.sales_team.length > 0) {
+        const totalCommission = invoice.custom_total_komisi_sales || 0;
+        
         for (const teamMember of invoiceDetail.sales_team) {
-          const commission = teamMember.incentives || 0;
+          // Allocate commission based on allocated_percentage
+          const allocatedCommission = (totalCommission * (teamMember.allocated_percentage || 100)) / 100;
           const existing = salesMap.get(teamMember.sales_person);
           
           if (existing) {
             existing.transaction_count += 1;
-            existing.total_commission += commission;
+            existing.total_commission += allocatedCommission;
           } else {
             salesMap.set(teamMember.sales_person, {
               transaction_count: 1,
-              total_commission: commission,
+              total_commission: allocatedCommission,
             });
           }
         }

@@ -131,8 +131,8 @@ function TopProductsChart({ companyFilter }: TopProductsChartProps) {
       <ResponsiveContainer width="100%" height={300}>
         <BarChart
           data={data}
-          layout="horizontal"
-          margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+          layout="vertical"
+          margin={{ top: 5, right: 30, left: 150, bottom: 5 }}
         >
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
           <XAxis
@@ -144,7 +144,7 @@ function TopProductsChart({ companyFilter }: TopProductsChartProps) {
           <YAxis
             type="category"
             dataKey="item_name"
-            width={150}
+            width={140}
             tickFormatter={(value) => truncateLabel(value, 20)}
             stroke="#6b7280"
             style={{ fontSize: '12px' }}
@@ -153,6 +153,7 @@ function TopProductsChart({ companyFilter }: TopProductsChartProps) {
           <Bar
             dataKey="total_amount"
             radius={[0, 4, 4, 0]}
+            fill={CHART_COLORS.indigo}
           >
             {data.map((entry, index) => (
               <Cell key={`cell-${index}`} fill={CHART_COLORS.indigo} />

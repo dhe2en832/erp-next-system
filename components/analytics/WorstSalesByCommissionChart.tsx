@@ -128,8 +128,8 @@ export default function WorstSalesByCommissionChart({ companyFilter }: WorstSale
       <ResponsiveContainer width="100%" height={300}>
         <BarChart
           data={data}
-          layout="horizontal"
-          margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+          layout="vertical"
+          margin={{ top: 5, right: 30, left: 50, bottom: 5 }}
         >
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
           <XAxis
@@ -141,19 +141,17 @@ export default function WorstSalesByCommissionChart({ companyFilter }: WorstSale
           <YAxis
             type="category"
             dataKey="sales_person"
-            width={150}
+            width={50}
             stroke="#6b7280"
-            style={{ fontSize: '12px' }}
+            style={{ fontSize: '11px' }}
           />
           <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(245, 158, 11, 0.1)' }} />
           <Bar
             dataKey="total_commission"
+            fill={CHART_COLORS.orange}
             radius={[0, 4, 4, 0]}
-          >
-            {data.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={CHART_COLORS.orange} />
-            ))}
-          </Bar>
+            minPointSize={5}
+          />
         </BarChart>
       </ResponsiveContainer>
 

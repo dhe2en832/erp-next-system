@@ -133,19 +133,20 @@ export default function BadDebtCustomersChart({ companyFilter }: BadDebtCustomer
       </div>
 
       {/* Chart */}
-      <ResponsiveContainer width="100%" height={300}>
+      <ResponsiveContainer width="100%" height={400}>
         <BarChart
           data={data}
-          margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+          margin={{ top: 20, right: 30, left: 60, bottom: 120 }}
         >
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
           <XAxis
             dataKey="customer_name"
             angle={-45}
             textAnchor="end"
-            height={100}
+            height={120}
+            interval={0}
             stroke="#6b7280"
-            style={{ fontSize: '12px' }}
+            style={{ fontSize: '11px' }}
           />
           <YAxis
             tickFormatter={(value) => formatChartCurrency(value)}
@@ -157,6 +158,7 @@ export default function BadDebtCustomersChart({ companyFilter }: BadDebtCustomer
             dataKey="bad_debt_amount"
             fill={CHART_COLORS.redDark}
             radius={[4, 4, 0, 0]}
+            minPointSize={5}
           />
         </BarChart>
       </ResponsiveContainer>

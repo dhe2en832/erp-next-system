@@ -13,7 +13,6 @@ import {
 } from '@/types/dashboard-analytics';
 import { analyticsCache } from '@/lib/analytics-cache';
 import {
-  fetchTopProducts,
   fetchBestCustomers,
   fetchWorstCustomers,
   fetchBadDebtCustomers,
@@ -29,6 +28,7 @@ import {
   fetchPaidSuppliers,
   fetchUnpaidSuppliers,
 } from '@/lib/analytics-handlers';
+import { fetchTopProductsFixed, fetchPaidSuppliersFixed } from '@/lib/analytics-handlers-fixed';
 
 /**
  * Analytics API Endpoint
@@ -156,7 +156,7 @@ async function fetchAnalyticsData(
   try {
     switch (type) {
       case 'top_products':
-        return await fetchTopProducts(client, company);
+        return await fetchTopProductsFixed(client, company);
       case 'best_customers':
         return await fetchBestCustomers(client, company);
       case 'worst_customers':
@@ -182,7 +182,7 @@ async function fetchAnalyticsData(
       case 'top_suppliers_by_frequency':
         return await fetchTopSuppliersByFrequency(client, company);
       case 'paid_suppliers':
-        return await fetchPaidSuppliers(client, company);
+        return await fetchPaidSuppliersFixed(client, company);
       case 'unpaid_suppliers':
         return await fetchUnpaidSuppliers(client, company);
       default:
