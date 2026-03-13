@@ -97,7 +97,7 @@ export default function CustomerList() {
   // Fetch when page changes (separated from filter logic)
   useEffect(() => {
     fetchCustomers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [currentPage]);
 
   // Trigger fetch when filters change (after page reset)
@@ -105,7 +105,7 @@ export default function CustomerList() {
     if (pageChangeSourceRef.current === 'filter') {
       fetchCustomers();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [searchTerm]);
 
   // Memoized handlers

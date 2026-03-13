@@ -68,7 +68,7 @@ function ReportHeader({
     }}>
       {companyLogo && (
         <div style={{ marginBottom: '8px' }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
+          { }
           <img 
             src={companyLogo} 
             alt="Logo" 

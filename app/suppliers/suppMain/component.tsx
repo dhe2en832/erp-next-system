@@ -79,7 +79,7 @@ export default function SupplierMain() {
     };
 
     fetchGroups();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   const fetchSupplierDetail = async (name: string) => {

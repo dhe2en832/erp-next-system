@@ -297,7 +297,7 @@ export default function PurchaseOrderList() {
     // Only append for mobile infinite scroll when page > 1
     const shouldReset = !useInfiniteScrollMode || currentPage === 1;
     fetchOrders(shouldReset);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [currentPage, useInfiniteScrollMode]);
 
   // Trigger fetch when filters change (after page reset)
@@ -306,7 +306,7 @@ export default function PurchaseOrderList() {
       const shouldReset = !useInfiniteScrollMode || currentPage === 1;
       fetchOrders(shouldReset);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [dateFilter, supplierFilter, statusFilter, documentNumberFilter]);
 
   // ─────────────────────────────────────────────────────────

@@ -204,7 +204,7 @@ export default function StockEntryList() {
     if (selectedCompany) {
       fetchEntries();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [currentPage, selectedCompany]);
 
   // Trigger fetch when filters change (after page reset)
@@ -212,7 +212,7 @@ export default function StockEntryList() {
     if (pageChangeSourceRef.current === 'filter' && selectedCompany) {
       fetchEntries();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [dateFilter, purposeFilter, warehouseFilter, searchTerm]);
 
   useEffect(() => {

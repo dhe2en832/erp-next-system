@@ -204,7 +204,7 @@ export default function PaymentList({ onEdit, onCreate, selectedCompany }: Payme
     if (selectedCompany) {
       fetchPayments();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [currentPage, selectedCompany]);
 
   // Trigger fetch when filters change (after page reset)
@@ -212,7 +212,7 @@ export default function PaymentList({ onEdit, onCreate, selectedCompany }: Payme
     if (pageChangeSourceRef.current === 'filter' && selectedCompany) {
       fetchPayments();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [dateFilter, searchFilter, documentNumberFilter, paymentTypeFilter, statusFilter, modeOfPaymentFilter, selectedCompany]);
 
   // ─────────────────────────────────────────────────────────

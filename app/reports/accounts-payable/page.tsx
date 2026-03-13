@@ -509,7 +509,7 @@ export default function AccountsPayablePage() {
       const shouldReset = !isMobile || currentPage === 1;
       fetchAPEntries(currentPage, shouldReset ? 'replace' : 'append');
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [currentPage, isMobile]);
 
   // Trigger fetch when filters change (after page reset)
@@ -518,7 +518,7 @@ export default function AccountsPayablePage() {
       const shouldReset = !isMobile || currentPage === 1;
       fetchAPEntries(currentPage, shouldReset ? 'replace' : 'append');
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [searchTerm, filters]);
 
   // Infinite scroll (mobile)

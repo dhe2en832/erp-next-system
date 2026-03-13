@@ -83,7 +83,7 @@ export default function PrintDialog({ isOpen, onClose, documentType, documentNam
 
   const renderPrintComponent = () => {
     if (!documentData) return null;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const data = documentData as any;
 
     switch (documentType) {

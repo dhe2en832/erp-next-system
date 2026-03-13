@@ -336,7 +336,7 @@ export default function SalesInvoiceList() {
     // Only append for mobile infinite scroll when page > 1
     const shouldReset = !useInfiniteScrollMode || currentPage === 1;
     fetchInvoices(shouldReset);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [currentPage, useInfiniteScrollMode]);
 
   // Trigger fetch when filters change (after page reset)
@@ -348,7 +348,7 @@ export default function SalesInvoiceList() {
       const shouldReset = !useInfiniteScrollMode || currentPage === 1;
       fetchInvoices(shouldReset);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [dateFilter, searchTerm, statusFilter, documentNumberFilter]);
 
   // ─────────────────────────────────────────────────────────
@@ -362,7 +362,7 @@ export default function SalesInvoiceList() {
       hasInitialFetchRef.current = true;
       fetchInvoices(true);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []); // Empty dependency array - runs once per mount
 
   // ─────────────────────────────────────────────────────────

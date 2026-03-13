@@ -211,7 +211,7 @@ export default function ProfitReportPage() {
     if (stored && !params.company) {
       setParams((p) => ({ ...p, company: stored }));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   // Fetch saat parameter siap (termasuk company jika ada)
@@ -219,7 +219,7 @@ export default function ProfitReportPage() {
     if (!params.from_date || !params.to_date) return;
     // Jika company kosong, tetap kirim agar backend pakai default user; namun jangan fetch duplikat sebelum init
     fetchData(params);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [params.from_date, params.to_date, params.company, params.mode]);
 
   const summary: Summary = data?.summary || {};

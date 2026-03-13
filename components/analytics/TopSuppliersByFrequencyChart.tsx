@@ -61,7 +61,7 @@ export default function TopSuppliersByFrequencyChart({ companyFilter }: TopSuppl
 
   useEffect(() => {
     fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [companyFilter]);
 
   // Loading state

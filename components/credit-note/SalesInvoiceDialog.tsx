@@ -43,7 +43,7 @@ export default function SalesInvoiceDialog({
     if (isOpen && selectedCompany) {
       fetchPaidInvoices();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [isOpen, selectedCompany]);
 
   const fetchPaidInvoices = async () => {

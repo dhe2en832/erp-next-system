@@ -61,7 +61,7 @@ export default function TopSalesByCommissionChart({ companyFilter }: TopSalesByC
 
   useEffect(() => {
     fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [companyFilter]);
 
   // Loading state

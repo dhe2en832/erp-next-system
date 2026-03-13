@@ -190,7 +190,7 @@ export default function SalesReportPage() {
         fetchData();
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [currentPage]);
 
   // Trigger fetch when filters change (after page reset)
@@ -198,7 +198,7 @@ export default function SalesReportPage() {
     if (pageChangeSourceRef.current === 'filter' && selectedCompany) {
       fetchData();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [filterCustomer, filterStatus, filterSalesPerson, fromDate, toDate]);
 
   // Memoized handlers

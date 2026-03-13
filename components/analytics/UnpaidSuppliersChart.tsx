@@ -62,7 +62,7 @@ export default function UnpaidSuppliersChart({ companyFilter }: UnpaidSuppliersC
 
   useEffect(() => {
     fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [companyFilter]);
 
   // Loading state

@@ -62,7 +62,7 @@ export default function LowestStockItemsChart({ companyFilter }: LowestStockItem
 
   useEffect(() => {
     fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [companyFilter]);
 
   // Loading state

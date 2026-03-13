@@ -170,7 +170,7 @@ export default function KasMasukList() {
     if (selectedCompany) {
       fetchEntries();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [currentPage, selectedCompany]);
 
   // Trigger fetch when filters change
@@ -178,7 +178,7 @@ export default function KasMasukList() {
     if (pageChangeSourceRef.current === 'filter' && selectedCompany) {
       fetchEntries();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [dateFilter, nameFilter, statusFilter]);
 
   // Back to Top

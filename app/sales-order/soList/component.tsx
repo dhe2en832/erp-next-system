@@ -278,7 +278,7 @@ export default function SalesOrderList() {
     // Only append for mobile infinite scroll when page > 1
     const shouldReset = !useInfiniteScrollMode || currentPage === 1;
     fetchOrders(shouldReset);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [currentPage, useInfiniteScrollMode]);
 
   // Trigger fetch when filters change (after page reset)
@@ -287,7 +287,7 @@ export default function SalesOrderList() {
       const shouldReset = !useInfiniteScrollMode || currentPage === 1;
       fetchOrders(shouldReset);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [dateFilter, nameFilter, statusFilter, documentNumberFilter]);
 
   // ─────────────────────────────────────────────────────────

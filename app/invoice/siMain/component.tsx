@@ -246,7 +246,7 @@ export default function SalesInvoiceMain() {
     if (invoiceName && selectedCompany) {
       handleEditInvoice(invoiceName);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [invoiceName, selectedCompany]);
 
   const handleEditInvoice = async (name: string) => {

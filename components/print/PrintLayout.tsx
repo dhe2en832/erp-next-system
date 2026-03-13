@@ -48,7 +48,7 @@ function DocumentHeader({
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
         {companyLogo && (
-          /* eslint-disable-next-line @next/next/no-img-element */
+           
           <img 
             src={companyLogo} 
             alt="Logo" 

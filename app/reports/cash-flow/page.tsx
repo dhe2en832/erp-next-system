@@ -261,7 +261,7 @@ export default function CashFlowPage() {
         fetchData(shouldReset);
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [page, isMobile]);
 
   // Trigger fetch when filters change (after page reset)
@@ -270,7 +270,7 @@ export default function CashFlowPage() {
       const shouldReset = !isMobile || page === 1;
       fetchData(shouldReset);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [filters.company, filters.from_date, filters.to_date, filters.voucher_type, filters.account]);
 
   // Infinite Scroll Observer (Mobile)

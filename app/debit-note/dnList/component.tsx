@@ -259,7 +259,7 @@ export default function DebitNoteList() {
     // Only append for mobile infinite scroll when page > 1
     const shouldReset = !useInfiniteScrollMode || currentPage === 1;
     fetchDebitNotes(shouldReset);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [currentPage, useInfiniteScrollMode]);
 
   // Trigger fetch when filters change (after page reset)
@@ -268,7 +268,7 @@ export default function DebitNoteList() {
       const shouldReset = !useInfiniteScrollMode || currentPage === 1;
       fetchDebitNotes(shouldReset);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [dateFilter, supplierFilter, statusFilter, documentNumberFilter]);
 
   // ─────────────────────────────────────────────────────────

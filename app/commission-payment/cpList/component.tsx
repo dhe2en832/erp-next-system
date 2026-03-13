@@ -160,7 +160,7 @@ export default function CommissionPaymentList() {
     if (selectedCompany) {
       fetchPayableInvoices();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [currentPage, selectedCompany]);
 
   // Trigger fetch when filters change (after page reset)
@@ -168,7 +168,7 @@ export default function CommissionPaymentList() {
     if (pageChangeSourceRef.current === 'filter' && selectedCompany) {
       fetchPayableInvoices();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [filters, selectedCompany]);
 
   // Restore focus after re-render

@@ -110,7 +110,7 @@ export default function ReturnsPage() {
     if (pageChangeSourceRef.current === 'filter' && selectedCompany) {
       fetchData();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [dateFilter]);
 
   // Paginated data for Sales Returns

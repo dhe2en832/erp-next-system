@@ -61,7 +61,7 @@ export default function WorstSalesByCommissionChart({ companyFilter }: WorstSale
 
   useEffect(() => {
     fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [companyFilter]);
 
   // Loading state

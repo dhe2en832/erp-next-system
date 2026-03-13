@@ -517,7 +517,7 @@ export default function AccountsReceivablePage() {
       const shouldReset = !isMobile || currentPage === 1;
       fetchAREntries(currentPage, shouldReset ? 'replace' : 'append');
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [currentPage, isMobile]);
 
   // Trigger fetch when filters change (after page reset)
@@ -526,7 +526,7 @@ export default function AccountsReceivablePage() {
       const shouldReset = !isMobile || currentPage === 1;
       fetchAREntries(currentPage, shouldReset ? 'replace' : 'append');
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [searchTerm, filters]);
 
   // Infinite scroll (mobile)

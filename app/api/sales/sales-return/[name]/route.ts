@@ -87,7 +87,7 @@ export async function PUT(
     const body = await request.json();
     
     // Remove name from body to avoid conflicts
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+     
     const { name: _n, ...updateData } = body;
 
     // Validate request body structure

@@ -168,7 +168,7 @@ export default function PurchaseReportPage() {
         fetchData();
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [currentPage]);
 
   // Trigger fetch when filters change (after page reset)
@@ -176,7 +176,7 @@ export default function PurchaseReportPage() {
     if (pageChangeSourceRef.current === 'filter' && selectedCompany) {
       fetchData();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [searchTerm, filterStatus, fromDate, toDate]);
 
   // Memoized handlers

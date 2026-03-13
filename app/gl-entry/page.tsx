@@ -472,7 +472,7 @@ export default function GLEntryPage() {
     if (selectedCompany) {
       fetchGLEntries(isMobile ? 1 : currentPage, 'replace');
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [selectedCompany, currentPage, isMobile]);
 
   // ✅ Trigger fetch on filter change (after reset)
@@ -480,7 +480,7 @@ export default function GLEntryPage() {
     if (pageChangeSourceRef.current === 'filter' && selectedCompany) {
       fetchGLEntries(isMobile ? 1 : currentPage, 'replace');
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [searchTerm, filters]);
 
   useEffect(() => {

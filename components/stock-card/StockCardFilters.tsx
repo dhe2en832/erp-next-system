@@ -68,7 +68,7 @@ export default function StockCardFilters({
     if (JSON.stringify(localFilters) !== JSON.stringify(filters)) {
       onFilterChange(localFilters);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []); // Run once on mount
 
   // Validation error state

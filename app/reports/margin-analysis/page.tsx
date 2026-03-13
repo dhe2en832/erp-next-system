@@ -121,7 +121,7 @@ export default function MarginAnalysisPage() {
     if (selectedCompany) {
       fetchData();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [currentPage]);
 
   // ✅ Trigger fetch on filter change (after reset)
@@ -129,7 +129,7 @@ export default function MarginAnalysisPage() {
     if (pageChangeSourceRef.current === 'filter' && selectedCompany) {
       fetchData();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [dateFilter]);
 
   const paginatedData = useMemo(() => {

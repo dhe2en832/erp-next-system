@@ -83,7 +83,7 @@ export default function PaymentTermsList() {
   // Fetch when page changes (separated from filter logic)
   useEffect(() => {
     fetchPaymentTerms();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [currentPage]);
 
   // Trigger fetch when filters change (after page reset)
@@ -91,7 +91,7 @@ export default function PaymentTermsList() {
     if (pageChangeSourceRef.current === 'filter') {
       fetchPaymentTerms();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [searchTerm]);
 
   // Memoized handlers

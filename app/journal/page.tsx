@@ -212,7 +212,7 @@ export default function JournalPage() {
     if (selectedCompany) {
       fetchEntries(useInfiniteScrollMode ? false : true);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [currentPage, selectedCompany]);
 
   // ✅ Trigger fetch when filters change (after page reset)
@@ -220,7 +220,7 @@ export default function JournalPage() {
     if (pageChangeSourceRef.current === 'filter' && selectedCompany) {
       fetchEntries(true);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [dateFilter, nameFilter, voucherTypeFilter, statusFilter]);
 
   // ── Infinite Scroll ──

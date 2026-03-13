@@ -94,7 +94,7 @@ export default function SalesPersonList() {
   // Fetch when page changes (separated from filter logic)
   useEffect(() => {
     fetchSalesPersons();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [currentPage]);
 
   // Trigger fetch when filters change (after page reset)
@@ -102,7 +102,7 @@ export default function SalesPersonList() {
     if (pageChangeSourceRef.current === 'filter') {
       fetchSalesPersons();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [searchTerm]);
 
   // Memoized handlers

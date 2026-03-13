@@ -566,7 +566,7 @@ export default function PaymentMain({ onBack, selectedCompany, editPayment, defa
       fetchCompanyAccounts();
     }
   // fetchCompanyAccounts is stable (deps: [selectedCompany] only), safe to omit from exhaustive-deps.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [selectedCompany]);
 
   useEffect(() => {

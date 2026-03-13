@@ -277,7 +277,7 @@ export default function ItemList() {
   // Fetch items when page changes (separated from filter logic)
   useEffect(() => {
     fetchItems();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [currentPage]);
   
   // Trigger fetch when filters change (after page reset)
@@ -285,7 +285,7 @@ export default function ItemList() {
     if (pageChangeSourceRef.current === 'filter') {
       fetchItems();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [searchTerm, itemCodeFilter]);
 
   // ─────────────────────────────────────────────────────────

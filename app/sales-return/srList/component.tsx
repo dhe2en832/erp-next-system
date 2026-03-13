@@ -276,7 +276,7 @@ export default function SalesReturnList() {
     // Only append for mobile infinite scroll when page > 1
     const shouldReset = !useInfiniteScrollMode || currentPage === 1;
     fetchReturns(shouldReset);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [currentPage, useInfiniteScrollMode]);
 
   // Trigger fetch when filters change (after page reset)
@@ -285,7 +285,7 @@ export default function SalesReturnList() {
       const shouldReset = !useInfiniteScrollMode || currentPage === 1;
       fetchReturns(shouldReset);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [dateFilter, customerFilter, documentNumberFilter, statusFilter]);
 
   // ─────────────────────────────────────────────────────────

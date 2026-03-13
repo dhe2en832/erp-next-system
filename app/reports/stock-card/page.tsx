@@ -592,7 +592,7 @@ export default function StockCardReportPage() {
         fetchData();
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [sortState]);
 
   // ── Fetch on page change ───────────────────────────────────
@@ -600,7 +600,7 @@ export default function StockCardReportPage() {
     if (selectedCompany) {
       fetchData();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [currentPage]);
 
   // ── Trigger fetch on filter change ────────────────────────
@@ -608,7 +608,7 @@ export default function StockCardReportPage() {
     if (pageChangeSourceRef.current === 'filter' && selectedCompany) {
       fetchData();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [filters]);
 
   // ── Back to top ────────────────────────────────────────────

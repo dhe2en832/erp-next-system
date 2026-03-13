@@ -234,7 +234,7 @@ export default function CreditNoteList() {
   useEffect(() => {
     const shouldReset = !useInfiniteScrollMode || currentPage === 1;
     fetchCreditNotes(shouldReset);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [currentPage, useInfiniteScrollMode]);
 
   // Trigger fetch when filters change
@@ -243,7 +243,7 @@ export default function CreditNoteList() {
       const shouldReset = !useInfiniteScrollMode || currentPage === 1;
       fetchCreditNotes(shouldReset);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [dateFilter, customerFilter, documentNumberFilter, statusFilter]);
 
   // Infinite Scroll Handler

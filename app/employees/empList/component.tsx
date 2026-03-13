@@ -98,7 +98,7 @@ export default function EmployeeList() {
   // Fetch when page changes (separated from filter logic)
   useEffect(() => {
     fetchEmployees();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [currentPage]);
 
   // Trigger fetch when filters change (after page reset)
@@ -106,7 +106,7 @@ export default function EmployeeList() {
     if (pageChangeSourceRef.current === 'filter') {
       fetchEmployees();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [searchTerm]);
 
   // Memoized handlers
