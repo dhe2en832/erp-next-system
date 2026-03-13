@@ -9,7 +9,10 @@ Error saat build production di VPS:
 ## Penyebab
 1. File `.next/types/validator.ts` yang lama masih mereferensi route `debug-products` yang sudah dihapus
 2. Directory `.next/` tidak ter-track di git (ada di `.gitignore`), jadi perubahan penghapusan tidak otomatis ter-sync ke VPS
-3. File `.env.local` di VPS meng-override default site dari `.env.production`
+3. File `.env.production` di VPS memiliki **duplikat** `ERPNEXT_API_URL`:
+   - Baris pertama: `ERPNEXT_API_URL=https://demo.batasku.cloud` (benar)
+   - Baris kedua: `ERPNEXT_API_URL=https://bac.batasku.cloud` (salah, meng-override yang pertama)
+4. File `.env.lokal` (typo) juga meng-override settings
 
 ## Solusi - Jalankan di VPS
 
@@ -20,27 +23,30 @@ cd ~/erp-next-system
 # 2. Stop PM2 process (jika sedang running)
 pm2 stop nextjs
 
-# 3. PENTING: Hapus atau rename .env.local (jika ada)
-# File ini meng-override .env.production dan menyebabkan default site salah
-mv .env.local .env.local.backup 2>/dev/null || echo "No .env.local found"
-
-# 4. Hapus build artifacts lama
-rm -rf .next .next.backup
-
-# 5. Pull perubahan terbaru dari git
+# 3. Pull perubahan terbaru dari git
 git pull origin main
 
-# 6. Install dependencies (jika ada perubahan)
+# 4. Jalankan script untuk fix .env.production
+chmod +x fix-env-production-vps.sh
+./fix-env-production-vps.sh
+
+# 5. Verify file sudah benar (harus hanya 1 baris ERPNEXT_API_URL)
+cat .env.production | grep ERPNEXT_API_URL
+
+# 6. Hapus build artifacts lama
+rm -rf .next .next.backup
+
+# 7. Install dependencies (jika ada perubahan)
 pnpm install
 
-# 7. Build production (akan bersih tanpa error)
+# 8. Build production (akan bersih tanpa error)
 pnpm build:production
 # Ketik "yes" saat diminta konfirmasi
 
-# 8. Start PM2 process
+# 9. Start PM2 process
 pm2 start ecosystem.config.js
 
-# 9. Verify logs
+# 10. Verify logs
 pm2 logs nextjs --lines 50
 ```
 
