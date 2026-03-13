@@ -1,7 +1,7 @@
 module.exports = {
   apps: [{
     name: 'nextjs',
-    script: 'node_modules/.bin/next',
+    script: 'node_modules/next/dist/bin/next',
     args: 'start',
     cwd: '/home/limina/erp-next-system',
     env_file: '/home/limina/erp-next-system/.env.production',
@@ -12,6 +12,7 @@ module.exports = {
     instances: 1,
     exec_mode: 'fork',
     restart_delay: 4000,
-    max_memory_restart: '1G'
+    max_memory_restart: '1G',
+    interpreter: 'node'
   }]
 }
