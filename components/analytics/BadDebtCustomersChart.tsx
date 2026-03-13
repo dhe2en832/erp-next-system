@@ -136,28 +136,28 @@ export default function BadDebtCustomersChart({ companyFilter }: BadDebtCustomer
       <ResponsiveContainer width="100%" height={400}>
         <BarChart
           data={data}
-          margin={{ top: 20, right: 30, left: 60, bottom: 120 }}
+          layout="vertical"
+          margin={{ top: 20, right: 30, left: 150, bottom: 40 }}
         >
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
           <XAxis
-            dataKey="customer_name"
-            angle={-45}
-            textAnchor="end"
-            height={120}
-            interval={0}
-            stroke="#6b7280"
-            style={{ fontSize: '11px' }}
-          />
-          <YAxis
+            type="number"
             tickFormatter={(value) => formatChartCurrency(value)}
             stroke="#6b7280"
             style={{ fontSize: '12px' }}
+          />
+          <YAxis
+            type="category"
+            dataKey="customer_name"
+            width={140}
+            stroke="#6b7280"
+            style={{ fontSize: '11px' }}
           />
           <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(220, 38, 38, 0.1)' }} />
           <Bar
             dataKey="bad_debt_amount"
             fill={CHART_COLORS.redDark}
-            radius={[4, 4, 0, 0]}
+            radius={[0, 4, 4, 0]}
             minPointSize={5}
           />
         </BarChart>
