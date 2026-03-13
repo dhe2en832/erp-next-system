@@ -81,7 +81,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<AnalyticsR
     }
     
     // Check cache first (Requirement 13.2, 13.3)
-    const cachedData = analyticsCache.get(type as AnalyticsType, company);
+    const cachedData = analyticsCache.get(type as AnalyticsType, company, siteId);
     if (cachedData) {
       return NextResponse.json({
         success: true,
@@ -100,7 +100,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<AnalyticsR
     ]);
     
     // Cache the result (Requirement 13.2)
-    analyticsCache.set(type as AnalyticsType, company, data);
+    analyticsCache.set(type as AnalyticsType, company, data, siteId);
     
     return NextResponse.json({
       success: true,

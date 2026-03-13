@@ -56,14 +56,15 @@ export class AnalyticsCache {
   /**
    * Generate cache key for analytics data
    * 
-   * Format: analytics:${type}:${company}
+   * Format: analytics:${siteId}:${type}:${company}
    * 
    * @param type - Analytics type
    * @param company - Company name (optional, defaults to 'all')
+   * @param siteId - Site ID (optional, defaults to 'default')
    * @returns Cache key string
    */
-  private generateKey(type: AnalyticsType, company?: string | null): string {
-    return `analytics:${type}:${company || 'all'}`;
+  private generateKey(type: AnalyticsType, company?: string | null, siteId?: string | null): string {
+    return `analytics:${siteId || 'default'}:${type}:${company || 'all'}`;
   }
 
   /**
@@ -77,10 +78,11 @@ export class AnalyticsCache {
    * 
    * @param type - Analytics type
    * @param company - Company name (optional)
+   * @param siteId - Site ID (optional)
    * @returns Cached data or null
    */
-  get<T>(type: AnalyticsType, company?: string | null): T | null {
-    const key = this.generateKey(type, company);
+  get<T>(type: AnalyticsType, company?: string | null, siteId?: string | null): T | null {
+    const key = this.generateKey(type, company, siteId);
     const entry = this.cache.get(key);
     
     if (!entry) {
@@ -110,10 +112,11 @@ export class AnalyticsCache {
    * @param type - Analytics type
    * @param company - Company name (optional)
    * @param data - Data to cache
+   * @param siteId - Site ID (optional)
    * @param ttl - Time to live in milliseconds (optional, defaults to 5 minutes)
    */
-  set<T>(type: AnalyticsType, company: string | null | undefined, data: T, ttl?: number): void {
-    const key = this.generateKey(type, company);
+  set<T>(type: AnalyticsType, company: string | null | undefined, data: T, siteId?: string | null, ttl?: number): void {
+    const key = this.generateKey(type, company, siteId);
     const effectiveTTL = ttl ?? this.defaultTTL;
     
     this.cache.set(key, {
@@ -130,9 +133,10 @@ export class AnalyticsCache {
    * 
    * @param type - Analytics type
    * @param company - Company name (optional)
+   * @param siteId - Site ID (optional)
    */
-  invalidate(type: AnalyticsType, company?: string | null): void {
-    const key = this.generateKey(type, company);
+  invalidate(type: AnalyticsType, company?: string | null, siteId?: string | null): void {
+    const key = this.generateKey(type, company, siteId);
     this.cache.delete(key);
     console.log(`[AnalyticsCache] INVALIDATED: ${key}`);
   }
