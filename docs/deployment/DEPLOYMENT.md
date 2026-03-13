@@ -36,14 +36,23 @@ File `.env.production` sudah dikonfigurasi dengan:
 
 ### 4. Build Production
 
+**PENTING: Hapus build artifacts lama terlebih dahulu!**
+
 ```bash
-pnpm build
+# Hapus build artifacts lama (WAJIB!)
+rm -rf .next .next.backup
+
+# Build production
+pnpm build:production
 ```
 
 Build akan menghasilkan:
-- 124 routes
+- 135+ routes
 - Optimized production bundle
 - TypeScript compilation check
+- ESLint validation
+
+**Catatan**: Selalu hapus `.next/` sebelum build di VPS untuk menghindari error TypeScript yang mereferensi file lama yang sudah dihapus.
 
 ### 5. Deploy dengan PM2
 
@@ -95,8 +104,11 @@ git pull origin main
 # Install dependencies baru (jika ada)
 pnpm install
 
+# PENTING: Hapus build artifacts lama (WAJIB!)
+rm -rf .next .next.backup
+
 # Rebuild (WAJIB untuk perubahan .tsx/.ts files!)
-pnpm build
+pnpm build:production
 
 # Reload PM2 (zero-downtime restart)
 pm2 reload nextjs
@@ -114,6 +126,30 @@ pm2 logs nextjs --lines 50
 - Nama aplikasi `nextjs` sesuai dengan yang didefinisikan di `ecosystem.config.js`
 
 ## Troubleshooting
+
+### Error "Cannot find module 'debug-products/route.js'"
+
+**Symptom:**
+```
+.next/types/validator.ts:1403:39 - error TS2307: Cannot find module '../../app/api/analytics/debug-products/route.js'
+```
+
+**Penyebab:**
+Build artifacts lama di `.next/` masih mereferensi route yang sudah dihapus.
+
+**Solusi:**
+```bash
+cd ~/erp-next-system
+rm -rf .next .next.backup
+git pull
+pnpm build:production
+pm2 restart nextjs
+```
+
+**Pencegahan:**
+Selalu hapus `.next/` sebelum build setelah pull changes yang menghapus API routes.
+
+---
 
 ### Error "Failed to find Server Action"
 
