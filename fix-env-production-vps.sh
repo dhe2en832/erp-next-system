@@ -1,0 +1,57 @@
+#!/bin/bash
+
+# Script to fix .env.production on VPS
+# This script removes duplicate ERPNEXT_API_URL entries
+
+echo "🔧 Fixing .env.production file..."
+
+# Backup original file
+cp .env.production .env.production.backup.$(date +%Y%m%d_%H%M%S)
+echo "✅ Backup created"
+
+# Create corrected .env.production
+cat > .env.production << 'EOF'
+# Production Environment Configuration
+NODE_ENV=production
+NEXT_PUBLIC_APP_ENV=production
+
+# ERPNext API Configuration for Production
+# Default site: Demo Batasku
+ERPNEXT_API_URL=https://demo.batasku.cloud
+ERP_API_KEY=4618e5708dd3d06
+ERP_API_SECRET=8984b4011e4a654
+
+# Multi-Site Configuration
+# Format: SITE_<SITE_ID>_API_URL, SITE_<SITE_ID>_API_KEY, SITE_<SITE_ID>_API_SECRET
+# Site ID format: domain with dots replaced by underscores, uppercase
+
+# Demo Batasku (demo.batasku.cloud)
+SITE_DEMO_BATASKU_CLOUD_API_URL=https://demo.batasku.cloud
+SITE_DEMO_BATASKU_CLOUD_API_KEY=4618e5708dd3d06
+SITE_DEMO_BATASKU_CLOUD_API_SECRET=8984b4011e4a654
+
+# BAC (bac.batasku.cloud)
+SITE_BAC_BATASKU_CLOUD_API_URL=https://bac.batasku.cloud
+SITE_BAC_BATASKU_CLOUD_API_KEY=4618e5708dd3d06
+SITE_BAC_BATASKU_CLOUD_API_SECRET=8102adc0e87bb27
+
+# Cirebon (cirebon.batasku.cloud)
+SITE_CIREBON_BATASKU_CLOUD_API_URL=https://cirebon.batasku.cloud
+SITE_CIREBON_BATASKU_CLOUD_API_KEY=4618e5708dd3d06
+SITE_CIREBON_BATASKU_CLOUD_API_SECRET=c0541b43bb18814
+
+# CV Cirebon (cvcirebon.batasku.cloud)
+SITE_CVCIREBON_BATASKU_CLOUD_API_URL=https://cvcirebon.batasku.cloud
+SITE_CVCIREBON_BATASKU_CLOUD_API_KEY=4618e5708dd3d06
+SITE_CVCIREBON_BATASKU_CLOUD_API_SECRET=05e5f192e2d458d
+EOF
+
+echo "✅ .env.production fixed"
+
+# Verify
+echo ""
+echo "📋 Verifying ERPNEXT_API_URL entries:"
+grep ERPNEXT_API_URL .env.production
+
+echo ""
+echo "✅ Done! File should now have only 1 ERPNEXT_API_URL entry"
