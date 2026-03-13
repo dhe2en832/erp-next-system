@@ -123,3 +123,35 @@ Verify with:
 ```bash
 npm run validate:env
 ```
+
+### Environment File Loading Order
+
+Next.js loads environment files in this order (later files override earlier ones):
+
+1. `.env` - Base defaults (committed to git)
+2. `.env.production` - Production defaults (committed to git)
+3. `.env.local` - Local overrides (NOT committed, overrides all)
+4. `.env.production.local` - Production local overrides (NOT committed)
+
+**CRITICAL for VPS Production:**
+- **DO NOT** use `.env.local` on VPS production servers
+- `.env.local` will override `.env.production` and cause wrong default site
+- Use `.env.production` only (already configured with correct defaults)
+- If you need to override credentials, use `.env.production.local` (but don't commit it)
+
+**Example Issue:**
+```
+# .env.production (correct default)
+ERPNEXT_API_URL=https://demo.batasku.cloud
+
+# .env.local on VPS (WRONG - overrides production)
+ERPNEXT_API_URL=https://bac.batasku.cloud  ← This will be used instead!
+```
+
+**Solution:**
+```bash
+# On VPS, remove .env.local
+cd ~/erp-next-system
+rm -f .env.local
+pnpm build:production
+```

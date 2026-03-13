@@ -1,8 +1,13 @@
 import { config } from 'dotenv';
 import { validateEnv, getAppEnvironment } from '../lib/env-validation';
 
-// Load environment variables from .env.local
-config({ path: '.env.local' });
+// Load environment variables based on NODE_ENV or from .env.local as fallback
+// When called via build scripts (build:production, build:staging), 
+// dotenv-cli already loads the correct .env file, so we don't override it
+// Only load .env.local if no environment is already set
+if (!process.env.ERPNEXT_API_URL) {
+  config({ path: '.env.local' });
+}
 
 try {
   console.log('🔍 Validating environment variables...');

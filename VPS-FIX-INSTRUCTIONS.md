@@ -7,7 +7,9 @@ Error saat build production di VPS:
 ```
 
 ## Penyebab
-File `.next/types/validator.ts` yang lama masih mereferensi route `debug-products` yang sudah dihapus. Directory `.next/` tidak ter-track di git (ada di `.gitignore`), jadi perubahan penghapusan tidak otomatis ter-sync ke VPS.
+1. File `.next/types/validator.ts` yang lama masih mereferensi route `debug-products` yang sudah dihapus
+2. Directory `.next/` tidak ter-track di git (ada di `.gitignore`), jadi perubahan penghapusan tidak otomatis ter-sync ke VPS
+3. File `.env.local` di VPS meng-override default site dari `.env.production`
 
 ## Solusi - Jalankan di VPS
 
@@ -18,23 +20,27 @@ cd ~/erp-next-system
 # 2. Stop PM2 process (jika sedang running)
 pm2 stop nextjs
 
-# 3. Hapus build artifacts lama (PENTING!)
+# 3. PENTING: Hapus atau rename .env.local (jika ada)
+# File ini meng-override .env.production dan menyebabkan default site salah
+mv .env.local .env.local.backup 2>/dev/null || echo "No .env.local found"
+
+# 4. Hapus build artifacts lama
 rm -rf .next .next.backup
 
-# 4. Pull perubahan terbaru dari git
+# 5. Pull perubahan terbaru dari git
 git pull origin main
 
-# 5. Install dependencies (jika ada perubahan)
+# 6. Install dependencies (jika ada perubahan)
 pnpm install
 
-# 6. Build production (akan bersih tanpa error)
+# 7. Build production (akan bersih tanpa error)
 pnpm build:production
 # Ketik "yes" saat diminta konfirmasi
 
-# 7. Start PM2 process
+# 8. Start PM2 process
 pm2 start ecosystem.config.js
 
-# 8. Verify logs
+# 9. Verify logs
 pm2 logs nextjs --lines 50
 ```
 
@@ -43,11 +49,21 @@ pm2 logs nextjs --lines 50
 Setelah menjalankan `pnpm build:production`, Anda harus melihat:
 
 ```
+Step 2: Validating environment variables
+🔍 Validating environment variables...
+✅ Environment validation passed
+📦 Building for: production
+🔗 Backend URL: https://demo.batasku.cloud  ← HARUS demo.batasku.cloud, BUKAN bac.batasku.cloud
+
+...
+
 ✅ Production build completed successfully!
 📦 Build output: .next/
 💾 Backup: .next.backup/
 🚀 Deploy with: pnpm start:production
 ```
+
+**PENTING**: Pastikan Backend URL adalah `https://demo.batasku.cloud` (default site untuk multi-site), bukan `https://bac.batasku.cloud`.
 
 ## Catatan Penting
 
@@ -55,6 +71,12 @@ Setelah menjalankan `pnpm build:production`, Anda harus melihat:
 - Menghapus API routes
 - Menghapus pages
 - Mengubah struktur routing
+
+**JANGAN gunakan `.env.local` di VPS production**:
+- File `.env.local` akan meng-override `.env.production`
+- Ini menyebabkan default site salah (BAC instead of Demo Batasku)
+- Untuk production, gunakan `.env.production` saja
+- Jika perlu override credentials, gunakan `.env.production.local` (tapi jangan commit ke git)
 
 Ini mencegah TypeScript validation error yang mereferensi file lama.
 
@@ -65,6 +87,10 @@ Gunakan workflow ini setiap kali deploy update:
 ```bash
 cd ~/erp-next-system
 pm2 stop nextjs
+
+# PENTING: Pastikan tidak ada .env.local di VPS production
+rm -f .env.local
+
 rm -rf .next .next.backup
 git pull origin main
 pnpm install
@@ -77,6 +103,10 @@ Atau gunakan script yang lebih aman dengan zero-downtime:
 
 ```bash
 cd ~/erp-next-system
+
+# PENTING: Pastikan tidak ada .env.local
+rm -f .env.local
+
 git pull origin main
 pnpm install
 rm -rf .next .next.backup
