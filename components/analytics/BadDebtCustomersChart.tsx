@@ -137,7 +137,7 @@ export default function BadDebtCustomersChart({ companyFilter }: BadDebtCustomer
         <BarChart
           data={data}
           layout="vertical"
-          margin={{ top: 20, right: 30, left: 150, bottom: 40 }}
+          margin={{ top: 20, right: 30, left: 200, bottom: 40 }}
         >
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
           <XAxis
@@ -149,7 +149,7 @@ export default function BadDebtCustomersChart({ companyFilter }: BadDebtCustomer
           <YAxis
             type="category"
             dataKey="customer_name"
-            width={140}
+            width={190}
             stroke="#6b7280"
             style={{ fontSize: '11px' }}
           />
