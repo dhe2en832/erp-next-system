@@ -18,12 +18,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, message: 'Company is required' }, { status: 400 });
     }
 
-    const sid = request.cookies.get('sid')?.value;
-    if (!sid) {
-      return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Get site-aware client
+    // Get site-aware client (handles API key auth)
     const client = await getERPNextClientForRequest(request);
 
     // Fetch outstanding Sales Invoices
@@ -71,7 +66,6 @@ export async function GET(request: NextRequest) {
       // Continue without returns if fetch fails
     }
     
-    // Fetch sales team for each invoice and adjust outstanding amounts
     interface SalesInvoiceBasic {
       name: string;
       customer: string;
@@ -82,64 +76,55 @@ export async function GET(request: NextRequest) {
       outstanding_amount: number;
       status: string;
     }
-    const invoicesWithSales = await Promise.all(
-      (invoices as unknown as SalesInvoiceBasic[]).map(async (inv) => {
-        try {
-          interface SalesTeamMember {
-            sales_person: string;
-          }
-          interface SalesInvoiceDetail {
-            sales_team?: SalesTeamMember[];
-          }
-          const salesTeamData = await client.get<SalesInvoiceDetail>('Sales Invoice', inv.name);
-          
-          // Get first sales person from sales_team child table
-          const salesPerson = salesTeamData.sales_team?.[0]?.sales_person || '';
-          
-          // Adjust outstanding amount for returns
-          const returnAmount = returnsMap.get(inv.name) || 0;
-          const adjustedOutstanding = Math.max(0, inv.outstanding_amount - returnAmount);
-          
-          return {
-            voucher_no: inv.name,
-            customer: inv.customer,
-            customer_name: inv.customer_name,
-            posting_date: inv.posting_date,
-            due_date: inv.due_date,
-            invoice_grand_total: inv.grand_total,
-            outstanding_amount: adjustedOutstanding,
-            return_amount: returnAmount,
-            voucher_type: 'Sales Invoice',
-            sales_person: salesPerson,
-            formatted_grand_total: formatCurrency(inv.grand_total),
-            formatted_outstanding: formatCurrency(adjustedOutstanding),
-            formatted_return_amount: formatCurrency(returnAmount),
-          };
-        } catch (error) {
-          console.error(`Error fetching sales team for ${inv.name}:`, error);
-          
-          // Adjust outstanding amount for returns even if sales team fetch fails
-          const returnAmount = returnsMap.get(inv.name) || 0;
-          const adjustedOutstanding = Math.max(0, inv.outstanding_amount - returnAmount);
-          
-          return {
-            voucher_no: inv.name,
-            customer: inv.customer,
-            customer_name: inv.customer_name,
-            posting_date: inv.posting_date,
-            due_date: inv.due_date,
-            invoice_grand_total: inv.grand_total,
-            outstanding_amount: adjustedOutstanding,
-            return_amount: returnAmount,
-            voucher_type: 'Sales Invoice',
-            sales_person: '',
-            formatted_grand_total: formatCurrency(inv.grand_total),
-            formatted_outstanding: formatCurrency(adjustedOutstanding),
-            formatted_return_amount: formatCurrency(returnAmount),
-          };
+    const invoiceList = invoices as unknown as SalesInvoiceBasic[];
+
+    // Fetch all sales team data in ONE query using the child doctype
+    // This avoids N+1 individual fetches per invoice
+    const salesPersonMap = new Map<string, string>();
+    try {
+      interface SalesTeamRow {
+        parent: string;
+        sales_person: string;
+        idx: number;
+      }
+      const invoiceNames = invoiceList.map(inv => inv.name);
+      const salesTeamRows = await client.getList<SalesTeamRow>('Sales Invoice Team', {
+        fields: ['parent', 'sales_person', 'idx'],
+        filters: [['parent', 'in', invoiceNames.join(',')]],
+        limit_page_length: 2000,
+        order_by: 'parent asc, idx asc',
+      });
+      // Keep only the first sales_person per invoice (lowest idx)
+      salesTeamRows.forEach((row) => {
+        if (!salesPersonMap.has(row.parent)) {
+          salesPersonMap.set(row.parent, row.sales_person || '');
         }
-      })
-    );
+      });
+    } catch (error) {
+      console.error('Error fetching sales team batch:', error);
+      // Continue without sales person data
+    }
+
+    // Build result — no per-invoice API calls needed
+    const invoicesWithSales = invoiceList.map((inv) => {
+      const returnAmount = returnsMap.get(inv.name) || 0;
+      const adjustedOutstanding = Math.max(0, inv.outstanding_amount - returnAmount);
+      return {
+        voucher_no: inv.name,
+        customer: inv.customer,
+        customer_name: inv.customer_name,
+        posting_date: inv.posting_date,
+        due_date: inv.due_date,
+        invoice_grand_total: inv.grand_total,
+        outstanding_amount: adjustedOutstanding,
+        return_amount: returnAmount,
+        voucher_type: 'Sales Invoice',
+        sales_person: salesPersonMap.get(inv.name) || '',
+        formatted_grand_total: formatCurrency(inv.grand_total),
+        formatted_outstanding: formatCurrency(adjustedOutstanding),
+        formatted_return_amount: formatCurrency(returnAmount),
+      };
+    });
     
     // Filter out invoices with zero outstanding after returns
     const filteredInvoices = invoicesWithSales.filter(inv => inv.outstanding_amount > 0);

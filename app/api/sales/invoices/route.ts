@@ -13,46 +13,35 @@ export async function GET(request: NextRequest) {
 
   try {
     const { searchParams } = new URL(request.url);
-    const company = searchParams.get('company');
     const order_by = searchParams.get('order_by') || 'creation desc, posting_date desc';
-    const search = searchParams.get('search');
-    const documentNumber = searchParams.get('documentNumber');
-    const status = searchParams.get('status');
-    const fromDate = searchParams.get('from_date');
-    const toDate = searchParams.get('to_date');
-    const limit = parseInt(searchParams.get('limit') || '100');
+    const limit = parseInt(searchParams.get('limit_page_length') || searchParams.get('limit') || '100');
     const start = parseInt(searchParams.get('start') || '0');
 
-    // Build filters
-    const filtersArray: (string | number)[][] = [];
+    let filtersArray: (string | number)[][] = [];
 
-    // Always add company filter if provided
-    if (company) {
-      filtersArray.push(['company', '=', company]);
-    }
+    // Frontend sends filters as JSON array — parse it directly
+    const filtersParam = searchParams.get('filters');
+    if (filtersParam) {
+      try {
+        filtersArray = JSON.parse(filtersParam);
+      } catch {
+        // fallback: ignore malformed filters
+      }
+    } else {
+      // Legacy query param support
+      const company = searchParams.get('company');
+      const search = searchParams.get('search');
+      const documentNumber = searchParams.get('documentNumber');
+      const status = searchParams.get('status');
+      const fromDate = searchParams.get('from_date');
+      const toDate = searchParams.get('to_date');
 
-    // Add search filter
-    if (search) {
-      filtersArray.push(['customer_name', 'like', `%${search}%`]);
-    }
-
-    // Add document number filter
-    if (documentNumber) {
-      filtersArray.push(['name', 'like', `%${documentNumber}%`]);
-    }
-
-    // Add status filter
-    if (status) {
-      filtersArray.push(['status', '=', status]);
-    }
-
-    // Add date filters
-    if (fromDate) {
-      filtersArray.push(['posting_date', '>=', fromDate]);
-    }
-
-    if (toDate) {
-      filtersArray.push(['posting_date', '<=', toDate]);
+      if (company) filtersArray.push(['company', '=', company]);
+      if (search) filtersArray.push(['customer_name', 'like', `%${search}%`]);
+      if (documentNumber) filtersArray.push(['name', 'like', `%${documentNumber}%`]);
+      if (status) filtersArray.push(['status', '=', status]);
+      if (fromDate) filtersArray.push(['posting_date', '>=', fromDate]);
+      if (toDate) filtersArray.push(['posting_date', '<=', toDate]);
     }
 
     // Get site-aware client

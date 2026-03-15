@@ -18,12 +18,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, message: 'Company is required' }, { status: 400 });
     }
 
-    const sid = request.cookies.get('sid')?.value;
-    if (!sid) {
-      return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Get site-aware client
+    // Get site-aware client (handles API key auth)
     const client = await getERPNextClientForRequest(request);
 
     const filters = [
